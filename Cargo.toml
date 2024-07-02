@@ -1,0 +1,114 @@
+[package]
+name = "sqrtn_pcs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ark-std = "0.4.0"
+ark-ff = "0.4.0"
+ark-ec = "0.4.2"
+ark-poly = "0.4.0"
+ark-serialize = "0.4.2"
+rand = { version = "0.8", features = ["std", "std_rng"] }
+ark-crypto-primitives = { version = "^0.4.0", default-features = false, features = ["r1cs", "snark", "sponge", "crh"] }
+thiserror = "1.0"
+criterion = "0.5.1"
+ark-bls12-381 = "^0.4.0"
+itertools = "0.12.1"
+rayon = "1.10.0"
+ark-bn254 = "0.4.0"
+ark-relations = "0.4.0"
+ark-pallas = "0.4.0"
+ark-r1cs-std = "0.4.0"
+ark-grumpkin = "0.4.0"
+num = "0.4.3"
+lazy_static = "1.5.0"
+sha3 = { version = "0.10", default-features = false }
+tracing = "0.1.40"
+rand_chacha = "0.3.1"
+ark-vesta = "0.4.0"
+num-bigint = "0.4.6"
+colored = "2.1.0"
+digest = "0.10.7"
+derivative = "2.2.0"
+ark-poly-commit = "0.4.0"
+
+[patch.crates-io]
+ark-crypto-primitives = { git = "https://github.com/arkworks-rs/crypto-primitives", rev = "d27a5c8" }
+ark-r1cs-std = { git = "https://github.com/arkworks-rs/r1cs-std/", rev = "2ca3bd7" }
+ark-ff = { git = "https://github.com/arkworks-rs/algebra/", rev = "2a80c54" }
+ark-ec = { git = "https://github.com/arkworks-rs/algebra/", rev = "2a80c54" }
+ark-serialize = { git = "https://github.com/arkworks-rs/algebra/", rev = "2a80c54" }
+ark-poly = { git = "https://github.com/arkworks-rs/algebra/", rev = "2a80c54" }
+ark-test-curves = { git = "https://github.com/arkworks-rs/algebra/", rev = "2a80c54" }
+ark-poly-commit = { git = "https://github.com/arkworks-rs/poly-commit/", rev = "12f5529" }
+ark-pallas = { git = "https://github.com/arkworks-rs/curves/", rev = "8c0256a" }
+ark-vesta = { git = "https://github.com/arkworks-rs/curves/", rev = "8c0256a" }
+# note bls is using a different commit from the other curves
+ark-bn254 = { git = "https://github.com/arkworks-rs/curves/", rev = "8c0256a" }
+ark-grumpkin = { git = "https://github.com/arkworks-rs/curves/", rev = "8c0256a" }
+ark-bls12-381 = { git = "https://github.com/arkworks-rs/curves/", rev = "3fded1f" }
+
+
+[features]
+# default = [ "parallel", "print-trace" ]
+default = ["parallel"]
+# extensive sanity checks that are useful for debugging
+extensive_sanity_checks = []
+profile = []
+bench = []
+
+
+parallel = [
+    "ark-std/parallel",
+    "ark-ff/parallel",
+    "ark-poly/parallel",
+]
+print-trace = [
+    "ark-std/print-trace",
+]
+
+
+[[bench]]
+harness = false
+name = "bench_kzh2"
+
+[[bench]]
+harness = false
+name = "bench_kzh3"
+
+[[bench]]
+harness = false
+name = "bench_kzh4"
+
+[[bench]]
+harness = false
+name = "bench_kzg"
+
+[[bench]]
+harness = false
+name = "bench_halo_infinite"
+
+[[bench]]
+harness = false
+name = "bench_kzh2_fold"
+
+[[bench]]
+harness = false
+name = "bench_kzh3_fold"
+
+[[bench]]
+harness = false
+name = "bench_witness_commitment"
+
+[[bench]]
+harness = false
+name = "bench_bls"
+
+[[bench]]
+harness = false
+name = "bench_nova"
+
+[[bench]]
+harness = false
+name = "bench_kzh2_augmented_circuit"
