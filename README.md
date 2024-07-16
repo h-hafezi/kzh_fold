@@ -24,6 +24,10 @@ to not spend time on them, except if they are actually blockers to continue.
 
 Please treat the current codebase as a skeleton and feel free to adjust things to your liking.
 
+The scheme is currently specified in coefficient basis. If you need to move it to the lagrange basis you can take
+inspiration from [bi-kzg](https://github.com/PolyhedraZK/Expander-rs/blob/main/bi-kzg/src/lagrange_form_bi_kzg.rs) or
+[sonobe](https://github.com/privacy-scaling-explorations/sonobe/blob/edadcdd520b8cf657cfa5c679dd09c6579759b0c/folding-schemes/src/utils/lagrange_poly.rs#L59).
+
 ## Building and running
 
 Tests can be run with

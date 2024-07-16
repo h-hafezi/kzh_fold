@@ -1,3 +1,4 @@
+/// A sqrtn polynomial commitment scheme
 use std::{iter, marker::PhantomData, ops::Mul};
 
 use ark_ec::AffineRepr;
