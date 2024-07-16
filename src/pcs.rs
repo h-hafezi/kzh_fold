@@ -11,7 +11,8 @@ use crate::{bivariate_poly::BivariatePolynomial, univariate_poly::UnivariatePoly
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SRS<E: Pairing> {
-    pub n: usize, // just a helper variable (not really needed)
+    // just a helper variable (not really needed)
+    pub n: usize,
     pub vec_H_i_j: Vec<E::G1Affine>,
     pub vec_H_j: Vec<E::G1Affine>,
     pub vec_V_i: Vec<E::G2Affine>,
