@@ -43,8 +43,7 @@ impl<E: Pairing> Aggregator<E> {
         let f_poly = c_poly.clone();
         let sumcheck_proof: SumcheckProof<E> = bivariate_sumcheck(transcript, &f_poly);
 
-        ()
-
+        unimplemented!()
     }
 }
 
