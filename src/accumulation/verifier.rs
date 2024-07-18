@@ -33,10 +33,8 @@ pub struct AccInstance<E: Pairing> {
 /// AccVerifierSNARKCircuit takes as input A.X, A_1.X, Q and folds them.
 /// We assume that we are using a cycle of curves or cyclefold here.
 pub struct AccVerifierSNARKCircuit<G1: SWCurveConfig> {
-    // XXX should this be BaseField? That's what
-    // https://github.com/nexus-xyz/nexus-zkvm/blob/7f7789a271a4d7950ad6b4347cb6190b589c15c2/nova/src/folding/cyclefold/secondary/mod.rs#L39
-    // is doing
-    // We assume that the fold challenge is being taken as public input from the main curve (?)
+    // We assume that the fold challenge is being taken as public input from the main curve instead of hashing in the
+    // secondary curve (XXX)
     pub beta: G1::BaseField,
     pub E_1: Projective<G1>,
     // pub E_2: Projective<G1>,
@@ -107,10 +105,25 @@ pub mod tests {
     use ark_relations::r1cs::ConstraintSystem;
     use ark_std::UniformRand;
 
+    use ark_grumpkin;
+    use ark_bn254;
+
     /// Test that the accumulation verifier circuit correctly folds the instances
     #[test]
     fn test_circuit() {
-        let _rng = &mut rand::thread_rng();
+        let rng = &mut rand::thread_rng();
+
+        let _E = ark_bn254::G1Projective::rand(rng); // in (bn254::F_q, bn254::F_q, bn254::F_q)
+        let _beta = ark_bn254::Fr::rand(rng); // in bn254::F_r
+
+        // XXX study the relevant code of nexus
+        // https://github.com/nexus-xyz/nexus-zkvm/blob/7f7789a271a4d7950ad6b4347cb6190b589c15c2/nova/src/folding/cyclefold/secondary/mod.rs
+        // and in particular its unittests to see how to structure this code should be structured
+
+        //        let circ = AccVerifierSNARKCircuit::<ark_grumpkin::GrumpkinConfig> {
+        //            beta: beta.into(),
+        //            E_1: E,
+        //        };
 
         unimplemented!();
     }
