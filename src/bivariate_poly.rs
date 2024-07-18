@@ -1,334 +1,241 @@
-/// TODO: Code based on https://github.com/PolyhedraZK/Expander-rs/blob/main/bi-kzg/src/poly.rs
-/// Changes:
-/// - Adapted to arkworks instead of halo2curves
-/// - Simplify it to only consider square matrices (degree_x == degree_y)
-/// - Change the coefficient format of the polynomial to what is described below
-
-use ark_ff::{Field, Zero, PrimeField};
+use std::fmt;
+use ark_ff::{Field, Zero, PrimeField, FftField};
 use itertools::Itertools;
 use rand::RngCore;
 use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
-
+use crate::lagrange_basis::{LagrangeBasis, LagrangeTraits};
 use crate::univariate_poly::UnivariatePolynomial;
 use crate::utils::compute_powers;
 
-/// A bivariate polynomial in coefficient form:
-///   f(X, Y) = sum_{i=0}^{d-1} sum_{j=0}^{d-1} f_{i,j} * X^i * Y^j
+
+/// A bivariate polynomial can be represented in two different forms:
 ///
-/// The coefficients of the bivariate polynomial are stored in a flat vector and logically
-/// organized in a matrix of dimensions `d x d`. The matrix representation
-/// allows us to associate the coefficients with the powers of x and y.
+/// 1. **Coefficient Form**:
 ///
-/// For example, given a polynomial with 16 coefficients and degree `d = 4`:
+///    f(X, Y) = sum_{i=0}^{d-1} sum_{j=0}^{d-1} f_{i,j} * X^i * Y^j
 ///
-/// f(X, Y) = f_{0,0} + f_{0,1}Y + f_{0,2}Y^2 + f_{0,3}Y^3 +
-///           f_{1,0}X + f_{1,1}XY + f_{1,2}XY^2 + f_{1,3}XY^3 +
-///           f_{2,0}X^2 + f_{2,1}X^2Y + f_{2,2}X^2Y^2 + f_{2,3}X^2Y^3 +
-///           f_{3,0}X^3 + f_{3,1}X^3Y + f_{3,2}X^3Y^2 + f_{3,3}X^3Y^3
+///    The coefficients of the bivariate polynomial are stored in a flat vector and logically
+///    organized in a matrix of dimensions `d x d`. The matrix representation
+///    allows us to associate the coefficients with the powers of X and Y.
 ///
-/// The coefficients are stored in a vector as:
-/// [f_{0,0}, f_{0,1}, f_{0,2}, f_{0,3}, f_{1,0}, f_{1,1}, f_{1,2}, f_{1,3},
-///  f_{2,0}, f_{2,1}, f_{2,2}, f_{2,3}, f_{3,0}, f_{3,1}, f_{3,2}, f_{3,3}]
+///    For example, given a polynomial with 16 coefficients and degree `d = 4`:
 ///
-/// Each row in the matrix corresponds to increasing powers of Y, and within each row,
-/// the columns correspond to increasing powers of X.
+///    f(X, Y) = f_{0,0} + f_{0,1}Y + f_{0,2}Y^2 + f_{0,3}Y^3 +
+///              f_{1,0}X + f_{1,1}XY + f_{1,2}XY^2 + f_{1,3}XY^3 +
+///              f_{2,0}X^2 + f_{2,1}X^2Y + f_{2,2}X^2Y^2 + f_{2,3}X^2Y^3 +
+///              f_{3,0}X^3 + f_{3,1}X^3Y + f_{3,2}X^3Y^2 + f_{3,3}X^3Y^3
+///
+///    The coefficients are stored in a vector as:
+///    [f_{0,0}, f_{0,1}, f_{0,2}, f_{0,3}, f_{1,0}, f_{1,1}, f_{1,2}, f_{1,3},
+///     f_{2,0}, f_{2,1}, f_{2,2}, f_{2,3}, f_{3,0}, f_{3,1}, f_{3,2}, f_{3,3}]
+///
+///    Each row in the matrix corresponds to increasing powers of Y, and within each row,
+///    the columns correspond to increasing powers of X.
+///
+/// 2. **Lagrange Basis Form**:
+///
+///    In the Lagrange basis, the polynomial is represented using the evaluation points and
+///    corresponding Lagrange basis polynomials:
+///
+///    f(X, Y) = L_{0,0}(w_0, w_0)f(w_0, w_0) + L_{0,1}(w_0, w_1)f(w_0, w_1) + L_{0,2}(w_0, w_2)f(w_0, w_2) + f(w_0, w_3) +
+///              L_{1,0}(w_1, w_0)f(w_1, w_0) + L_{1,1}(w_1, w_1)f(w_1, w_1) + L_{1,2}(w_1, w_2)f(w_1, w_2) + f(w_1, w_3) +
+///              L_{2,0}(w_2, w_0)f(w_2, w_0) + L_{2,1}(w_2, w_1)f(w_2, w_1) + L_{2,2}(w_2, w_2)f(w_2, w_2) + f(w_2, w_3) +
+///              L_{3,0}(w_3, w_0)f(w_3, w_0) + L_{3,1}(w_3, w_1)f(w_3, w_1) + L_{3,2}(w_3, w_2)f(w_3, w_2) + f(w_3, w_3)
+///
+///    Here, L_{i,j}(w_i, w_j) are the Lagrange basis polynomials evaluated at the points w_i and w_j, and f(w_i, w_j)
+///    are the evaluations of the polynomial at those points. This form is particularly useful for polynomial interpolation.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct BivariatePolynomial<F> {
-    pub coeffs: Vec<F>,  // Coefficients of the bivariate polynomial stored in a flat vector
-    pub degree: usize,   // Degree of the polynomial in both X and Y
+pub struct BivariatePolynomial<F: FftField> {
+    // evaluation[i][j] corresponds to f(w_i, w_j)
+    pub evaluations: Vec<Vec<F>>,
+    // the lagrange basis used
+    pub lagrange_basis_x: LagrangeBasis<F>,
+    pub lagrange_basis_y: LagrangeBasis<F>,
+    // Degree of the polynomial in both X and Y
+    pub degree_x: usize,
+    pub degree_y: usize,
 }
 
-impl<F: PrimeField> BivariatePolynomial<F> {
-    /// Creates a new bivariate polynomial with given coefficients and degree.
-    #[inline]
-    pub fn new(coefficients: Vec<F>, degree: usize) -> Self {
-        assert_eq!(coefficients.len(), degree * degree); // Ensure the number of coefficients matches the square of the degree
+pub trait BivariatePolynomialTrait<F: FftField> {
+    fn new(evaluations: Vec<Vec<F>>,
+           domain_x: GeneralEvaluationDomain<F>,
+           domain_y: GeneralEvaluationDomain<F>,
+           degree_x: usize,
+           degree_y: usize,
+    ) -> Self;
+    fn random<T: RngCore>(rng: &mut T,
+                          domain_x: GeneralEvaluationDomain<F>,
+                          domain_y: GeneralEvaluationDomain<F>,
+                          degree_x: usize,
+                          degree_y: usize,
+    ) -> Self;
+    fn evaluate(&self, x: &F, y: &F) -> F;
+    fn partially_evaluate_at_x(&self, x: &F) -> UnivariatePolynomial<F>;
+    fn partially_evaluate_at_y(&self, y: &F) -> UnivariatePolynomial<F>;
+}
+
+impl<F: FftField + fmt::Display> fmt::Display for BivariatePolynomial<F> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "f(X, Y) =")?;
+        for i in 0..self.degree_x {
+            if i > 0 {
+                write!(f, "+ ")?;
+            }
+            let mut first_term = true;
+            for j in 0..self.degree_y {
+                if !first_term {
+                    write!(f, " + ")?;
+                }
+                write!(f, "f(w_{}, w_{})", i, j)?;
+                write!(f, " ({})", self.evaluations[i][j])?;
+                first_term = false;
+            }
+            writeln!(f)?;
+        }
+        Ok(())
+    }
+}
+
+
+impl<F: FftField> BivariatePolynomialTrait<F> for BivariatePolynomial<F> {
+    fn new(
+        evaluations: Vec<Vec<F>>,
+        domain_x: GeneralEvaluationDomain<F>,
+        domain_y: GeneralEvaluationDomain<F>,
+        degree_x: usize,
+        degree_y: usize,
+    ) -> Self {
         Self {
-            coeffs: coefficients,
-            degree,
+            evaluations,
+            lagrange_basis_x: LagrangeBasis { domain: domain_x },
+            lagrange_basis_y: LagrangeBasis { domain: domain_y },
+            degree_x,
+            degree_y,
         }
     }
 
-    /// Test only: Generates a random bivariate polynomial with specified degree.
-    pub fn random<T: RngCore>(rng: &mut T, degree: usize) -> Self {
-        let coefficients = (0..degree * degree)
-            .map(|_| F::rand(rng)) // Randomly generate coefficients
-            .collect();
-        Self::new(coefficients, degree)
+    /// Generates a random BivariatePolynomial
+    fn random<T: RngCore>(
+        rng: &mut T,
+        domain_x: GeneralEvaluationDomain<F>,
+        domain_y: GeneralEvaluationDomain<F>,
+        degree_x: usize,
+        degree_y: usize,
+    ) -> Self {
+        let mut evaluations = Vec::with_capacity(degree_x);
+
+        for _ in 0..degree_x {
+            let mut row = Vec::with_capacity(degree_y);
+            for _ in 0..degree_y {
+                row.push(F::rand(rng));
+            }
+            evaluations.push(row);
+        }
+
+        BivariatePolynomial {
+            evaluations,
+            lagrange_basis_x: LagrangeBasis { domain: domain_x },
+            lagrange_basis_y: LagrangeBasis { domain: domain_y },
+            degree_x,
+            degree_y,
+        }
     }
 
-    /// Test only: Generates a random binary bivariate polynomial with specified degree.
-    pub fn random_binary<T: RngCore>(_rng: &mut T, _degree: usize) -> Self {
-        unimplemented!();
-    }
-
-    /// Evaluates the bivariate polynomial at given values (b, c).
-    ///
-    /// To evaluate the polynomial at (b, c), the function computes:
-    /// f(a, b) = sum_{i=0} sum_{j=0} f_{i,j} * b^i * c^j
-    pub fn evaluate(&self, b: &F, c: &F) -> F {
-        let vec_b_powers = compute_powers(b, self.degree); // Compute powers of b: [b^0, b^1, ..., b^(d-1)]
-        let vec_c_powers = compute_powers(c, self.degree); // Compute powers of c: [c^0, c^1, ..., c^(d-1)]
-
-        // Iterate over the powers of b
-        vec_b_powers.iter().enumerate().fold(F::ZERO, |acc, (i, x_i)| {
-            let col_start = i * self.degree; // Start index of the current column in the flat vector
-            let col = &self.coeffs[col_start..col_start + self.degree]; // Slice representing the current column
-
-            // Accumulate the result by multiplying the coefficients with the corresponding powers of c and b
-            acc + col.iter().zip(vec_c_powers.iter()).fold(F::ZERO, |acc, (c, y_i)| acc + *c * *y_i) * x_i
-        })
-    }
-
-    /// Evaluates the polynomial at f(b,Y), returning a univariate polynomial in Y.
-    ///
-    /// To partially evaluate the polynomial at X = b, the function computes:
-    /// f*(Y) = sum_{i=0} (sum_{j=0} f_{i,j} * b^i) * Y^j
-    pub fn partially_evaluate_at_x(&self, b: &F) -> UnivariatePolynomial<F> {
-        let mut f_y_a = vec![F::zero(); self.degree];
-        let vec_b_powers = compute_powers(b, self.degree); // Compute powers of b: [b^0, b^1, ..., b^(d-1)]
-
-        // Iterate over the powers of b
-        for i in 0..self.degree {
-            let col_start = i * self.degree; // Start index of the current column in the flat vector
-            let col = &self.coeffs[col_start..col_start + self.degree]; // Slice representing the current column
-
-            for (j, c) in col.iter().enumerate() {
-                f_y_a[j] += *c * vec_b_powers[i]; // Add the result to the corresponding coefficient of the univariate polynomial in Y
+    /// evaluation requires O(n^2) additions
+    fn evaluate(&self, x: &F, y: &F) -> F {
+        let l_x = self.lagrange_basis_x.evaluate(x);
+        let l_y = self.lagrange_basis_y.evaluate(y);
+        // the final result
+        let mut sum = F::ZERO;
+        for i in 0..self.degree_x {
+            for j in 0..self.degree_y {
+                sum += l_x[i] * l_y[j] * self.evaluations[i][j];
             }
         }
-
-        UnivariatePolynomial::new(f_y_a)
+        sum
     }
 
-    /// Evaluates the polynomial at f(X, y), returning a univariate polynomial in X.
-    ///
-    /// To partially evaluate the polynomial at y = b, the function computes:
-    /// q(X) = sum_{i=0}^{d-1} (sum_{j=0}^{d-1} f_{i,j} * b^j) * X^i
-    pub fn partially_evaluate_at_y(&self, y: &F) -> UnivariatePolynomial<F> {
-        let mut f_x_b = vec![F::zero(); self.degree]; // Initialize with zero coefficients
-        let powers_of_y = compute_powers(y, self.degree); // Compute powers of y: [y^0, y^1, ..., y^(d-1)]
-
-        // Iterate over the chunks of coefficients corresponding to each power of x
-        for i in 0..self.degree {
-            for j in 0..self.degree {
-                f_x_b[i] += self.coeffs[i * self.degree + j] * powers_of_y[j]; // Accumulate the coefficients multiplied by the corresponding power of y
+    /// f(x, Y) = sum_{i} L_i(x) * sum_{j} (L_j(Y) * f(w_i, w_j)) ===>
+    /// f(x, w_t) = sum_{i} L_i(x) * sum_{j} (L_j(w_t) * f(w_i, w_j))
+    ///           = sum_{i} L_i(x) * f(w_i, w_t))
+    fn partially_evaluate_at_x(&self, x: &F) -> UnivariatePolynomial<F> {
+        let l_x = self.lagrange_basis_x.evaluate(x);
+        let mut evaluations = vec![];
+        for t in 0..self.degree_y {
+            let mut sum = F::ZERO;
+            for i in 0..self.degree_x {
+                sum += l_x[i] * self.evaluations[i][t];
             }
+            evaluations.push(sum);
         }
-
-        UnivariatePolynomial::new(f_x_b) // Return the resulting univariate polynomial in X
+        UnivariatePolynomial { evaluations, lagrange_basis: self.lagrange_basis_y.clone() }
     }
 
-    /// Compute r(x) = \sum_{j\inH_y} f(X, j)
-    ///
-    /// Evaluates the polynomial at all roots of unity in the domain and sums the results.
-    pub fn sum_partial_evaluations_in_domain(&self) -> UnivariatePolynomial<F> {
-        // XXX This could be precomputed and stored somewhere (e.g. on the poly itself)
-        let domain = GeneralEvaluationDomain::<F>::new(self.degree).unwrap();
-
-        // This can probably be sped up...
-        let mut r_poly = UnivariatePolynomial::new(vec![F::zero(); self.degree]);
-        for w_i in domain.elements() {
-            r_poly = r_poly + self.partially_evaluate_at_y(&w_i);
+    /// f(X, y) = sum_{j} L_j(y) * sum_{i} (L_i(X) * f(w_i, w_j)) ===>
+    /// f(w_t, y) = sum_{j} L_j(y) * sum_{i} (L_i(w_t) * f(w_i, w_j))
+    ///           = sum_{j} L_j(y) * f(w_t, w_j))
+    fn partially_evaluate_at_y(&self, y: &F) -> UnivariatePolynomial<F> {
+        let l_y = self.lagrange_basis_y.evaluate(y);
+        let mut evaluations = vec![];
+        for t in 0..self.degree_x {
+            let mut sum = F::ZERO;
+            for j in 0..self.degree_y {
+                sum += l_y[j] * self.evaluations[t][j];
+            }
+            evaluations.push(sum);
         }
-
-        r_poly
-    }
-
-    /// Computes the bitfield union of two bivariate polynomials.
-    ///
-    /// The coefficients of the resulting polynomial are the bitwise OR of the coefficients
-    /// of the two input polynomials.
-    pub fn bitfield_union(&self, other: &Self) -> Self {
-        assert_eq!(self.degree, other.degree, "Polynomials must have the same degree");
-
-        let coefficients: Vec<F> = self.coeffs.iter()
-            .zip(&other.coeffs)
-            .map(|(a, b)| {
-                *a + *b - *a * *b // Since a, b are either 0 or 1, this is equivalent to a | b
-            })
-            .collect();
-
-        Self::new(coefficients, self.degree)
+        UnivariatePolynomial { evaluations, lagrange_basis: self.lagrange_basis_x.clone() }
     }
 }
 
 #[cfg(test)]
-pub mod test {
-    use super::*;
-    use ark_std::test_rng;
+mod tests {
+    use ark_bls12_381::Fr;
+    use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
     use ark_std::UniformRand;
-    use ark_bn254::{Fr, G1Projective};
+    use rand::thread_rng;
+    use crate::bivariate_poly::{BivariatePolynomial, BivariatePolynomialTrait};
+    use crate::univariate_poly::UnivariatePolynomialTrait;
+
+    type F = Fr;
 
     #[test]
-    fn test_evaluate() {
-        let poly = BivariatePolynomial::new(
-            vec![
-                Fr::from(1u64),  // f_00
-                Fr::from(2u64),  // f_01
-                Fr::from(3u64),  // f_02
-                Fr::from(4u64),  // f_03
-                Fr::from(5u64),  // f_10
-                Fr::from(6u64),  // f_11
-                Fr::from(7u64),  // f_12
-                Fr::from(8u64),  // f_13
-                Fr::from(9u64),  // f_20
-                Fr::from(10u64), // f_21
-                Fr::from(11u64), // f_22
-                Fr::from(12u64), // f_23
-                Fr::from(13u64), // f_30
-                Fr::from(14u64), // f_31
-                Fr::from(15u64), // f_32
-                Fr::from(16u64), // f_33
-            ],
-            4, // degree
-        );
-
-        let x = Fr::from(2u64);
-        let y = Fr::from(3u64);
-        let result = poly.evaluate(&x, &y);
-
-        // Manually compute the expected result:
-        // f(2, 3) = 1 + 2*3 + 3*3^2 + 4*3^3 +
-        //           5*2 + 6*2*3 + 7*2*3^2 + 8*2*3^3 +
-        //           9*2^2 + 10*2^2*3 + 11*2^2*3^2 + 12*2^2*3^3 +
-        //           13*2^3 + 14*2^3*3 + 15*2^3*3^2 + 16*2^3*3^3
-
-        let expected_result = Fr::from(
-            1 + 2*3 + 3*9 + 4*27 +
-            5*2 + 6*6 + 7*18 + 8*54 +
-            9*4 + 10*12 + 11*36 + 12*108 +
-            13*8 + 14*24 + 15*72 + 16*216
-        );
-
-        assert_eq!(result, expected_result);
-    }
-
-
-    #[test]
-    fn test_partial_eval_at_x() {
-        let poly = BivariatePolynomial::new(
-            vec![
-                Fr::from(1u64),  // f_00
-                Fr::from(2u64),  // f_01
-                Fr::from(3u64),  // f_02
-                Fr::from(4u64),  // f_03
-                Fr::from(5u64),  // f_10
-                Fr::from(6u64),  // f_11
-                Fr::from(7u64),  // f_12
-                Fr::from(8u64),  // f_13
-                Fr::from(9u64),  // f_20
-                Fr::from(10u64), // f_21
-                Fr::from(11u64), // f_22
-                Fr::from(12u64), // f_23
-                Fr::from(13u64), // f_30
-                Fr::from(14u64), // f_31
-                Fr::from(15u64), // f_32
-                Fr::from(16u64), // f_33
-            ],
-            4, // degree
-        );
-        let eval_at_x = poly.partially_evaluate_at_x(&Fr::from(2u64));
-
-        // Manually compute the expected result:
-        // For x = 2, we need to evaluate:
-        // f(y) = (1 + 5*2 + 9*2^2 + 13*2^3) + (2 + 6*2 + 10*2^2 + 14*2^3)y +
-        //        (3 + 7*2 + 11*2^2 + 15*2^3)y^2 + (4 + 8*2 + 12*2^2 + 16*2^3)y^3
-
-        let expected_coeffs = vec![
-            Fr::from(1 + 5*2 + 9*4 + 13*8), // constant term
-            Fr::from(2 + 6*2 + 10*4 + 14*8), // coefficient of y
-            Fr::from(3 + 7*2 + 11*4 + 15*8), // coefficient of y^2
-            Fr::from(4 + 8*2 + 12*4 + 16*8), // coefficient of y^3
-        ];
-
-        assert_eq!(eval_at_x.poly.coeffs, expected_coeffs);
+    fn test_random_bivariate() {
+        let degree_x = 3usize;
+        let degree_y = 10usize;
+        let domain_x = GeneralEvaluationDomain::<F>::new(degree_x).unwrap();
+        let domain_y = GeneralEvaluationDomain::<F>::new(degree_y).unwrap();
+        let r: BivariatePolynomial<F> = BivariatePolynomial::random(&mut thread_rng(), domain_x, domain_y, degree_x, degree_y);
+        println!("{}", r);
     }
 
     #[test]
-    fn test_partial_eval_at_y() {
-        let poly = BivariatePolynomial::new(
-            vec![
-                Fr::from(1u64),  Fr::from(2u64),  Fr::from(3u64),  Fr::from(4u64),
-                Fr::from(5u64),  Fr::from(6u64),  Fr::from(7u64),  Fr::from(8u64),
-                Fr::from(9u64),  Fr::from(10u64), Fr::from(11u64), Fr::from(12u64),
-                Fr::from(13u64), Fr::from(14u64), Fr::from(15u64), Fr::from(16u64),
-            ],
-            4,
-        );
-
-        let y = Fr::from(2u64); // Evaluate at y = 2
-        let eval_at_y = poly.partially_evaluate_at_y(&y);
-
-        // Manually compute the expected result:
-        // For y = 2, we need to evaluate:
-        // f_x_b = [1 + 2*2 + 3*4 + 4*8, 5 + 6*2 + 7*4 + 8*8, 9 + 10*2 + 11*4 + 12*8, 13 + 14*2 + 15*4 + 16*8]
-        let expected_coeffs = vec![
-            Fr::from(1 + 2*2 + 3*4 + 4*8),
-            Fr::from(5 + 6*2 + 7*4 + 8*8),
-            Fr::from(9 + 10*2 + 11*4 + 12*8),
-            Fr::from(13 + 14*2 + 15*4 + 16*8),
-        ];
-
-        assert_eq!(eval_at_y.poly.coeffs, expected_coeffs);
-    }
-
-    /// For polynomial f(X,Y) and polynomial f*(b,Y), check that f(b,c) == f*(c)
-    #[test]
-    fn test_partial_eval_end_to_end() {
-        let rng = &mut test_rng();
-
-        let b = &Fr::rand(rng);
-        let c = &Fr::rand(rng);
-
-        let bivariate_poly = BivariatePolynomial::random(rng, 16);
-
-        // Compute f*(Y)
-        let partial_eval_poly = bivariate_poly.partially_evaluate_at_x(b);
-        // Compute f*(c)
-        let y = partial_eval_poly.evaluate(c);
-
-        // Compute f(b,c)
-        let y_expected = bivariate_poly.evaluate(b, c);
-
-        assert_eq!(y, y_expected);
+    fn test_partial_evaluation_x() {
+        let degree_x = 3usize;
+        let degree_y = 10usize;
+        let domain_x = GeneralEvaluationDomain::<F>::new(degree_x).unwrap();
+        let domain_y = GeneralEvaluationDomain::<F>::new(degree_y).unwrap();
+        let r: BivariatePolynomial<F> = BivariatePolynomial::random(&mut thread_rng(), domain_x, domain_y, degree_x, degree_y);
+        let x = F::rand(&mut thread_rng());
+        let y = F::rand(&mut thread_rng());
+        let r_x = r.partially_evaluate_at_x(&x);
+        let r_xy_indirect = r_x.evaluate(&y);
+        let r_xy_direct = r.evaluate(&x, &y);
+        assert_eq!(r_xy_direct, r_xy_indirect);
     }
 
     #[test]
-    fn test_bitfield_union() {
-        // Create a prime field element type Fr with elements 0 and 1 representing false and true
-        // Here, for illustration purposes, assume Fr::from(0u64) and Fr::from(1u64) represent 0 and 1
-        let poly1 = BivariatePolynomial::new(
-            vec![
-                Fr::from(0u64), Fr::from(0u64), Fr::from(0u64), Fr::from(1u64), Fr::from(1u64),
-                Fr::from(0u64), Fr::from(1u64), Fr::from(0u64), Fr::from(1u64), Fr::from(0u64),
-                Fr::from(1u64), Fr::from(1u64), Fr::from(1u64), Fr::from(0u64), Fr::from(0u64),
-                Fr::from(0u64), Fr::from(0u64), Fr::from(1u64), Fr::from(1u64), Fr::from(0u64),
-                Fr::from(1u64), Fr::from(0u64), Fr::from(0u64), Fr::from(1u64), Fr::from(1u64),
-            ],
-            5,
-        );
-        let poly2 = BivariatePolynomial::new(
-            vec![
-                Fr::from(0u64), Fr::from(1u64), Fr::from(1u64), Fr::from(0u64), Fr::from(1u64),
-                Fr::from(1u64), Fr::from(0u64), Fr::from(1u64), Fr::from(0u64), Fr::from(1u64),
-                Fr::from(1u64), Fr::from(0u64), Fr::from(0u64), Fr::from(1u64), Fr::from(1u64),
-                Fr::from(1u64), Fr::from(1u64), Fr::from(0u64), Fr::from(1u64), Fr::from(1u64),
-                Fr::from(0u64), Fr::from(1u64), Fr::from(1u64), Fr::from(0u64), Fr::from(1u64),
-            ],
-            5,
-        );
-
-        let union_poly = poly1.bitfield_union(&poly2);
-
-        let expected_coeffs = vec![
-            Fr::from(0u64), Fr::from(1u64), Fr::from(1u64), Fr::from(1u64), Fr::from(1u64),
-            Fr::from(1u64), Fr::from(1u64), Fr::from(1u64), Fr::from(1u64), Fr::from(1u64),
-            Fr::from(1u64), Fr::from(1u64), Fr::from(1u64), Fr::from(1u64), Fr::from(1u64),
-            Fr::from(1u64), Fr::from(1u64), Fr::from(1u64), Fr::from(1u64), Fr::from(1u64),
-            Fr::from(1u64), Fr::from(1u64), Fr::from(1u64), Fr::from(1u64), Fr::from(1u64),
-        ];
-
-        assert_eq!(union_poly.coeffs, expected_coeffs);
+    fn test_partial_evaluation_y() {
+        let degree_x = 3usize;
+        let degree_y = 10usize;
+        let domain_x = GeneralEvaluationDomain::<F>::new(degree_x).unwrap();
+        let domain_y = GeneralEvaluationDomain::<F>::new(degree_y).unwrap();
+        let r: BivariatePolynomial<F> = BivariatePolynomial::random(&mut thread_rng(), domain_x, domain_y, degree_x, degree_y);
+        let x = F::rand(&mut thread_rng());
+        let y = F::rand(&mut thread_rng());
+        let r_y = r.partially_evaluate_at_y(&y);
+        let r_xy_indirect = r_y.evaluate(&x);
+        let r_xy_direct = r.evaluate(&x, &y);
+        assert_eq!(r_xy_direct, r_xy_indirect);
     }
 }

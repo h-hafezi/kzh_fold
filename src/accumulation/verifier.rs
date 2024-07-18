@@ -1,4 +1,4 @@
-/// Accumulation verifier implementation
+/*/// Accumulation verifier implementation
 use std::marker::PhantomData;
 
 use ark_crypto_primitives::crh::{
@@ -115,3 +115,6 @@ pub mod tests {
         unimplemented!();
     }
 }
+
+
+ */

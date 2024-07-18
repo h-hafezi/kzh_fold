@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+/*use std::marker::PhantomData;
 
 use crate::{pcs::{Commitment, OpeningProof, SRS}, univariate_poly::UnivariatePolynomial, utils::compute_powers};
 use crate::accumulation::verifier::AccInstance;
@@ -34,3 +34,6 @@ impl<E: Pairing> AccProver<E> {
     }
 }
 
+
+
+ */

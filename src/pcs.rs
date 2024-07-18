@@ -1,163 +1,246 @@
-/// A sqrtn polynomial commitment scheme
+/// A sqrt(n) polynomial commitment scheme
 use std::{iter, marker::PhantomData, ops::Mul};
-
-use ark_ec::AffineRepr;
+use std::iter::Sum;
+use ark_ec::{AffineRepr, CurveGroup};
 use ark_ff::UniformRand;
 use rand::RngCore;
 use ark_ec::pairing::Pairing;
 use ark_ec::VariableBaseMSM;
-
+use rayon::iter::IntoParallelIterator;
 use crate::{bivariate_poly::BivariatePolynomial, univariate_poly::UnivariatePolynomial, utils::compute_powers};
+use crate::bivariate_poly::BivariatePolynomialTrait;
+use crate::lagrange_basis::{LagrangeBasis, LagrangeTraits};
+use crate::univariate_poly::UnivariatePolynomialTrait;
+use rayon::iter::ParallelIterator;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SRS<E: Pairing> {
-    // just a helper variable (not really needed)
-    pub n: usize,
-    pub vec_H_i_j: Vec<E::G1Affine>,
-    pub vec_H_j: Vec<E::G1Affine>,
-    pub vec_V_i: Vec<E::G2Affine>,
-    pub V_prime: E::G2Affine,
-    // This is the vector G from the accumulation (TODO: abstraction leak!)
-    pub vec_G_accumulation: Vec<E::G1Affine>,
+    pub degree_x: usize,
+    pub degree_y: usize,
+    pub matrix_H: Vec<Vec<E::G1Affine>>,
+    pub vec_H: Vec<E::G1Affine>,
+    pub vec_V: Vec<E::G2>,
+    pub V_prime: E::G2,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Commitment<E: Pairing> {
-    C: E::G1Affine
+    C: E::G1Affine,
+    aux: Vec<E::G1>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OpeningProof<E: Pairing> {
-    pub vec_D_i: Vec<E::G1Affine>,
+    pub vec_D: Vec<E::G1Affine>,
     pub f_star_poly: UnivariatePolynomial<E::ScalarField>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct CoeffFormPCS<E: Pairing> {
-    _phantom: PhantomData<E>,
+// Define the new struct that encapsulates the functionality of polynomial commitment
+pub struct PolyCommit<E: Pairing> {
+    srs: SRS<E>,
 }
 
-impl<E: Pairing> CoeffFormPCS<E> {
-    /// Create an SRS of size n^2
-    pub fn generate_srs_for_testing<T: RngCore>(n: usize, rng: &mut T) -> SRS<E> {
-        // Generate SRS parameters
-        // G
-        let generator_G1 = E::G1Affine::rand(rng);
-        // V
-        let generator_G2 = E::G2Affine::rand(rng);
+pub trait PolyCommitTrait<E: Pairing> {
+    fn setup<T: RngCore>(n: usize, m: usize, rng: &mut T) -> SRS<E>;
 
-        let vec_G_accumulation: Vec<E::G1Affine> =
-            iter::repeat_with(|| E::G1Affine::rand(rng))
-            .take(n)
-            .collect();
+    fn commit(&self, poly: &BivariatePolynomial<E::ScalarField>) -> Commitment<E>;
 
-        // Generate trapdoors
-        let tau = E::ScalarField::rand(rng);
-        let mu = E::ScalarField::rand(rng);
-        let alpha = E::ScalarField::rand(rng);
+    fn open(&self,
+            poly: &BivariatePolynomial<E::ScalarField>,
+            com: Commitment<E>,
+            b: &E::ScalarField,
+    ) -> OpeningProof<E>;
 
-        let powers_of_tau = compute_powers(&tau, n);
-        let powers_of_mu = compute_powers(&mu, n);
+    fn verify(&self,
+              lagrange_x: LagrangeBasis<E::ScalarField>,
+              C: &Commitment<E>,
+              proof: &OpeningProof<E>,
+              b: &E::ScalarField,
+              c: &E::ScalarField,
+              y: &E::ScalarField,
+    ) -> bool;
+}
 
-        // Allocate space for the SRS
-        let mut vec_H_i_j = Vec::with_capacity(n*n);
-        let mut vec_H_j = Vec::with_capacity(n);
-        let mut vec_V_i = Vec::with_capacity(n);
-
-
-        // TODO: For big values of n, we need to multithread. see how bi-kzg uses rayon with parallelize()
-        for i in 0..n {
-            vec_H_j.push(generator_G1.mul(alpha * powers_of_mu[i]).into());
-            vec_V_i.push(generator_G2.mul(powers_of_tau[i]).into());
-             for j in 0..n {
-                 vec_H_i_j.push(generator_G1.mul(powers_of_tau[i] * powers_of_mu[j]).into());
-             }
-        }
-        let V_prime = generator_G2.mul(alpha).into();
-
-        SRS {
-            n,
-            vec_H_i_j,
-            vec_H_j,
-            vec_V_i,
-            V_prime,
-            vec_G_accumulation,
-        }
-    }
-
-    pub fn commit(poly: &BivariatePolynomial<E::ScalarField>, srs: &SRS<E>) -> Commitment<E> {
-        assert_eq!(poly.degree, srs.n);
-        Commitment {
-            C: E::G1::msm_unchecked(&srs.vec_H_i_j, &poly.coeffs).into()
-        }
-    }
-
-    /// Create a proof that f(b,c) = y
-    pub fn open(poly: &BivariatePolynomial<E::ScalarField>, b: &E::ScalarField, srs: &SRS<E>) -> OpeningProof<E> {
-        // Create row commitments
-        let mut vec_D_i: Vec<E::G1Affine> = Vec::with_capacity(srs.n);
-        for i in 0..srs.n {
-            let mut D_i = E::G1Affine::zero();
-            for j in 0..srs.n {
-                D_i = (D_i + srs.vec_H_j[j].mul(poly.coeffs[i*srs.n + j])).into();
+impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
+    fn setup<T: RngCore>(degree_x: usize, degree_y: usize, rng: &mut T) -> SRS<E> {
+        // sample G_0, G_1, ..., G_m generators from group one
+        let G1_generator_vec = {
+            let mut elements = Vec::new();
+            for _ in 0..degree_y {
+                elements.push(E::G1Affine::rand(rng));
             }
-            vec_D_i.push(D_i);
-        }
+            elements
+        };
+        // sample V, generator for group two
+        let G2_generator = E::G2Affine::rand(rng);
+        // sample trapdoors tau_0, tau_1, ..., tau_n, alpha
+        let tau = {
+            let mut elements = Vec::new();
+            for _ in 0..degree_x {
+                elements.push(E::ScalarField::rand(rng));
+            }
+            elements
+        };
+        let alpha = E::ScalarField::rand(rng);
+        // generate matrix_H
+        let matrix_H: Vec<Vec<_>> = (0..degree_x).into_par_iter()
+            .map(|i| {
+                let mut row = Vec::new();
+                for j in 0..degree_y {
+                    let g = G1_generator_vec[j].mul(tau[i]);
+                    row.push(g.into());
+                }
+                row
+            })
+            .collect();
+        // generate vec_H
+        let vec_H = {
+            let mut vec_h = Vec::new();
+            for j in 0..degree_y {
+                vec_h.push(G1_generator_vec[j].mul(alpha).into());
+            }
+            vec_h
+        };
+        // generate vec_V
+        let vec_V = {
+            let mut vec_h = Vec::new();
+            for j in 0..degree_x {
+                vec_h.push(G2_generator.mul(tau[j]));
+            }
+            vec_h
+        };
+        // generate V_prime
+        let V_prime = G2_generator.mul(alpha);
+        // return the output
+        return SRS {
+            degree_x,
+            degree_y,
+            matrix_H,
+            vec_H,
+            vec_V,
+            V_prime,
+        };
+    }
 
-        // Get the partial evaluation
-        let f_star_poly = poly.partially_evaluate_at_x(&b);
+    fn commit(&self, poly: &BivariatePolynomial<E::ScalarField>) -> Commitment<E> {
+        Commitment {
+            C: E::G1::sum((0..self.srs.degree_x).into_par_iter()
+                .map(|i| {
+                    E::G1::msm_unchecked(
+                        self.srs.matrix_H[i].as_slice(),
+                        &poly.evaluations[i],
+                    )
+                })
+                .collect::<Vec<_>>()
+                .iter()
+            ).into_affine(),
 
-        OpeningProof {
-            vec_D_i,
-            f_star_poly
+            aux: (0..self.srs.degree_x).into_par_iter()
+                .map(|i| {
+                    E::G1::msm_unchecked(
+                        self.srs.vec_H.as_slice(),
+                        &poly.evaluations[i],
+                    )
+                })
+                .collect::<Vec<_>>(),
         }
     }
 
-    pub fn verify(C: &Commitment<E>, proof: &OpeningProof<E>, b: &E::ScalarField, c: &E::ScalarField, y: &E::ScalarField, srs: &SRS<E>) -> bool {
-        // Step 1) Perform the pairing check
-        let pairing_rhs = E::multi_pairing(proof.vec_D_i.clone(), &srs.vec_V_i); // XXX avoid clone()?
-        // XXX this can be optimized further (do one pairing less) by taking its inverse and moving it to the multi_pairing
-        let pairing_lhs = E::pairing(&C.C, &srs.V_prime);
+    fn open(&self, poly: &BivariatePolynomial<E::ScalarField>, com: Commitment<E>, b: &E::ScalarField) -> OpeningProof<E> {
+        OpeningProof {
+            vec_D: {
+                let mut vec = Vec::new();
+                for g in com.aux {
+                    vec.push(g.into());
+                }
+                vec
+            },
+            f_star_poly: poly.partially_evaluate_at_x(b),
+        }
+    }
 
-        // Step 2) Perform the partial poly commitment check
-        let powers_of_b = compute_powers(b, srs.n);
-        let msm_lhs = E::G1::msm_unchecked(&srs.vec_H_j, &proof.f_star_poly.poly.coeffs);
-        // XXX this can be optimized fruther by taking its inverse and doing it in one MSM
-        let msm_rhs = E::G1::msm_unchecked(&proof.vec_D_i, &powers_of_b);
-
-        // Step 3) Check the final result
-        let y_expected =  proof.f_star_poly.evaluate(c);
-
-        pairing_rhs == pairing_lhs && msm_lhs == msm_rhs && y_expected == *y
+    fn verify(&self,
+              lagrange_x: LagrangeBasis<E::ScalarField>,
+              C: &Commitment<E>,
+              proof: &OpeningProof<E>,
+              b: &E::ScalarField,
+              c: &E::ScalarField,
+              y: &E::ScalarField,
+    ) -> bool {
+        // first condition
+        let pairing_rhs = E::multi_pairing(proof.vec_D.clone(), &self.srs.vec_V);
+        // TODO: optimize further (do one pairing less) by taking its inverse and moving it to the multi_pairing
+        let pairing_lhs = E::pairing(&C.C, &self.srs.V_prime);
+        // second condition
+        let msm_lhs = E::G1::msm_unchecked(&self.srs.vec_H, &proof.f_star_poly.evaluations);
+        let l_b = lagrange_x.evaluate(b);
+        let msm_rhs = E::G1::msm_unchecked(proof.vec_D.as_slice(), &l_b);
+        // third condition
+        let y_expected = proof.f_star_poly.evaluate(c);
+        // checking all three conditions
+        return (pairing_lhs == pairing_rhs) && (msm_lhs == msm_rhs) && (y_expected == *y);
     }
 }
+
 
 #[cfg(test)]
 pub mod test {
+    use std::cmp::min;
     use super::*;
     use ark_std::test_rng;
     use ark_std::UniformRand;
 
     use ark_bn254::{Bn254, Fr, G1Projective};
+    use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
+    use rand::thread_rng;
+
+    type E = Bn254;
+    type F = Fr;
+
+    #[test]
+    fn test_setup() {
+        let degree_y = 4usize;
+        let degree_x = 3usize;
+        let srs: SRS<E> = PolyCommit::setup(degree_x, degree_y, &mut thread_rng());
+        // asserting the sizes
+        assert_eq!(srs.degree_y, degree_y);
+        assert_eq!(srs.degree_x, degree_x);
+        assert_eq!(srs.vec_H.len(), degree_y);
+        assert_eq!(srs.vec_V.len(), degree_x);
+        assert_eq!(srs.matrix_H.len(), degree_x);
+        assert_eq!(srs.matrix_H[0].len(), degree_y);
+        // checking pairing equalities
+        // e(H[j, i], V[i]) = e(G_i^{tau_j}, V^{tau_i}) = e(H[i, i], V[j])
+        for i in 0..min(degree_y, degree_x) {
+            for j in 0..min(degree_y, degree_x) {
+                let p1 = E::pairing(srs.matrix_H[j][i], srs.vec_V[i]);
+                let p2 = E::pairing(srs.matrix_H[i][i], srs.vec_V[j]);
+                assert_eq!(p1, p2);
+            }
+        }
+    }
 
     #[test]
     fn test_end_to_end() {
-        let rng = &mut test_rng();
-        let N = 4;
-
-        let srs = CoeffFormPCS::<Bn254>::generate_srs_for_testing(N, rng);
-
-        let bivariate_poly = BivariatePolynomial::random(rng, N);
-
-        let commitment = CoeffFormPCS::<Bn254>::commit(&bivariate_poly, &srs);
-
-        let b = Fr::rand(rng);
-        let c = Fr::rand(rng);
-        let y = bivariate_poly.evaluate(&b, &c);
-
-        let opening_proof = CoeffFormPCS::<Bn254>::open(&bivariate_poly, &b, &srs);
-
-        let verify_result = CoeffFormPCS::<Bn254>::verify(&commitment, &opening_proof, &b, &c, &y, &srs);
-        assert!(verify_result)
+        let degree_x = 3usize;
+        let degree_y = 10usize;
+        let domain_x = GeneralEvaluationDomain::<F>::new(degree_x).unwrap();
+        let domain_y = GeneralEvaluationDomain::<F>::new(degree_y).unwrap();
+        let srs: SRS<E> = PolyCommit::setup(degree_x, degree_y, &mut thread_rng());
+        // define the polynomial commitment
+        let poly_commit = PolyCommit { srs };
+        // random bivariate polynomial
+        let polynomial = BivariatePolynomial::random(&mut thread_rng(), domain_x, domain_y, degree_x, degree_y);
+        // random points and evaluation
+        let b = F::rand(&mut thread_rng());
+        let c = F::rand(&mut thread_rng());
+        let y = polynomial.evaluate(&b, &c);
+        // commit to the polynomial
+        let com = poly_commit.commit(&polynomial);
+        // open the commitment
+        let open = poly_commit.open(&polynomial, com.clone(), &b);
+        // verify the proof
+        let verify = poly_commit.verify(LagrangeBasis { domain: domain_x }, &com, &open, &b, &c, &y);
+        assert!(verify);
     }
 }
