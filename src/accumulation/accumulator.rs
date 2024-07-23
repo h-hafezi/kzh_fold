@@ -191,7 +191,7 @@ impl<E: Pairing> AccumulatorTrait<E> for Accumulator<E> {
 
         // generate random values beta
         let beta: E::ScalarField = E::ScalarField::from(2u128);
-        let beta_minus_one: E::ScalarField = E::ScalarField::ONE - beta;
+        let one_minus_beta: E::ScalarField = E::ScalarField::ONE - beta;
 
         // get the accumulated new_instance
         let new_instance = Self::verify(instance_1, instance_2, Q);
@@ -203,7 +203,7 @@ impl<E: Pairing> AccumulatorTrait<E> for Accumulator<E> {
                     .zip(witness_2.vec_D.iter())
                     .map(
                         |(&d_1, &d_2)|
-                        d_1.mul(beta_minus_one).add(d_2.mul(beta)).into_affine()
+                        d_1.mul(one_minus_beta).add(d_2.mul(beta)).into_affine()
                     )
                     .collect()
             },
@@ -213,7 +213,7 @@ impl<E: Pairing> AccumulatorTrait<E> for Accumulator<E> {
                         .zip(witness_2.f_star_poly.evaluations.iter())
                         .map(
                             |(&a, &b)|
-                            a * (beta_minus_one) + (b * beta)
+                            a * (one_minus_beta) + (b * beta)
                         )
                         .collect()
                 },
@@ -224,7 +224,7 @@ impl<E: Pairing> AccumulatorTrait<E> for Accumulator<E> {
                     .zip(witness_2.vec_b.iter())
                     .map(
                         |(&b_1, &b_2)|
-                        b_1 * (beta_minus_one) + (b_2 * beta)
+                        b_1 * (one_minus_beta) + (b_2 * beta)
                     )
                     .collect()
             },
@@ -233,7 +233,7 @@ impl<E: Pairing> AccumulatorTrait<E> for Accumulator<E> {
                     .zip(witness_2.vec_c.iter())
                     .map(
                         |(&c_1, &c_2)|
-                        c_1 * (beta_minus_one) + (c_2 * beta)
+                        c_1 * (one_minus_beta) + (c_2 * beta)
                     )
                     .collect()
             },
@@ -243,41 +243,41 @@ impl<E: Pairing> AccumulatorTrait<E> for Accumulator<E> {
 
     fn verify(instance_1: &AccInstance<E>, instance_2: &AccInstance<E>, Q: E::G1Affine) -> AccInstance<E> {
         let beta = E::ScalarField::from(2u128);
-        let beta_minus_one: E::ScalarField = E::ScalarField::ONE - beta;
+        let one_minus_beta: E::ScalarField = E::ScalarField::ONE - beta;
 
         let new_error_term: E::G1Affine = {
-            let mut res = instance_1.E.mul(beta_minus_one);
+            let mut res = instance_1.E.mul(one_minus_beta);
             res = res.add(instance_2.E.mul(beta));
-            res.add(Q.mul(beta_minus_one * beta)).into()
+            res.add(Q.mul(one_minus_beta * beta)).into()
         };
 
         AccInstance {
             C: {
-                let res = instance_1.C.mul(beta_minus_one);
+                let res = instance_1.C.mul(one_minus_beta);
                 res.add(instance_2.C.mul(beta)).into()
             },
             T: {
-                let res = instance_1.T.mul(beta_minus_one);
+                let res = instance_1.T.mul(one_minus_beta);
                 res.add(instance_2.T.mul(beta)).into()
             },
             b: {
-                let res = instance_1.b * beta_minus_one;
+                let res = instance_1.b * one_minus_beta;
                 res + (instance_2.b * beta)
             },
             c: {
-                let res = instance_1.c * beta_minus_one;
+                let res = instance_1.c * one_minus_beta;
                 res + (instance_2.c * beta)
             },
             y: {
-                let res = instance_1.y * beta_minus_one;
+                let res = instance_1.y * one_minus_beta;
                 res + (instance_2.y * beta)
             },
             z_b: {
-                let res = instance_1.z_b * beta_minus_one;
+                let res = instance_1.z_b * one_minus_beta;
                 res + (instance_2.z_b * beta)
             },
             z_c: {
-                let res = instance_1.z_c * beta_minus_one;
+                let res = instance_1.z_c * one_minus_beta;
                 res + (instance_2.z_c * beta)
             },
             E: new_error_term,
@@ -359,7 +359,7 @@ impl<E: Pairing> AccumulatorTrait<E> for Accumulator<E> {
         let witness_2 = &acc_2.witness;
 
         // value of 2 in the field
-        let two = E::ScalarField::from(2u8);
+        let two = E::ScalarField::from(2u128);
 
         // build the accumulator from linear combination to run helper_function_V on it
         let temp_acc = Accumulator {
