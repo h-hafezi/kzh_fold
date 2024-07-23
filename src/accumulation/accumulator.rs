@@ -55,7 +55,6 @@ pub struct AccWitness<E: Pairing> {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Accumulator<E: Pairing> {
-    pub srs: AccSRS<E>,
     pub witness: AccWitness<E>,
     pub instance: AccInstance<E>,
 }
@@ -69,26 +68,26 @@ pub trait AccumulatorTrait<E: Pairing> {
                          rng: &mut T,
     ) -> AccSRS<E>;
 
-    fn new_accumulator(srs: &AccSRS<E>, instance: &AccInstance<E>, witness: &AccWitness<E>) -> Accumulator<E>;
+    fn new_accumulator(instance: &AccInstance<E>, witness: &AccWitness<E>) -> Accumulator<E>;
 
     fn new_accumulator_instance_from_proof(srs: &AccSRS<E>, C: &E::G1Affine, b: &E::ScalarField, c: &E::ScalarField, y: &E::ScalarField) -> AccInstance<E>;
 
     fn new_accumulator_witness_from_proof(srs: &AccSRS<E>, proof: OpeningProof<E>, b: &E::ScalarField, c: &E::ScalarField) -> AccWitness<E>;
 
-    fn prove(acc_1: &Accumulator<E>, acc_2: &Accumulator<E>) -> (AccInstance<E>, AccWitness<E>, E::G1Affine);
+    fn prove(srs: &AccSRS<E>, acc_1: &Accumulator<E>, acc_2: &Accumulator<E>) -> (AccInstance<E>, AccWitness<E>, E::G1Affine);
 
     fn verify(instance_1: &AccInstance<E>, instance_2: &AccInstance<E>, Q: E::G1Affine) -> AccInstance<E>;
 
-    fn decide(acc: &Accumulator<E>) -> bool;
+    fn decide(srs: &AccSRS<E>, acc: &Accumulator<E>) -> bool;
 
     /// Compute e_i <- b_i * (b - w_i) - z_b : ∀i ∈ [0, n]
     /// Check that e'_j <- c_j * (c - w_j) - z_c : ∀j ∈ [0, m]
     /// Compute e'' <- ⟨f*, c⟩ - y
     /// Compute E_G <- ⟨f*, (H_1, ..., H_m)⟩ - ⟨b, D⟩
     /// Outputs V(b, c, y, z_b, z_c, f*, b, c, D) = ⟨e' || e'' || K⟩ + E_G
-    fn helper_function_V(acc: &Accumulator<E>) -> E::G1Affine;
+    fn helper_function_V(srs: &AccSRS<E>, acc: &Accumulator<E>) -> E::G1Affine;
 
-    fn helper_function_Q(acc_1: &Accumulator<E>, acc_2: &Accumulator<E>) -> E::G1Affine;
+    fn helper_function_Q(srs: &AccSRS<E>, acc_1: &Accumulator<E>, acc_2: &Accumulator<E>) -> E::G1Affine;
 }
 
 impl<E: Pairing> AccumulatorTrait<E> for Accumulator<E> {
@@ -123,14 +122,12 @@ impl<E: Pairing> AccumulatorTrait<E> for Accumulator<E> {
                 }
                 elements
             },
-            // TODO: to change
             k_prime: E::G1Affine::rand(rng),
         };
     }
 
-    fn new_accumulator(srs: &AccSRS<E>, instance: &AccInstance<E>, witness: &AccWitness<E>) -> Accumulator<E> {
+    fn new_accumulator(instance: &AccInstance<E>, witness: &AccWitness<E>) -> Accumulator<E> {
         Accumulator {
-            srs: srs.clone(),
             witness: witness.clone(),
             instance: instance.clone(),
         }
@@ -179,12 +176,9 @@ impl<E: Pairing> AccumulatorTrait<E> for Accumulator<E> {
         };
     }
 
-    fn prove(acc_1: &Accumulator<E>, acc_2: &Accumulator<E>) -> (AccInstance<E>, AccWitness<E>, E::G1Affine) {
+    fn prove(srs: &AccSRS<E>, acc_1: &Accumulator<E>, acc_2: &Accumulator<E>) -> (AccInstance<E>, AccWitness<E>, E::G1Affine) {
         // making sure the lagrange basis for two f_star_poly are the same
         assert_eq!(acc_1.witness.f_star_poly.lagrange_basis, acc_2.witness.f_star_poly.lagrange_basis, "lagrange basis need to be equal");
-
-        // assert that two accumulators have the same srs
-        assert_eq!(acc_1.srs, acc_2.srs, "the accumulators must have the same srs");
 
         // unwrap the instances and witnesses
         let instance_1 = &acc_1.instance;
@@ -193,7 +187,7 @@ impl<E: Pairing> AccumulatorTrait<E> for Accumulator<E> {
         let witness_2 = &acc_2.witness;
 
         // compute the quotient variable Q
-        let Q: E::G1Affine = Self::helper_function_Q(acc_1, acc_2);
+        let Q: E::G1Affine = Self::helper_function_Q(srs, acc_1, acc_2);
 
         // generate random values beta
         let beta: E::ScalarField = E::ScalarField::from(2u128);
@@ -290,8 +284,7 @@ impl<E: Pairing> AccumulatorTrait<E> for Accumulator<E> {
         }
     }
 
-    fn decide(acc: &Accumulator<E>) -> bool {
-        let srs = &acc.srs;
+    fn decide(srs: &AccSRS<E>, acc: &Accumulator<E>) -> bool {
         let instance = &acc.instance;
         let witness = &acc.witness;
 
@@ -307,15 +300,14 @@ impl<E: Pairing> AccumulatorTrait<E> for Accumulator<E> {
         };
 
         // third condition
-        let verify_lhs = Self::helper_function_V(acc);
+        let verify_lhs = Self::helper_function_V(srs, acc);
         let verify_rhs = instance.E;
 
         println!("here: {} {} {}", verify_rhs == verify_lhs.into(), ip_lhs == ip_rhs.into(), ip_lhs == ip_rhs.into());
         return (verify_rhs == verify_lhs.into()) && (ip_lhs == ip_rhs.into()) && (pairing_lhs == pairing_rhs);
     }
 
-    fn helper_function_V(acc: &Accumulator<E>) -> E::G1Affine {
-        let srs = &acc.srs;
+    fn helper_function_V(srs: &AccSRS<E>, acc: &Accumulator<E>) -> E::G1Affine {
         let instance = &acc.instance;
         let witness = &acc.witness;
 
@@ -359,7 +351,7 @@ impl<E: Pairing> AccumulatorTrait<E> for Accumulator<E> {
         res.add(srs.k_prime.mul(e_prime)).into()
     }
 
-    fn helper_function_Q(acc_1: &Accumulator<E>, acc_2: &Accumulator<E>) -> E::G1Affine {
+    fn helper_function_Q(srs: &AccSRS<E>, acc_1: &Accumulator<E>, acc_2: &Accumulator<E>) -> E::G1Affine {
         // unwrap the instances/witnesses
         let instance_1 = &acc_1.instance;
         let instance_2 = &acc_2.instance;
@@ -371,7 +363,6 @@ impl<E: Pairing> AccumulatorTrait<E> for Accumulator<E> {
 
         // build the accumulator from linear combination to run helper_function_V on it
         let temp_acc = Accumulator {
-            srs: acc_1.srs.clone(),
             witness: AccWitness {
                 vec_D: {
                     witness_2.vec_D.iter().zip(witness_1.vec_D.iter())
@@ -415,7 +406,7 @@ impl<E: Pairing> AccumulatorTrait<E> for Accumulator<E> {
         // 1/2 in the scalar field
         let one_over_two = two.inverse().unwrap();
 
-        let mut res = Self::helper_function_V(&temp_acc);
+        let mut res = Self::helper_function_V(&srs, &temp_acc);
         res = res.mul(one_over_two).into();
         res = res.add(instance_1.E).into();
         res = res.sub(instance_2.E).into();
@@ -473,9 +464,9 @@ mod tests {
         let instance = Accumulator::new_accumulator_instance_from_proof(&srs, &com.C, &b, &c, &y);
         let witness = Accumulator::new_accumulator_witness_from_proof(&srs, open.clone(), &b, &c);
         // assign a new accumulator instance
-        let acc = Accumulator::new_accumulator(&srs, &instance, &witness);
+        let acc = Accumulator::new_accumulator(&instance, &witness);
         // decide it
-        assert!(Accumulator::decide(&acc));
+        assert!(Accumulator::decide(&srs, &acc));
     }
 
     #[test]
@@ -490,15 +481,15 @@ mod tests {
         let instance_1 = Accumulator::new_accumulator_instance_from_proof(&srs, &com.C, &b, &c, &y);
         let witness_1 = Accumulator::new_accumulator_witness_from_proof(&srs, open.clone(), &b, &c);
         // assign a new accumulator instance
-        let acc_1 = Accumulator::new_accumulator(&srs, &instance_1, &witness_1);
-        let acc_2 = Accumulator::new_accumulator(&srs, &instance_1, &witness_1);
-        let (acc_instance, acc_witness, Q) = Accumulator::prove(&acc_1, &acc_2);
+        let acc_1 = Accumulator::new_accumulator(&instance_1, &witness_1);
+        let acc_2 = Accumulator::new_accumulator(&instance_1, &witness_1);
+        let (acc_instance, acc_witness, Q) = Accumulator::prove(&srs, &acc_1, &acc_2);
         let acc_instance_prime = Accumulator::verify(&instance_1, &instance_1, Q);
         // asserting instances are equal
         assert_eq!(acc_instance, acc_instance_prime);
         // deciding the accumulator
-        let acc = Accumulator::new_accumulator(&srs, &acc_instance, &acc_witness);
-        assert!(Accumulator::decide(&acc));
+        let acc = Accumulator::new_accumulator(&acc_instance, &acc_witness);
+        assert!(Accumulator::decide(&srs, &acc));
     }
 
     #[test]
@@ -539,18 +530,18 @@ mod tests {
         let instance_2 = Accumulator::new_accumulator_instance_from_proof(&srs, &com_2.C, &b_2, &c_2, &y_2);
         let witness_2 = Accumulator::new_accumulator_witness_from_proof(&srs, open_2.clone(), &b_2, &c_2);
         // define accumulators
-        let acc_1 = Accumulator::new_accumulator(&srs, &instance_1, &witness_1);
-        let acc_2 = Accumulator::new_accumulator(&srs, &instance_2, &witness_2);
+        let acc_1 = Accumulator::new_accumulator(&instance_1, &witness_1);
+        let acc_2 = Accumulator::new_accumulator(&instance_2, &witness_2);
         // asserting decide without accumulation
         //assert!(Accumulator::decide(&acc_1));
         //assert!(Accumulator::decide(&acc_2));
         // accumulate proof
-        let (acc_instance, acc_witness, Q) = Accumulator::prove(&acc_1, &acc_2);
+        let (acc_instance, acc_witness, Q) = Accumulator::prove(&srs, &acc_1, &acc_2);
         let acc_instance_prime = Accumulator::verify(&instance_1, &instance_2, Q);
         // asserting instances are equal
         assert_eq!(acc_instance, acc_instance_prime);
         // deciding the accumulator
-        let acc = Accumulator::new_accumulator(&srs, &acc_instance, &acc_witness);
-        assert!(Accumulator::decide(&acc));
+        let acc = Accumulator::new_accumulator(&acc_instance, &acc_witness);
+        assert!(Accumulator::decide(&srs, &acc));
     }
 }
