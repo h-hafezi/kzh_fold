@@ -25,8 +25,8 @@ pub struct SRS<E: Pairing> {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Commitment<E: Pairing> {
-    C: E::G1Affine,
-    aux: Vec<E::G1>,
+    pub C: E::G1Affine,
+    pub aux: Vec<E::G1>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -37,7 +37,7 @@ pub struct OpeningProof<E: Pairing> {
 
 // Define the new struct that encapsulates the functionality of polynomial commitment
 pub struct PolyCommit<E: Pairing> {
-    srs: SRS<E>,
+    pub(crate) srs: SRS<E>,
 }
 
 pub trait PolyCommitTrait<E: Pairing> {
@@ -200,7 +200,7 @@ pub mod test {
     #[test]
     fn test_setup() {
         let degree_y = 4usize;
-        let degree_x = 3usize;
+        let degree_x = 4usize;
         let srs: SRS<E> = PolyCommit::setup(degree_x, degree_y, &mut thread_rng());
         // asserting the sizes
         assert_eq!(srs.degree_y, degree_y);
@@ -222,8 +222,8 @@ pub mod test {
 
     #[test]
     fn test_end_to_end() {
-        let degree_x = 3usize;
-        let degree_y = 10usize;
+        let degree_x = 4usize;
+        let degree_y = 16usize;
         let domain_x = GeneralEvaluationDomain::<F>::new(degree_x).unwrap();
         let domain_y = GeneralEvaluationDomain::<F>::new(degree_y).unwrap();
         let srs: SRS<E> = PolyCommit::setup(degree_x, degree_y, &mut thread_rng());

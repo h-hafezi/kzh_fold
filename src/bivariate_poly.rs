@@ -5,7 +5,7 @@ use rand::RngCore;
 use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
 use crate::lagrange_basis::{LagrangeBasis, LagrangeTraits};
 use crate::univariate_poly::UnivariatePolynomial;
-use crate::utils::compute_powers;
+use crate::utils::{compute_powers, is_power_of_two};
 
 
 /// A bivariate polynomial can be represented in two different forms:
@@ -44,6 +44,7 @@ use crate::utils::compute_powers;
 ///
 ///    Here, L_{i,j}(w_i, w_j) are the Lagrange basis polynomials evaluated at the points w_i and w_j, and f(w_i, w_j)
 ///    are the evaluations of the polynomial at those points. This form is particularly useful for polynomial interpolation.
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BivariatePolynomial<F: FftField> {
     // evaluation[i][j] corresponds to f(w_i, w_j)
@@ -105,6 +106,9 @@ impl<F: FftField> BivariatePolynomialTrait<F> for BivariatePolynomial<F> {
         degree_x: usize,
         degree_y: usize,
     ) -> Self {
+        assert!(is_power_of_two(degree_x), "degree_x (upper bound) must be a power of two");
+        assert!(is_power_of_two(degree_y), "degree_y (upper bound) must be a power of two");
+        // return the instance
         Self {
             evaluations,
             lagrange_basis_x: LagrangeBasis { domain: domain_x },
@@ -122,6 +126,9 @@ impl<F: FftField> BivariatePolynomialTrait<F> for BivariatePolynomial<F> {
         degree_x: usize,
         degree_y: usize,
     ) -> Self {
+        assert!(is_power_of_two(degree_x), "degree_x (upper bound) must be a power of two");
+        assert!(is_power_of_two(degree_y), "degree_y (upper bound) must be a power of two");
+
         let mut evaluations = Vec::with_capacity(degree_x);
 
         for _ in 0..degree_x {
@@ -201,8 +208,8 @@ mod tests {
 
     #[test]
     fn test_random_bivariate() {
-        let degree_x = 3usize;
-        let degree_y = 10usize;
+        let degree_x = 4usize;
+        let degree_y = 16usize;
         let domain_x = GeneralEvaluationDomain::<F>::new(degree_x).unwrap();
         let domain_y = GeneralEvaluationDomain::<F>::new(degree_y).unwrap();
         let r: BivariatePolynomial<F> = BivariatePolynomial::random(&mut thread_rng(), domain_x, domain_y, degree_x, degree_y);
@@ -211,8 +218,8 @@ mod tests {
 
     #[test]
     fn test_partial_evaluation_x() {
-        let degree_x = 3usize;
-        let degree_y = 10usize;
+        let degree_x = 4usize;
+        let degree_y = 16usize;
         let domain_x = GeneralEvaluationDomain::<F>::new(degree_x).unwrap();
         let domain_y = GeneralEvaluationDomain::<F>::new(degree_y).unwrap();
         let r: BivariatePolynomial<F> = BivariatePolynomial::random(&mut thread_rng(), domain_x, domain_y, degree_x, degree_y);
@@ -226,10 +233,11 @@ mod tests {
 
     #[test]
     fn test_partial_evaluation_y() {
-        let degree_x = 3usize;
-        let degree_y = 10usize;
+        let degree_x = 16usize;
+        let degree_y = 4usize;
         let domain_x = GeneralEvaluationDomain::<F>::new(degree_x).unwrap();
         let domain_y = GeneralEvaluationDomain::<F>::new(degree_y).unwrap();
+        println!("{} {}", domain_x.size(), domain_y.size());
         let r: BivariatePolynomial<F> = BivariatePolynomial::random(&mut thread_rng(), domain_x, domain_y, degree_x, degree_y);
         let x = F::rand(&mut thread_rng());
         let y = F::rand(&mut thread_rng());

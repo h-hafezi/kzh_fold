@@ -31,3 +31,20 @@ impl<F: FftField> LagrangeTraits<F> for LagrangeBasis<F> {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use ark_bls12_381::Fr;
+    use ark_ff::Field;
+    use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
+    use crate::lagrange_basis::{LagrangeBasis, LagrangeTraits};
+
+    type F = Fr;
+
+    #[test]
+    fn lagrange_test() {
+        let lagrange_basis = LagrangeBasis { domain: GeneralEvaluationDomain::<F>::new(10).unwrap() };
+        assert_eq!(lagrange_basis.evaluate(&F::from(2u8)).len(), 16);
+    }
+}
+
+
