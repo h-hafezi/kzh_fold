@@ -124,7 +124,7 @@ impl<E: Pairing> AccumulatorTrait<E> for Accumulator<E> {
                 elements
             },
             // TODO: to change
-            k_prime: E::G1Affine::zero(),
+            k_prime: E::G1Affine::rand(rng),
         };
     }
 
