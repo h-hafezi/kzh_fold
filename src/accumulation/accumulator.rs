@@ -1,11 +1,11 @@
-use std::ops::{Add, Mul, Sub};
+use std::ops::{Add, Mul, Neg, Sub};
 use ark_bn254::G1Affine;
 use ark_ec::{AffineRepr, CurveGroup, VariableBaseMSM};
 use ark_ec::pairing::Pairing;
 use ark_ff::{FftField, Field, Zero};
 use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
 use ark_std::UniformRand;
-use rand::RngCore;
+use rand::{RngCore, thread_rng};
 use crate::lagrange_basis::{LagrangeBasis, LagrangeTraits};
 use crate::pcs::{Commitment, OpeningProof, PolyCommit, PolyCommitTrait, SRS};
 use crate::univariate_poly::UnivariatePolynomial;
@@ -190,7 +190,7 @@ impl<E: Pairing> AccumulatorTrait<E> for Accumulator<E> {
         let Q: E::G1Affine = Self::helper_function_Q(srs, acc_1, acc_2);
 
         // generate random values beta
-        let beta: E::ScalarField = E::ScalarField::from(2u128);
+        let beta = E::ScalarField::from(241241);
         let one_minus_beta: E::ScalarField = E::ScalarField::ONE - beta;
 
         // get the accumulated new_instance
@@ -242,7 +242,7 @@ impl<E: Pairing> AccumulatorTrait<E> for Accumulator<E> {
     }
 
     fn verify(instance_1: &AccInstance<E>, instance_2: &AccInstance<E>, Q: E::G1Affine) -> AccInstance<E> {
-        let beta = E::ScalarField::from(2u128);
+        let beta = E::ScalarField::from(241241);
         let one_minus_beta: E::ScalarField = E::ScalarField::ONE - beta;
 
         let new_error_term: E::G1Affine = {
@@ -403,14 +403,15 @@ impl<E: Pairing> AccumulatorTrait<E> for Accumulator<E> {
             },
         };
 
-        // 1/2 in the scalar field
-        let one_over_two = two.inverse().unwrap();
+        // -1/2 in the scalar field
+        let one_over_two: E::ScalarField = two.neg().inverse().unwrap();
+
 
         let mut res = Self::helper_function_V(&srs, &temp_acc);
-        res = res.mul(one_over_two).into();
         res = res.add(instance_1.E).into();
         res = res.sub(instance_2.E).into();
-        res.sub(instance_2.E).into()
+        res = res.sub(instance_2.E).into();
+        res.mul(one_over_two).into()
     }
 }
 
@@ -533,8 +534,8 @@ mod tests {
         let acc_1 = Accumulator::new_accumulator(&instance_1, &witness_1);
         let acc_2 = Accumulator::new_accumulator(&instance_2, &witness_2);
         // asserting decide without accumulation
-        //assert!(Accumulator::decide(&acc_1));
-        //assert!(Accumulator::decide(&acc_2));
+        assert!(Accumulator::decide(&srs, &acc_1));
+        assert!(Accumulator::decide(&srs, &acc_2));
         // accumulate proof
         let (acc_instance, acc_witness, Q) = Accumulator::prove(&srs, &acc_1, &acc_2);
         let acc_instance_prime = Accumulator::verify(&instance_1, &instance_2, Q);
