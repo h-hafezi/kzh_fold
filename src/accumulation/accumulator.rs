@@ -436,20 +436,27 @@ mod tests {
         let domain_x = GeneralEvaluationDomain::<ScalarField>::new(degree_x).unwrap();
         let domain_y = GeneralEvaluationDomain::<ScalarField>::new(degree_y).unwrap();
         let srs: SRS<E> = PolyCommit::setup(degree_x, degree_y, &mut thread_rng());
+
         // define the polynomial commitment
         let poly_commit = PolyCommit { srs: srs.clone() };
+
         // random bivariate polynomial
         let polynomial = BivariatePolynomial::random(&mut thread_rng(), domain_x, domain_y, degree_x, degree_y);
+
         // random points and evaluation
         let b = ScalarField::rand(&mut thread_rng());
         let c = ScalarField::rand(&mut thread_rng());
         let y = polynomial.evaluate(&b, &c);
+
         // commit to the polynomial
         let com = poly_commit.commit(&polynomial);
+
         // open the commitment
         let open = poly_commit.open(&polynomial, com.clone(), &b);
+
         // assert correctness of pcs
         assert!(poly_commit.verify(LagrangeBasis { domain: domain_x }, &com, &open, &b, &c, &y));
+
         // return
         return (srs, b, c, y, com, open, LagrangeBasis { domain: domain_x }, LagrangeBasis { domain: domain_y });
     }
@@ -457,15 +464,20 @@ mod tests {
     fn raw_decide_test() {
         let degree_x = 4usize;
         let degree_y = 16usize;
+
         // get a polynomial and its related fields
         let (pc_srs, b, c, y, com, open, lagrange_x, lagrange_y) = get_poly_parameters(degree_x, degree_y);
+
         // setup the srs
         let srs = Accumulator::setup(degree_x, degree_y, lagrange_x, lagrange_y, pc_srs, &mut thread_rng());
+
         // get accumulator instance/proof from polynomial instance/opening
         let instance = Accumulator::new_accumulator_instance_from_proof(&srs, &com.C, &b, &c, &y);
         let witness = Accumulator::new_accumulator_witness_from_proof(&srs, open.clone(), &b, &c);
+
         // assign a new accumulator instance
         let acc = Accumulator::new_accumulator(&instance, &witness);
+
         // decide it
         assert!(Accumulator::decide(&srs, &acc));
     }
@@ -474,22 +486,29 @@ mod tests {
     fn raw_decide_test_1() {
         let degree_x = 4usize;
         let degree_y = 16usize;
+
         // get a polynomial and its related fields
         let (pc_srs, b, c, y, com, open, lagrange_x, lagrange_y) = get_poly_parameters(degree_x, degree_y);
+
         // setup the srs
         let srs = Accumulator::setup(degree_x, degree_y, lagrange_x, lagrange_y, pc_srs, &mut thread_rng());
+
         // get accumulator instance/proof from polynomial instance/opening
         let instance_1 = Accumulator::new_accumulator_instance_from_proof(&srs, &com.C, &b, &c, &y);
         let witness_1 = Accumulator::new_accumulator_witness_from_proof(&srs, open.clone(), &b, &c);
+
         // assign a new accumulator instance
         let acc_1 = Accumulator::new_accumulator(&instance_1, &witness_1);
         let acc_2 = Accumulator::new_accumulator(&instance_1, &witness_1);
         let (acc_instance, acc_witness, Q) = Accumulator::prove(&srs, &acc_1, &acc_2);
         let acc_instance_prime = Accumulator::verify(&instance_1, &instance_1, Q);
+
         // asserting instances are equal
         assert_eq!(acc_instance, acc_instance_prime);
+
         // deciding the accumulator
         let acc = Accumulator::new_accumulator(&acc_instance, &acc_witness);
+
         assert!(Accumulator::decide(&srs, &acc));
     }
 
@@ -498,16 +517,21 @@ mod tests {
         // set polynomial degree
         let degree_x = 4usize;
         let degree_y = 16usize;
+
         // define unity roots for degree_x and degree_y
         let domain_x = GeneralEvaluationDomain::<ScalarField>::new(degree_x).unwrap();
         let domain_y = GeneralEvaluationDomain::<ScalarField>::new(degree_y).unwrap();
+
         // define the srs
         let pc_srs: SRS<E> = PolyCommit::setup(degree_x, degree_y, &mut thread_rng());
+
         // define the polynomial commitment scheme
         let poly_commit = PolyCommit { srs: pc_srs.clone() };
+
         // random bivariate polynomials
         let polynomial_1 = BivariatePolynomial::random(&mut thread_rng(), domain_x, domain_y, degree_x, degree_y);
         let polynomial_2 = BivariatePolynomial::random(&mut thread_rng(), domain_x, domain_y, degree_x, degree_y);
+
         // random points and evaluation
         let b_1 = ScalarField::rand(&mut thread_rng());
         let c_1 = ScalarField::rand(&mut thread_rng());
@@ -515,34 +539,44 @@ mod tests {
         let b_2 = ScalarField::rand(&mut thread_rng());
         let c_2 = ScalarField::rand(&mut thread_rng());
         let y_2 = polynomial_2.evaluate(&b_2, &c_2);
+
         // commit to the polynomials
         let com_1 = poly_commit.commit(&polynomial_1);
         let com_2 = poly_commit.commit(&polynomial_2);
+
         // open the commitment
         let open_1 = poly_commit.open(&polynomial_1, com_1.clone(), &b_1);
         let open_2 = poly_commit.open(&polynomial_2, com_2.clone(), &b_2);
+
         // set accumulator srs
         let lagrange_x = LagrangeBasis { domain: domain_x };
         let lagrange_y = LagrangeBasis { domain: domain_y };
         let srs = Accumulator::setup(degree_x, degree_y, lagrange_x, lagrange_y, pc_srs, &mut thread_rng());
+
         // get accumulator instance/proof from polynomial instance/opening
         let instance_1 = Accumulator::new_accumulator_instance_from_proof(&srs, &com_1.C, &b_1, &c_1, &y_1);
         let witness_1 = Accumulator::new_accumulator_witness_from_proof(&srs, open_1.clone(), &b_1, &c_1);
         let instance_2 = Accumulator::new_accumulator_instance_from_proof(&srs, &com_2.C, &b_2, &c_2, &y_2);
         let witness_2 = Accumulator::new_accumulator_witness_from_proof(&srs, open_2.clone(), &b_2, &c_2);
+
         // define accumulators
         let acc_1 = Accumulator::new_accumulator(&instance_1, &witness_1);
         let acc_2 = Accumulator::new_accumulator(&instance_2, &witness_2);
+
         // asserting decide without accumulation
         assert!(Accumulator::decide(&srs, &acc_1));
         assert!(Accumulator::decide(&srs, &acc_2));
+
         // accumulate proof
         let (acc_instance, acc_witness, Q) = Accumulator::prove(&srs, &acc_1, &acc_2);
         let acc_instance_prime = Accumulator::verify(&instance_1, &instance_2, Q);
+
         // asserting instances are equal
         assert_eq!(acc_instance, acc_instance_prime);
+
         // deciding the accumulator
         let acc = Accumulator::new_accumulator(&acc_instance, &acc_witness);
+
         assert!(Accumulator::decide(&srs, &acc));
     }
 }
