@@ -1,3 +1,4 @@
 pub mod poseidon;
 mod accumulator;
-mod verifier_constraints;
+mod acc_instance_constraints;
+mod acc_verifier_constraints;
