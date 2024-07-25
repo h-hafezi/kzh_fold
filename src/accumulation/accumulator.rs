@@ -303,7 +303,6 @@ impl<E: Pairing> AccumulatorTrait<E> for Accumulator<E> {
         let verify_lhs = Self::helper_function_V(srs, acc);
         let verify_rhs = instance.E;
 
-        println!("here: {} {} {}", verify_rhs == verify_lhs.into(), ip_lhs == ip_rhs.into(), ip_lhs == ip_rhs.into());
         return (verify_rhs == verify_lhs.into()) && (ip_lhs == ip_rhs.into()) && (pairing_lhs == pairing_rhs);
     }
 
