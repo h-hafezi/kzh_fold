@@ -26,16 +26,17 @@ where
         <<G1 as CurveConfig>::BaseField as Field>::BasePrimeField
     >,
 {
-    C: Projective<G1>,
-    T: Projective<G1>,
-    E: Projective<G1>,
-    b: G1::BaseField,
-    c: G1::BaseField,
-    y: G1::BaseField,
-    z_b: G1::BaseField,
-    z_c: G1::BaseField,
-    n: u32,
-    m: u32,
+    pub C: Projective<G1>,
+    pub T: Projective<G1>,
+    pub E: Projective<G1>,
+    pub b: G1::BaseField,
+    pub c: G1::BaseField,
+    pub y: G1::BaseField,
+    pub z_b: G1::BaseField,
+    pub z_c: G1::BaseField,
+    // these are constant values
+    pub n: u32,
+    pub m: u32,
 }
 
 #[derive(Clone)]
@@ -50,50 +51,48 @@ where
         <<G1 as CurveConfig>::BaseField as Field>::BasePrimeField
     >,
 {
-    C_var: ProjectiveVar<G1, FpVar<G1::BaseField>>,
-    T_var: ProjectiveVar<G1, FpVar<G1::BaseField>>,
-    E_var: ProjectiveVar<G1, FpVar<G1::BaseField>>,
-    b_var: FpVar<G1::BaseField>,
-    c_var: FpVar<G1::BaseField>,
-    y_var: FpVar<G1::BaseField>,
-    z_b_var: FpVar<G1::BaseField>,
-    z_c_var: FpVar<G1::BaseField>,
-    n_var: UInt32<G1::BaseField>,
-    m_var: UInt32<G1::BaseField>,
+    pub C_var: ProjectiveVar<G1, FpVar<G1::BaseField>>,
+    pub T_var: ProjectiveVar<G1, FpVar<G1::BaseField>>,
+    pub E_var: ProjectiveVar<G1, FpVar<G1::BaseField>>,
+    pub b_var: FpVar<G1::BaseField>,
+    pub c_var: FpVar<G1::BaseField>,
+    pub y_var: FpVar<G1::BaseField>,
+    pub z_b_var: FpVar<G1::BaseField>,
+    pub z_c_var: FpVar<G1::BaseField>,
+    // these are constant values
+    pub n: u32,
+    pub m: u32,
 }
 
 
-impl<G1: SWCurveConfig + Clone + Eq> AccumulatorInstanceVar<G1>
+impl<G1: SWCurveConfig + Clone> AccumulatorInstanceVar<G1>
 where
     FpVar<<G1 as CurveConfig>::BaseField>: FieldVar<<G1 as CurveConfig>::BaseField,
         <<G1 as CurveConfig>::BaseField as Field>::BasePrimeField>,
     <G1 as CurveConfig>::BaseField: PrimeField,
 {
-    fn cs(&self) -> ConstraintSystemRef<G1::BaseField> {
+    pub(crate) fn cs(&self) -> ConstraintSystemRef<G1::BaseField> {
         self.C_var.cs().or(self.T_var.cs())
             .or(self.b_var.cs())
             .or(self.c_var.cs())
             .or(self.y_var.cs())
-            .or(self.n_var.cs())
-            .or(self.n_var.cs())
-            .or(self.m_var.cs())
             .or(self.z_b_var.cs())
             .or(self.z_c_var.cs())
             .or(self.E_var.cs())
     }
 
-    fn value(&self) -> Result<AccumulatorInstance<G1>, SynthesisError> {
+    pub(crate) fn value(&self) -> Result<AccumulatorInstance<G1>, SynthesisError> {
         Ok(AccumulatorInstance {
             C: self.C_var.value().unwrap(),
             T: self.T_var.value().unwrap(),
             b: self.b_var.value().unwrap(),
             c: self.c_var.value().unwrap(),
             y: self.y_var.value().unwrap(),
-            n: self.n_var.value().unwrap(),
-            m: self.m_var.value().unwrap(),
             z_b: self.z_b_var.value().unwrap(),
             z_c: self.z_c_var.value().unwrap(),
+            n: self.n,
             E: self.E_var.value().unwrap(),
+            m: self.m,
         })
     }
 }
@@ -131,18 +130,6 @@ where
         let E_var = ProjectiveVar::new_variable(
             ns!(cs, "E"),
             || circuit.map(|e| e.E),
-            mode,
-        ).unwrap();
-
-        let n_var = UInt32::new_variable(
-            ns!(cs, "n"),
-            || circuit.map(|e| e.n),
-            mode,
-        ).unwrap();
-
-        let m_var = UInt32::new_variable(
-            ns!(cs, "m"),
-            || circuit.map(|e| e.m),
             mode,
         ).unwrap();
 
@@ -185,8 +172,8 @@ where
             y_var,
             z_b_var,
             z_c_var,
-            n_var,
-            m_var,
+            n: circuit.unwrap().n,
+            m: circuit.unwrap().m,
         })
     }
 }
