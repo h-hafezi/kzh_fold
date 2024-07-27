@@ -7,6 +7,7 @@ use ark_ff::{Field, PrimeField};
 use ark_r1cs_std::alloc::{AllocationMode, AllocVar};
 use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::fields::fp::FpVar;
+use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
 use ark_r1cs_std::groups::curves::short_weierstrass::{AffineVar, ProjectiveVar};
 use ark_r1cs_std::R1CSVar;
 use ark_r1cs_std::uint32::UInt32;
@@ -19,6 +20,7 @@ pub struct AccumulatorInstance<G1>
 where
     G1: SWCurveConfig + Clone,
     G1::BaseField: PrimeField,
+    G1::ScalarField: PrimeField,
     FpVar<
         <G1 as CurveConfig>::BaseField
     >: FieldVar<
@@ -29,11 +31,11 @@ where
     pub C: Projective<G1>,
     pub T: Projective<G1>,
     pub E: Projective<G1>,
-    pub b: G1::BaseField,
-    pub c: G1::BaseField,
-    pub y: G1::BaseField,
-    pub z_b: G1::BaseField,
-    pub z_c: G1::BaseField,
+    pub b: G1::ScalarField,
+    pub c: G1::ScalarField,
+    pub y: G1::ScalarField,
+    pub z_b: G1::ScalarField,
+    pub z_c: G1::ScalarField,
     // these are constant values
     pub n: u32,
     pub m: u32,
@@ -44,6 +46,7 @@ pub struct AccumulatorInstanceVar<G1>
 where
     G1: SWCurveConfig + Clone,
     G1::BaseField: PrimeField,
+    G1::ScalarField: PrimeField,
     FpVar<
         <G1 as CurveConfig>::BaseField
     >: FieldVar<
@@ -54,11 +57,11 @@ where
     pub C_var: ProjectiveVar<G1, FpVar<G1::BaseField>>,
     pub T_var: ProjectiveVar<G1, FpVar<G1::BaseField>>,
     pub E_var: ProjectiveVar<G1, FpVar<G1::BaseField>>,
-    pub b_var: FpVar<G1::BaseField>,
-    pub c_var: FpVar<G1::BaseField>,
-    pub y_var: FpVar<G1::BaseField>,
-    pub z_b_var: FpVar<G1::BaseField>,
-    pub z_c_var: FpVar<G1::BaseField>,
+    pub b_var: NonNativeFieldVar<G1::ScalarField, G1::BaseField>,
+    pub c_var: NonNativeFieldVar<G1::ScalarField, G1::BaseField>,
+    pub y_var: NonNativeFieldVar<G1::ScalarField, G1::BaseField>,
+    pub z_b_var: NonNativeFieldVar<G1::ScalarField, G1::BaseField>,
+    pub z_c_var: NonNativeFieldVar<G1::ScalarField, G1::BaseField>,
     // these are constant values
     pub n: u32,
     pub m: u32,
@@ -70,6 +73,7 @@ where
     FpVar<<G1 as CurveConfig>::BaseField>: FieldVar<<G1 as CurveConfig>::BaseField,
         <<G1 as CurveConfig>::BaseField as Field>::BasePrimeField>,
     <G1 as CurveConfig>::BaseField: PrimeField,
+    G1::ScalarField: PrimeField,
 {
     pub(crate) fn cs(&self) -> ConstraintSystemRef<G1::BaseField> {
         self.C_var.cs().or(self.T_var.cs())
@@ -102,6 +106,7 @@ where
     G1: SWCurveConfig,
     G1::BaseField: Field<BasePrimeField=<G1 as CurveConfig>::BaseField> + PrimeField,
     FpVar<G1::BaseField>: FieldVar<G1::BaseField, <G1::BaseField as Field>::BasePrimeField>,
+    G1::ScalarField: PrimeField,
     G1: Clone,
 {
     fn new_variable<T: Borrow<AccumulatorInstance<G1>>>(
@@ -133,31 +138,31 @@ where
             mode,
         ).unwrap();
 
-        let b_var = FpVar::new_variable(
+        let b_var = NonNativeFieldVar::new_variable(
             ns!(cs, "b"),
             || circuit.map(|e| e.b),
             mode,
         ).unwrap();
 
-        let c_var = FpVar::new_variable(
+        let c_var = NonNativeFieldVar::new_variable(
             ns!(cs, "c"),
             || circuit.map(|e| e.c),
             mode,
         ).unwrap();
 
-        let y_var = FpVar::new_variable(
+        let y_var = NonNativeFieldVar::new_variable(
             ns!(cs, "y"),
             || circuit.map(|e| e.y),
             mode,
         ).unwrap();
 
-        let z_b_var = FpVar::new_variable(
+        let z_b_var = NonNativeFieldVar::new_variable(
             ns!(cs, "z_b"),
             || circuit.map(|e| e.z_b),
             mode,
         ).unwrap();
 
-        let z_c_var = FpVar::new_variable(
+        let z_c_var = NonNativeFieldVar::new_variable(
             ns!(cs, "z_c"),
             || circuit.map(|e| e.z_c),
             mode,
@@ -200,11 +205,11 @@ mod tests {
             C: Projective::zero(),
             T: Projective::zero(),
             E: Projective::zero(),
-            b: Fq::ZERO,
-            c: Fq::ZERO,
-            y: Fq::ZERO,
-            z_b: Fq::ZERO,
-            z_c: Fq::ZERO,
+            b: Fr::ZERO,
+            c: Fr::ZERO,
+            y: Fr::ZERO,
+            z_b: Fr::ZERO,
+            z_c: Fr::ZERO,
             n: 0u32,
             m: 0u32,
         };

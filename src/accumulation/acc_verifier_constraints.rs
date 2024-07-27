@@ -8,6 +8,7 @@ use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::groups::curves::short_weierstrass::ProjectiveVar;
 use ark_r1cs_std::{R1CSVar, ToBitsGadget};
+use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
 use ark_r1cs_std::groups::CurveVar;
 use ark_relations::ns;
 use ark_relations::r1cs::{Namespace, SynthesisError};
@@ -20,6 +21,7 @@ pub struct AccumulatorVerifier<G1>
 where
     G1: SWCurveConfig + Clone,
     G1::BaseField: PrimeField,
+    G1::ScalarField: PrimeField,
     FpVar<
         <G1 as CurveConfig>::BaseField
     >: FieldVar<
@@ -36,6 +38,7 @@ pub struct AccumulatorVerifierVar<G1>
 where
     G1: SWCurveConfig + Clone,
     G1::BaseField: PrimeField,
+    G1::ScalarField: PrimeField,
     FpVar<
         <G1 as CurveConfig>::BaseField
     >: FieldVar<
@@ -51,6 +54,7 @@ impl<G1> AllocVar<AccumulatorVerifier<G1>, G1::BaseField> for AccumulatorVerifie
 where
     G1: SWCurveConfig + Clone,
     G1::BaseField: PrimeField,
+    G1::ScalarField: PrimeField,
     FpVar<
         <G1 as CurveConfig>::BaseField
     >: FieldVar<
@@ -97,31 +101,41 @@ where
 {
     pub fn accumulate(&self) {
         // Poseidon hash
-        let beta = FpVar::new_variable(
+        let beta_fr = NonNativeFieldVar::new_variable(
             ns!(self.acc.cs(), "beta"),
-            || Ok(G1::BaseField::rand(&mut thread_rng())),
+            || Ok(G1::ScalarField::rand(&mut thread_rng())),
             AllocationMode::Input,
         ).unwrap();
-        let beta_bits = beta.to_bits_le().unwrap();
+        let beta_bits = beta_fr.to_bits_le().unwrap();
+
         // Non-native scalar multiplication: linear combination of C
         let _ = &self.acc.C_var + &self.instance.C_var.scalar_mul_le(beta_bits.iter()).unwrap();
+
         // Non-native scalar multiplication: linear combination of T
         let _ = &self.acc.T_var + &self.instance.T_var.scalar_mul_le(beta_bits.iter()).unwrap();
+
         // Non-native scalar multiplication: linear combination of E
         let _ = &self.acc.E_var + &self.instance.E_var.scalar_mul_le(beta_bits.iter()).unwrap();
+
         // Native field operation: linear combination of b
-        let _ = &self.acc.b_var + &beta * &self.instance.b_var;
+        let _ = &self.acc.b_var + &beta_fr * &self.instance.b_var;
+
         // Native field operation: linear combination of c
-        let _ = &self.acc.c_var + &beta * &self.instance.c_var;
+        let _ = &self.acc.c_var + &beta_fr * &self.instance.c_var;
+
         // Native field operation: linear combination of y
-        let _ = &self.acc.y_var + &beta * &self.instance.y_var;
+        let _ = &self.acc.y_var + &beta_fr * &self.instance.y_var;
+
         // Native field operation: linear combination of z_b
-        let _ = &self.acc.z_b_var + &beta * &self.instance.z_b_var;
+        let _ = &self.acc.z_b_var + &beta_fr * &self.instance.z_b_var;
+
         // Native field operation: linear combination of z_c
-        let _ = &self.acc.z_c_var + &beta * &self.instance.z_c_var;
+        let _ = &self.acc.z_c_var + &beta_fr * &self.instance.z_c_var;
+
         // Native field operation: equality assertion that z_b = b^n-1 for the first instance
         let n = BigInteger64::from(self.acc.n);
         let _ = self.acc.b_var.pow_by_constant(n.as_ref()).expect("TODO: panic message");
+
         // Native field operation: equality assertion that z_c = c^m-1 for the first instance
         let m = BigInteger64::from(self.acc.m);
         let _ = self.acc.c_var.pow_by_constant(m.as_ref()).expect("TODO: panic message");
@@ -151,11 +165,11 @@ mod tests {
             C: Projective::rand(&mut thread_rng()),
             T: Projective::rand(&mut thread_rng()),
             E: Projective::rand(&mut thread_rng()),
-            b: Fq::rand(&mut thread_rng()),
-            c: Fq::rand(&mut thread_rng()),
-            y: Fq::rand(&mut thread_rng()),
-            z_b: Fq::rand(&mut thread_rng()),
-            z_c: Fq::rand(&mut thread_rng()),
+            b: Fr::rand(&mut thread_rng()),
+            c: Fr::rand(&mut thread_rng()),
+            y: Fr::rand(&mut thread_rng()),
+            z_b: Fr::rand(&mut thread_rng()),
+            z_c: Fr::rand(&mut thread_rng()),
             n: 1000u32,
             m: 1000u32,
         };
@@ -164,19 +178,29 @@ mod tests {
             C: Projective::rand(&mut thread_rng()),
             T: Projective::rand(&mut thread_rng()),
             E: Projective::rand(&mut thread_rng()),
-            b: Fq::rand(&mut thread_rng()),
-            c: Fq::rand(&mut thread_rng()),
-            y: Fq::rand(&mut thread_rng()),
-            z_b: Fq::rand(&mut thread_rng()),
-            z_c: Fq::rand(&mut thread_rng()),
+            b: Fr::rand(&mut thread_rng()),
+            c: Fr::rand(&mut thread_rng()),
+            y: Fr::rand(&mut thread_rng()),
+            z_b: Fr::rand(&mut thread_rng()),
+            z_c: Fr::rand(&mut thread_rng()),
             n: 1000u32,
             m: 1000u32,
         };
         // a constraint system
         let cs = ConstraintSystem::<Fq>::new_ref();
+
         // make a circuit_var
-        let instance_var = AccumulatorInstanceVar::new_variable(cs.clone(), || Ok(instance.clone()), AllocationMode::Witness).unwrap();
-        let acc_var = AccumulatorInstanceVar::new_variable(cs.clone(), || Ok(acc.clone()), AllocationMode::Witness).unwrap();
+        let instance_var = AccumulatorInstanceVar::new_variable(
+            cs.clone(),
+            || Ok(instance.clone()),
+            AllocationMode::Witness
+        ).unwrap();
+
+        let acc_var = AccumulatorInstanceVar::new_variable(cs.clone(),
+                                                           || Ok(acc.clone()),
+                                                           AllocationMode::Witness
+        ).unwrap();
+
         let verifier = AccumulatorVerifierVar { instance: instance_var, acc: acc_var };
         println!("before: {}", cs.num_constraints());
         verifier.accumulate();

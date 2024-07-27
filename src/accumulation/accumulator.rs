@@ -85,7 +85,7 @@ pub trait AccumulatorTrait<E: Pairing> {
     /// Compute e'' <- ⟨f*, c⟩ - y
     /// Compute E_G <- ⟨f*, (H_1, ..., H_m)⟩ - ⟨b, D⟩
     /// Outputs V(b, c, y, z_b, z_c, f*, b, c, D) = ⟨e' || e'' || K⟩ + E_G
-    fn helper_function_V(srs: &AccSRS<E>, acc: &Accumulator<E>) -> E::G1Affine;
+    fn helper_function_decide(srs: &AccSRS<E>, acc: &Accumulator<E>) -> E::G1Affine;
 
     fn helper_function_Q(srs: &AccSRS<E>, acc_1: &Accumulator<E>, acc_2: &Accumulator<E>) -> E::G1Affine;
 }
@@ -300,13 +300,13 @@ impl<E: Pairing> AccumulatorTrait<E> for Accumulator<E> {
         };
 
         // third condition
-        let verify_lhs = Self::helper_function_V(srs, acc);
+        let verify_lhs = Self::helper_function_decide(srs, acc);
         let verify_rhs = instance.E;
 
         return (verify_rhs == verify_lhs.into()) && (ip_lhs == ip_rhs.into()) && (pairing_lhs == pairing_rhs);
     }
 
-    fn helper_function_V(srs: &AccSRS<E>, acc: &Accumulator<E>) -> E::G1Affine {
+    fn helper_function_decide(srs: &AccSRS<E>, acc: &Accumulator<E>) -> E::G1Affine {
         let instance = &acc.instance;
         let witness = &acc.witness;
 
@@ -406,7 +406,7 @@ impl<E: Pairing> AccumulatorTrait<E> for Accumulator<E> {
         let one_over_two: E::ScalarField = two.neg().inverse().unwrap();
 
 
-        let mut res = Self::helper_function_V(&srs, &temp_acc);
+        let mut res = Self::helper_function_decide(&srs, &temp_acc);
         res = res.add(instance_1.E).into();
         res = res.sub(instance_2.E).into();
         res = res.sub(instance_2.E).into();
@@ -683,7 +683,6 @@ mod tests {
 
         // accumulate proof
         let (acc_instance_2, acc_witness_2, Q_2) = Accumulator::prove(&srs, &acc_1, &acc_2);
-        let acc_instance_prime_2 = Accumulator::verify(&instance_1, &instance_2, Q_2);
 
         // define accumulators
         let acc = Accumulator::new_accumulator(&acc_instance_1, &acc_witness_1);
