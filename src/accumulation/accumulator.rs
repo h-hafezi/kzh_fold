@@ -1,11 +1,14 @@
 use std::ops::{Add, Mul, Neg, Sub};
+use std::ptr::hash;
 use ark_bn254::G1Affine;
+use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::{AffineRepr, CurveGroup, VariableBaseMSM};
 use ark_ec::pairing::Pairing;
 use ark_ff::{FftField, Field, Zero};
 use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
 use ark_std::UniformRand;
 use rand::{RngCore, thread_rng};
+use crate::accumulation::poseidon::{PoseidonHash, PoseidonHashTrait};
 use crate::lagrange_basis::{LagrangeBasis, LagrangeTraits};
 use crate::pcs::{Commitment, OpeningProof, PolyCommit, PolyCommitTrait, SRS};
 use crate::univariate_poly::UnivariatePolynomial;
@@ -41,6 +44,17 @@ pub struct AccInstance<E: Pairing> {
     E: E::G1Affine,
 }
 
+impl<E: Pairing> AccInstance<E> {
+    pub fn update_sponge(&self, hash: &mut PoseidonHash<E::ScalarField>) -> ()
+    where
+        <E as Pairing>::ScalarField: Absorb,
+        <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb,
+    {
+        hash.update_sponge(vec![self.b, self.c, self.y, self.z_b, self.z_c]);
+        hash.update_sponge(vec![self.C.x(), self.C.y(), self.T.x(), self.T.y(), self.E.x(), self.E.y()]);
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AccWitness<E: Pairing> {
     // size of degree_x
@@ -59,7 +73,11 @@ pub struct Accumulator<E: Pairing> {
     pub instance: AccInstance<E>,
 }
 
-pub trait AccumulatorTrait<E: Pairing> {
+pub trait AccumulatorTrait<E: Pairing>
+where
+    <E as Pairing>::ScalarField: Absorb,
+    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb,
+{
     fn setup<T: RngCore>(degree_x: usize,
                          degree_y: usize,
                          lagrange_basis_x: LagrangeBasis<E::ScalarField>,
@@ -90,7 +108,11 @@ pub trait AccumulatorTrait<E: Pairing> {
     fn helper_function_Q(srs: &AccSRS<E>, acc_1: &Accumulator<E>, acc_2: &Accumulator<E>) -> E::G1Affine;
 }
 
-impl<E: Pairing> AccumulatorTrait<E> for Accumulator<E> {
+impl<E: Pairing> AccumulatorTrait<E> for Accumulator<E>
+where
+    <E as Pairing>::ScalarField: Absorb,
+    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb
+{
     fn setup<T: RngCore>(degree_x: usize,
                          degree_y: usize,
                          lagrange_basis_x: LagrangeBasis<E::ScalarField>,
@@ -176,7 +198,10 @@ impl<E: Pairing> AccumulatorTrait<E> for Accumulator<E> {
         };
     }
 
-    fn prove(srs: &AccSRS<E>, acc_1: &Accumulator<E>, acc_2: &Accumulator<E>) -> (AccInstance<E>, AccWitness<E>, E::G1Affine) {
+    fn prove(srs: &AccSRS<E>, acc_1: &Accumulator<E>, acc_2: &Accumulator<E>) -> (AccInstance<E>, AccWitness<E>, E::G1Affine)
+    where
+        <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb,
+    {
         // making sure the lagrange basis for two f_star_poly are the same
         assert_eq!(acc_1.witness.f_star_poly.lagrange_basis, acc_2.witness.f_star_poly.lagrange_basis, "lagrange basis need to be equal");
 
@@ -190,7 +215,13 @@ impl<E: Pairing> AccumulatorTrait<E> for Accumulator<E> {
         let Q: E::G1Affine = Self::helper_function_Q(srs, acc_1, acc_2);
 
         // generate random values beta
-        let beta = E::ScalarField::from(241241);
+        let beta = {
+            let mut hash_object: PoseidonHash<E::ScalarField> = PoseidonHash::new();
+            instance_1.update_sponge(&mut hash_object);
+            instance_2.update_sponge(&mut hash_object);
+            hash_object.update_sponge(vec![Q.x(), Q.y()]);
+            hash_object.output()
+        };
         let one_minus_beta: E::ScalarField = E::ScalarField::ONE - beta;
 
         // get the accumulated new_instance
@@ -242,7 +273,14 @@ impl<E: Pairing> AccumulatorTrait<E> for Accumulator<E> {
     }
 
     fn verify(instance_1: &AccInstance<E>, instance_2: &AccInstance<E>, Q: E::G1Affine) -> AccInstance<E> {
-        let beta = E::ScalarField::from(241241);
+        // compute beta through hashing
+        let beta = {
+            let mut hash_object: PoseidonHash<E::ScalarField> = PoseidonHash::new();
+            instance_1.update_sponge(&mut hash_object);
+            instance_2.update_sponge(&mut hash_object);
+            hash_object.update_sponge(vec![Q.x(), Q.y()]);
+            hash_object.output()
+        };
         let one_minus_beta: E::ScalarField = E::ScalarField::ONE - beta;
 
         let new_error_term: E::G1Affine = {
@@ -682,7 +720,7 @@ mod tests {
         assert!(Accumulator::decide(&srs, &acc_2));
 
         // accumulate proof
-        let (acc_instance_2, acc_witness_2, Q_2) = Accumulator::prove(&srs, &acc_1, &acc_2);
+        let (acc_instance_2, acc_witness_2, _Q_2) = Accumulator::prove(&srs, &acc_1, &acc_2);
 
         // define accumulators
         let acc = Accumulator::new_accumulator(&acc_instance_1, &acc_witness_1);
