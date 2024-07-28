@@ -45,3 +45,7 @@ ark-bls12-381 = { git = "https://github.com/arkworks-rs/curves/", rev = "3fded1f
 [[bench]]
 harness = false
 name = "bench_pcs"
+
+[[bench]]
+harness = false
+name = "bench_kzg"

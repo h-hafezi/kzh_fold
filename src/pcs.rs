@@ -1,17 +1,20 @@
 /// A sqrt(n) polynomial commitment scheme
-use std::{iter, marker::PhantomData, mem, ops::Mul};
+use std::{mem, ops::Mul};
 use std::iter::Sum;
+use std::ops::AddAssign;
+
 use ark_ec::{AffineRepr, CurveGroup};
-use ark_ff::UniformRand;
-use rand::RngCore;
 use ark_ec::pairing::Pairing;
 use ark_ec::VariableBaseMSM;
+use ark_ff::{AdditiveGroup, UniformRand};
+use rand::RngCore;
 use rayon::iter::IntoParallelIterator;
-use crate::{bivariate_poly::BivariatePolynomial, univariate_poly::UnivariatePolynomial, utils::compute_powers};
+use rayon::iter::ParallelIterator;
+
+use crate::{bivariate_poly::BivariatePolynomial, univariate_poly::UnivariatePolynomial};
 use crate::bivariate_poly::BivariatePolynomialTrait;
 use crate::lagrange_basis::{LagrangeBasis, LagrangeTraits};
 use crate::univariate_poly::UnivariatePolynomialTrait;
-use rayon::iter::ParallelIterator;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SRS<E: Pairing> {
@@ -216,13 +219,13 @@ impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
 #[cfg(test)]
 pub mod test {
     use std::cmp::min;
-    use super::*;
-    use ark_std::test_rng;
-    use ark_std::UniformRand;
 
-    use ark_bn254::{Bn254, Fr, G1Projective};
+    use ark_bn254::{Bn254, Fr};
     use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
+    use ark_std::UniformRand;
     use rand::thread_rng;
+
+    use super::*;
 
     type E = Bn254;
     type F = Fr;

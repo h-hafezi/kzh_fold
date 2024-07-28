@@ -10,3 +10,4 @@ pub mod utils;
 pub mod accumulation;
 pub mod signature_aggregation;
 pub mod lagrange_basis;
+pub mod kzg;

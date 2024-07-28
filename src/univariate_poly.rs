@@ -1,10 +1,12 @@
 use std::fmt;
 use std::fmt::Display;
 use std::ops::{Add, AddAssign};
+
 use ark_ff::{FftField, Field, PrimeField};
-use ark_poly::{univariate::DensePolynomial, DenseUVPolynomial, Polynomial, Evaluations};
-use ark_serialize::CanonicalSerialize;
+use ark_poly::{DenseUVPolynomial, Polynomial};
 use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
+use ark_serialize::CanonicalSerialize;
+
 use crate::lagrange_basis::{LagrangeBasis, LagrangeTraits};
 
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize)]
@@ -76,13 +78,18 @@ impl<F: FftField> Add for UnivariatePolynomial<F> {
 #[cfg(test)]
 mod tests {
     use ark_bls12_381::Fr;
+    use ark_bn254::Bn254;
+    use ark_crypto_primitives::Error;
+    use ark_ec::pairing::Pairing;
     use ark_ff::Field;
     use ark_poly::{DenseUVPolynomial, EvaluationDomain, GeneralEvaluationDomain, Polynomial};
     use ark_poly::univariate::DensePolynomial;
+    use ark_std::test_rng;
     use ark_std::UniformRand;
     use rand::thread_rng;
+
     use crate::lagrange_basis::LagrangeBasis;
-    use crate::univariate_poly::{UnivariatePolynomialTrait, UnivariatePolynomial};
+    use crate::univariate_poly::{UnivariatePolynomial, UnivariatePolynomialTrait};
 
     type F = Fr;
 

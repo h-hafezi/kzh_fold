@@ -1,12 +1,10 @@
 #![allow(non_snake_case)]
 #![allow(unused_imports)]
 
-use std::mem::size_of_val;
-
 use ark_bn254::{Bn254, Fr};
 use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
 use ark_std::UniformRand;
-use criterion::{black_box, Criterion, criterion_group, criterion_main};
+use criterion::{Criterion, criterion_group, criterion_main};
 use rand::thread_rng;
 
 use sqrtn_pcs::bivariate_poly::BivariatePolynomial;
@@ -115,7 +113,7 @@ fn custom_criterion_config() -> Criterion {
 criterion_group! {
     name = pcs_benches;
     config = custom_criterion_config();
-    targets = bench_setup, bench_commit, bench_open, bench_verify
+    targets =  bench_setup, bench_open, bench_verify, bench_commit
 }
 
 criterion_main!(pcs_benches);
