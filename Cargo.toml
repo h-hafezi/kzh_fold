@@ -9,8 +9,8 @@ ark-ff = "0.4.0"
 ark-ec = "0.4.2"
 ark-poly = "0.4.0"
 ark-serialize = "0.4.2"
-rand = { version = "0.8", features = [ "std", "std_rng" ] }
-ark-crypto-primitives = { version = "^0.4.0", default-features = false, features = [ "r1cs", "snark", "sponge", "crh" ] }
+rand = { version = "0.8", features = ["std", "std_rng"] }
+ark-crypto-primitives = { version = "^0.4.0", default-features = false, features = ["r1cs", "snark", "sponge", "crh"] }
 thiserror = "1.0"
 criterion = "0.5.1"
 ark-bls12-381 = "^0.4.0"
@@ -19,7 +19,7 @@ rayon = "1.10.0"
 ark-bn254 = "0.4.0"
 ark-relations = "0.4.0"
 ark-r1cs-std = "0.4.0"
-transcript = {git="https://github.com/EspressoSystems/hyperplonk"}
+transcript = { git = "https://github.com/EspressoSystems/hyperplonk" }
 ark-grumpkin = "0.4.0"
 num = "0.4.3"
 lazy_static = "1.5.0"

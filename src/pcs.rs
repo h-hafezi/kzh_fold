@@ -1,5 +1,5 @@
 /// A sqrt(n) polynomial commitment scheme
-use std::{iter, marker::PhantomData, ops::Mul};
+use std::{iter, marker::PhantomData, mem, ops::Mul};
 use std::iter::Sum;
 use ark_ec::{AffineRepr, CurveGroup};
 use ark_ff::UniformRand;
@@ -22,6 +22,36 @@ pub struct SRS<E: Pairing> {
     pub vec_V: Vec<E::G2>,
     pub V_prime: E::G2,
 }
+
+impl<E: Pairing> SRS<E> {
+    pub fn size_of(&self) -> usize {
+        let mut total_size = 0;
+
+        // Size of the degree_x and degree_y fields
+        total_size += mem::size_of::<usize>() * 2;
+
+        // Size of the matrix_H Vec<Vec<E::G1Affine>>
+        total_size += mem::size_of::<Vec<Vec<E::G1Affine>>>();
+        for inner_vec in &self.matrix_H {
+            total_size += mem::size_of::<Vec<E::G1Affine>>();
+            total_size += inner_vec.capacity() * mem::size_of::<E::G1Affine>();
+        }
+
+        // Size of the vec_H Vec<E::G1Affine>
+        total_size += mem::size_of::<Vec<E::G1Affine>>();
+        total_size += self.vec_H.capacity() * mem::size_of::<E::G1Affine>();
+
+        // Size of the vec_V Vec<E::G2>
+        total_size += mem::size_of::<Vec<E::G2>>();
+        total_size += self.vec_V.capacity() * mem::size_of::<E::G2>();
+
+        // Size of the V_prime field
+        total_size += mem::size_of::<E::G2>();
+
+        total_size
+    }
+}
+
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Commitment<E: Pairing> {
