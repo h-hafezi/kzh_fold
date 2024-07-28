@@ -1,8 +1,14 @@
+use ark_crypto_primitives::crh::poseidon::constraints::CRHParametersVar;
 /// Poseidon config stolen from sonobe
 
 use ark_crypto_primitives::sponge::{Absorb, CryptographicSponge, poseidon::{PoseidonConfig}};
+use ark_crypto_primitives::sponge::constraints::{AbsorbGadget, CryptographicSpongeVar};
 use ark_crypto_primitives::sponge::poseidon::{find_poseidon_ark_and_mds, PoseidonSponge};
+use ark_crypto_primitives::sponge::poseidon::constraints::PoseidonSpongeVar;
 use ark_ff::PrimeField;
+use ark_r1cs_std::alloc::AllocVar;
+use ark_r1cs_std::fields::fp::FpVar;
+use ark_relations::r1cs::ConstraintSystemRef;
 
 pub struct PoseidonHash<F: Absorb + PrimeField> {
     poseidon_params: PoseidonConfig<F>,
@@ -18,7 +24,6 @@ pub trait PoseidonHashTrait<F: Absorb + PrimeField> {
 }
 
 impl<F: Absorb + PrimeField> PoseidonHashTrait<F> for PoseidonHash<F> {
-
     /// This Poseidon configuration generator agrees with Circom's Poseidon(4) in the case of BN254's scalar field
     fn new() -> Self {
         // 120 bit security target as in
@@ -65,6 +70,43 @@ impl<F: Absorb + PrimeField> PoseidonHashTrait<F> for PoseidonHash<F> {
     }
 }
 
+pub struct PoseidonHashVar<F: Absorb + PrimeField> {
+    poseidon_params: CRHParametersVar<F>,
+    sponge: PoseidonSpongeVar<F>,
+}
+
+pub trait PoseidonHashVarTrait<F: Absorb + PrimeField> {
+    fn new(cs: ConstraintSystemRef<F>) -> Self;
+
+    fn update_sponge<A: AbsorbGadget<F>>(&mut self, field_vector: Vec<A>) -> ();
+
+    fn output(&mut self) -> FpVar<F>;
+}
+
+impl<F: Absorb + PrimeField> PoseidonHashVarTrait<F> for PoseidonHashVar<F> {
+    fn new(cs: ConstraintSystemRef<F>) -> Self {
+        let hash = PoseidonHash::new();
+        // TODO: later don't clone
+        let poseidon_params = CRHParametersVar::<F>::new_witness(cs.clone(), || Ok(hash.poseidon_params.clone())).unwrap();
+        let sponge = PoseidonSpongeVar::new(cs, &hash.poseidon_params);
+        PoseidonHashVar {
+            poseidon_params,
+            sponge,
+        }
+    }
+
+    fn update_sponge<A: AbsorbGadget<F>>(&mut self, field_vector: Vec<A>) -> () {
+        for field_element in field_vector {
+            self.sponge.absorb(&field_element).expect("Error while sponge absorbing");
+        }
+    }
+
+    fn output(&mut self) -> FpVar<F> {
+        let squeezed_field_element: Vec<FpVar<F>> = self.sponge.squeeze_field_elements(1).unwrap();
+        squeezed_field_element[0].clone()
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -75,22 +117,65 @@ mod tests {
     use ark_ec::CurveGroup;
     use ark_ec::short_weierstrass::{SWCurveConfig, Projective};
     use ark_ff::{Field, PrimeField};
+    use ark_r1cs_std::alloc::{AllocationMode, AllocVar};
+    use ark_r1cs_std::fields::fp::FpVar;
+    use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
+    use ark_r1cs_std::{R1CSVar, ToConstraintFieldGadget};
+    use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
     use ark_std::UniformRand;
     use rand::rngs::OsRng;
     use rand::thread_rng;
-    use crate::accumulation::poseidon::{PoseidonHash, PoseidonHashTrait};
+    use crate::accumulation::poseidon::{PoseidonHash, PoseidonHashTrait, PoseidonHashVar, PoseidonHashVarTrait};
 
     type FirstCurve = Fr;
     type SecondCurve = Fq;
 
     #[test]
-    fn lagrange_test() {
+    fn hash_test() {
         let mut hash_object: PoseidonHash<Fr> = PoseidonHash::new();
         let field_vector: Vec<FirstCurve> = vec![FirstCurve::ONE, FirstCurve::ONE];
         hash_object.update_sponge(field_vector);
-        let field_vector: Vec<SecondCurve> = vec![SecondCurve::ONE, SecondCurve::ONE];
-        hash_object.update_sponge(field_vector);
         println!("{}", hash_object.output());
+        let mut temp = SecondCurve::ONE.to_sponge_field_elements_as_vec::<FirstCurve>();
+        println!("{:?}", temp);
+        temp.extend(temp.clone());
+        hash_object.update_sponge(temp);
+        println!("{}", hash_object.output());
+    }
+
+    #[test]
+    fn hash_var_test() {
+        let cs = ConstraintSystem::new_ref();
+
+        let mut hash_object: PoseidonHashVar<Fr> = PoseidonHashVar::new(cs.clone());
+
+        let one_on_first_curve = FpVar::new_variable(
+            cs.clone(),
+            || Ok(FirstCurve::ONE),
+            AllocationMode::Witness,
+        ).unwrap();
+
+        let field_vector: Vec<FpVar<FirstCurve>> = vec![one_on_first_curve.clone(), one_on_first_curve.clone()];
+
+        hash_object.update_sponge(field_vector);
+        println!("{}", hash_object.output().value().unwrap());
+
+        let one_on_second_curve = NonNativeFieldVar::new_variable(
+            cs.clone(),
+            || Ok(SecondCurve::ONE),
+            AllocationMode::Witness,
+        ).unwrap();
+        let t = vec![one_on_second_curve.clone(), one_on_second_curve.clone()];
+        let temp_q = SecondCurve::ONE.to_sponge_field_elements_as_vec::<FirstCurve>();
+        println!("{}", cs.num_constraints());
+        let mut temp = one_on_second_curve.clone().to_constraint_field().unwrap();
+        println!("{}", cs.num_constraints());
+
+        temp.extend(temp.clone());
+
+        //hash_object.update_sponge(wwr);
+
+        println!("{}", hash_object.output().value().unwrap());
     }
 }
 

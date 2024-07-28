@@ -37,7 +37,7 @@ pub struct OpeningProof<E: Pairing> {
 
 // Define the new struct that encapsulates the functionality of polynomial commitment
 pub struct PolyCommit<E: Pairing> {
-    pub(crate) srs: SRS<E>,
+    pub srs: SRS<E>,
 }
 
 pub trait PolyCommitTrait<E: Pairing> {
