@@ -17,31 +17,31 @@ use crate::utils::{inner_product, is_power_of_two, power};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AccSRS<E: Pairing> {
-    degree_x: usize,
-    degree_y: usize,
-    lagrange_basis_x: LagrangeBasis<E::ScalarField>,
-    lagrange_basis_y: LagrangeBasis<E::ScalarField>,
+    pub degree_x: usize,
+    pub degree_y: usize,
+    pub lagrange_basis_x: LagrangeBasis<E::ScalarField>,
+    pub lagrange_basis_y: LagrangeBasis<E::ScalarField>,
 
     // vector of size degree_x
-    k_vec_b: Vec<E::G1Affine>,
+    pub k_vec_b: Vec<E::G1Affine>,
 
     // vector of size degree_y
-    k_vec_c: Vec<E::G1Affine>,
+    pub k_vec_c: Vec<E::G1Affine>,
 
-    k_prime: E::G1Affine,
-    pc_srs: SRS<E>,
+    pub k_prime: E::G1Affine,
+    pub pc_srs: SRS<E>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AccInstance<E: Pairing> {
-    C: E::G1Affine,
-    T: E::G1Affine,
-    b: E::ScalarField,
-    c: E::ScalarField,
-    y: E::ScalarField,
-    z_b: E::ScalarField,
-    z_c: E::ScalarField,
-    E: E::G1Affine,
+    pub C: E::G1Affine,
+    pub T: E::G1Affine,
+    pub b: E::ScalarField,
+    pub c: E::ScalarField,
+    pub y: E::ScalarField,
+    pub z_b: E::ScalarField,
+    pub z_c: E::ScalarField,
+    pub E: E::G1Affine,
 }
 
 impl<E: Pairing> AccInstance<E> {
@@ -478,7 +478,7 @@ mod tests {
         let poly_commit = PolyCommit { srs: srs.clone() };
 
         // random bivariate polynomial
-        let polynomial = BivariatePolynomial::random(&mut thread_rng(), domain_x, domain_y, degree_x, degree_y);
+        let polynomial = BivariatePolynomial::random(&mut thread_rng(), domain_x.clone(), domain_y.clone(), degree_x, degree_y);
 
         // random points and evaluation
         let b = ScalarField::rand(&mut thread_rng());
@@ -492,10 +492,10 @@ mod tests {
         let open = poly_commit.open(&polynomial, com.clone(), &b);
 
         // assert correctness of pcs
-        assert!(poly_commit.verify(LagrangeBasis { domain: domain_x }, &com, &open, &b, &c, &y));
+        assert!(poly_commit.verify(LagrangeBasis { domain: domain_x.clone() }, &com, &open, &b, &c, &y));
 
         // return
-        return (srs, b, c, y, com, open, LagrangeBasis { domain: domain_x }, LagrangeBasis { domain: domain_y });
+        return (srs, b, c, y, com, open, LagrangeBasis { domain: domain_x.clone() }, LagrangeBasis { domain: domain_y.clone() });
     }
 
     #[test]
@@ -567,8 +567,8 @@ mod tests {
         let poly_commit = PolyCommit { srs: pc_srs.clone() };
 
         // random bivariate polynomials
-        let polynomial_1 = BivariatePolynomial::random(&mut thread_rng(), domain_x, domain_y, degree_x, degree_y);
-        let polynomial_2 = BivariatePolynomial::random(&mut thread_rng(), domain_x, domain_y, degree_x, degree_y);
+        let polynomial_1 = BivariatePolynomial::random(&mut thread_rng(), domain_x.clone(), domain_y.clone(), degree_x, degree_y);
+        let polynomial_2 = BivariatePolynomial::random(&mut thread_rng(), domain_x.clone(), domain_y.clone(), degree_x, degree_y);
 
         // random points and evaluation
         let b_1 = ScalarField::rand(&mut thread_rng());
@@ -635,8 +635,8 @@ mod tests {
         let poly_commit = PolyCommit { srs: pc_srs.clone() };
 
         // random bivariate polynomials
-        let polynomial_1 = BivariatePolynomial::random(&mut thread_rng(), domain_x, domain_y, degree_x, degree_y);
-        let polynomial_2 = BivariatePolynomial::random(&mut thread_rng(), domain_x, domain_y, degree_x, degree_y);
+        let polynomial_1 = BivariatePolynomial::random(&mut thread_rng(), domain_x.clone(), domain_y.clone(), degree_x, degree_y);
+        let polynomial_2 = BivariatePolynomial::random(&mut thread_rng(), domain_x.clone(), domain_y.clone(), degree_x, degree_y);
 
         // random points and evaluation
         let b_1 = ScalarField::rand(&mut thread_rng());
@@ -655,8 +655,8 @@ mod tests {
         let open_2 = poly_commit.open(&polynomial_2, com_2.clone(), &b_2);
 
         // set accumulator srs
-        let lagrange_x = LagrangeBasis { domain: domain_x };
-        let lagrange_y = LagrangeBasis { domain: domain_y };
+        let lagrange_x = LagrangeBasis { domain: domain_x.clone() };
+        let lagrange_y = LagrangeBasis { domain: domain_y.clone() };
         let srs = Accumulator::setup(degree_x, degree_y, lagrange_x, lagrange_y, pc_srs, &mut thread_rng());
 
         // get accumulator instance/proof from polynomial instance/opening
@@ -686,8 +686,8 @@ mod tests {
         assert!(Accumulator::decide(&srs, &acc));
 
         // random bivariate polynomials
-        let polynomial_1 = BivariatePolynomial::random(&mut thread_rng(), domain_x, domain_y, degree_x, degree_y);
-        let polynomial_2 = BivariatePolynomial::random(&mut thread_rng(), domain_x, domain_y, degree_x, degree_y);
+        let polynomial_1 = BivariatePolynomial::random(&mut thread_rng(), domain_x.clone(), domain_y.clone(), degree_x, degree_y);
+        let polynomial_2 = BivariatePolynomial::random(&mut thread_rng(), domain_x.clone(), domain_y.clone(), degree_x, degree_y);
 
         // random points and evaluation
         let b_1 = ScalarField::rand(&mut thread_rng());
