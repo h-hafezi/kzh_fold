@@ -2,11 +2,12 @@
 use std::{mem, ops::Mul};
 use std::iter::Sum;
 use std::ops::AddAssign;
+use std::time::Instant;
 
 use ark_ec::{AffineRepr, CurveGroup};
 use ark_ec::pairing::Pairing;
 use ark_ec::VariableBaseMSM;
-use ark_ff::{AdditiveGroup, UniformRand};
+use ark_ff::{AdditiveGroup, PrimeField, UniformRand};
 use rand::RngCore;
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;

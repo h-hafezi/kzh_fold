@@ -15,10 +15,7 @@ type E = Bn254;
 type F = Fr;
 type Poly = DensePolynomial<<E as Pairing>::ScalarField>;
 
-pub(crate) fn trim(
-    pp: &UniversalParams<E>,
-    mut supported_degree: usize,
-) -> (Powers<E>, VerifierKey<E>) {
+pub(crate) fn trim(pp: &UniversalParams<E>, mut supported_degree: usize) -> (Powers<E>, VerifierKey<E>) {
     if supported_degree == 1 {
         supported_degree += 1;
     }
@@ -52,13 +49,14 @@ fn rand<R: Rng>(d: usize, rng: &mut R) -> Poly {
 
 fn bench_setup(c: &mut Criterion) {
     let mut rng = thread_rng();
-    let degrees = vec![4, 8, 16, 32, 64, 128, 256];
+    let sqrt_degrees = vec![4, 8, 16, 32, 64, 128, 256, 512, 1024];
 
-    for &degree in &degrees {
-        let bench_name = format!("setup for degree {}", degree * degree);
+    for &sqrt_degree in &sqrt_degrees {
+        let degree = sqrt_degree * sqrt_degree;
+        let bench_name = format!("setup for degree {}", degree);
         c.bench_function(&bench_name, |b| {
             b.iter(|| {
-                KZG10::<E, Poly>::setup(degree * degree, false, &mut rng).expect("Setup failed")
+                KZG10::<E, Poly>::setup(degree, false, &mut rng).expect("Setup failed")
             })
         });
     }
@@ -66,14 +64,15 @@ fn bench_setup(c: &mut Criterion) {
 
 fn bench_commit(c: &mut Criterion) {
     let mut rng = thread_rng();
-    let degrees = vec![4, 8, 16, 32, 64, 128, 256];
+    let sqrt_degrees = vec![4, 8, 16, 32, 64, 128, 256, 512, 1024];
 
-    for &degree in &degrees {
-        let params = KZG10::<E, Poly>::setup(degree * degree, false, &mut rng).expect("Setup failed");
+    for &sqrt_degree in &sqrt_degrees {
+        let degree = sqrt_degree * sqrt_degree;
+        let params = KZG10::<E, Poly>::setup(degree, false, &mut rng).expect("Setup failed");
         let (ck, _vk) = trim(&params, degree);
 
         let polynomial = Poly::rand(degree, &mut rng);
-        let bench_name = format!("commit for degree {}", degree * degree);
+        let bench_name = format!("commit for degree {}", degree);
         c.bench_function(&bench_name, |b| {
             b.iter(|| {
                 KZG10::<E, Poly>::commit(&ck, &polynomial, None, Some(&mut rng)).expect("Commitment failed")
@@ -84,16 +83,17 @@ fn bench_commit(c: &mut Criterion) {
 
 fn bench_open(c: &mut Criterion) {
     let mut rng = thread_rng();
-    let degrees = vec![4, 8, 16, 32, 64, 128, 256];
+    let sqrt_degrees = vec![4, 8, 16, 32, 64, 128, 256, 512, 1024];
 
-    for &degree in &degrees {
-        let params = KZG10::<E, Poly>::setup(degree * degree, false, &mut rng).expect("Setup failed");
+    for &sqrt_degree in &sqrt_degrees {
+        let degree = sqrt_degree * sqrt_degree;
+        let params = KZG10::<E, Poly>::setup(degree, false, &mut rng).expect("Setup failed");
         let (ck, _vk) = trim(&params, degree);
 
         let polynomial = Poly::rand(degree, &mut rng);
         let (comm, r) = KZG10::<E, Poly>::commit(&ck, &polynomial, None, Some(&mut rng)).expect("Commitment failed");
 
-        let bench_name = format!("open for degree {}", degree * degree);
+        let bench_name = format!("open for degree {}", degree);
         c.bench_function(&bench_name, |b| {
             b.iter(|| {
                 let point = F::rand(&mut rng);
@@ -105,10 +105,11 @@ fn bench_open(c: &mut Criterion) {
 
 fn bench_verify(c: &mut Criterion) {
     let mut rng = thread_rng();
-    let degrees = vec![4, 8, 16, 32, 64, 128, 256];
+    let sqrt_degrees = vec![4, 8, 16, 32, 64, 128, 256, 512, 1024];
 
-    for &degree in &degrees {
-        let params = KZG10::<E, Poly>::setup(degree * degree, false, &mut rng).expect("Setup failed");
+    for &sqrt_degree in &sqrt_degrees {
+        let degree = sqrt_degree * sqrt_degree;
+        let params = KZG10::<E, Poly>::setup(degree, false, &mut rng).expect("Setup failed");
         let (ck, vk) = trim(&params, degree);
 
         let polynomial = Poly::rand(degree, &mut rng);
@@ -118,7 +119,7 @@ fn bench_verify(c: &mut Criterion) {
         let proof = KZG10::<E, Poly>::open(&ck, &polynomial, point, &r).expect("Proof generation failed");
         let value = polynomial.evaluate(&point);
 
-        let bench_name = format!("verify for degree {}", degree * degree);
+        let bench_name = format!("verify for degree {}", degree);
         c.bench_function(&bench_name, |b| {
             b.iter(|| {
                 KZG10::<E, Poly>::check(&vk, &comm, point, value, &proof).expect("Verification failed")

@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::marker::PhantomData;
 use std::ops::{Add, AddAssign, Div, Mul};
-
+use std::time::Instant;
 use ark_crypto_primitives::Error;
 use ark_ec::{AffineRepr, CurveGroup, ScalarMul, VariableBaseMSM};
 use ark_ec::pairing::Pairing;
@@ -599,13 +599,11 @@ fn convert_to_bigints<F: PrimeField>(p: &[F]) -> Vec<F::BigInt> {
 mod tests {
     use ark_bn254::{Bn254, Fr};
     use ark_ec::pairing::Pairing;
-    use ark_ff::Field;
     use ark_poly::{DenseUVPolynomial, Polynomial};
     use ark_poly::univariate::DensePolynomial;
     use ark_std::{test_rng, UniformRand};
-    use rand::thread_rng;
+
     use crate::kzg::{KZG10, Powers, UniversalParams, VerifierKey};
-    use crate::lagrange_basis::LagrangeBasis;
 
     type F = Fr;
     type E = Bn254;
@@ -651,7 +649,7 @@ mod tests {
         let (ck, vk) = trim(&params, degree);
 
         // Generate commitment
-        let polynomial = Poly:: rand(degree, rng);
+        let polynomial = Poly::rand(degree, rng);
         let hiding_bound = Some(1);
 
         let (comm, r) = KZG10::<E, Poly>::commit(&ck, &polynomial, hiding_bound, Some(rng)).expect("Commitment failed");
