@@ -165,15 +165,12 @@ mod tests {
             || Ok(SecondCurve::ONE),
             AllocationMode::Witness,
         ).unwrap();
-        let t = vec![one_on_second_curve.clone(), one_on_second_curve.clone()];
-        let temp_q = SecondCurve::ONE.to_sponge_field_elements_as_vec::<FirstCurve>();
-        println!("{}", cs.num_constraints());
-        let mut temp = one_on_second_curve.clone().to_constraint_field().unwrap();
-        println!("{}", cs.num_constraints());
 
-        temp.extend(temp.clone());
+        println!("num of constraints before: {}", cs.num_constraints());
+        let temp = one_on_second_curve.clone().to_constraint_field().unwrap();
+        println!("num of constraints after: {}", cs.num_constraints());
 
-        //hash_object.update_sponge(wwr);
+        hash_object.update_sponge(temp);
 
         println!("{}", hash_object.output().value().unwrap());
     }
