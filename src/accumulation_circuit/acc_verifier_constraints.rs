@@ -14,7 +14,7 @@ use ark_relations::ns;
 use ark_relations::r1cs::{Namespace, SynthesisError};
 use ark_std::UniformRand;
 use rand::thread_rng;
-use crate::accumulation::acc_instance_constraints::{AccumulatorInstance, AccumulatorInstanceVar};
+use crate::accumulation_circuit::acc_instance_constraints::{AccumulatorInstance, AccumulatorInstanceVar};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AccumulatorVerifier<G1>
@@ -155,8 +155,8 @@ mod tests {
     use ark_relations::r1cs::ConstraintSystem;
     use itertools::equal;
     use rand::thread_rng;
-    use crate::accumulation::acc_instance_constraints::{AccumulatorInstance, AccumulatorInstanceVar};
-    use crate::accumulation::acc_verifier_constraints::AccumulatorVerifierVar;
+    use crate::accumulation_circuit::acc_instance_constraints::{AccumulatorInstance, AccumulatorInstanceVar};
+    use crate::accumulation_circuit::acc_verifier_constraints::AccumulatorVerifierVar;
 
     #[test]
     fn initialisation_test() {

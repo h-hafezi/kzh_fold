@@ -18,11 +18,15 @@ itertools = "0.12.1"
 rayon = "1.10.0"
 ark-bn254 = "0.4.0"
 ark-relations = "0.4.0"
+ark-pallas = "0.5.0-alpha.0"
 ark-r1cs-std = "0.4.0"
 transcript = { git = "https://github.com/EspressoSystems/hyperplonk" }
 ark-grumpkin = "0.4.0"
 num = "0.4.3"
 lazy_static = "1.5.0"
+sha3 = "0.11.0-pre.4"
+tracing = "0.1.40"
+rand_chacha = "0.3.1"
 
 [patch.crates-io]
 ark-crypto-primitives = { git = "https://github.com/arkworks-rs/crypto-primitives", rev = "d27a5c8" }

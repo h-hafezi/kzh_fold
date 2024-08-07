@@ -11,7 +11,7 @@ use ark_r1cs_std::fields::fp::FpVar;
 use ark_relations::r1cs::ConstraintSystemRef;
 
 pub struct PoseidonHash<F: Absorb + PrimeField> {
-    poseidon_params: PoseidonConfig<F>,
+    pub(crate) poseidon_params: PoseidonConfig<F>,
     sponge: PoseidonSponge<F>,
 }
 

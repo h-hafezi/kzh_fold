@@ -10,3 +10,6 @@ pub mod kzg;
 mod hash;
 mod polynomial;
 mod polynomial_commitment;
+mod nova;
+mod gadgets;
+mod accumulation_circuit;
