@@ -12,10 +12,10 @@ use rand::RngCore;
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
 
-use crate::{bivariate_poly::BivariatePolynomial, univariate_poly::UnivariatePolynomial};
-use crate::bivariate_poly::BivariatePolynomialTrait;
-use crate::lagrange_basis::{LagrangeBasis, LagrangeTraits};
-use crate::univariate_poly::UnivariatePolynomialTrait;
+use crate::{polynomial::bivariate_poly::BivariatePolynomial, polynomial::univariate_poly::UnivariatePolynomial};
+use crate::polynomial::bivariate_poly::BivariatePolynomialTrait;
+use crate::polynomial::lagrange_basis::{LagrangeBasis, LagrangeTraits};
+use crate::polynomial::univariate_poly::UnivariatePolynomialTrait;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SRS<E: Pairing> {

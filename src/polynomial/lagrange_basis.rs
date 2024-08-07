@@ -36,7 +36,7 @@ mod tests {
     use ark_bls12_381::Fr;
     use ark_ff::Field;
     use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
-    use crate::lagrange_basis::{LagrangeBasis, LagrangeTraits};
+    use crate::polynomial::lagrange_basis::{LagrangeBasis, LagrangeTraits};
 
     type F = Fr;
 

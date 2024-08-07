@@ -125,7 +125,7 @@ mod tests {
     use ark_std::UniformRand;
     use rand::rngs::OsRng;
     use rand::thread_rng;
-    use crate::accumulation::poseidon::{PoseidonHash, PoseidonHashTrait, PoseidonHashVar, PoseidonHashVarTrait};
+    use crate::hash::poseidon::{PoseidonHash, PoseidonHashTrait, PoseidonHashVar, PoseidonHashVarTrait};
 
     type FirstCurve = Fr;
     type SecondCurve = Fq;

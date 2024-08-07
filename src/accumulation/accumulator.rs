@@ -8,10 +8,10 @@ use ark_poly::EvaluationDomain;
 use ark_std::UniformRand;
 use rand::RngCore;
 
-use crate::accumulation::poseidon::{PoseidonHash, PoseidonHashTrait};
-use crate::lagrange_basis::{LagrangeBasis, LagrangeTraits};
-use crate::pcs::{OpeningProof, PolyCommitTrait, SRS};
-use crate::univariate_poly::UnivariatePolynomial;
+use crate::hash::poseidon::{PoseidonHash, PoseidonHashTrait};
+use crate::polynomial::lagrange_basis::{LagrangeBasis, LagrangeTraits};
+use crate::polynomial_commitment::pcs::{OpeningProof, PolyCommitTrait, SRS};
+use crate::polynomial::univariate_poly::UnivariatePolynomial;
 use crate::utils::{inner_product, is_power_of_two, power};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -460,9 +460,9 @@ mod tests {
     use rand::thread_rng;
 
     use crate::accumulation::accumulator::{AccSRS, Accumulator, AccumulatorTrait};
-    use crate::bivariate_poly::{BivariatePolynomial, BivariatePolynomialTrait};
-    use crate::lagrange_basis::LagrangeBasis;
-    use crate::pcs::{Commitment, OpeningProof, PolyCommit, PolyCommitTrait, SRS};
+    use crate::polynomial::bivariate_poly::{BivariatePolynomial, BivariatePolynomialTrait};
+    use crate::polynomial::lagrange_basis::LagrangeBasis;
+    use crate::polynomial_commitment::pcs::{Commitment, OpeningProof, PolyCommit, PolyCommitTrait, SRS};
 
     type E = Bn254;
     type F = Fr;

@@ -3,8 +3,8 @@ use ark_ff::{Field, Zero, PrimeField, FftField};
 use itertools::Itertools;
 use rand::RngCore;
 use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
-use crate::lagrange_basis::{LagrangeBasis, LagrangeTraits};
-use crate::univariate_poly::UnivariatePolynomial;
+use crate::polynomial::lagrange_basis::{LagrangeBasis, LagrangeTraits};
+use crate::polynomial::univariate_poly::UnivariatePolynomial;
 use crate::utils::{compute_powers, is_power_of_two};
 
 
@@ -201,8 +201,8 @@ mod tests {
     use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
     use ark_std::UniformRand;
     use rand::thread_rng;
-    use crate::bivariate_poly::{BivariatePolynomial, BivariatePolynomialTrait};
-    use crate::univariate_poly::UnivariatePolynomialTrait;
+    use crate::polynomial::bivariate_poly::{BivariatePolynomial, BivariatePolynomialTrait};
+    use crate::polynomial::univariate_poly::UnivariatePolynomialTrait;
 
     type F = Fr;
 
