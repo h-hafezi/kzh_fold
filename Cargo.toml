@@ -27,6 +27,7 @@ lazy_static = "1.5.0"
 sha3 = "0.11.0-pre.4"
 tracing = "0.1.40"
 rand_chacha = "0.3.1"
+ark-vesta = "0.4.0"
 
 [patch.crates-io]
 ark-crypto-primitives = { git = "https://github.com/arkworks-rs/crypto-primitives", rev = "d27a5c8" }

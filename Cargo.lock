@@ -243,6 +243,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "ark-vesta"
+version = "0.4.0"
+source = "git+https://github.com/arkworks-rs/curves/?rev=8c0256a#8c0256ac9c479b4b3beb91bfcc11dc17e58b3819"
+dependencies = [
+ "ark-ec",
+ "ark-ff",
+ "ark-pallas",
+ "ark-std",
+]
+
+[[package]]
 name = "arrayvec"
 version = "0.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -975,6 +986,7 @@ dependencies = [
  "ark-relations",
  "ark-serialize",
  "ark-std",
+ "ark-vesta",
  "criterion",
  "itertools 0.12.1",
  "lazy_static",
@@ -1334,8 +1346,3 @@ source = "git+https://github.com/arkworks-rs/poly-commit/?rev=12f5529#12f5529c9c
 name = "ark-test-curves"
 version = "0.4.2"
 source = "git+https://github.com/arkworks-rs/algebra/?rev=2a80c54#2a80c54687582f49cbbe9a27b94071e1a500f056"
-
-[[patch.unused]]
-name = "ark-vesta"
-version = "0.4.0"
-source = "git+https://github.com/arkworks-rs/curves/?rev=8c0256a#8c0256ac9c479b4b3beb91bfcc11dc17e58b3819"

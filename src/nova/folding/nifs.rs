@@ -137,7 +137,7 @@ pub(crate) mod tests {
         C: CommitmentScheme<Projective<G>, SetupAux=()>,
         C::PP: Clone,
     {
-        let config = PoseidonHash::<G::BaseField>::new().poseidon_params;;
+        let config = PoseidonHash::<G::BaseField>::new().poseidon_params;
 
         let (shape, U2, W2, pp) = setup_test_r1cs::<G, C>(3, None, &());
 
