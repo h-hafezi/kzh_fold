@@ -1,8 +1,8 @@
 //! Helper definitions for secondary circuit.
 //!
-//! Secondary circuit accepts `g1`, `g2`, `g_out`, `r` (in this exact order) as its public input, where
-//! `g1`, `g2`, `g_out` are points on the curve G, `r` is an element from the scalar field, and enforces
-//! `g_out = g1 + r * g2`, while having circuit satisfying witness as a trace of this computation.
+//! Secondary circuit accepts `g1`, `g2`, `g_out`, `r1` `r2` (in this exact order) as its public input, where
+//! `g1`, `g2`, `g_out` are points on the curve G, `r1`, `r2` are elements from the scalar field, and enforces
+//! `g_out = r1 * g1 + r2 * g2`, while having circuit satisfying witness as a trace of this computation.
 
 use ark_ec::short_weierstrass::{Projective, SWCurveConfig};
 use ark_ff::{AdditiveGroup, PrimeField};
