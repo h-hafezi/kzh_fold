@@ -28,8 +28,8 @@ pub(crate) type R1CSWitness<G> = r1cs::R1CSWitness<Projective<G>>;
 pub(crate) type RelaxedR1CSInstance<G, C> = r1cs::RelaxedR1CSInstance<Projective<G>, C>;
 pub(crate) type RelaxedR1CSWitness<G> = r1cs::RelaxedR1CSWitness<Projective<G>>;
 
-/// Leading One + 3 curve points + 2 scalar.
-const SECONDARY_NUM_IO: usize = 12;
+/// Leading One + 3 curve points + 1 scalar.
+const SECONDARY_NUM_IO: usize = 11;
 
 /// Public input of secondary circuit.
 pub struct Circuit<G1: SWCurveConfig> {
@@ -41,8 +41,7 @@ pub struct Circuit<G1: SWCurveConfig> {
     /// input and hence should fit into the base field of G1.
     ///
     /// See [`super::nimfs::SQUEEZE_ELEMENTS_BIT_SIZE`].
-    pub(crate) r1: G1::BaseField,
-    pub(crate) r2: G1::BaseField,
+    pub(crate) r: G1::BaseField,
 }
 
 impl<G1: SWCurveConfig> Circuit<G1> {
@@ -55,8 +54,7 @@ impl<G: SWCurveConfig> Default for Circuit<G> {
             g1: Projective::zero(),
             g2: Projective::zero(),
             g_out: Projective::zero(),
-            r1: G::BaseField::ZERO,
-            r2: G::BaseField::ZERO,
+            r: G::BaseField::ZERO,
         }
     }
 }
@@ -67,8 +65,7 @@ impl<G: SWCurveConfig> Clone for Circuit<G> {
             g1: self.g1,
             g2: self.g2,
             g_out: self.g_out,
-            r1: self.r1,
-            r2: self.r2,
+            r: self.r,
         }
     }
 }
@@ -85,13 +82,10 @@ where
         let g2 = ProjectiveVar::<G1, FpVar<G1::BaseField>>::new_input(cs.clone(), || Ok(self.g2))?;
         let g_out = ProjectiveVar::<G1, FpVar<G1::BaseField>>::new_input(cs.clone(), || Ok(self.g_out))?;
 
-        let r1 = FpVar::<G1::BaseField>::new_input(cs.clone(), || Ok(self.r1))?;
-        let r1_bits = r1.to_bits_le()?;
+        let r = FpVar::<G1::BaseField>::new_input(cs.clone(), || Ok(self.r))?;
+        let r_bits = r.to_bits_le()?;
 
-        let r2 = FpVar::<G1::BaseField>::new_input(cs.clone(), || Ok(self.r2))?;
-        let r2_bits = r2.to_bits_le()?;
-
-        let out = g1.scalar_mul_le(r1_bits.iter())? + g2.scalar_mul_le(r2_bits.iter())?;
+        let out = g1.scalar_mul_le(r_bits.iter())? + g2;
         out.enforce_equal(&g_out)?;
 
         Ok(())
@@ -214,14 +208,13 @@ where
         let g2 = parse_projective!(X);
         let g_out = parse_projective!(X);
 
-        if X.len() < 2 {
+        if X.len() < 1 {
             return None;
         }
 
-        let r1 = X[0];
-        let r2 = X[1];
+        let r = X[0];
 
-        Some(Circuit { g1, g2, g_out, r1, r2 })
+        Some(Circuit { g1, g2, g_out, r })
     }
 }
 
@@ -243,17 +236,13 @@ mod tests {
         let g1 = Projective::rand(&mut rng);
         let g2 = Projective::rand(&mut rng);
 
-        let val_1 = u64::rand(&mut rng);
-        let r1 = <Fq as PrimeField>::BigInt::from(val_1).into();
-        let r1_scalar = unsafe { cast_field_element::<Fq, Fr>(&r1) };
+        let val = u64::rand(&mut rng);
+        let r = <Fq as PrimeField>::BigInt::from(val).into();
+        let r_scalar = unsafe { cast_field_element::<Fq, Fr>(&r) };
 
-        let val_2 = u64::rand(&mut rng);
-        let r2 = <Fq as PrimeField>::BigInt::from(val_2).into();
-        let r2_scalar = unsafe { cast_field_element::<Fq, Fr>(&r2) };
+        let g_out = g1 * r_scalar + g2;
 
-        let g_out = g1 * r1_scalar + g2 * r2_scalar;
-
-        let expected_pub_io = Circuit::<PallasConfig> { g1, g2, g_out, r1, r2 };
+        let expected_pub_io = Circuit::<PallasConfig> { g1, g2, g_out, r };
         let X = [
             Fq::ONE,
             g1.x,
@@ -265,8 +254,7 @@ mod tests {
             g_out.x,
             g_out.y,
             g_out.z,
-            unsafe { cast_field_element(&r1) },
-            unsafe { cast_field_element(&r2) },
+            unsafe { cast_field_element(&r) },
         ];
 
         assert_eq!(X.len(), SECONDARY_NUM_IO);
@@ -281,8 +269,7 @@ mod tests {
         assert_eq!(pub_io.g1, expected_pub_io.g1);
         assert_eq!(pub_io.g2, expected_pub_io.g2);
         assert_eq!(pub_io.g_out, expected_pub_io.g_out);
-        assert_eq!(pub_io.r1, expected_pub_io.r1);
-        assert_eq!(pub_io.r2, expected_pub_io.r2);
+        assert_eq!(pub_io.r, expected_pub_io.r);
 
         // incorrect length
         let _X = &X[..10];
@@ -309,29 +296,24 @@ mod tests {
         let g1 = Projective::rand(&mut rng);
         let g2 = Projective::rand(&mut rng);
 
-        let val_1 = u64::rand(&mut rng);
-        let r1 = <Fq as PrimeField>::BigInt::from(val_1).into();
-        let r1_scalar = unsafe { cast_field_element::<Fq, Fr>(&r1) };
+        let val = u64::rand(&mut rng);
+        let r = <Fq as PrimeField>::BigInt::from(val).into();
+        let r_scalar = unsafe { cast_field_element::<Fq, Fr>(&r) };
 
-        let val_2 = u64::rand(&mut rng);
-        let r2 = <Fq as PrimeField>::BigInt::from(val_2).into();
-        let r2_scalar = unsafe { cast_field_element::<Fq, Fr>(&r2) };
-
-        let g_out = g1 * r1_scalar + g2 * r2_scalar;
+        let g_out = g1 * r_scalar + g2;
 
         let pp = PedersenCommitment::<ark_vesta::Projective>::setup(shape.num_vars, b"test", &());
         let (U, _) = synthesize::<
             PallasConfig,
             VestaConfig,
             PedersenCommitment<ark_vesta::Projective>,
-        >(Circuit { g1, g2, g_out, r1, r2 }, &pp).unwrap();
+        >(Circuit { g1, g2, g_out, r }, &pp).unwrap();
 
         let pub_io = U.parse_secondary_io::<PallasConfig>().unwrap();
 
         assert_eq!(pub_io.g1, g1);
         assert_eq!(pub_io.g2, g2);
         assert_eq!(pub_io.g_out, g_out);
-        assert_eq!(pub_io.r1, r1);
-        assert_eq!(pub_io.r2, r2);
+        assert_eq!(pub_io.r, r);
     }
 }

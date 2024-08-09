@@ -17,22 +17,17 @@ mod tests {
         let g1 = Projective::rand(&mut rng);
         let g2 = Projective::rand(&mut rng);
 
-        let val_1 = u64::rand(&mut rng);
-        let r1 = <Fq as PrimeField>::BigInt::from(val_1).into();
-        let r1_scalar = unsafe { cast_field_element::<Fq, Fr>(&r1) };
+        let val = u64::rand(&mut rng);
+        let r = <Fq as PrimeField>::BigInt::from(val).into();
+        let r_scalar = unsafe { cast_field_element::<Fq, Fr>(&r) };
 
-        let val_2 = u64::rand(&mut rng);
-        let r2 = <Fq as PrimeField>::BigInt::from(val_2).into();
-        let r2_scalar = unsafe { cast_field_element::<Fq, Fr>(&r2) };
-
-        let g_out = g1 * r1_scalar + g2 * r2_scalar;
+        let g_out = g1 * r_scalar + g2 ;
 
         Circuit {
             g1,
             g2,
             g_out,
-            r1,
-            r2,
+            r,
         }
     }
     #[test]
