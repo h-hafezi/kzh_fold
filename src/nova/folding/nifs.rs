@@ -11,6 +11,7 @@ use crate::{
     nova::r1cs::{self, R1CSShape, RelaxedR1CSInstance, RelaxedR1CSWitness},
 };
 
+// the output size of random oracle
 pub const SQUEEZE_ELEMENTS_BIT_SIZE: FieldElementSize = FieldElementSize::Truncated(127);
 
 #[derive(CanonicalSerialize)]

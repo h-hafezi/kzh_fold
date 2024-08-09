@@ -61,6 +61,18 @@ impl<G: SWCurveConfig> Default for Circuit<G> {
     }
 }
 
+impl<G: SWCurveConfig> Clone for Circuit<G> {
+    fn clone(&self) -> Self {
+        Self {
+            g1: self.g1,
+            g2: self.g2,
+            g_out: self.g_out,
+            r1: self.r1,
+            r2: self.r2,
+        }
+    }
+}
+
 impl<G1: SWCurveConfig> ConstraintSynthesizer<G1::BaseField> for Circuit<G1>
 where
     G1::BaseField: PrimeField,
