@@ -9,7 +9,7 @@ mod tests {
     pub use crate::hash::pederson::PedersenCommitment;
     use crate::nova::commitment::CommitmentScheme;
     use crate::nova::cycle_fold::coprocessor::{Circuit, RelaxedR1CSInstance, setup_shape, synthesize};
-    use crate::nova::r1cs::{commit_T, commit_T_with_relaxed, RelaxedR1CSWitness};
+    use crate::gadgets::r1cs::r1cs::{commit_T, commit_T_with_relaxed, RelaxedR1CSWitness};
     use crate::utils::cast_field_element;
 
     fn get_random_circuit() -> Circuit<PallasConfig> {

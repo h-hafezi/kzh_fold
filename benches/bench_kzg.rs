@@ -9,13 +9,13 @@ use ark_std::UniformRand;
 use criterion::{Criterion, criterion_group, criterion_main};
 use rand::{Rng, thread_rng};
 
-use sqrtn_pcs::kzg::{KZG10, Powers, UniversalParams, VerifierKey};
+use sqrtn_pcs::kzg::{KZG10, KZGPowers, KZGUniversalParams, KZGVerifierKey};
 
 type E = Bn254;
 type F = Fr;
 type Poly = DensePolynomial<<E as Pairing>::ScalarField>;
 
-pub(crate) fn trim(pp: &UniversalParams<E>, mut supported_degree: usize) -> (Powers<E>, VerifierKey<E>) {
+pub(crate) fn trim(pp: &KZGUniversalParams<E>, mut supported_degree: usize) -> (KZGPowers<E>, KZGVerifierKey<E>) {
     if supported_degree == 1 {
         supported_degree += 1;
     }
@@ -24,11 +24,11 @@ pub(crate) fn trim(pp: &UniversalParams<E>, mut supported_degree: usize) -> (Pow
         .map(|i| pp.powers_of_gamma_g[&i])
         .collect();
 
-    let powers = Powers {
+    let powers = KZGPowers {
         powers_of_g: ark_std::borrow::Cow::Owned(powers_of_g),
         powers_of_gamma_g: ark_std::borrow::Cow::Owned(powers_of_gamma_g),
     };
-    let vk = VerifierKey {
+    let vk = KZGVerifierKey {
         g: pp.powers_of_g[0],
         gamma_g: pp.powers_of_gamma_g[&0],
         h: pp.h,

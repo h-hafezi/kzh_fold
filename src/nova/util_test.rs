@@ -14,8 +14,9 @@ use ark_std::rand::RngCore;
 
 use super::{
     commitment::CommitmentScheme,
-    r1cs::{R1CSInstance, R1CSShape, R1CSWitness},
 };
+use crate::gadgets::r1cs::r1cs::{R1CSInstance, R1CSShape, R1CSWitness};
+
 
 /// Circuit with a single public input `y`, which enforces `x**3 + x + 5 == y`.
 struct CubicCircuit {

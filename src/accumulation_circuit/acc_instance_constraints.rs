@@ -1,9 +1,10 @@
-use std::borrow::Borrow;
+/*use std::borrow::Borrow;
 use std::fmt::Debug;
+
 use ark_ec::CurveConfig;
 use ark_ec::pairing::Pairing;
 use ark_ec::short_weierstrass::{Projective, SWCurveConfig};
-use ark_ff::{Field, PrimeField};
+use ark_ff::{Field, PrimeField, Zero};
 use ark_r1cs_std::alloc::{AllocationMode, AllocVar};
 use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::fields::fp::FpVar;
@@ -14,22 +15,16 @@ use ark_r1cs_std::uint32::UInt32;
 use ark_relations::ns;
 use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AccumulatorInstance<G1>
 where
     G1: SWCurveConfig + Clone,
     G1::BaseField: PrimeField,
     G1::ScalarField: PrimeField,
-    FpVar<
-        <G1 as CurveConfig>::BaseField
-    >: FieldVar<
-        <G1 as CurveConfig>::BaseField,
-        <<G1 as CurveConfig>::BaseField as Field>::BasePrimeField
-    >,
 {
     pub C: Projective<G1>,
     pub T: Projective<G1>,
+    // if non-relaxed instance then it should be zero
     pub E: Projective<G1>,
     pub b: G1::ScalarField,
     pub c: G1::ScalarField,
@@ -41,7 +36,29 @@ where
     pub m: u32,
 }
 
+impl<G1> AccumulatorInstance<G1>
+where
+    G1: SWCurveConfig + Clone,
+    G1::BaseField: PrimeField,
+    G1::ScalarField: PrimeField,
+{
+    #[inline(always)]
+    /// Returns if the error term E is zero
+    pub fn is_fresh(&self) -> bool {
+        self.E.is_zero()
+    }
+
+    #[inline(always)]
+    /// Returns if the error term E is non-zero
+    pub fn is_relaxed(&self) -> bool {
+        !self.E.is_zero()
+    }
+}
+
+
+
 #[derive(Clone)]
+/// the circuit is defined on scalar of G1
 pub struct AccumulatorInstanceVar<G1>
 where
     G1: SWCurveConfig + Clone,
@@ -54,14 +71,16 @@ where
         <<G1 as CurveConfig>::BaseField as Field>::BasePrimeField
     >,
 {
+    // group points with base field G1::BaseField
     pub C_var: ProjectiveVar<G1, FpVar<G1::BaseField>>,
     pub T_var: ProjectiveVar<G1, FpVar<G1::BaseField>>,
     pub E_var: ProjectiveVar<G1, FpVar<G1::BaseField>>,
-    pub b_var: NonNativeFieldVar<G1::ScalarField, G1::BaseField>,
-    pub c_var: NonNativeFieldVar<G1::ScalarField, G1::BaseField>,
-    pub y_var: NonNativeFieldVar<G1::ScalarField, G1::BaseField>,
-    pub z_b_var: NonNativeFieldVar<G1::ScalarField, G1::BaseField>,
-    pub z_c_var: NonNativeFieldVar<G1::ScalarField, G1::BaseField>,
+    // the field elements G1::ScalarField
+    pub b_var: FpVar<G1::ScalarField>,
+    pub c_var: FpVar<G1::ScalarField>,
+    pub y_var: FpVar<G1::ScalarField>,
+    pub z_b_var: FpVar<G1::ScalarField>,
+    pub z_c_var: FpVar<G1::ScalarField>,
     // these are constant values
     pub n: u32,
     pub m: u32,
@@ -110,7 +129,7 @@ where
     G1: Clone,
 {
     fn new_variable<T: Borrow<AccumulatorInstance<G1>>>(
-        cs: impl Into<Namespace<G1::BaseField>>,
+        cs: impl Into<Namespace<G1::ScalarField>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
@@ -138,31 +157,31 @@ where
             mode,
         ).unwrap();
 
-        let b_var = NonNativeFieldVar::new_variable(
+        let b_var = FpVar::new_variable(
             ns!(cs, "b"),
             || circuit.map(|e| e.b),
             mode,
         ).unwrap();
 
-        let c_var = NonNativeFieldVar::new_variable(
+        let c_var = FpVar::new_variable(
             ns!(cs, "c"),
             || circuit.map(|e| e.c),
             mode,
         ).unwrap();
 
-        let y_var = NonNativeFieldVar::new_variable(
+        let y_var = FpVar::new_variable(
             ns!(cs, "y"),
             || circuit.map(|e| e.y),
             mode,
         ).unwrap();
 
-        let z_b_var = NonNativeFieldVar::new_variable(
+        let z_b_var = FpVar::new_variable(
             ns!(cs, "z_b"),
             || circuit.map(|e| e.z_b),
             mode,
         ).unwrap();
 
-        let z_c_var = NonNativeFieldVar::new_variable(
+        let z_c_var = FpVar::new_variable(
             ns!(cs, "z_c"),
             || circuit.map(|e| e.z_c),
             mode,
@@ -186,16 +205,16 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::fmt::{Debug, Formatter};
-    use ark_ff::{AdditiveGroup, Field, PrimeField, Zero};
-    use ark_ec::short_weierstrass::{SWCurveConfig, Projective};
-    use ark_std::UniformRand;
+    use std::fmt::Debug;
+
+    use ark_bn254::{Fq, Fr};
     use ark_bn254::g1::Config;
-    use ark_bn254::{Fr, Fq};
+    use ark_ec::short_weierstrass::Projective;
+    use ark_ff::{AdditiveGroup, Zero};
     use ark_r1cs_std::alloc::{AllocationMode, AllocVar};
     use ark_r1cs_std::R1CSVar;
     use ark_relations::r1cs::ConstraintSystem;
-    use itertools::equal;
+
     use crate::accumulation_circuit::acc_instance_constraints::{AccumulatorInstance, AccumulatorInstanceVar};
 
     #[test]
@@ -213,8 +232,10 @@ mod tests {
             n: 0u32,
             m: 0u32,
         };
+
         // a constraint system
         let cs = ConstraintSystem::<Fq>::new_ref();
+
         // make a circuit_var
         let circuit_var = AccumulatorInstanceVar::new_variable(cs, || Ok(instance.clone()), AllocationMode::Constant).unwrap();
         // get its value and assert its equal to the original instance
@@ -225,3 +246,6 @@ mod tests {
         }
     }
 }
+
+
+ */

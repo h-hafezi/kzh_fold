@@ -1,5 +1,4 @@
-pub mod r1cs;
 pub mod commitment;
-mod folding;
-mod util_test;
-mod cycle_fold;
+pub mod folding;
+pub mod util_test;
+pub mod cycle_fold;

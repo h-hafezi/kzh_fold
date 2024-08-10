@@ -20,7 +20,7 @@ use ark_ec::{
 };
 use ark_ff::PrimeField;
 use crate::nova::commitment::{Commitment, CommitmentScheme};
-use crate::nova::r1cs::{R1CSInstance, RelaxedR1CSInstance};
+use crate::gadgets::r1cs::r1cs::{R1CSInstance, RelaxedR1CSInstance};
 use crate::utils::cast_field_element_unique;
 
 /// An interface to objects that can be absorbed by [`ark_sponge::CryptographicSponge`] defined

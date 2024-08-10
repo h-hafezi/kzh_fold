@@ -17,7 +17,7 @@ use rand::RngCore;
     PartialEq,
     Eq
 )]
-pub struct UniversalParams<E: Pairing> {
+pub struct KZGUniversalParams<E: Pairing> {
     /// Group elements of the form `{ \beta^i G }`, where `i` ranges from 0 to `degree`.
     pub powers_of_g: Vec<E::G1Affine>,
     /// Group elements of the form `{ \beta^i \gamma G }`, where `i` ranges from 0 to `degree`.
@@ -41,7 +41,7 @@ pub struct UniversalParams<E: Pairing> {
     Debug,
     PartialEq
 )]
-pub struct Powers<'a, E: Pairing> {
+pub struct KZGPowers<'a, E: Pairing> {
     /// Group elements of the form `β^i G`, for different values of `i`.
     pub powers_of_g: Cow<'a, [E::G1Affine]>,
     /// Group elements of the form `β^i γG`, for different values of `i`.
@@ -55,7 +55,7 @@ pub struct Powers<'a, E: Pairing> {
     PartialEq,
     Eq
 )]
-pub struct VerifierKey<E: Pairing> {
+pub struct KZGVerifierKey<E: Pairing> {
     /// The generator of G1.
     pub g: E::G1Affine,
     /// The generator of G1 that is used for making a commitment hiding.
@@ -71,7 +71,7 @@ pub struct VerifierKey<E: Pairing> {
 }
 
 #[derive(Default, Clone, Debug)]
-pub struct PreparedVerifierKey<E: Pairing> {
+pub struct KZGPreparedVerifierKey<E: Pairing> {
     /// The generator of G1, prepared for power series.
     pub prepared_g: Vec<E::G1Affine>,
     /// The generator of G2, prepared for use in pairings.
@@ -80,9 +80,9 @@ pub struct PreparedVerifierKey<E: Pairing> {
     pub prepared_beta_h: E::G2Prepared,
 }
 
-impl<E: Pairing> PreparedVerifierKey<E> {
+impl<E: Pairing> KZGPreparedVerifierKey<E> {
     /// prepare `PreparedVerifierKey` from `VerifierKey`
-    pub fn prepare(vk: &VerifierKey<E>) -> Self {
+    pub fn prepare(vk: &KZGVerifierKey<E>) -> Self {
         let supported_bits = E::ScalarField::MODULUS_BIT_SIZE as usize;
 
         let mut prepared_g = Vec::<E::G1Affine>::new();
@@ -110,7 +110,7 @@ impl<E: Pairing> PreparedVerifierKey<E> {
     PartialEq,
     Eq
 )]
-pub struct Commitment<E: Pairing>(
+pub struct KZGCommitment<E: Pairing>(
     /// The commitment is a group element.
     pub E::G1Affine,
 );
@@ -124,14 +124,14 @@ pub struct Commitment<E: Pairing>(
     PartialEq,
     Eq
 )]
-pub struct PreparedCommitment<E: Pairing>(
+pub struct KZGPreparedCommitment<E: Pairing>(
     /// The commitment is a group element.
     pub Vec<E::G1Affine>,
 );
 
-impl<E: Pairing> PreparedCommitment<E> {
+impl<E: Pairing> KZGPreparedCommitment<E> {
     /// prepare `PreparedCommitment` from `Commitment`
-    pub fn prepare(comm: &Commitment<E>) -> Self {
+    pub fn prepare(comm: &KZGCommitment<E>) -> Self {
         let mut prepared_comm = Vec::<E::G1Affine>::new();
         let mut cur = E::G1::from(comm.0.clone());
 
@@ -154,13 +154,13 @@ impl<E: Pairing> PreparedCommitment<E> {
     PartialEq,
     Eq
 )]
-pub struct Randomness<F: PrimeField, P: DenseUVPolynomial<F>> {
+pub struct KZGRandomness<F: PrimeField, P: DenseUVPolynomial<F>> {
     /// For KZG10, the commitment randomness is a random polynomial.
     pub blinding_polynomial: P,
     _field: PhantomData<F>,
 }
 
-impl<F: PrimeField, P: DenseUVPolynomial<F>> Randomness<F, P> {
+impl<F: PrimeField, P: DenseUVPolynomial<F>> KZGRandomness<F, P> {
     /// Does `self` provide any hiding properties to the corresponding commitment?
     /// `self.is_hiding() == true` only if the underlying polynomial is non-zero.
     #[inline]
@@ -175,7 +175,7 @@ impl<F: PrimeField, P: DenseUVPolynomial<F>> Randomness<F, P> {
     }
 }
 
-impl<F: PrimeField, P: DenseUVPolynomial<F>> Randomness<F, P> {
+impl<F: PrimeField, P: DenseUVPolynomial<F>> KZGRandomness<F, P> {
     fn empty() -> Self {
         Self {
             blinding_polynomial: P::zero(),
@@ -184,14 +184,14 @@ impl<F: PrimeField, P: DenseUVPolynomial<F>> Randomness<F, P> {
     }
 
     fn rand<R: RngCore>(hiding_bound: usize, _: bool, _: Option<usize>, rng: &mut R) -> Self {
-        let mut randomness = Randomness::empty();
+        let mut randomness = KZGRandomness::empty();
         let hiding_poly_degree = Self::calculate_hiding_polynomial_degree(hiding_bound);
         randomness.blinding_polynomial = P::rand(hiding_poly_degree, rng);
         randomness
     }
 }
 
-impl<'a, F: PrimeField, P: DenseUVPolynomial<F>> Add<&'a Randomness<F, P>> for Randomness<F, P> {
+impl<'a, F: PrimeField, P: DenseUVPolynomial<F>> Add<&'a KZGRandomness<F, P>> for KZGRandomness<F, P> {
     type Output = Self;
 
     #[inline]
@@ -201,20 +201,20 @@ impl<'a, F: PrimeField, P: DenseUVPolynomial<F>> Add<&'a Randomness<F, P>> for R
     }
 }
 
-impl<'a, F: PrimeField, P: DenseUVPolynomial<F>> Add<(F, &'a Randomness<F, P>)>
-for Randomness<F, P>
+impl<'a, F: PrimeField, P: DenseUVPolynomial<F>> Add<(F, &'a KZGRandomness<F, P>)>
+for KZGRandomness<F, P>
 {
     type Output = Self;
 
     #[inline]
-    fn add(mut self, other: (F, &'a Randomness<F, P>)) -> Self {
+    fn add(mut self, other: (F, &'a KZGRandomness<F, P>)) -> Self {
         self += other;
         self
     }
 }
 
-impl<'a, F: PrimeField, P: DenseUVPolynomial<F>> AddAssign<&'a Randomness<F, P>>
-for Randomness<F, P>
+impl<'a, F: PrimeField, P: DenseUVPolynomial<F>> AddAssign<&'a KZGRandomness<F, P>>
+for KZGRandomness<F, P>
 {
     #[inline]
     fn add_assign(&mut self, other: &'a Self) {
@@ -222,11 +222,11 @@ for Randomness<F, P>
     }
 }
 
-impl<'a, F: PrimeField, P: DenseUVPolynomial<F>> AddAssign<(F, &'a Randomness<F, P>)>
-for Randomness<F, P>
+impl<'a, F: PrimeField, P: DenseUVPolynomial<F>> AddAssign<(F, &'a KZGRandomness<F, P>)>
+for KZGRandomness<F, P>
 {
     #[inline]
-    fn add_assign(&mut self, (f, other): (F, &'a Randomness<F, P>)) {
+    fn add_assign(&mut self, (f, other): (F, &'a KZGRandomness<F, P>)) {
         self.blinding_polynomial += (f, &other.blinding_polynomial);
     }
 }
@@ -242,7 +242,7 @@ for Randomness<F, P>
     PartialEq,
     Eq
 )]
-pub struct Proof<E: Pairing> {
+pub struct KZGProof<E: Pairing> {
     /// This is a commitment to the witness polynomial; see [KZG10] for more details.
     pub w: E::G1Affine,
     /// This is the evaluation of the random polynomial at the point for which
@@ -272,7 +272,7 @@ where
         max_degree: usize,
         produce_g2_powers: bool,
         rng: &mut R,
-    ) -> Result<UniversalParams<E>, Error> {
+    ) -> Result<KZGUniversalParams<E>, Error> {
         if max_degree < 1 {
             panic!("wrong degree")
         }
@@ -328,7 +328,7 @@ where
         let prepared_h = h.into();
         let prepared_beta_h = beta_h.into();
 
-        let pp = UniversalParams {
+        let pp = KZGUniversalParams {
             powers_of_g,
             powers_of_gamma_g,
             h,
@@ -348,11 +348,11 @@ where
     /// ```
     /// ```
     pub fn commit(
-        powers: &Powers<E>,
+        powers: &KZGPowers<E>,
         polynomial: &P,
         hiding_bound: Option<usize>,
         rng: Option<&mut dyn RngCore>,
-    ) -> Result<(Commitment<E>, Randomness<E::ScalarField, P>), Error> {
+    ) -> Result<(KZGCommitment<E>, KZGRandomness<E::ScalarField, P>), Error> {
         let commit_time = start_timer!(|| format!(
             "Committing to polynomial of degree {} with hiding_bound: {:?}",
             polynomial.degree(),
@@ -369,7 +369,7 @@ where
         );
         end_timer!(msm_time);
 
-        let mut randomness = Randomness::<E::ScalarField, P>::empty();
+        let mut randomness = KZGRandomness::<E::ScalarField, P>::empty();
         if let Some(hiding_degree) = hiding_bound {
             let mut rng = rng.unwrap();
             let sample_random_poly_time = start_timer!(|| format!(
@@ -377,7 +377,7 @@ where
                 hiding_degree
             ));
 
-            randomness = Randomness::rand(hiding_degree, false, None, &mut rng);
+            randomness = KZGRandomness::rand(hiding_degree, false, None, &mut rng);
             end_timer!(sample_random_poly_time);
         }
 
@@ -393,7 +393,7 @@ where
         commitment += &random_commitment;
 
         end_timer!(commit_time);
-        Ok((Commitment(commitment.into()), randomness))
+        Ok((KZGCommitment(commitment.into()), randomness))
     }
 
     /// Compute witness polynomial.
@@ -404,7 +404,7 @@ where
     pub fn compute_witness_polynomial(
         p: &P,
         point: P::Point,
-        randomness: &Randomness<E::ScalarField, P>,
+        randomness: &KZGRandomness<E::ScalarField, P>,
     ) -> Result<(P, Option<P>), Error> {
         let divisor = P::from_coefficients_vec(vec![-point, E::ScalarField::one()]);
 
@@ -427,12 +427,12 @@ where
     }
 
     pub(crate) fn open_with_witness_polynomial<'a>(
-        powers: &Powers<E>,
+        powers: &KZGPowers<E>,
         point: P::Point,
-        randomness: &Randomness<E::ScalarField, P>,
+        randomness: &KZGRandomness<E::ScalarField, P>,
         witness_polynomial: &P,
         hiding_witness_polynomial: Option<&P>,
-    ) -> Result<Proof<E>, Error> {
+    ) -> Result<KZGProof<E>, Error> {
         let (num_leading_zeros, witness_coeffs) =
             skip_leading_zeros_and_convert_to_bigints(witness_polynomial);
 
@@ -462,7 +462,7 @@ where
             None
         };
 
-        Ok(Proof {
+        Ok(KZGProof {
             w: w.into_affine(),
             random_v,
         })
@@ -470,11 +470,11 @@ where
 
     /// On input a polynomial `p` and a point `point`, outputs a proof for the same.
     pub fn open<'a>(
-        powers: &Powers<E>,
+        powers: &KZGPowers<E>,
         p: &P,
         point: P::Point,
-        rand: &Randomness<E::ScalarField, P>,
-    ) -> Result<Proof<E>, Error> {
+        rand: &KZGRandomness<E::ScalarField, P>,
+    ) -> Result<KZGProof<E>, Error> {
         let open_time = start_timer!(|| format!("Opening polynomial of degree {}", p.degree()));
 
         let witness_time = start_timer!(|| "Computing witness polynomials");
@@ -496,11 +496,11 @@ where
     /// Verifies that `value` is the evaluation at `point` of the polynomial
     /// committed inside `comm`.
     pub fn check(
-        vk: &VerifierKey<E>,
-        comm: &Commitment<E>,
+        vk: &KZGVerifierKey<E>,
+        comm: &KZGCommitment<E>,
         point: E::ScalarField,
         value: E::ScalarField,
-        proof: &Proof<E>,
+        proof: &KZGProof<E>,
     ) -> Result<bool, Error> {
         let check_time = start_timer!(|| "Checking evaluation");
         let mut inner = comm.0.into_group() - &vk.g.mul(value);
@@ -519,11 +519,11 @@ where
     /// Check that each `proof_i` in `proofs` is a valid proof of evaluation for
     /// `commitment_i` at `point_i`.
     pub fn batch_check<R: RngCore>(
-        vk: &VerifierKey<E>,
-        commitments: &[Commitment<E>],
+        vk: &KZGVerifierKey<E>,
+        commitments: &[KZGCommitment<E>],
         points: &[E::ScalarField],
         values: &[E::ScalarField],
-        proofs: &[Proof<E>],
+        proofs: &[KZGProof<E>],
         rng: &mut R,
     ) -> Result<bool, Error> {
         let check_time =
@@ -603,7 +603,7 @@ mod tests {
     use ark_poly::univariate::DensePolynomial;
     use ark_std::{test_rng, UniformRand};
 
-    use crate::kzg::{KZG10, Powers, UniversalParams, VerifierKey};
+    use crate::kzg::{KZG10, KZGPowers, KZGUniversalParams, KZGVerifierKey};
 
     type F = Fr;
     type E = Bn254;
@@ -611,9 +611,9 @@ mod tests {
     /// Specializes the public parameters for a given maximum degree `d` for polynomials
     /// `d` should be less that `pp.max_degree()`.
     pub(crate) fn trim(
-        pp: &UniversalParams<E>,
+        pp: &KZGUniversalParams<E>,
         mut supported_degree: usize,
-    ) -> (Powers<E>, VerifierKey<E>) {
+    ) -> (KZGPowers<E>, KZGVerifierKey<E>) {
         if supported_degree == 1 {
             supported_degree += 1;
         }
@@ -622,11 +622,11 @@ mod tests {
             .map(|i| pp.powers_of_gamma_g[&i])
             .collect();
 
-        let powers = Powers {
+        let powers = KZGPowers {
             powers_of_g: ark_std::borrow::Cow::Owned(powers_of_g),
             powers_of_gamma_g: ark_std::borrow::Cow::Owned(powers_of_gamma_g),
         };
-        let vk = VerifierKey {
+        let vk = KZGVerifierKey {
             g: pp.powers_of_g[0],
             gamma_g: pp.powers_of_gamma_g[&0],
             h: pp.h,

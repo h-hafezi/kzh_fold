@@ -8,7 +8,7 @@ use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError
 use crate::{
     gadgets::absorb::{AbsorbNonNative, CryptographicSpongeExt},
     nova::commitment::{Commitment, CommitmentScheme},
-    nova::r1cs::{self, R1CSShape, RelaxedR1CSInstance, RelaxedR1CSWitness},
+    gadgets::r1cs::r1cs::{self, R1CSShape, RelaxedR1CSInstance, RelaxedR1CSWitness},
 };
 
 // the output size of random oracle
@@ -120,7 +120,7 @@ pub(crate) mod tests {
     use ark_crypto_primitives::sponge::poseidon::PoseidonSponge;
     use ark_ec::short_weierstrass::{Projective, SWCurveConfig};
 
-    use crate::{hash::pederson::PedersenCommitment, nova::r1cs::*};
+    use crate::{hash::pederson::PedersenCommitment, gadgets::r1cs::r1cs::*};
     use crate::hash::poseidon::{PoseidonHash, PoseidonHashTrait};
     use crate::nova::util_test::setup_test_r1cs;
     use super::*;

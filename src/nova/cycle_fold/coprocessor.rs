@@ -20,7 +20,7 @@ use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::Zero;
 
 use crate::nova::commitment::CommitmentScheme;
-use crate::nova::r1cs;
+use crate::gadgets::r1cs::r1cs;
 
 pub(crate) type R1CSShape<G> = r1cs::R1CSShape<Projective<G>>;
 pub(crate) type R1CSInstance<G, C> = r1cs::R1CSInstance<Projective<G>, C>;
