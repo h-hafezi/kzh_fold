@@ -18,19 +18,11 @@ use ark_r1cs_std::{
 };
 use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 
-use crate::{
-    nova::commitment::CommitmentScheme,
-};
 use crate::gadgets::non_native::cast_field_element_unique;
 use crate::gadgets::non_native::short_weierstrass::NonNativeAffineVar;
-use crate::gadgets::r1cs::r1cs;
+use crate::gadgets::r1cs::*;
+use crate::nova::commitment::CommitmentScheme;
 use crate::nova::cycle_fold::coprocessor::{Circuit as SecondaryCircuit, Proof};
-
-pub(crate) type R1CSShape<G> = r1cs::R1CSShape<Projective<G>>;
-pub(crate) type R1CSInstance<G, C> = r1cs::R1CSInstance<Projective<G>, C>;
-pub(crate) type R1CSWitness<G> = r1cs::R1CSWitness<Projective<G>>;
-pub(crate) type RelaxedR1CSInstance<G, C> = r1cs::RelaxedR1CSInstance<Projective<G>, C>;
-pub(crate) type RelaxedR1CSWitness<G> = r1cs::RelaxedR1CSWitness<Projective<G>>;
 
 #[must_use]
 #[derive(Debug)]
