@@ -1,2 +1,2 @@
 pub mod coprocessor;
-pub mod nifs;
+pub mod test;

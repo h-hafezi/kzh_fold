@@ -8,8 +8,9 @@ mod tests {
     use rand::thread_rng;
     pub use crate::hash::pederson::PedersenCommitment;
     use crate::nova::commitment::CommitmentScheme;
-    use crate::nova::cycle_fold::coprocessor::{Circuit, RelaxedR1CSInstance, setup_shape, synthesize};
+    use crate::nova::cycle_fold::coprocessor::{Circuit, setup_shape, synthesize};
     use crate::gadgets::r1cs::r1cs::{commit_T, commit_T_with_relaxed, RelaxedR1CSWitness};
+    use crate::gadgets::r1cs::RelaxedR1CSInstance;
     use crate::utils::cast_field_element;
 
     fn get_random_circuit() -> Circuit<PallasConfig> {
@@ -71,7 +72,7 @@ mod tests {
             PedersenCommitment<ark_vesta::Projective>,
         >(c2, &pp).unwrap();
 
-        // compute folding proof T, commitment_T
+        // compute multi_folding proof T, commitment_T
         let (T, commitment_T) = commit_T(&shape, &pp, &running_U, &running_W, &u, &w).unwrap();
 
         // fold instance/witnesses
