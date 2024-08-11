@@ -102,7 +102,6 @@ where
             mode,
         ).unwrap();
 
-
         Ok(AccumulatorVerifierVar {
             auxiliary_input_w,
             r,
@@ -169,7 +168,9 @@ mod tests {
     use std::fmt::Debug;
 
     use ark_bn254::g1::Config;
-    use ark_pallas::{PallasConfig, Projective};
+    use ark_ec::short_weierstrass::Projective;
+    use ark_ff::{BigInt, PrimeField};
+    use ark_pallas::{Fq, PallasConfig};
     use ark_r1cs_std::alloc::{AllocationMode, AllocVar};
     use ark_r1cs_std::fields::fp::FpVar;
     use ark_relations::r1cs::ConstraintSystem;
@@ -182,11 +183,13 @@ mod tests {
     use crate::hash::pederson::PedersenCommitment;
     use crate::nova::commitment::CommitmentScheme;
     use crate::nova::cycle_fold::coprocessor::{Circuit, setup_shape, synthesize};
+    use crate::nova::cycle_fold::coprocessor_constraints::R1CSInstanceVar;
+    use crate::utils::cast_field_element;
 
     #[test]
     fn initialisation_test() {
         // build an instance of AccInstanceCircuit
-        let instance = AccumulatorInstance::<Config> {
+        let instance = AccumulatorInstance::<PallasConfig> {
             C: Projective::rand(&mut thread_rng()),
             T: Projective::rand(&mut thread_rng()),
             E: Projective::rand(&mut thread_rng()),
@@ -199,7 +202,7 @@ mod tests {
             m: 1000u32,
         };
 
-        let acc = AccumulatorInstance::<Config> {
+        let acc = AccumulatorInstance::<PallasConfig> {
             C: Projective::rand(&mut thread_rng()),
             T: Projective::rand(&mut thread_rng()),
             E: Projective::rand(&mut thread_rng()),
@@ -235,7 +238,6 @@ mod tests {
             AllocationMode::Witness,
         ).unwrap();
 
-
         let c = {
             let g1 = instance.C.clone();
             let g2 = acc.C.clone();
@@ -256,6 +258,13 @@ mod tests {
                 VestaConfig,
                 PedersenCommitment<ark_vesta::Projective>,
             >(c, &pp).unwrap();
+
+            let x = R1CSInstanceVar::new_variable(
+                cs.clone(),
+                || Ok(u.clone()),
+                AllocationMode::Constant,
+            ).unwrap();
+            x
         };
 
         let verifier = AccumulatorVerifierVar { auxiliary_input_w, r: r_var, instance: instance_var, acc: acc_var };

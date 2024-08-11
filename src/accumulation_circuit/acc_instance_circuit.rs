@@ -224,7 +224,6 @@ mod tests {
             n: 0u32,
             m: 0u32,
         };
-
         // a constraint system
         let cs = ConstraintSystem::<Fr>::new_ref();
 
