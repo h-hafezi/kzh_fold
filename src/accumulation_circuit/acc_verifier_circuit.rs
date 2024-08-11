@@ -1,50 +1,77 @@
 use std::borrow::Borrow;
 use std::ops::Add;
+
 use ark_ec::CurveConfig;
-use ark_ec::short_weierstrass::SWCurveConfig;
+use ark_ec::short_weierstrass::{Projective, SWCurveConfig};
 use ark_ff::{BigInteger64, Field, PrimeField};
+use ark_r1cs_std::{R1CSVar, ToBitsGadget};
 use ark_r1cs_std::alloc::{AllocationMode, AllocVar};
 use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::fields::fp::FpVar;
-use ark_r1cs_std::groups::curves::short_weierstrass::ProjectiveVar;
-use ark_r1cs_std::{R1CSVar, ToBitsGadget};
 use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
+use ark_r1cs_std::groups::curves::short_weierstrass::ProjectiveVar;
 use ark_r1cs_std::groups::CurveVar;
 use ark_relations::ns;
 use ark_relations::r1cs::{Namespace, SynthesisError};
 use ark_std::UniformRand;
 use rand::thread_rng;
+
 use crate::accumulation_circuit::acc_instance_circuit::{AccumulatorInstance, AccumulatorInstanceVar};
+use crate::gadgets::r1cs::R1CSInstance;
+use crate::nova::commitment::CommitmentScheme;
+use crate::nova::cycle_fold::coprocessor::Circuit as SecondCircuit;
+use crate::nova::cycle_fold::coprocessor_constraints::R1CSInstanceVar;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct AccumulatorVerifier<G1>
+pub struct AccumulatorVerifier<G1, G2, C2>
 where
     G1: SWCurveConfig + Clone,
     G1::BaseField: PrimeField,
     G1::ScalarField: PrimeField,
+    G2: SWCurveConfig,
+    G2::BaseField: PrimeField,
+    C2: CommitmentScheme<Projective<G2>>,
 {
+    /// the randomness used for taking linear combination
+    pub r: G1::BaseField,
+    /// auxiliary input which helps to have w without scalar multiplication
+    // todo: make sure using G2, C2 is correct
+    pub auxiliary_input_w: R1CSInstance<G2, C2>,
+    /// the instance to be folded
     pub instance: AccumulatorInstance<G1>,
+    /// the running accumulator
     pub acc: AccumulatorInstance<G1>,
 }
 
+
 #[derive(Clone)]
-pub struct AccumulatorVerifierVar<G1>
+pub struct AccumulatorVerifierVar<G1, G2, C2>
 where
     G1: SWCurveConfig + Clone,
     G1::BaseField: PrimeField,
     G1::ScalarField: PrimeField,
+    G2: SWCurveConfig,
+    G2::BaseField: PrimeField,
+    C2: CommitmentScheme<Projective<G2>>,
 {
+    /// The auxiliary input is on base field of G2 which is equal to scalar field of G1
+    pub auxiliary_input_w: R1CSInstanceVar<G2, C2>,
+    /// the randomness used for taking linear combination
+    pub r: FpVar<G1::BaseField>,
     pub instance: AccumulatorInstanceVar<G1>,
     pub acc: AccumulatorInstanceVar<G1>,
 }
 
-impl<G1> AllocVar<AccumulatorVerifier<G1>, G1::ScalarField> for AccumulatorVerifierVar<G1>
+impl<G1, G2, C2> AllocVar<AccumulatorVerifier<G1, G2, C2>, G1::ScalarField> for AccumulatorVerifierVar<G1, G2, C2>
 where
     G1: SWCurveConfig + Clone,
     G1::BaseField: PrimeField,
     G1::ScalarField: PrimeField,
+    G2: SWCurveConfig,
+    G2::BaseField: PrimeField,
+    C2: CommitmentScheme<Projective<G2>>
 {
-    fn new_variable<T: Borrow<AccumulatorVerifier<G1>>>(cs: impl Into<Namespace<G1::ScalarField>>, f: impl FnOnce() -> Result<T, SynthesisError>, mode: AllocationMode) -> Result<Self, SynthesisError> {
+    fn new_variable<T: Borrow<AccumulatorVerifier<G1, G2, C2>>>(cs: impl Into<Namespace<G1::ScalarField>>, f: impl FnOnce() -> Result<T, SynthesisError>, mode: AllocationMode) -> Result<Self, SynthesisError> {
         let ns = cs.into();
         let cs = ns.cs();
 
@@ -63,17 +90,36 @@ where
             mode,
         ).unwrap();
 
+        let auxiliary_input_w = R1CSInstanceVar::new_variable(
+            ns!(cs, "acc"),
+            || circuit.map(|e| e.auxiliary_input_w.clone()),
+            mode,
+        ).unwrap();
+
+        let r = FpVar::new_variable(
+            ns!(cs, "acc"),
+            || circuit.map(|e| e.r.clone()),
+            mode,
+        ).unwrap();
+
+
         Ok(AccumulatorVerifierVar {
+            auxiliary_input_w,
+            r,
             instance,
             acc,
         })
     }
 }
 
-impl<G1: SWCurveConfig> AccumulatorVerifierVar<G1>
+impl<G1: SWCurveConfig, G2: SWCurveConfig, C2> AccumulatorVerifierVar<G1, G2, C2>
 where
     G1: SWCurveConfig + Clone,
     G1::BaseField: PrimeField,
+    G1::ScalarField: PrimeField,
+    G2: SWCurveConfig + Clone,
+    G2::BaseField: PrimeField,
+    C2: CommitmentScheme<Projective<G2>>
 {
     pub fn accumulate(&self) {
         // Poseidon hash
@@ -117,21 +163,25 @@ where
     }
 }
 
+
 #[cfg(test)]
 mod tests {
-    use std::fmt::{Debug, Formatter};
-    use ark_ff::{AdditiveGroup, Field, PrimeField, Zero};
-    use ark_ec::short_weierstrass::{SWCurveConfig, Projective};
-    use ark_std::UniformRand;
+    use std::fmt::Debug;
+
     use ark_bn254::g1::Config;
-    use ark_bn254::{Fr, Fq};
+    use ark_pallas::{PallasConfig, Projective};
     use ark_r1cs_std::alloc::{AllocationMode, AllocVar};
-    use ark_r1cs_std::R1CSVar;
+    use ark_r1cs_std::fields::fp::FpVar;
     use ark_relations::r1cs::ConstraintSystem;
-    use itertools::equal;
+    use ark_std::UniformRand;
+    use ark_vesta::{Fr, VestaConfig};
     use rand::thread_rng;
+
     use crate::accumulation_circuit::acc_instance_circuit::{AccumulatorInstance, AccumulatorInstanceVar};
     use crate::accumulation_circuit::acc_verifier_circuit::AccumulatorVerifierVar;
+    use crate::hash::pederson::PedersenCommitment;
+    use crate::nova::commitment::CommitmentScheme;
+    use crate::nova::cycle_fold::coprocessor::{Circuit, setup_shape, synthesize};
 
     #[test]
     fn initialisation_test() {
@@ -169,15 +219,46 @@ mod tests {
         let instance_var = AccumulatorInstanceVar::new_variable(
             cs.clone(),
             || Ok(instance.clone()),
-            AllocationMode::Witness
+            AllocationMode::Witness,
         ).unwrap();
 
-        let acc_var = AccumulatorInstanceVar::new_variable(cs.clone(),
-                                                           || Ok(acc.clone()),
-                                                           AllocationMode::Witness
+        let acc_var = AccumulatorInstanceVar::new_variable(
+            cs.clone(),
+            || Ok(acc.clone()),
+            AllocationMode::Witness,
         ).unwrap();
 
-        let verifier = AccumulatorVerifierVar { instance: instance_var, acc: acc_var };
+        let r = Fr::from(2u128);
+        let r_var = FpVar::new_variable(
+            cs.clone(),
+            || Ok(r.clone()),
+            AllocationMode::Witness,
+        ).unwrap();
+
+
+        let c = {
+            let g1 = instance.C.clone();
+            let g2 = acc.C.clone();
+            let g_out = g1 * r + g2;
+            Circuit {
+                g1: instance.C,
+                g2: acc.C,
+                g_out,
+                r,
+            }
+        };
+
+        let auxiliary_input_w = {
+            let shape = setup_shape::<PallasConfig, VestaConfig>().unwrap();
+            let pp = PedersenCommitment::<ark_vesta::Projective>::setup(shape.num_vars, b"test", &());
+            let (u, _) = synthesize::<
+                PallasConfig,
+                VestaConfig,
+                PedersenCommitment<ark_vesta::Projective>,
+            >(c, &pp).unwrap();
+        };
+
+        let verifier = AccumulatorVerifierVar { auxiliary_input_w, r: r_var, instance: instance_var, acc: acc_var };
         println!("before: {}", cs.num_constraints());
         verifier.accumulate();
         println!("after: {}", cs.num_constraints());

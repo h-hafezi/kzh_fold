@@ -1,3 +1,3 @@
 pub mod coprocessor;
 pub mod test;
-mod coprocessor_constraints;
+pub mod coprocessor_constraints;
