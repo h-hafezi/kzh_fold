@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use ark_ff::PrimeField;
     use ark_pallas::{Fq, Fr, PallasConfig, Projective};
     use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef};
@@ -13,7 +13,7 @@ mod tests {
     use crate::gadgets::r1cs::RelaxedR1CSInstance;
     use crate::utils::cast_field_element;
 
-    fn get_random_circuit() -> Circuit<PallasConfig> {
+    pub fn get_random_circuit() -> Circuit<PallasConfig> {
         let mut rng = ark_std::test_rng();
         let g1 = Projective::rand(&mut rng);
         let g2 = Projective::rand(&mut rng);

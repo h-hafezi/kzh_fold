@@ -225,7 +225,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parse_pub_input() {
+    pub fn parse_pub_input() {
         let mut rng = ark_std::test_rng();
         let g1 = Projective::rand(&mut rng);
         let g2 = Projective::rand(&mut rng);
@@ -284,7 +284,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_synthesized() {
+    pub fn parse_synthesized() {
         let shape = setup_shape::<PallasConfig, VestaConfig>().unwrap();
         let mut rng = ark_std::test_rng();
         let g1 = Projective::rand(&mut rng);

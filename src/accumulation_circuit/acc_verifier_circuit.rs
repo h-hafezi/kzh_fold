@@ -1,4 +1,4 @@
-/*use std::borrow::Borrow;
+use std::borrow::Borrow;
 use std::ops::Add;
 use ark_ec::CurveConfig;
 use ark_ec::short_weierstrass::SWCurveConfig;
@@ -14,7 +14,7 @@ use ark_relations::ns;
 use ark_relations::r1cs::{Namespace, SynthesisError};
 use ark_std::UniformRand;
 use rand::thread_rng;
-use crate::accumulation_circuit::acc_instance_constraints::{AccumulatorInstance, AccumulatorInstanceVar};
+use crate::accumulation_circuit::acc_instance_circuit::{AccumulatorInstance, AccumulatorInstanceVar};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AccumulatorVerifier<G1>
@@ -22,12 +22,6 @@ where
     G1: SWCurveConfig + Clone,
     G1::BaseField: PrimeField,
     G1::ScalarField: PrimeField,
-    FpVar<
-        <G1 as CurveConfig>::BaseField
-    >: FieldVar<
-        <G1 as CurveConfig>::BaseField,
-        <<G1 as CurveConfig>::BaseField as Field>::BasePrimeField
-    >,
 {
     pub instance: AccumulatorInstance<G1>,
     pub acc: AccumulatorInstance<G1>,
@@ -39,30 +33,18 @@ where
     G1: SWCurveConfig + Clone,
     G1::BaseField: PrimeField,
     G1::ScalarField: PrimeField,
-    FpVar<
-        <G1 as CurveConfig>::BaseField
-    >: FieldVar<
-        <G1 as CurveConfig>::BaseField,
-        <<G1 as CurveConfig>::BaseField as Field>::BasePrimeField
-    >,
 {
     pub instance: AccumulatorInstanceVar<G1>,
     pub acc: AccumulatorInstanceVar<G1>,
 }
 
-impl<G1> AllocVar<AccumulatorVerifier<G1>, G1::BaseField> for AccumulatorVerifierVar<G1>
+impl<G1> AllocVar<AccumulatorVerifier<G1>, G1::ScalarField> for AccumulatorVerifierVar<G1>
 where
     G1: SWCurveConfig + Clone,
     G1::BaseField: PrimeField,
     G1::ScalarField: PrimeField,
-    FpVar<
-        <G1 as CurveConfig>::BaseField
-    >: FieldVar<
-        <G1 as CurveConfig>::BaseField,
-        <<G1 as CurveConfig>::BaseField as Field>::BasePrimeField
-    >,
 {
-    fn new_variable<T: Borrow<AccumulatorVerifier<G1>>>(cs: impl Into<Namespace<G1::BaseField>>, f: impl FnOnce() -> Result<T, SynthesisError>, mode: AllocationMode) -> Result<Self, SynthesisError> {
+    fn new_variable<T: Borrow<AccumulatorVerifier<G1>>>(cs: impl Into<Namespace<G1::ScalarField>>, f: impl FnOnce() -> Result<T, SynthesisError>, mode: AllocationMode) -> Result<Self, SynthesisError> {
         let ns = cs.into();
         let cs = ns.cs();
 
@@ -92,30 +74,23 @@ impl<G1: SWCurveConfig> AccumulatorVerifierVar<G1>
 where
     G1: SWCurveConfig + Clone,
     G1::BaseField: PrimeField,
-    FpVar<
-        <G1 as CurveConfig>::BaseField
-    >: FieldVar<
-        <G1 as CurveConfig>::BaseField,
-        <<G1 as CurveConfig>::BaseField as Field>::BasePrimeField
-    >,
 {
     pub fn accumulate(&self) {
         // Poseidon hash
-        let beta_fr = NonNativeFieldVar::new_variable(
+        let beta_fr = FpVar::new_variable(
             ns!(self.acc.cs(), "beta"),
             || Ok(G1::ScalarField::rand(&mut thread_rng())),
             AllocationMode::Input,
         ).unwrap();
-        let beta_bits = beta_fr.to_bits_le().unwrap();
 
         // Non-native scalar multiplication: linear combination of C
-        let _ = &self.acc.C_var + &self.instance.C_var.scalar_mul_le(beta_bits.iter()).unwrap();
+        //let _ = &self.acc.C_var + &self.instance.C_var.scalar_mul_le(beta_bits.iter()).unwrap();
 
         // Non-native scalar multiplication: linear combination of T
-        let _ = &self.acc.T_var + &self.instance.T_var.scalar_mul_le(beta_bits.iter()).unwrap();
+        //let _ = &self.acc.T_var + &self.instance.T_var.scalar_mul_le(beta_bits.iter()).unwrap();
 
         // Non-native scalar multiplication: linear combination of E
-        let _ = &self.acc.E_var + &self.instance.E_var.scalar_mul_le(beta_bits.iter()).unwrap();
+        //let _ = &self.acc.E_var + &self.instance.E_var.scalar_mul_le(beta_bits.iter()).unwrap();
 
         // Native field operation: linear combination of b
         let _ = &self.acc.b_var + &beta_fr * &self.instance.b_var;
@@ -155,8 +130,8 @@ mod tests {
     use ark_relations::r1cs::ConstraintSystem;
     use itertools::equal;
     use rand::thread_rng;
-    use crate::accumulation_circuit::acc_instance_constraints::{AccumulatorInstance, AccumulatorInstanceVar};
-    use crate::accumulation_circuit::acc_verifier_constraints::AccumulatorVerifierVar;
+    use crate::accumulation_circuit::acc_instance_circuit::{AccumulatorInstance, AccumulatorInstanceVar};
+    use crate::accumulation_circuit::acc_verifier_circuit::AccumulatorVerifierVar;
 
     #[test]
     fn initialisation_test() {
@@ -186,8 +161,9 @@ mod tests {
             n: 1000u32,
             m: 1000u32,
         };
+
         // a constraint system
-        let cs = ConstraintSystem::<Fq>::new_ref();
+        let cs = ConstraintSystem::<Fr>::new_ref();
 
         // make a circuit_var
         let instance_var = AccumulatorInstanceVar::new_variable(
@@ -208,4 +184,3 @@ mod tests {
     }
 }
 
- */

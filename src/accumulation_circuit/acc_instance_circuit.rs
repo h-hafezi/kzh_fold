@@ -207,7 +207,7 @@ mod tests {
     use ark_r1cs_std::R1CSVar;
     use ark_relations::r1cs::ConstraintSystem;
 
-    use crate::accumulation_circuit::acc_instance_constraints::{AccumulatorInstance, AccumulatorInstanceVar};
+    use crate::accumulation_circuit::acc_instance_circuit::{AccumulatorInstance, AccumulatorInstanceVar};
 
     #[test]
     fn initialisation_test() {
