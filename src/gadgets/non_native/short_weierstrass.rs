@@ -14,6 +14,7 @@ use ark_r1cs_std::{
     select::CondSelectGadget,
     uint8::UInt8,
 };
+use ark_r1cs_std::eq::EqGadget;
 use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 use ark_std::Zero;
 
@@ -154,3 +155,22 @@ where
         Ok(Self { x, y, infinity })
     }
 }
+
+impl<G1> NonNativeAffineVar<G1>
+where
+    G1: SWCurveConfig,
+    G1::BaseField: PrimeField,
+{
+    pub fn enforce_equal(
+        &self,
+        other: &Self,
+    ) -> Result<(), SynthesisError> {
+        let projective_self = self.into_projective().unwrap();
+        let projective_other = other.into_projective().unwrap();
+        for i in 0..3 {
+            projective_self[i].enforce_equal(&projective_other[i]).unwrap();
+        }
+        Ok(())
+    }
+}
+

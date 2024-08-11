@@ -6,6 +6,7 @@ use ark_ec::short_weierstrass::{Projective, SWCurveConfig};
 use ark_ff::{BigInteger64, Field, PrimeField};
 use ark_r1cs_std::{R1CSVar, ToBitsGadget};
 use ark_r1cs_std::alloc::{AllocationMode, AllocVar};
+use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
@@ -31,12 +32,13 @@ where
     G2: SWCurveConfig,
     G2::BaseField: PrimeField,
     C2: CommitmentScheme<Projective<G2>>,
+// this condition is needed for cycle of curves
+    G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField>,
 {
     /// the randomness used for taking linear combination
-    pub r: G1::BaseField,
+    pub r: G1::ScalarField,
     /// auxiliary input which helps to have w without scalar multiplication
-    // todo: make sure using G2, C2 is correct
-    pub auxiliary_input_w: R1CSInstance<G2, C2>,
+    pub auxiliary_input_C: R1CSInstance<G2, C2>,
     /// the instance to be folded
     pub instance: AccumulatorInstance<G1>,
     /// the running accumulator
@@ -53,11 +55,12 @@ where
     G2: SWCurveConfig,
     G2::BaseField: PrimeField,
     C2: CommitmentScheme<Projective<G2>>,
+    G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField>,
 {
     /// The auxiliary input is on base field of G2 which is equal to scalar field of G1
-    pub auxiliary_input_w: R1CSInstanceVar<G2, C2>,
+    pub auxiliary_input_C: R1CSInstanceVar<G2, C2>,
     /// the randomness used for taking linear combination
-    pub r: FpVar<G1::BaseField>,
+    pub r: FpVar<G1::ScalarField>,
     pub instance: AccumulatorInstanceVar<G1>,
     pub acc: AccumulatorInstanceVar<G1>,
 }
@@ -69,7 +72,8 @@ where
     G1::ScalarField: PrimeField,
     G2: SWCurveConfig,
     G2::BaseField: PrimeField,
-    C2: CommitmentScheme<Projective<G2>>
+    C2: CommitmentScheme<Projective<G2>>,
+    G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField>,
 {
     fn new_variable<T: Borrow<AccumulatorVerifier<G1, G2, C2>>>(cs: impl Into<Namespace<G1::ScalarField>>, f: impl FnOnce() -> Result<T, SynthesisError>, mode: AllocationMode) -> Result<Self, SynthesisError> {
         let ns = cs.into();
@@ -92,7 +96,7 @@ where
 
         let auxiliary_input_w = R1CSInstanceVar::new_variable(
             ns!(cs, "acc"),
-            || circuit.map(|e| e.auxiliary_input_w.clone()),
+            || circuit.map(|e| e.auxiliary_input_C.clone()),
             mode,
         ).unwrap();
 
@@ -103,7 +107,7 @@ where
         ).unwrap();
 
         Ok(AccumulatorVerifierVar {
-            auxiliary_input_w,
+            auxiliary_input_C: auxiliary_input_w,
             r,
             instance,
             acc,
@@ -118,18 +122,31 @@ where
     G1::ScalarField: PrimeField,
     G2: SWCurveConfig + Clone,
     G2::BaseField: PrimeField,
-    C2: CommitmentScheme<Projective<G2>>
+    C2: CommitmentScheme<Projective<G2>>,
+    G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField>,
 {
     pub fn accumulate(&self) {
         // Poseidon hash
-        let beta_fr = FpVar::new_variable(
+        let beta = FpVar::new_variable(
             ns!(self.acc.cs(), "beta"),
             || Ok(G1::ScalarField::rand(&mut thread_rng())),
             AllocationMode::Input,
         ).unwrap();
 
         // Non-native scalar multiplication: linear combination of C
-        //let _ = &self.acc.C_var + &self.instance.C_var.scalar_mul_le(beta_bits.iter()).unwrap();
+        {
+            // parse inputs
+            let (r,
+                g1,
+                g2,
+                g_out
+            ) = self.auxiliary_input_C.parse_secondary_io().unwrap();
+            // check equality tests
+            self.instance.C_var.enforce_equal(&g1).expect("error while enforcing equality");
+            self.acc.C_var.enforce_equal(&g2).expect("error while enforcing equality");
+            // enforce correctness of the challenge
+        }
+
 
         // Non-native scalar multiplication: linear combination of T
         //let _ = &self.acc.T_var + &self.instance.T_var.scalar_mul_le(beta_bits.iter()).unwrap();
@@ -138,19 +155,19 @@ where
         //let _ = &self.acc.E_var + &self.instance.E_var.scalar_mul_le(beta_bits.iter()).unwrap();
 
         // Native field operation: linear combination of b
-        let _ = &self.acc.b_var + &beta_fr * &self.instance.b_var;
+        let _ = &self.acc.b_var + &beta * &self.instance.b_var;
 
         // Native field operation: linear combination of c
-        let _ = &self.acc.c_var + &beta_fr * &self.instance.c_var;
+        let _ = &self.acc.c_var + &beta * &self.instance.c_var;
 
         // Native field operation: linear combination of y
-        let _ = &self.acc.y_var + &beta_fr * &self.instance.y_var;
+        let _ = &self.acc.y_var + &beta * &self.instance.y_var;
 
         // Native field operation: linear combination of z_b
-        let _ = &self.acc.z_b_var + &beta_fr * &self.instance.z_b_var;
+        let _ = &self.acc.z_b_var + &beta * &self.instance.z_b_var;
 
         // Native field operation: linear combination of z_c
-        let _ = &self.acc.z_c_var + &beta_fr * &self.instance.z_c_var;
+        let _ = &self.acc.z_c_var + &beta * &self.instance.z_c_var;
 
         // Native field operation: equality assertion that z_b = b^n-1 for the first instance
         let n = BigInteger64::from(self.acc.n);
@@ -167,15 +184,13 @@ where
 mod tests {
     use std::fmt::Debug;
 
-    use ark_bn254::g1::Config;
     use ark_ec::short_weierstrass::Projective;
-    use ark_ff::{BigInt, PrimeField};
-    use ark_pallas::{Fq, PallasConfig};
+    use ark_pallas::{Fq, Fr, PallasConfig};
     use ark_r1cs_std::alloc::{AllocationMode, AllocVar};
     use ark_r1cs_std::fields::fp::FpVar;
     use ark_relations::r1cs::ConstraintSystem;
     use ark_std::UniformRand;
-    use ark_vesta::{Fr, VestaConfig};
+    use ark_vesta::VestaConfig;
     use rand::thread_rng;
 
     use crate::accumulation_circuit::acc_instance_circuit::{AccumulatorInstance, AccumulatorInstanceVar};
@@ -186,34 +201,27 @@ mod tests {
     use crate::nova::cycle_fold::coprocessor_constraints::R1CSInstanceVar;
     use crate::utils::cast_field_element;
 
+    fn random_instance(n: u32, m: u32) -> AccumulatorInstance::<PallasConfig> {
+        AccumulatorInstance::<PallasConfig> {
+            C: Projective::rand(&mut thread_rng()),
+            T: Projective::rand(&mut thread_rng()),
+            E: Projective::rand(&mut thread_rng()),
+            b: Fr::rand(&mut thread_rng()),
+            c: Fr::rand(&mut thread_rng()),
+            y: Fr::rand(&mut thread_rng()),
+            z_b: Fr::rand(&mut thread_rng()),
+            z_c: Fr::rand(&mut thread_rng()),
+            n,
+            m,
+        }
+    }
+
     #[test]
     fn initialisation_test() {
         // build an instance of AccInstanceCircuit
-        let instance = AccumulatorInstance::<PallasConfig> {
-            C: Projective::rand(&mut thread_rng()),
-            T: Projective::rand(&mut thread_rng()),
-            E: Projective::rand(&mut thread_rng()),
-            b: Fr::rand(&mut thread_rng()),
-            c: Fr::rand(&mut thread_rng()),
-            y: Fr::rand(&mut thread_rng()),
-            z_b: Fr::rand(&mut thread_rng()),
-            z_c: Fr::rand(&mut thread_rng()),
-            n: 1000u32,
-            m: 1000u32,
-        };
+        let instance = random_instance(1000u32, 1000u32);
 
-        let acc = AccumulatorInstance::<PallasConfig> {
-            C: Projective::rand(&mut thread_rng()),
-            T: Projective::rand(&mut thread_rng()),
-            E: Projective::rand(&mut thread_rng()),
-            b: Fr::rand(&mut thread_rng()),
-            c: Fr::rand(&mut thread_rng()),
-            y: Fr::rand(&mut thread_rng()),
-            z_b: Fr::rand(&mut thread_rng()),
-            z_c: Fr::rand(&mut thread_rng()),
-            n: 1000u32,
-            m: 1000u32,
-        };
+        let acc = random_instance(1000u32, 1000u32);
 
         // a constraint system
         let cs = ConstraintSystem::<Fr>::new_ref();
@@ -246,7 +254,7 @@ mod tests {
                 g1: instance.C,
                 g2: acc.C,
                 g_out,
-                r,
+                r: unsafe { cast_field_element::<Fr, Fq>(&r) },
             }
         };
 
@@ -259,18 +267,18 @@ mod tests {
                 PedersenCommitment<ark_vesta::Projective>,
             >(c, &pp).unwrap();
 
-            let x = R1CSInstanceVar::new_variable(
+            R1CSInstanceVar::new_variable(
                 cs.clone(),
                 || Ok(u.clone()),
                 AllocationMode::Constant,
-            ).unwrap();
-            x
+            ).unwrap()
         };
 
-        let verifier = AccumulatorVerifierVar { auxiliary_input_w, r: r_var, instance: instance_var, acc: acc_var };
+        let verifier = AccumulatorVerifierVar { auxiliary_input_C: auxiliary_input_w, r: r_var, instance: instance_var, acc: acc_var };
         println!("before: {}", cs.num_constraints());
         verifier.accumulate();
         println!("after: {}", cs.num_constraints());
+        assert!(cs.is_satisfied().unwrap())
     }
 }
 
