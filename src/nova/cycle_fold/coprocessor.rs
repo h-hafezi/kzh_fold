@@ -310,4 +310,24 @@ mod tests {
         assert_eq!(pub_io.g_out, g_out);
         assert_eq!(pub_io.r, r);
     }
+
+    #[test]
+    pub fn satisfiability_test() {
+        let mut rng = ark_std::test_rng();
+        let g1 = Projective::rand(&mut rng);
+        let g2 = Projective::rand(&mut rng);
+
+        let r = <Fq as PrimeField>::BigInt::from(u64::rand(&mut rng)).into();
+        let r_scalar = unsafe { cast_field_element::<Fq, Fr>(&r) };
+
+        let g_out = g1 * r_scalar + g2;
+
+        let c = Circuit { g1, g2, g_out, r };
+
+        let cs = ConstraintSystem::new_ref();
+        c.generate_constraints(cs.clone()).unwrap();
+
+        println!("{}", cs.num_constraints());
+        println!("{}", cs.is_satisfied().unwrap());
+    }
 }
