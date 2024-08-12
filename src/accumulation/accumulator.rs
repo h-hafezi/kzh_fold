@@ -467,7 +467,7 @@ mod tests {
     type E = Bn254;
     type F = Fr;
 
-    fn get_srs(degree_x: usize, degree_y: usize) -> AccSRS<E> {
+    pub fn get_srs(degree_x: usize, degree_y: usize) -> AccSRS<E> {
         let domain_x = GeneralEvaluationDomain::<F>::new(degree_x).unwrap();
         let domain_y = GeneralEvaluationDomain::<F>::new(degree_y).unwrap();
 
@@ -487,7 +487,7 @@ mod tests {
         )
     }
 
-    fn get_satisfying_accumulator(srs: &AccSRS<E>) -> Accumulator<E> {
+    pub fn get_satisfying_accumulator(srs: &AccSRS<E>) -> Accumulator<E> {
 
         // random bivariate polynomials
         let polynomial_1 = BivariatePolynomial::random(

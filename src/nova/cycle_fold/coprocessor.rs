@@ -1,8 +1,15 @@
-//! Helper definitions for secondary circuit.
+//! Helper definitions for a conditional elliptic curve operation circuit.
 //!
-//! Secondary circuit accepts `g1`, `g2`, `g_out`, `r1` `r2` (in this exact order) as its public input, where
-//! `g1`, `g2`, `g_out` are points on the curve G, `r1`, `r2` are elements from the scalar field, and enforces
-//! `g_out = r1 * g1 + r2 * g2`, while having circuit satisfying witness as a trace of this computation.
+//! This circuit accepts `g1`, `g2`, `g_out`, `r`, and `flag` (in this exact order) as its public input, where
+//! `g1`, `g2`, `g_out` are points on the elliptic curve G, `r` is an element from the scalar field, and `flag`
+//! is a boolean value. The circuit performs one of two possible operations based on the value of `flag`:
+//!
+//! - If `flag` is `true`, the circuit enforces `g_out = r * g1 + g2`.
+//! - If `flag` is `false`, the circuit enforces `g_out = r * (g1 - g2) + g2 = r * g1 + (1-r) * g2`.
+//!
+//! The circuit efficiently computes the result by conditionally selecting between `g1` and `g1 - g2` before
+//! performing a single scalar multiplication and adding `g2`. This ensures that the circuit minimizes the
+//! number of expensive scalar multiplication operations.
 
 use ark_ec::short_weierstrass::{Projective, SWCurveConfig};
 use ark_ff::{AdditiveGroup, PrimeField};
@@ -25,7 +32,9 @@ use crate::nova::commitment::CommitmentScheme;
 
 /// Leading One + 3 curve points + 1 scalar + 1 flag.
 const SECONDARY_NUM_IO: usize = 12;
+
 /// Public input of secondary circuit.
+#[derive(Debug, PartialEq, Eq)]
 pub struct Circuit<G1: SWCurveConfig> {
     pub(crate) g1: Projective<G1>,
     pub(crate) g2: Projective<G1>,

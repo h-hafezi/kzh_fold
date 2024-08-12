@@ -1,4 +1,5 @@
-/*use std::borrow::Borrow;
+use std::borrow::Borrow;
+use std::marker::PhantomData;
 use std::ops::Add;
 
 use ark_ec::CurveConfig;
@@ -18,9 +19,10 @@ use ark_std::UniformRand;
 use rand::thread_rng;
 
 use crate::accumulation_circuit::acc_instance_circuit::{AccumulatorInstance, AccumulatorInstanceVar};
+use crate::gadgets::non_native::short_weierstrass::NonNativeAffineVar;
 use crate::gadgets::r1cs::R1CSInstance;
 use crate::nova::commitment::CommitmentScheme;
-use crate::nova::cycle_fold::coprocessor::Circuit as SecondCircuit;
+use crate::nova::cycle_fold::coprocessor::{Circuit as SecondaryCircuit, synthesize};
 use crate::nova::cycle_fold::coprocessor_constraints::R1CSInstanceVar;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -36,9 +38,17 @@ where
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField>,
 {
     /// the randomness used for taking linear combination
-    pub r: G1::ScalarField,
-    /// auxiliary input which helps to have w without scalar multiplication
+    pub beta: G1::ScalarField,
+    /// auxiliary input which helps to have C'' = (1-beta) * C + beta * C' without scalar multiplication
     pub auxiliary_input_C: R1CSInstance<G2, C2>,
+    /// auxiliary input which helps to have T'' = (1-beta) * T + beta * T' without scalar multiplication
+    pub auxiliary_input_T: R1CSInstance<G2, C2>,
+    /// auxiliary input which helps to have E_{temp} = (1-beta) * E + beta * E' without scalar multiplication
+    pub auxiliary_input_E_1: R1CSInstance<G2, C2>,
+    /// auxiliary input which helps to have E'' = E_{temp} + beta * (1-beta) * Q without scalar multiplication
+    pub auxiliary_input_E_2: R1CSInstance<G2, C2>,
+    /// accumulation proof
+    pub Q: Projective<G1>,
     /// the instance to be folded
     pub instance: AccumulatorInstance<G1>,
     /// the running accumulator
@@ -57,10 +67,19 @@ where
     C2: CommitmentScheme<Projective<G2>>,
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField>,
 {
-    /// The auxiliary input is on base field of G2 which is equal to scalar field of G1
+    /// auxiliary input which helps to have C'' = (1-beta) * C + beta * C' without scalar multiplication
     pub auxiliary_input_C: R1CSInstanceVar<G2, C2>,
+    /// auxiliary input which helps to have T'' = (1-beta) * T + beta * T' without scalar multiplication
+    pub auxiliary_input_T: R1CSInstanceVar<G2, C2>,
+    /// auxiliary input which helps to have E_{temp} = (1-beta) * E + beta * E' without scalar multiplication
+    pub auxiliary_input_E_1: R1CSInstanceVar<G2, C2>,
+    /// auxiliary input which helps to have E'' = E_{temp} + beta * (1-beta) * Q without scalar multiplication
+    pub auxiliary_input_E_2: R1CSInstanceVar<G2, C2>,
     /// the randomness used for taking linear combination
-    pub r: FpVar<G1::ScalarField>,
+    pub beta: FpVar<G1::ScalarField>,
+    /// accumulation proof
+    pub Q: NonNativeAffineVar<G1>,
+
     pub instance: AccumulatorInstanceVar<G1>,
     pub acc: AccumulatorInstanceVar<G1>,
 }
@@ -82,6 +101,31 @@ where
         let res = f();
         let circuit = res.as_ref().map(|e| e.borrow()).map_err(|err| *err);
 
+        let auxiliary_input_C = R1CSInstanceVar::new_variable(
+            ns!(cs, "auxiliary_input_C"),
+            || Ok(circuit.map(|e| e.auxiliary_input_C.clone()).unwrap()),
+            mode,
+        ).unwrap();
+
+        let auxiliary_input_T = R1CSInstanceVar::new_variable(
+            ns!(cs, "auxiliary_input_T"),
+            || Ok(circuit.map(|e| e.auxiliary_input_T.clone()).unwrap()),
+            mode,
+        ).unwrap();
+
+        let auxiliary_input_E_1 = R1CSInstanceVar::new_variable(
+            ns!(cs, "auxiliary_input_E_1"),
+            || Ok(circuit.map(|e| e.auxiliary_input_E_1.clone()).unwrap()),
+            mode,
+        ).unwrap();
+
+        let auxiliary_input_E_2 = R1CSInstanceVar::new_variable(
+            ns!(cs, "auxiliary_input_E_2"),
+            || Ok(circuit.map(|e| e.auxiliary_input_E_2.clone()).unwrap()),
+            mode,
+        ).unwrap();
+
+
         let instance = AccumulatorInstanceVar::new_variable(
             ns!(cs, "instance"),
             || circuit.map(|e| e.instance.clone()),
@@ -94,26 +138,31 @@ where
             mode,
         ).unwrap();
 
-        let auxiliary_input_w = R1CSInstanceVar::new_variable(
-            ns!(cs, "acc"),
-            || circuit.map(|e| e.auxiliary_input_C.clone()),
+        let beta = FpVar::new_variable(
+            ns!(cs, "beta"),
+            || circuit.map(|e| e.beta.clone()),
             mode,
         ).unwrap();
 
-        let r = FpVar::new_variable(
-            ns!(cs, "acc"),
-            || circuit.map(|e| e.r.clone()),
+        let Q = NonNativeAffineVar::new_variable(
+            ns!(cs, "Q"),
+            || circuit.map(|e| e.Q),
             mode,
         ).unwrap();
 
         Ok(AccumulatorVerifierVar {
-            auxiliary_input_C: auxiliary_input_w,
-            r,
+            auxiliary_input_C,
+            auxiliary_input_T,
+            auxiliary_input_E_1,
+            auxiliary_input_E_2,
+            beta,
+            Q,
             instance,
             acc,
         })
     }
 }
+
 
 impl<G1: SWCurveConfig, G2: SWCurveConfig, C2> AccumulatorVerifierVar<G1, G2, C2>
 where
@@ -136,7 +185,8 @@ where
         // Non-native scalar multiplication: linear combination of C
         {
             // parse inputs
-            let (r,
+            let (flag,
+                r,
                 g1,
                 g2,
                 g_out
@@ -185,24 +235,28 @@ mod tests {
     use std::fmt::Debug;
 
     use ark_ec::short_weierstrass::Projective;
-    use ark_pallas::{Fq, Fr, PallasConfig};
+    use ark_ff::Field;
+    use ark_bn254::{Fq, Fr, Config};
     use ark_r1cs_std::alloc::{AllocationMode, AllocVar};
     use ark_r1cs_std::fields::fp::FpVar;
+    use ark_relations::ns;
     use ark_relations::r1cs::ConstraintSystem;
     use ark_std::UniformRand;
-    use ark_vesta::VestaConfig;
+    use ark_grumpkin::GrumpkinConfig;
     use rand::thread_rng;
 
     use crate::accumulation_circuit::acc_instance_circuit::{AccumulatorInstance, AccumulatorInstanceVar};
-    use crate::accumulation_circuit::acc_verifier_circuit::AccumulatorVerifierVar;
+    use crate::accumulation_circuit::acc_verifier_circuit::{AccumulatorVerifier, AccumulatorVerifierVar};
+    use crate::gadgets::non_native::short_weierstrass::NonNativeAffineVar;
     use crate::hash::pederson::PedersenCommitment;
     use crate::nova::commitment::CommitmentScheme;
     use crate::nova::cycle_fold::coprocessor::{Circuit, setup_shape, synthesize};
     use crate::nova::cycle_fold::coprocessor_constraints::R1CSInstanceVar;
     use crate::utils::cast_field_element;
 
-    fn random_instance(n: u32, m: u32) -> AccumulatorInstance::<PallasConfig> {
-        AccumulatorInstance::<PallasConfig> {
+    /// TODO: change this to actual instance where I can write decider for it
+    fn random_instance(n: u32, m: u32) -> AccumulatorInstance::<Config> {
+        AccumulatorInstance::<Config> {
             C: Projective::rand(&mut thread_rng()),
             T: Projective::rand(&mut thread_rng()),
             E: Projective::rand(&mut thread_rng()),
@@ -251,19 +305,20 @@ mod tests {
             let g2 = acc.C.clone();
             let g_out = g1 * r + g2;
             Circuit {
-                g1: instance.C,
+                g1: instance.C.clone(),
                 g2: acc.C,
                 g_out,
                 r: unsafe { cast_field_element::<Fr, Fq>(&r) },
+                flag: true,
             }
         };
 
-        let auxiliary_input_w = {
-            let shape = setup_shape::<PallasConfig, VestaConfig>().unwrap();
+        let auxiliary_input = {
+            let shape = setup_shape::<Config, GrumpkinConfig>().unwrap();
             let pp = PedersenCommitment::<ark_vesta::Projective>::setup(shape.num_vars, b"test", &());
             let (u, _) = synthesize::<
-                PallasConfig,
-                VestaConfig,
+                Config,
+                GrumpkinConfig,
                 PedersenCommitment<ark_vesta::Projective>,
             >(c, &pp).unwrap();
 
@@ -274,14 +329,130 @@ mod tests {
             ).unwrap()
         };
 
-        let verifier = AccumulatorVerifierVar { auxiliary_input_C: auxiliary_input_w, r: r_var, instance: instance_var, acc: acc_var };
-        println!("before: {}", cs.num_constraints());
-        verifier.accumulate();
-        println!("after: {}", cs.num_constraints());
+        let Q = NonNativeAffineVar::new_variable(
+            ns!(cs, "C"),
+            || Ok(instance.C),
+            AllocationMode::Witness,
+        ).unwrap();
+
+
+        let verifier = AccumulatorVerifierVar {
+            auxiliary_input_C: auxiliary_input.clone(),
+            auxiliary_input_T: auxiliary_input.clone(),
+            auxiliary_input_E_1: auxiliary_input.clone(),
+            auxiliary_input_E_2: auxiliary_input.clone(),
+            beta: r_var,
+            Q,
+            instance: instance_var,
+            acc: acc_var,
+        };
+
+        println!("number of constraint for initialisation: {}", cs.num_constraints());
         assert!(cs.is_satisfied().unwrap())
     }
+
+    /*
+    #[test]
+    fn initialisation_test() {
+        // build an instance of AccInstanceCircuit
+        let instance = random_instance(1000u32, 1000u32);
+
+        let acc = random_instance(1000u32, 1000u32);
+
+
+        // a constraint system
+        let cs = ConstraintSystem::<Fr>::new_ref();
+
+        // randomness
+        let beta = Fr::from(2u128);
+
+        // the shape of the R1CS instance
+        let shape = setup_shape::<Config, GrumpkinConfig>().unwrap();
+
+        // public parameters of Pedersen
+        let pp = PedersenCommitment::<ark_vesta::Projective>::setup(shape.num_vars, b"test", &());
+
+        let auxiliary_input_C = {
+            // the circuit
+            let c = {
+                let g1 = instance.C.clone();
+                let g2 = acc.C.clone();
+                // C'' = (1 - beta) * acc.C + beta * instance.C
+                let g_out = (g1 * beta) + (g2 * (Fr::ONE - beta));
+                Circuit {
+                    g1: instance.C,
+                    g2: acc.C,
+                    g_out,
+                    r: unsafe { cast_field_element::<Fr, Fq>(&beta) },
+                    flag: false,
+                }
+            };
+
+            synthesize::<
+                Config,
+                GrumpkinConfig,
+                PedersenCommitment<ark_vesta::Projective>,
+            >(c, &pp).unwrap().0
+        };
+
+        let auxiliary_input_T = {
+            // the circuit
+            let c = {
+                let g1 = instance.T.clone();
+                let g2 = acc.T.clone();
+                // C'' = (1 - beta) * acc.T + beta * instance.T
+                let g_out = (g1 * beta) + (g2 * (Fr::ONE - beta));
+                Circuit {
+                    g1: instance.T,
+                    g2: acc.T,
+                    g_out,
+                    r: unsafe { cast_field_element::<Fr, Fq>(&beta) },
+                    flag: false,
+                }
+            };
+
+            synthesize::<
+                Config,
+                GrumpkinConfig,
+                PedersenCommitment<ark_vesta::Projective>,
+            >(c, &pp).unwrap().0
+        };
+
+        let auxiliary_input_E_1 = {
+            // the circuit
+            let c = {
+                let g1 = instance.E.clone();
+                let g2 = acc.E.clone();
+                // C'' = (1 - beta) * acc.T + beta * instance.T
+                let g_out = (g1 * beta) + (g2 * (Fr::ONE - beta));
+                Circuit {
+                    g1: instance.E,
+                    g2: acc.E,
+                    g_out,
+                    r: unsafe { cast_field_element::<Fr, Fq>(&beta) },
+                    flag: false,
+                }
+            };
+
+            synthesize::<
+                Config,
+                GrumpkinConfig,
+                PedersenCommitment<ark_vesta::Projective>,
+            >(c, &pp).unwrap().0
+        };
+
+
+        let accumulator_verifier = AccumulatorVerifier {
+            beta,
+            auxiliary_input_C: R1CSInstance {},
+            auxiliary_input_T: R1CSInstance {},
+            auxiliary_input_E_1: R1CSInstance {},
+            auxiliary_input_E_2: R1CSInstance {},
+            instance: AccumulatorInstance {},
+            acc: AccumulatorInstance {},
+        };
+    }
+     */
 }
 
 
-
- */
