@@ -236,7 +236,7 @@ mod tests {
 
     use ark_ec::short_weierstrass::Projective;
     use ark_ff::Field;
-    use ark_bn254::{Fq, Fr, Config};
+    use ark_bn254::{Fq, Fr};
     use ark_r1cs_std::alloc::{AllocationMode, AllocVar};
     use ark_r1cs_std::fields::fp::FpVar;
     use ark_relations::ns;
@@ -244,7 +244,7 @@ mod tests {
     use ark_std::UniformRand;
     use ark_grumpkin::GrumpkinConfig;
     use rand::thread_rng;
-
+    use ark_bn254::g1::{Config as BNConfig};
     use crate::accumulation_circuit::acc_instance_circuit::{AccumulatorInstance, AccumulatorInstanceVar};
     use crate::accumulation_circuit::acc_verifier_circuit::{AccumulatorVerifier, AccumulatorVerifierVar};
     use crate::gadgets::non_native::short_weierstrass::NonNativeAffineVar;
@@ -255,8 +255,8 @@ mod tests {
     use crate::utils::cast_field_element;
 
     /// TODO: change this to actual instance where I can write decider for it
-    fn random_instance(n: u32, m: u32) -> AccumulatorInstance::<Config> {
-        AccumulatorInstance::<Config> {
+    fn random_instance(n: u32, m: u32) -> AccumulatorInstance::<BNConfig> {
+        AccumulatorInstance::<BNConfig> {
             C: Projective::rand(&mut thread_rng()),
             T: Projective::rand(&mut thread_rng()),
             E: Projective::rand(&mut thread_rng()),
@@ -314,12 +314,12 @@ mod tests {
         };
 
         let auxiliary_input = {
-            let shape = setup_shape::<Config, GrumpkinConfig>().unwrap();
-            let pp = PedersenCommitment::<ark_vesta::Projective>::setup(shape.num_vars, b"test", &());
+            let shape = setup_shape::<BNConfig, GrumpkinConfig>().unwrap();
+            let pp = PedersenCommitment::<ark_grumpkin::Projective>::setup(shape.num_vars, b"test", &());
             let (u, _) = synthesize::<
-                Config,
+                BNConfig,
                 GrumpkinConfig,
-                PedersenCommitment<ark_vesta::Projective>,
+                PedersenCommitment<ark_grumpkin::Projective>,
             >(c, &pp).unwrap();
 
             R1CSInstanceVar::new_variable(
