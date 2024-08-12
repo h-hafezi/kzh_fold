@@ -1,3 +1,4 @@
+
 #[cfg(test)]
 pub(crate) mod tests {
     use ark_ff::PrimeField;
@@ -29,6 +30,7 @@ pub(crate) mod tests {
             g2,
             g_out,
             r,
+            flag: true,
         }
     }
     #[test]
@@ -83,3 +85,4 @@ pub(crate) mod tests {
         shape.is_relaxed_satisfied(&folded_U, &folded_W, &pp).unwrap();
     }
 }
+

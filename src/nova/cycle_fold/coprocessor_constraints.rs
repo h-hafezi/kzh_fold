@@ -25,7 +25,7 @@ use crate::gadgets::non_native::cast_field_element_unique;
 use crate::gadgets::non_native::short_weierstrass::NonNativeAffineVar;
 use crate::gadgets::r1cs::{R1CSInstance, RelaxedR1CSInstance};
 use crate::nova::commitment::CommitmentScheme;
-use crate::nova::cycle_fold::coprocessor::{Circuit as SecondaryCircuit, Proof};
+use crate::nova::cycle_fold::coprocessor::{Circuit as SecondaryCircuit, SecondaryCircuitFoldingProof};
 
 #[must_use]
 #[derive(Debug)]
@@ -57,6 +57,7 @@ where
     }
 }
 
+/*
 impl<G2, C2> R1CSInstanceVar<G2, C2>
 where
     G2: SWCurveConfig,
@@ -87,6 +88,7 @@ where
         })
     }
 }
+ */
 
 impl<G2, C2> R1CSVar<G2::BaseField> for R1CSInstanceVar<G2, C2>
 where
@@ -411,13 +413,13 @@ where
     pub(crate) commitment_T: ProjectiveVar<G2, FpVar<G2::BaseField>>,
 }
 
-impl<G2, C2> AllocVar<Proof<G2, C2>, G2::BaseField> for ProofVar<G2, C2>
+impl<G2, C2> AllocVar<SecondaryCircuitFoldingProof<G2, C2>, G2::BaseField> for ProofVar<G2, C2>
 where
     G2: SWCurveConfig,
     G2::BaseField: PrimeField,
     C2: CommitmentScheme<Projective<G2>>,
 {
-    fn new_variable<T: Borrow<Proof<G2, C2>>>(
+    fn new_variable<T: Borrow<SecondaryCircuitFoldingProof<G2, C2>>>(
         cs: impl Into<Namespace<G2::BaseField>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
@@ -479,6 +481,7 @@ where
     ) -> Result<
         (
             NonNativeFieldVar<G1::BaseField, G1::ScalarField>,
+            NonNativeFieldVar<G1::BaseField, G1::ScalarField>,
             NonNativeAffineVar<G1>,
             NonNativeAffineVar<G1>,
             NonNativeAffineVar<G1>,
@@ -488,9 +491,9 @@ where
     where
         G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField>,
     {
-        let r = self.X[SecondaryCircuit::<G1>::NUM_IO - 1].clone();
+        let r = self.X[SecondaryCircuit::<G1>::NUM_IO - 2].clone();
+        let flag = self.X[SecondaryCircuit::<G1>::NUM_IO - 1].clone();
 
-        // Skip `Variable::One`, g1 and g2.
         let mut X = &self.X[1..];
         let g1 = parse_projective!(X);
         let g2 = parse_projective!(X);
@@ -498,14 +501,14 @@ where
 
         let _ = X;
 
-        Ok((r, g1, g2, g_out))
+        Ok((flag, r, g1, g2, g_out))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use std::fmt::Debug;
-
+    use ark_ff::Zero;
     use ark_pallas::{PallasConfig};
     use ark_r1cs_std::alloc::{AllocationMode, AllocVar};
     use ark_r1cs_std::R1CSVar;
@@ -536,7 +539,7 @@ mod tests {
         println!("number of constraints on second curve: {}", cs.num_constraints());
 
         // define a running instance for second curve
-        let (U, W) = synthesize::<
+        let (U, _W) = synthesize::<
             PallasConfig,
             VestaConfig,
             PedersenCommitment<ark_vesta::Projective>,
@@ -553,8 +556,9 @@ mod tests {
         assert_eq!(U_prime, U);
 
         // parsing IO
-        let (r, g1, g2, g_out) = U_var.parse_secondary_io::<PallasConfig>().unwrap();
+        let (flag, r, g1, g2, g_out) = U_var.parse_secondary_io::<PallasConfig>().unwrap();
         assert_eq!(r.value().unwrap(), c.r);
+        assert_eq!(!flag.value().unwrap().is_zero(), c.flag);
         assert_eq!(g1.value().unwrap(), c.g1);
         assert_eq!(g2.value().unwrap(), c.g2);
         assert_eq!(g_out.value().unwrap(), c.g_out);

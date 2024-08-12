@@ -13,6 +13,7 @@ use ark_r1cs_std::{
     groups::{curves::short_weierstrass::ProjectiveVar, CurveVar},
     ToBitsGadget,
 };
+use ark_r1cs_std::boolean::Boolean;
 use ark_relations::r1cs::{
     ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef, SynthesisError, SynthesisMode,
 };
@@ -22,20 +23,19 @@ use ark_std::Zero;
 use crate::gadgets::r1cs::*;
 use crate::nova::commitment::CommitmentScheme;
 
-/// Leading One + 3 curve points + 1 scalar.
-const SECONDARY_NUM_IO: usize = 11;
-
+/// Leading One + 3 curve points + 1 scalar + 1 flag.
+const SECONDARY_NUM_IO: usize = 12;
 /// Public input of secondary circuit.
 pub struct Circuit<G1: SWCurveConfig> {
     pub(crate) g1: Projective<G1>,
     pub(crate) g2: Projective<G1>,
     pub(crate) g_out: Projective<G1>,
-
     /// Scalar for elliptic curve points multiplication is part of the public
     /// input and hence should fit into the base field of G1.
     ///
     /// See [`super::nimfs::SQUEEZE_ELEMENTS_BIT_SIZE`].
     pub(crate) r: G1::BaseField,
+    pub(crate) flag: bool,
 }
 
 impl<G1: SWCurveConfig> Circuit<G1> {
@@ -49,6 +49,7 @@ impl<G: SWCurveConfig> Default for Circuit<G> {
             g2: Projective::zero(),
             g_out: Projective::zero(),
             r: G::BaseField::ZERO,
+            flag: false,
         }
     }
 }
@@ -60,6 +61,7 @@ impl<G: SWCurveConfig> Clone for Circuit<G> {
             g2: self.g2,
             g_out: self.g_out,
             r: self.r,
+            flag: self.flag,
         }
     }
 }
@@ -72,15 +74,27 @@ where
         self,
         cs: ConstraintSystemRef<G1::BaseField>,
     ) -> Result<(), SynthesisError> {
+        // Allocate inputs
         let g1 = ProjectiveVar::<G1, FpVar<G1::BaseField>>::new_input(cs.clone(), || Ok(self.g1))?;
         let g2 = ProjectiveVar::<G1, FpVar<G1::BaseField>>::new_input(cs.clone(), || Ok(self.g2))?;
         let g_out = ProjectiveVar::<G1, FpVar<G1::BaseField>>::new_input(cs.clone(), || Ok(self.g_out))?;
-
         let r = FpVar::<G1::BaseField>::new_input(cs.clone(), || Ok(self.r))?;
-        let r_bits = r.to_bits_le()?;
+        // It's automatically converted to either 0 or 1 on G1::BaseField
+        let flag = Boolean::new_input(cs.clone(), || Ok(self.flag))?;
 
-        let out = g1.scalar_mul_le(r_bits.iter())? + g2;
-        out.enforce_equal(&g_out)?;
+        // Compute A = g1 and A' = g1 - g2
+        let a = g1.clone();
+        let a_prime = g1 - &g2;
+
+        // Conditionally select B = A if flag is true, else B = A'
+        let b = flag.select(&a, &a_prime)?;
+
+        // Compute B * r + g2
+        let r_bits = r.to_bits_le()?;
+        let result = b.scalar_mul_le(r_bits.iter())? + &g2;
+
+        // Enforce the result to be equal to g_out
+        result.enforce_equal(&g_out)?;
 
         Ok(())
     }
@@ -134,12 +148,12 @@ where
 
 /// Folding scheme proof for a secondary circuit.
 #[derive(CanonicalDeserialize, CanonicalSerialize)]
-pub struct Proof<G2: SWCurveConfig, C2: CommitmentScheme<Projective<G2>>> {
+pub struct SecondaryCircuitFoldingProof<G2: SWCurveConfig, C2: CommitmentScheme<Projective<G2>>> {
     pub(crate) U: R1CSInstance<G2, C2>,
     pub(crate) commitment_T: C2::Commitment,
 }
 
-impl<G2, C2> Clone for Proof<G2, C2>
+impl<G2, C2> Clone for SecondaryCircuitFoldingProof<G2, C2>
 where
     G2: SWCurveConfig,
     C2: CommitmentScheme<Projective<G2>>,
@@ -152,7 +166,7 @@ where
     }
 }
 
-impl<G2, C2> Default for Proof<G2, C2>
+impl<G2, C2> Default for SecondaryCircuitFoldingProof<G2, C2>
 where
     G2: SWCurveConfig,
     C2: CommitmentScheme<Projective<G2>>,
@@ -202,13 +216,14 @@ where
         let g2 = parse_projective!(X);
         let g_out = parse_projective!(X);
 
-        if X.len() < 1 {
+        if X.len() < 2 {
             return None;
         }
 
         let r = X[0];
+        let flag = X[1];
 
-        Some(Circuit { g1, g2, g_out, r })
+        Some(Circuit { g1, g2, g_out, r, flag: !flag.is_zero() })
     }
 }
 
@@ -236,7 +251,7 @@ mod tests {
 
         let g_out = g1 * r_scalar + g2;
 
-        let expected_pub_io = Circuit::<PallasConfig> { g1, g2, g_out, r };
+        let expected_pub_io = Circuit::<PallasConfig> { g1, g2, g_out, r, flag: true };
         let X = [
             Fq::ONE,
             g1.x,
@@ -249,6 +264,7 @@ mod tests {
             g_out.y,
             g_out.z,
             unsafe { cast_field_element(&r) },
+            Fq::ONE,
         ];
 
         assert_eq!(X.len(), SECONDARY_NUM_IO);
@@ -264,6 +280,7 @@ mod tests {
         assert_eq!(pub_io.g2, expected_pub_io.g2);
         assert_eq!(pub_io.g_out, expected_pub_io.g_out);
         assert_eq!(pub_io.r, expected_pub_io.r);
+        assert_eq!(pub_io.flag, expected_pub_io.flag);
 
         // incorrect length
         let _X = &X[..10];
@@ -301,7 +318,7 @@ mod tests {
             PallasConfig,
             VestaConfig,
             PedersenCommitment<ark_vesta::Projective>,
-        >(Circuit { g1, g2, g_out, r }, &pp).unwrap();
+        >(Circuit { g1, g2, g_out, r, flag: false }, &pp).unwrap();
 
         let pub_io = U.parse_secondary_io::<PallasConfig>().unwrap();
 
@@ -309,10 +326,11 @@ mod tests {
         assert_eq!(pub_io.g2, g2);
         assert_eq!(pub_io.g_out, g_out);
         assert_eq!(pub_io.r, r);
+        assert_eq!(pub_io.flag, false);
     }
 
     #[test]
-    pub fn satisfiability_test() {
+    pub fn satisfiability_test_for_true_flag() {
         let mut rng = ark_std::test_rng();
         let g1 = Projective::rand(&mut rng);
         let g2 = Projective::rand(&mut rng);
@@ -322,7 +340,27 @@ mod tests {
 
         let g_out = g1 * r_scalar + g2;
 
-        let c = Circuit { g1, g2, g_out, r };
+        let c = Circuit { g1, g2, g_out, r, flag: true };
+
+        let cs = ConstraintSystem::new_ref();
+        c.generate_constraints(cs.clone()).unwrap();
+
+        println!("{}", cs.num_constraints());
+        println!("{}", cs.is_satisfied().unwrap());
+    }
+
+    #[test]
+    pub fn satisfiability_test_for_false_flag() {
+        let mut rng = ark_std::test_rng();
+        let g1 = Projective::rand(&mut rng);
+        let g2 = Projective::rand(&mut rng);
+
+        let r = <Fq as PrimeField>::BigInt::from(u64::rand(&mut rng)).into();
+        let r_scalar = unsafe { cast_field_element::<Fq, Fr>(&r) };
+
+        let g_out = g1 * r_scalar + g2 * (Fr::ONE - r_scalar);
+
+        let c = Circuit { g1, g2, g_out, r, flag: false };
 
         let cs = ConstraintSystem::new_ref();
         c.generate_constraints(cs.clone()).unwrap();
