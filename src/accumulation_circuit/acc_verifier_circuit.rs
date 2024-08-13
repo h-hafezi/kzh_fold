@@ -243,20 +243,17 @@ where
 #[cfg(test)]
 mod tests {
     use std::fmt::Debug;
-
     use ark_ec::short_weierstrass::Projective;
     use ark_ff::Field;
-    use ark_bn254::{Fq, Fr};
     use ark_r1cs_std::alloc::{AllocationMode, AllocVar};
     use ark_r1cs_std::fields::fp::FpVar;
     use ark_relations::ns;
     use ark_relations::r1cs::ConstraintSystem;
     use ark_std::UniformRand;
-    use ark_grumpkin::GrumpkinConfig;
     use rand::thread_rng;
-    use ark_bn254::g1::{Config as BNConfig};
     use crate::accumulation_circuit::acc_instance_circuit::{AccumulatorInstanceCircuit, AccumulatorInstanceCircuitVar};
     use crate::accumulation_circuit::acc_verifier_circuit::{AccumulatorVerifier, AccumulatorVerifierVar};
+    use crate::constant_for_curves::{G1, ScalarField, BaseField, G2};
     use crate::gadgets::non_native::short_weierstrass::NonNativeAffineVar;
     use crate::hash::pederson::PedersenCommitment;
     use crate::nova::commitment::CommitmentScheme;
@@ -265,16 +262,16 @@ mod tests {
     use crate::utils::cast_field_element;
 
     /// TODO: change this to actual instance where I can write decider for it
-    fn random_instance(n: u32, m: u32) -> AccumulatorInstanceCircuit::<BNConfig> {
-        AccumulatorInstanceCircuit::<BNConfig> {
+    fn random_instance(n: u32, m: u32) -> AccumulatorInstanceCircuit::<G1> {
+        AccumulatorInstanceCircuit::<G1> {
             C: Projective::rand(&mut thread_rng()),
             T: Projective::rand(&mut thread_rng()),
             E: Projective::rand(&mut thread_rng()),
-            b: Fr::rand(&mut thread_rng()),
-            c: Fr::rand(&mut thread_rng()),
-            y: Fr::rand(&mut thread_rng()),
-            z_b: Fr::rand(&mut thread_rng()),
-            z_c: Fr::rand(&mut thread_rng()),
+            b: ScalarField::rand(&mut thread_rng()),
+            c: ScalarField::rand(&mut thread_rng()),
+            y: ScalarField::rand(&mut thread_rng()),
+            z_b: ScalarField::rand(&mut thread_rng()),
+            z_c: ScalarField::rand(&mut thread_rng()),
         }
     }
 
@@ -288,7 +285,7 @@ mod tests {
         let acc = random_instance(1000u32, 1000u32);
 
         // a constraint system
-        let cs = ConstraintSystem::<Fr>::new_ref();
+        let cs = ConstraintSystem::<ScalarField>::new_ref();
 
         // make a circuit_var
         let instance_var = AccumulatorInstanceCircuitVar::new_variable(
@@ -303,7 +300,7 @@ mod tests {
             AllocationMode::Witness,
         ).unwrap();
 
-        let r = Fr::from(2u128);
+        let r = ScalarField::from(2u128);
         let r_var = FpVar::new_variable(
             cs.clone(),
             || Ok(r.clone()),
@@ -318,17 +315,17 @@ mod tests {
                 g1: instance.C.clone(),
                 g2: acc.C,
                 g_out,
-                r: unsafe { cast_field_element::<Fr, Fq>(&r) },
+                r: unsafe { cast_field_element::<ScalarField, BaseField>(&r) },
                 flag: true,
             }
         };
 
         let auxiliary_input = {
-            let shape = setup_shape::<BNConfig, GrumpkinConfig>().unwrap();
+            let shape = setup_shape::<G1, G2>().unwrap();
             let pp = PedersenCommitment::<ark_grumpkin::Projective>::setup(shape.num_vars, b"test", &());
             let (u, _) = synthesize::<
-                BNConfig,
-                GrumpkinConfig,
+                G1,
+                G2,
                 PedersenCommitment<ark_grumpkin::Projective>,
             >(c, &pp).unwrap();
 

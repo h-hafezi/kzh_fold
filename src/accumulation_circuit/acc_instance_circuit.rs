@@ -51,27 +51,7 @@ where
     pub fn is_relaxed(&self) -> bool {
         !self.E.is_zero()
     }
-
-    pub fn from_accumulator_instance<E>(
-        acc_instance: AccInstance<E>,
-    ) -> AccumulatorInstanceCircuit<G1>
-    where
-        E: Pairing<G1Affine = G1>,
-        G1: AffineRepr,
-    {
-        AccumulatorInstanceCircuit {
-            C: acc_instance.C,
-            T: acc_instance.T,
-            E: acc_instance.E,
-            b: acc_instance.b,
-            c: acc_instance.c,
-            y: acc_instance.y,
-            z_b: acc_instance.z_b,
-            z_c: acc_instance.z_c,
-        }
-    }
 }
-
 
 #[derive(Clone)]
 /// the circuit is defined on scalar of G1
@@ -114,12 +94,12 @@ where
         Ok(AccumulatorInstanceCircuit {
             C: self.C_var.value().unwrap(),
             T: self.T_var.value().unwrap(),
+            E: self.E_var.value().unwrap(),
             b: self.b_var.value().unwrap(),
             c: self.c_var.value().unwrap(),
             y: self.y_var.value().unwrap(),
             z_b: self.z_b_var.value().unwrap(),
             z_c: self.z_c_var.value().unwrap(),
-            E: self.E_var.value().unwrap(),
         })
     }
 }
@@ -208,39 +188,87 @@ where
 mod tests {
     use std::fmt::Debug;
 
-    use ark_bn254::Fr;
-    use ark_bn254::g1::Config;
     use ark_ec::short_weierstrass::Projective;
     use ark_ff::{AdditiveGroup, Zero};
     use ark_r1cs_std::alloc::{AllocationMode, AllocVar};
     use ark_r1cs_std::R1CSVar;
     use ark_relations::r1cs::ConstraintSystem;
+    use ark_std::UniformRand;
+    use rand::thread_rng;
 
+    use crate::accumulation::accumulator::AccInstance;
     use crate::accumulation_circuit::acc_instance_circuit::{AccumulatorInstanceCircuit, AccumulatorInstanceCircuitVar};
+    use crate::constant_for_curves::{E, G1, ScalarField};
+
+    pub fn accumulator_instance_to_circuit(acc_instance: AccInstance<E>) -> AccumulatorInstanceCircuit<G1> {
+        AccumulatorInstanceCircuit {
+            C: acc_instance.C.into(),
+            T: acc_instance.T.into(),
+            E: acc_instance.E.into(),
+            b: acc_instance.b,
+            c: acc_instance.c,
+            y: acc_instance.y,
+            z_b: acc_instance.z_b,
+            z_c: acc_instance.z_c,
+        }
+    }
+
+    pub fn circuit_to_accumulator_instance(circuit: AccumulatorInstanceCircuit<G1>) -> AccInstance<E> {
+        AccInstance {
+            C: circuit.C.into(),
+            T: circuit.T.into(),
+            E: circuit.E.into(),
+            b: circuit.b,
+            c: circuit.c,
+            y: circuit.y,
+            z_b: circuit.z_b,
+            z_c: circuit.z_c,
+        }
+    }
+
 
     #[test]
     fn initialisation_test() {
         // build an instance of AccInstanceCircuit
-        let instance = AccumulatorInstanceCircuit::<Config> {
+        let instance = AccumulatorInstanceCircuit::<G1> {
             C: Projective::zero(),
             T: Projective::zero(),
             E: Projective::zero(),
-            b: Fr::ZERO,
-            c: Fr::ZERO,
-            y: Fr::ZERO,
-            z_b: Fr::ZERO,
-            z_c: Fr::ZERO,
+            b: ScalarField::ZERO,
+            c: ScalarField::ZERO,
+            y: ScalarField::ZERO,
+            z_b: ScalarField::ZERO,
+            z_c: ScalarField::ZERO,
         };
+
         // a constraint system
-        let cs = ConstraintSystem::<Fr>::new_ref();
+        let cs = ConstraintSystem::<ScalarField>::new_ref();
 
         // make a circuit_var
         let circuit_var = AccumulatorInstanceCircuitVar::new_variable(cs, || Ok(instance.clone()), AllocationMode::Constant).unwrap();
         // get its value and assert its equal to the original instance
         let c = circuit_var.value().unwrap();
-        if !(c.T == instance.T && c.C == instance.C && c.E == instance.E && c.b == instance.b && c.c == instance.c
-            && c.y == instance.y && c.z_b == instance.z_b && c.z_c == instance.z_c) {
-            panic!("the value function doesn't work well")
-        }
+        assert!(c == instance, "the value function doesn't work well");
+    }
+
+    #[test]
+    fn test_conversion_functions() {
+        // build an instance of AccInstanceCircuit
+        let circuit = AccumulatorInstanceCircuit::<G1> {
+            C: Projective::rand(&mut thread_rng()),
+            T: Projective::rand(&mut thread_rng()),
+            E: Projective::rand(&mut thread_rng()),
+            b: ScalarField::rand(&mut thread_rng()),
+            c: ScalarField::rand(&mut thread_rng()),
+            y: ScalarField::rand(&mut thread_rng()),
+            z_b: ScalarField::rand(&mut thread_rng()),
+            z_c: ScalarField::rand(&mut thread_rng()),
+        };
+
+        let acc_instance = circuit_to_accumulator_instance(circuit.clone());
+
+        let circuit_new = accumulator_instance_to_circuit(acc_instance);
+
+        assert!(circuit_new == circuit, "equality problem: circuits are not equal");
     }
 }
