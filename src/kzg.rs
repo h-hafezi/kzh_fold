@@ -597,16 +597,12 @@ fn convert_to_bigints<F: PrimeField>(p: &[F]) -> Vec<F::BigInt> {
 
 #[cfg(test)]
 mod tests {
-    use ark_bn254::{Bn254, Fr};
     use ark_ec::pairing::Pairing;
     use ark_poly::{DenseUVPolynomial, Polynomial};
     use ark_poly::univariate::DensePolynomial;
     use ark_std::{test_rng, UniformRand};
-
+    use crate::constant_for_curves::{E, ScalarField};
     use crate::kzg::{KZG10, KZGPowers, KZGUniversalParams, KZGVerifierKey};
-
-    type F = Fr;
-    type E = Bn254;
 
     /// Specializes the public parameters for a given maximum degree `d` for polynomials
     /// `d` should be less that `pp.max_degree()`.
@@ -655,7 +651,7 @@ mod tests {
         let (comm, r) = KZG10::<E, Poly>::commit(&ck, &polynomial, hiding_bound, Some(rng)).expect("Commitment failed");
 
         // Open commitment to get proof
-        let point = F::rand(rng);
+        let point = ScalarField::rand(rng);
         let proof = KZG10::<E, Poly>::open(&ck, &polynomial, point, &r).expect("Proof generation failed");
 
         // Verify proof

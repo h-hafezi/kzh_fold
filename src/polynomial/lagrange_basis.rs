@@ -33,12 +33,12 @@ impl<F: FftField> LagrangeTraits<F> for LagrangeBasis<F> {
 
 #[cfg(test)]
 mod tests {
-    use ark_bls12_381::Fr;
     use ark_ff::Field;
     use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
+    use crate::constant_for_curves::ScalarField;
     use crate::polynomial::lagrange_basis::{LagrangeBasis, LagrangeTraits};
 
-    type F = Fr;
+    type F = ScalarField;
 
     #[test]
     fn lagrange_test() {

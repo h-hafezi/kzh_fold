@@ -77,8 +77,6 @@ impl<F: FftField> Add for UnivariatePolynomial<F> {
 
 #[cfg(test)]
 mod tests {
-    use ark_bls12_381::Fr;
-    use ark_bn254::Bn254;
     use ark_crypto_primitives::Error;
     use ark_ec::pairing::Pairing;
     use ark_ff::Field;
@@ -87,11 +85,11 @@ mod tests {
     use ark_std::test_rng;
     use ark_std::UniformRand;
     use rand::thread_rng;
-
+    use crate::constant_for_curves::ScalarField;
     use crate::polynomial::lagrange_basis::LagrangeBasis;
     use crate::polynomial::univariate_poly::{UnivariatePolynomial, UnivariatePolynomialTrait};
 
-    type F = Fr;
+    type F = ScalarField;
 
     #[test]
     pub fn test_add() {

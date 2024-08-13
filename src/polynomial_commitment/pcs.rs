@@ -221,15 +221,11 @@ impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
 pub mod test {
     use std::cmp::min;
 
-    use ark_bn254::{Bn254, Fr};
     use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
     use ark_std::UniformRand;
     use rand::thread_rng;
-
+    use crate::constant_for_curves::{E, ScalarField};
     use super::*;
-
-    type E = Bn254;
-    type F = Fr;
 
     #[test]
     fn test_setup() {
@@ -258,16 +254,16 @@ pub mod test {
     fn test_end_to_end() {
         let degree_x = 4usize;
         let degree_y = 16usize;
-        let domain_x = GeneralEvaluationDomain::<F>::new(degree_x).unwrap();
-        let domain_y = GeneralEvaluationDomain::<F>::new(degree_y).unwrap();
+        let domain_x = GeneralEvaluationDomain::<ScalarField>::new(degree_x).unwrap();
+        let domain_y = GeneralEvaluationDomain::<ScalarField>::new(degree_y).unwrap();
         let srs: SRS<E> = PolyCommit::setup(degree_x, degree_y, &mut thread_rng());
         // define the polynomial commitment
         let poly_commit = PolyCommit { srs };
         // random bivariate polynomial
         let polynomial = BivariatePolynomial::random(&mut thread_rng(), domain_x, domain_y, degree_x, degree_y);
         // random points and evaluation
-        let b = F::rand(&mut thread_rng());
-        let c = F::rand(&mut thread_rng());
+        let b = ScalarField::rand(&mut thread_rng());
+        let c = ScalarField::rand(&mut thread_rng());
         let y = polynomial.evaluate(&b, &c);
         // commit to the polynomial
         let com = poly_commit.commit(&polynomial);

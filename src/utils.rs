@@ -117,11 +117,10 @@ pub fn iter_bits_le(bytes: &[u8]) -> impl Iterator<Item=bool> + '_ {
 
 #[cfg(test)]
 mod tests {
-    use ark_bls12_381::Fr;
     use ark_ff::{AdditiveGroup, Field};
     use ark_std::UniformRand;
     use rand::thread_rng;
-
+    use crate::constant_for_curves::ScalarField;
     use super::*;
 
     pub(crate) fn compute_powers_non_parallel<F: Field>(x: &F, n: usize) -> Vec<F> {
@@ -134,11 +133,11 @@ mod tests {
         powers
     }
 
-    type F = Fr;
+    type F = ScalarField;
 
     #[test]
     fn test_compute_powers() {
-        let f = Fr::rand(&mut thread_rng());
+        let f = ScalarField::rand(&mut thread_rng());
         let n = 16;
 
         let result_original = compute_powers_non_parallel(&f, n);
@@ -203,7 +202,7 @@ mod tests {
         assert_eq!(is_power_of_two(6), false); // 6 is not a power of two
     }
 
-    type BigInt = <Fr as PrimeField>::BigInt;
+    type BigInt = <ScalarField as PrimeField>::BigInt;
 
     #[test]
     fn bits_le() {

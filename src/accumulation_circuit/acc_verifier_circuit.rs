@@ -18,7 +18,7 @@ use ark_relations::r1cs::{Namespace, SynthesisError};
 use ark_std::UniformRand;
 use rand::thread_rng;
 
-use crate::accumulation_circuit::acc_instance_circuit::{AccumulatorInstance, AccumulatorInstanceVar};
+use crate::accumulation_circuit::acc_instance_circuit::{AccumulatorInstanceCircuit, AccumulatorInstanceCircuitVar};
 use crate::gadgets::non_native::short_weierstrass::NonNativeAffineVar;
 use crate::gadgets::r1cs::R1CSInstance;
 use crate::nova::commitment::CommitmentScheme;
@@ -50,9 +50,13 @@ where
     /// accumulation proof
     pub Q: Projective<G1>,
     /// the instance to be folded
-    pub instance: AccumulatorInstance<G1>,
+    pub instance: AccumulatorInstanceCircuit<G1>,
     /// the running accumulator
-    pub acc: AccumulatorInstance<G1>,
+    pub acc: AccumulatorInstanceCircuit<G1>,
+
+    // these are constant values
+    pub n: u32,
+    pub m: u32,
 }
 
 
@@ -80,8 +84,12 @@ where
     /// accumulation proof
     pub Q: NonNativeAffineVar<G1>,
 
-    pub instance: AccumulatorInstanceVar<G1>,
-    pub acc: AccumulatorInstanceVar<G1>,
+    pub instance: AccumulatorInstanceCircuitVar<G1>,
+    pub acc: AccumulatorInstanceCircuitVar<G1>,
+
+    // these are constant values
+    pub n: u32,
+    pub m: u32,
 }
 
 impl<G1, G2, C2> AllocVar<AccumulatorVerifier<G1, G2, C2>, G1::ScalarField> for AccumulatorVerifierVar<G1, G2, C2>
@@ -126,13 +134,13 @@ where
         ).unwrap();
 
 
-        let instance = AccumulatorInstanceVar::new_variable(
+        let instance = AccumulatorInstanceCircuitVar::new_variable(
             ns!(cs, "instance"),
             || circuit.map(|e| e.instance.clone()),
             mode,
         ).unwrap();
 
-        let acc = AccumulatorInstanceVar::new_variable(
+        let acc = AccumulatorInstanceCircuitVar::new_variable(
             ns!(cs, "acc"),
             || circuit.map(|e| e.acc.clone()),
             mode,
@@ -159,6 +167,8 @@ where
             Q,
             instance,
             acc,
+            n: 0,
+            m: 0,
         })
     }
 }
@@ -220,11 +230,11 @@ where
         let _ = &self.acc.z_c_var + &beta * &self.instance.z_c_var;
 
         // Native field operation: equality assertion that z_b = b^n-1 for the first instance
-        let n = BigInteger64::from(self.acc.n);
+        let n = BigInteger64::from(self.n);
         let _ = self.acc.b_var.pow_by_constant(n.as_ref()).expect("TODO: panic message");
 
         // Native field operation: equality assertion that z_c = c^m-1 for the first instance
-        let m = BigInteger64::from(self.acc.m);
+        let m = BigInteger64::from(self.m);
         let _ = self.acc.c_var.pow_by_constant(m.as_ref()).expect("TODO: panic message");
     }
 }
@@ -245,7 +255,7 @@ mod tests {
     use ark_grumpkin::GrumpkinConfig;
     use rand::thread_rng;
     use ark_bn254::g1::{Config as BNConfig};
-    use crate::accumulation_circuit::acc_instance_circuit::{AccumulatorInstance, AccumulatorInstanceVar};
+    use crate::accumulation_circuit::acc_instance_circuit::{AccumulatorInstanceCircuit, AccumulatorInstanceCircuitVar};
     use crate::accumulation_circuit::acc_verifier_circuit::{AccumulatorVerifier, AccumulatorVerifierVar};
     use crate::gadgets::non_native::short_weierstrass::NonNativeAffineVar;
     use crate::hash::pederson::PedersenCommitment;
@@ -255,8 +265,8 @@ mod tests {
     use crate::utils::cast_field_element;
 
     /// TODO: change this to actual instance where I can write decider for it
-    fn random_instance(n: u32, m: u32) -> AccumulatorInstance::<BNConfig> {
-        AccumulatorInstance::<BNConfig> {
+    fn random_instance(n: u32, m: u32) -> AccumulatorInstanceCircuit::<BNConfig> {
+        AccumulatorInstanceCircuit::<BNConfig> {
             C: Projective::rand(&mut thread_rng()),
             T: Projective::rand(&mut thread_rng()),
             E: Projective::rand(&mut thread_rng()),
@@ -265,10 +275,10 @@ mod tests {
             y: Fr::rand(&mut thread_rng()),
             z_b: Fr::rand(&mut thread_rng()),
             z_c: Fr::rand(&mut thread_rng()),
-            n,
-            m,
         }
     }
+
+
 
     #[test]
     fn initialisation_test() {
@@ -281,13 +291,13 @@ mod tests {
         let cs = ConstraintSystem::<Fr>::new_ref();
 
         // make a circuit_var
-        let instance_var = AccumulatorInstanceVar::new_variable(
+        let instance_var = AccumulatorInstanceCircuitVar::new_variable(
             cs.clone(),
             || Ok(instance.clone()),
             AllocationMode::Witness,
         ).unwrap();
 
-        let acc_var = AccumulatorInstanceVar::new_variable(
+        let acc_var = AccumulatorInstanceCircuitVar::new_variable(
             cs.clone(),
             || Ok(acc.clone()),
             AllocationMode::Witness,
@@ -345,6 +355,8 @@ mod tests {
             Q,
             instance: instance_var,
             acc: acc_var,
+            n: 0,
+            m: 0,
         };
 
         println!("number of constraint for initialisation: {}", cs.num_constraints());

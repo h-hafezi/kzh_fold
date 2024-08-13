@@ -1,7 +1,7 @@
 use std::borrow::Borrow;
 use std::fmt::Debug;
 
-use ark_ec::CurveConfig;
+use ark_ec::{AffineRepr, CurveConfig, CurveGroup};
 use ark_ec::pairing::Pairing;
 use ark_ec::short_weierstrass::{Projective, SWCurveConfig};
 use ark_ff::{Field, PrimeField, Zero};
@@ -14,10 +14,12 @@ use ark_r1cs_std::R1CSVar;
 use ark_r1cs_std::uint32::UInt32;
 use ark_relations::ns;
 use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
+
+use crate::accumulation::accumulator::AccInstance;
 use crate::gadgets::non_native::short_weierstrass::NonNativeAffineVar;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct AccumulatorInstance<G1>
+pub struct AccumulatorInstanceCircuit<G1>
 where
     G1: SWCurveConfig + Clone,
     G1::ScalarField: PrimeField,
@@ -31,12 +33,9 @@ where
     pub y: G1::ScalarField,
     pub z_b: G1::ScalarField,
     pub z_c: G1::ScalarField,
-    // these are constant values
-    pub n: u32,
-    pub m: u32,
 }
 
-impl<G1> AccumulatorInstance<G1>
+impl<G1> AccumulatorInstanceCircuit<G1>
 where
     G1: SWCurveConfig + Clone,
     G1::ScalarField: PrimeField,
@@ -52,17 +51,35 @@ where
     pub fn is_relaxed(&self) -> bool {
         !self.E.is_zero()
     }
-}
 
+    pub fn from_accumulator_instance<E>(
+        acc_instance: AccInstance<E>,
+    ) -> AccumulatorInstanceCircuit<G1>
+    where
+        E: Pairing<G1Affine = G1>,
+        G1: AffineRepr,
+    {
+        AccumulatorInstanceCircuit {
+            C: acc_instance.C,
+            T: acc_instance.T,
+            E: acc_instance.E,
+            b: acc_instance.b,
+            c: acc_instance.c,
+            y: acc_instance.y,
+            z_b: acc_instance.z_b,
+            z_c: acc_instance.z_c,
+        }
+    }
+}
 
 
 #[derive(Clone)]
 /// the circuit is defined on scalar of G1
-pub struct AccumulatorInstanceVar<G1>
+pub struct AccumulatorInstanceCircuitVar<G1>
 where
     G1: SWCurveConfig + Clone,
     G1::ScalarField: PrimeField,
-    <G1 as CurveConfig>::BaseField: PrimeField
+    <G1 as CurveConfig>::BaseField: PrimeField,
 {
     // group points with base field G1::BaseField
     pub C_var: NonNativeAffineVar<G1>,
@@ -74,17 +91,14 @@ where
     pub y_var: FpVar<G1::ScalarField>,
     pub z_b_var: FpVar<G1::ScalarField>,
     pub z_c_var: FpVar<G1::ScalarField>,
-    // these are constant values
-    pub n: u32,
-    pub m: u32,
 }
 
 
-impl<G1: SWCurveConfig + Clone> AccumulatorInstanceVar<G1>
+impl<G1: SWCurveConfig + Clone> AccumulatorInstanceCircuitVar<G1>
 where
     G1: SWCurveConfig,
     G1::ScalarField: PrimeField,
-    <G1 as CurveConfig>::BaseField: PrimeField
+    <G1 as CurveConfig>::BaseField: PrimeField,
 {
     pub(crate) fn cs(&self) -> ConstraintSystemRef<G1::ScalarField> {
         self.C_var.cs().or(self.T_var.cs())
@@ -96,8 +110,8 @@ where
             .or(self.z_c_var.cs())
     }
 
-    pub(crate) fn value(&self) -> Result<AccumulatorInstance<G1>, SynthesisError> {
-        Ok(AccumulatorInstance {
+    pub(crate) fn value(&self) -> Result<AccumulatorInstanceCircuit<G1>, SynthesisError> {
+        Ok(AccumulatorInstanceCircuit {
             C: self.C_var.value().unwrap(),
             T: self.T_var.value().unwrap(),
             b: self.b_var.value().unwrap(),
@@ -105,21 +119,19 @@ where
             y: self.y_var.value().unwrap(),
             z_b: self.z_b_var.value().unwrap(),
             z_c: self.z_c_var.value().unwrap(),
-            n: self.n,
             E: self.E_var.value().unwrap(),
-            m: self.m,
         })
     }
 }
 
 
-impl<G1> AllocVar<AccumulatorInstance<G1>, G1::ScalarField> for AccumulatorInstanceVar<G1>
+impl<G1> AllocVar<AccumulatorInstanceCircuit<G1>, G1::ScalarField> for AccumulatorInstanceCircuitVar<G1>
 where
     G1: SWCurveConfig + Clone,
     G1::ScalarField: PrimeField,
-    <G1 as CurveConfig>::BaseField: PrimeField
+    <G1 as CurveConfig>::BaseField: PrimeField,
 {
-    fn new_variable<T: Borrow<AccumulatorInstance<G1>>>(
+    fn new_variable<T: Borrow<AccumulatorInstanceCircuit<G1>>>(
         cs: impl Into<Namespace<G1::ScalarField>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
@@ -178,7 +190,7 @@ where
             mode,
         ).unwrap();
 
-        Ok(AccumulatorInstanceVar {
+        Ok(AccumulatorInstanceCircuitVar {
             C_var,
             T_var,
             E_var,
@@ -187,19 +199,16 @@ where
             y_var,
             z_b_var,
             z_c_var,
-            n: circuit.unwrap().n,
-            m: circuit.unwrap().m,
         })
     }
 }
-
 
 
 #[cfg(test)]
 mod tests {
     use std::fmt::Debug;
 
-    use ark_bn254::{Fq, Fr};
+    use ark_bn254::Fr;
     use ark_bn254::g1::Config;
     use ark_ec::short_weierstrass::Projective;
     use ark_ff::{AdditiveGroup, Zero};
@@ -207,12 +216,12 @@ mod tests {
     use ark_r1cs_std::R1CSVar;
     use ark_relations::r1cs::ConstraintSystem;
 
-    use crate::accumulation_circuit::acc_instance_circuit::{AccumulatorInstance, AccumulatorInstanceVar};
+    use crate::accumulation_circuit::acc_instance_circuit::{AccumulatorInstanceCircuit, AccumulatorInstanceCircuitVar};
 
     #[test]
     fn initialisation_test() {
         // build an instance of AccInstanceCircuit
-        let instance = AccumulatorInstance::<Config> {
+        let instance = AccumulatorInstanceCircuit::<Config> {
             C: Projective::zero(),
             T: Projective::zero(),
             E: Projective::zero(),
@@ -221,18 +230,16 @@ mod tests {
             y: Fr::ZERO,
             z_b: Fr::ZERO,
             z_c: Fr::ZERO,
-            n: 0u32,
-            m: 0u32,
         };
         // a constraint system
         let cs = ConstraintSystem::<Fr>::new_ref();
 
         // make a circuit_var
-        let circuit_var = AccumulatorInstanceVar::new_variable(cs, || Ok(instance.clone()), AllocationMode::Constant).unwrap();
+        let circuit_var = AccumulatorInstanceCircuitVar::new_variable(cs, || Ok(instance.clone()), AllocationMode::Constant).unwrap();
         // get its value and assert its equal to the original instance
         let c = circuit_var.value().unwrap();
         if !(c.T == instance.T && c.C == instance.C && c.E == instance.E && c.b == instance.b && c.c == instance.c
-            && c.y == instance.y && c.z_b == instance.z_b && c.z_c == instance.z_c && c.m == instance.m && c.n == instance.n) {
+            && c.y == instance.y && c.z_b == instance.z_b && c.z_c == instance.z_c) {
             panic!("the value function doesn't work well")
         }
     }

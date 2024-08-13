@@ -197,14 +197,14 @@ impl<F: FftField> BivariatePolynomialTrait<F> for BivariatePolynomial<F> {
 
 #[cfg(test)]
 mod tests {
-    use ark_bls12_381::Fr;
     use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
     use ark_std::UniformRand;
     use rand::thread_rng;
+    use crate::constant_for_curves::ScalarField;
     use crate::polynomial::bivariate_poly::{BivariatePolynomial, BivariatePolynomialTrait};
     use crate::polynomial::univariate_poly::UnivariatePolynomialTrait;
 
-    type F = Fr;
+    type F = ScalarField;
 
     #[test]
     fn test_random_bivariate() {

@@ -10,8 +10,8 @@ use rand::RngCore;
 
 use crate::hash::poseidon::{PoseidonHash, PoseidonHashTrait};
 use crate::polynomial::lagrange_basis::{LagrangeBasis, LagrangeTraits};
-use crate::polynomial_commitment::pcs::{OpeningProof, PolyCommitTrait, SRS};
 use crate::polynomial::univariate_poly::UnivariatePolynomial;
+use crate::polynomial_commitment::pcs::{OpeningProof, PolyCommitTrait, SRS};
 use crate::utils::{inner_product, is_power_of_two, power};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -453,23 +453,21 @@ where
 
 #[cfg(test)]
 mod tests {
-    use ark_bn254::{Bn254, Fr};
+    use ark_ec::AffineRepr;
     use ark_ec::pairing::Pairing;
     use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
     use ark_std::UniformRand;
     use rand::thread_rng;
 
     use crate::accumulation::accumulator::{AccSRS, Accumulator, AccumulatorTrait};
+    use crate::constant_for_curves::{E, ScalarField};
     use crate::polynomial::bivariate_poly::{BivariatePolynomial, BivariatePolynomialTrait};
     use crate::polynomial::lagrange_basis::LagrangeBasis;
     use crate::polynomial_commitment::pcs::{Commitment, OpeningProof, PolyCommit, PolyCommitTrait, SRS};
 
-    type E = Bn254;
-    type F = Fr;
-
     pub fn get_srs(degree_x: usize, degree_y: usize) -> AccSRS<E> {
-        let domain_x = GeneralEvaluationDomain::<F>::new(degree_x).unwrap();
-        let domain_y = GeneralEvaluationDomain::<F>::new(degree_y).unwrap();
+        let domain_x = GeneralEvaluationDomain::<ScalarField>::new(degree_x).unwrap();
+        let domain_y = GeneralEvaluationDomain::<ScalarField>::new(degree_y).unwrap();
 
         // define the srs
         let pc_srs: SRS<E> = PolyCommit::setup(degree_x, degree_y, &mut thread_rng());
@@ -487,7 +485,8 @@ mod tests {
         )
     }
 
-    pub fn get_satisfying_accumulator(srs: &AccSRS<E>) -> Accumulator<E> {
+    pub fn get_satisfying_accumulator(srs: &AccSRS<E>) -> Accumulator<E>
+    {
 
         // random bivariate polynomials
         let polynomial_1 = BivariatePolynomial::random(
@@ -507,11 +506,11 @@ mod tests {
         );
 
         // random points and evaluation
-        let b_1 = F::rand(&mut thread_rng());
-        let c_1 = F::rand(&mut thread_rng());
+        let b_1 = ScalarField::rand(&mut thread_rng());
+        let c_1 = ScalarField::rand(&mut thread_rng());
         let y_1 = polynomial_1.evaluate(&b_1, &c_1);
-        let b_2 = F::rand(&mut thread_rng());
-        let c_2 = F::rand(&mut thread_rng());
+        let b_2 = ScalarField::rand(&mut thread_rng());
+        let c_2 = ScalarField::rand(&mut thread_rng());
         let y_2 = polynomial_2.evaluate(&b_2, &c_2);
 
         // define the polynomial commitment scheme
@@ -549,9 +548,20 @@ mod tests {
     }
 
 
-    fn get_poly_parameters(degree_x: usize, degree_y: usize) -> (SRS<E>, F, F, F, Commitment<E>, OpeningProof<E>, LagrangeBasis<F>, LagrangeBasis<F>) {
-        let domain_x = GeneralEvaluationDomain::<F>::new(degree_x).unwrap();
-        let domain_y = GeneralEvaluationDomain::<F>::new(degree_y).unwrap();
+    fn get_poly_parameters(
+        degree_x: usize,
+        degree_y: usize,
+    ) -> (SRS<E>,
+          ScalarField,
+          ScalarField,
+          ScalarField,
+          Commitment<E>,
+          OpeningProof<E>,
+          LagrangeBasis<ScalarField>,
+          LagrangeBasis<ScalarField>
+    ) {
+        let domain_x = GeneralEvaluationDomain::<ScalarField>::new(degree_x).unwrap();
+        let domain_y = GeneralEvaluationDomain::<ScalarField>::new(degree_y).unwrap();
         let srs: SRS<E> = PolyCommit::setup(degree_x, degree_y, &mut thread_rng());
 
         // define the polynomial commitment
@@ -561,8 +571,8 @@ mod tests {
         let polynomial = BivariatePolynomial::random(&mut thread_rng(), domain_x.clone(), domain_y.clone(), degree_x, degree_y);
 
         // random points and evaluation
-        let b = F::rand(&mut thread_rng());
-        let c = F::rand(&mut thread_rng());
+        let b = ScalarField::rand(&mut thread_rng());
+        let c = ScalarField::rand(&mut thread_rng());
         let y = polynomial.evaluate(&b, &c);
 
         // commit to the polynomial

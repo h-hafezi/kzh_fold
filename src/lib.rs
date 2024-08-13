@@ -13,3 +13,4 @@ pub mod polynomial_commitment;
 pub mod nova;
 pub mod gadgets;
 pub mod accumulation_circuit;
+pub mod constant_for_curves;
