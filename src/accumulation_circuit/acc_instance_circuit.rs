@@ -185,7 +185,7 @@ where
 
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use std::fmt::Debug;
 
     use ark_ec::short_weierstrass::Projective;

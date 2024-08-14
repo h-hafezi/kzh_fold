@@ -25,7 +25,7 @@ use crate::gadgets::non_native::cast_field_element_unique;
 use crate::gadgets::non_native::short_weierstrass::NonNativeAffineVar;
 use crate::gadgets::r1cs::{R1CSInstance, RelaxedR1CSInstance};
 use crate::nova::commitment::CommitmentScheme;
-use crate::nova::cycle_fold::coprocessor::{Circuit as SecondaryCircuit, SecondaryCircuitFoldingProof};
+use crate::nova::cycle_fold::coprocessor::{SecondaryCircuit as SecondaryCircuit, SecondaryCircuitFoldingProof};
 
 #[must_use]
 #[derive(Debug)]

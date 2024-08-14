@@ -9,7 +9,6 @@ use ark_ff::Zero;
 
 pub type E = Bn254;
 
-
 pub type ScalarField = Fr;
 
 pub type BaseField = Fq;

@@ -1,0 +1,81 @@
+use ark_ff::{BigInteger, Field, PrimeField};
+use ark_r1cs_std::boolean::Boolean;
+use ark_r1cs_std::fields::fp::FpVar;
+use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
+use ark_r1cs_std::ToBitsGadget;
+use num_bigint::BigUint;
+
+pub fn non_native_to_fpvar<ScalarField, BaseField>(
+    non_native_var: &NonNativeFieldVar<BaseField, ScalarField>,
+) -> FpVar<ScalarField>
+where
+    ScalarField: PrimeField,
+    BaseField: PrimeField,
+{
+    // Convert the non-native field variable to a bit vector
+    let bits = non_native_var.to_bits_le().unwrap();
+
+    // Convert the bit vector into an FpVar
+    let x = Boolean::le_bits_to_fp_var(bits.as_slice()).unwrap();
+
+    x
+}
+
+pub fn convert_field_one_to_field_two<Fr, Fq>(first_field: Fr) -> Fq
+where
+    Fr: PrimeField,
+    Fq: PrimeField ,
+{
+    // Convert the Fr element to its big integer representation
+    let bytes = first_field.into_bigint().to_bytes_le();
+
+    // Convert the big integer representation to an Fq element
+    let fq_element = Fq::from_le_bytes_mod_order(bytes.as_slice());
+
+    fq_element
+}
+
+#[cfg(test)]
+mod tests {
+    use ark_ff::PrimeField;
+    use ark_r1cs_std::alloc::{AllocationMode, AllocVar};
+    use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
+    use ark_r1cs_std::R1CSVar;
+    use ark_relations::r1cs::ConstraintSystem;
+    use ark_std::UniformRand;
+    use rand::thread_rng;
+
+    use crate::constant_for_curves::{BaseField, ScalarField};
+    use crate::gadgets::non_native::util::{convert_field_one_to_field_two, non_native_to_fpvar};
+
+    #[test]
+    fn test_conversion1() {
+        for _ in 0..100 {
+            let cs = ConstraintSystem::<ScalarField>::new_ref();
+
+            let g = BaseField::rand(&mut thread_rng());
+
+            // Create the non-native field variable outside the function
+            let non_native_var = NonNativeFieldVar::new_variable(
+                cs.clone(),
+                || Ok(g),
+                AllocationMode::Input,
+            ).unwrap();
+
+            println!("constraint counts before: {}", cs.num_constraints());
+
+            let x = non_native_to_fpvar(&non_native_var);
+
+            assert_eq!(g.into_bigint(), x.value().unwrap().into_bigint());
+            println!("constraint counts after: {}", cs.num_constraints())
+        }
+    }
+
+    #[test]
+    fn test_conversion2() {
+        for _ in 0..100 {
+            let g = BaseField::rand(&mut thread_rng());
+            assert_eq!(g.into_bigint(), convert_field_one_to_field_two::<BaseField, ScalarField>(g).into_bigint());
+        }
+    }
+}

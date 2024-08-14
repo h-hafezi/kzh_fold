@@ -35,7 +35,7 @@ const SECONDARY_NUM_IO: usize = 12;
 
 /// Public input of secondary circuit.
 #[derive(Debug, PartialEq, Eq)]
-pub struct Circuit<G1: SWCurveConfig> {
+pub struct SecondaryCircuit<G1: SWCurveConfig> {
     pub(crate) g1: Projective<G1>,
     pub(crate) g2: Projective<G1>,
     pub(crate) g_out: Projective<G1>,
@@ -47,11 +47,11 @@ pub struct Circuit<G1: SWCurveConfig> {
     pub(crate) flag: bool,
 }
 
-impl<G1: SWCurveConfig> Circuit<G1> {
+impl<G1: SWCurveConfig> SecondaryCircuit<G1> {
     pub const NUM_IO: usize = SECONDARY_NUM_IO;
 }
 
-impl<G: SWCurveConfig> Default for Circuit<G> {
+impl<G: SWCurveConfig> Default for SecondaryCircuit<G> {
     fn default() -> Self {
         Self {
             g1: Projective::zero(),
@@ -63,7 +63,7 @@ impl<G: SWCurveConfig> Default for Circuit<G> {
     }
 }
 
-impl<G: SWCurveConfig> Clone for Circuit<G> {
+impl<G: SWCurveConfig> Clone for SecondaryCircuit<G> {
     fn clone(&self) -> Self {
         Self {
             g1: self.g1,
@@ -75,7 +75,7 @@ impl<G: SWCurveConfig> Clone for Circuit<G> {
     }
 }
 
-impl<G1: SWCurveConfig> ConstraintSynthesizer<G1::BaseField> for Circuit<G1>
+impl<G1: SWCurveConfig> ConstraintSynthesizer<G1::BaseField> for SecondaryCircuit<G1>
 where
     G1::BaseField: PrimeField,
 {
@@ -119,7 +119,7 @@ where
     let cs = ConstraintSystem::<G1::BaseField>::new_ref();
     cs.set_mode(SynthesisMode::Setup);
 
-    Circuit::<G1>::default().generate_constraints(cs.clone())?;
+    SecondaryCircuit::<G1>::default().generate_constraints(cs.clone())?;
 
     cs.finalize();
     Ok(R1CSShape::from(cs.clone()))
@@ -127,7 +127,7 @@ where
 
 /// Synthesize public input and a witness-trace.
 pub fn synthesize<G1, G2, C2>(
-    circuit: Circuit<G1>,
+    circuit: SecondaryCircuit<G1>,
     pp_secondary: &C2::PP,
 ) -> Result<(R1CSInstance<G2, C2>, R1CSWitness<G2>), SynthesisError>
 where
@@ -214,7 +214,7 @@ where
     C2: CommitmentScheme<Projective<G2>>,
 {
     #[cfg(any(test, feature = "spartan"))]
-    pub(crate) fn parse_secondary_io<G1>(&self) -> Option<Circuit<G1>>
+    pub(crate) fn parse_secondary_io<G1>(&self) -> Option<SecondaryCircuit<G1>>
     where
         G2::BaseField: PrimeField,
         G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField>,
@@ -232,7 +232,7 @@ where
         let r = X[0];
         let flag = X[1];
 
-        Some(Circuit { g1, g2, g_out, r, flag: !flag.is_zero() })
+        Some(SecondaryCircuit { g1, g2, g_out, r, flag: !flag.is_zero() })
     }
 }
 
@@ -260,7 +260,7 @@ mod tests {
 
         let g_out = g1 * r_scalar + g2;
 
-        let expected_pub_io = Circuit::<PallasConfig> { g1, g2, g_out, r, flag: true };
+        let expected_pub_io = SecondaryCircuit::<PallasConfig> { g1, g2, g_out, r, flag: true };
         let X = [
             Fq::ONE,
             g1.x,
@@ -327,7 +327,7 @@ mod tests {
             PallasConfig,
             VestaConfig,
             PedersenCommitment<ark_vesta::Projective>,
-        >(Circuit { g1, g2, g_out, r, flag: false }, &pp).unwrap();
+        >(SecondaryCircuit { g1, g2, g_out, r, flag: false }, &pp).unwrap();
 
         let pub_io = U.parse_secondary_io::<PallasConfig>().unwrap();
 
@@ -349,7 +349,7 @@ mod tests {
 
         let g_out = g1 * r_scalar + g2;
 
-        let c = Circuit { g1, g2, g_out, r, flag: true };
+        let c = SecondaryCircuit { g1, g2, g_out, r, flag: true };
 
         let cs = ConstraintSystem::new_ref();
         c.generate_constraints(cs.clone()).unwrap();
@@ -369,7 +369,7 @@ mod tests {
 
         let g_out = g1 * r_scalar + g2 * (Fr::ONE - r_scalar);
 
-        let c = Circuit { g1, g2, g_out, r, flag: false };
+        let c = SecondaryCircuit { g1, g2, g_out, r, flag: false };
 
         let cs = ConstraintSystem::new_ref();
         c.generate_constraints(cs.clone()).unwrap();

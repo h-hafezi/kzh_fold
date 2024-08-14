@@ -991,6 +991,7 @@ dependencies = [
  "itertools 0.12.1",
  "lazy_static",
  "num",
+ "num-bigint",
  "rand",
  "rand_chacha",
  "rayon",

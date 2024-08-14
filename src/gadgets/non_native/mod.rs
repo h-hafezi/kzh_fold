@@ -12,6 +12,7 @@ use ark_r1cs_std::{
 use ark_relations::r1cs::{ConstraintSystemRef, Namespace, OptimizationGoal, SynthesisError};
 
 pub mod short_weierstrass;
+pub mod util;
 
 /// Mirror of [`cast_field_element_unique`](crate::utils::cast_field_element_unique) for allocated input.
 pub fn cast_field_element_unique<F1, F2>(

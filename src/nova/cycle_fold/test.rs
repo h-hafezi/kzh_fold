@@ -9,12 +9,12 @@ pub(crate) mod tests {
     use rand::thread_rng;
     pub use crate::hash::pederson::PedersenCommitment;
     use crate::nova::commitment::CommitmentScheme;
-    use crate::nova::cycle_fold::coprocessor::{Circuit, setup_shape, synthesize};
+    use crate::nova::cycle_fold::coprocessor::{SecondaryCircuit, setup_shape, synthesize};
     use crate::gadgets::r1cs::r1cs::{commit_T, commit_T_with_relaxed, RelaxedR1CSWitness};
     use crate::gadgets::r1cs::RelaxedR1CSInstance;
     use crate::utils::cast_field_element;
 
-    pub fn get_random_circuit() -> Circuit<PallasConfig> {
+    pub fn get_random_circuit() -> SecondaryCircuit<PallasConfig> {
         let mut rng = ark_std::test_rng();
         let g1 = Projective::rand(&mut rng);
         let g2 = Projective::rand(&mut rng);
@@ -25,7 +25,7 @@ pub(crate) mod tests {
 
         let g_out = g1 * r_scalar + g2 ;
 
-        Circuit {
+        SecondaryCircuit {
             g1,
             g2,
             g_out,

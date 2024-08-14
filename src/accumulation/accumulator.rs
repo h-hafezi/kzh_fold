@@ -452,7 +452,7 @@ where
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use ark_ec::AffineRepr;
     use ark_ec::pairing::Pairing;
     use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
