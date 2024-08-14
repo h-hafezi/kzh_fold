@@ -498,8 +498,8 @@ mod tests {
                 // C'' = beta * acc.C + (1 - beta) * instance.C
                 let g_out = (g1 * beta_scalar) + (g2 * (ScalarField::ONE - beta_scalar));
                 SecondaryCircuit {
-                    g1: instance_circuit.C,
-                    g2: acc_circuit.C,
+                    g1,
+                    g2,
                     g_out,
                     r: beta_base,
                     flag: false,
@@ -514,8 +514,8 @@ mod tests {
                 // T'' = beta * acc.T + (1 - beta) * instance.T
                 let g_out = (g1 * beta_scalar) + (g2 * (ScalarField::ONE - beta_scalar));
                 SecondaryCircuit {
-                    g1: acc_circuit.T,
-                    g2: instance_circuit.T,
+                    g1,
+                    g2,
                     g_out,
                     r: beta_base,
                     flag: false,
@@ -530,8 +530,8 @@ mod tests {
                 // E_temp = beta * acc.E + (1 - beta) * instance.E
                 let g_out = (g1 * beta_scalar) + (g2 * (ScalarField::ONE - beta_scalar));
                 SecondaryCircuit {
-                    g1: acc_circuit.E,
-                    g2: instance_circuit.E,
+                    g1,
+                    g2,
                     g_out,
                     r: beta_base,
                     flag: false,
@@ -548,8 +548,8 @@ mod tests {
                 let E_temp = (instance_circuit.E.clone() * beta_scalar) + (acc_circuit.E.clone() * (ScalarField::ONE - beta_scalar));
                 let g_out = E_temp + Q * (beta_scalar * (ScalarField::ONE - beta_scalar));
                 SecondaryCircuit {
-                    g1: Q,
-                    g2: acc_circuit.E,
+                    g1,
+                    g2,
                     g_out,
                     r: convert_field_one_to_field_two::<ScalarField, BaseField>(beta_scalar * (ScalarField::ONE - beta_scalar)),
                     flag: true,
