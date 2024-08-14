@@ -214,13 +214,15 @@ where
         let Q: E::G1Affine = Self::helper_function_Q(srs, acc_1, acc_2);
 
         // generate random values beta
-        let beta = {
+        let beta = E::ScalarField::from(2u128);
+        /*{
             let mut hash_object: PoseidonHash<E::ScalarField> = PoseidonHash::new();
             instance_1.update_sponge(&mut hash_object);
             instance_2.update_sponge(&mut hash_object);
             hash_object.update_sponge(vec![Q.x(), Q.y()]);
             hash_object.output()
         };
+        */
         let one_minus_beta: E::ScalarField = E::ScalarField::ONE - beta;
 
         // get the accumulated new_instance
@@ -273,13 +275,15 @@ where
 
     fn verify(instance_1: &AccInstance<E>, instance_2: &AccInstance<E>, Q: E::G1Affine) -> AccInstance<E> {
         // compute beta through hashing
-        let beta = {
+        let beta = E::ScalarField::from(2u128);
+        /*{
             let mut hash_object: PoseidonHash<E::ScalarField> = PoseidonHash::new();
             instance_1.update_sponge(&mut hash_object);
             instance_2.update_sponge(&mut hash_object);
             hash_object.update_sponge(vec![Q.x(), Q.y()]);
             hash_object.output()
         };
+         */
         let one_minus_beta: E::ScalarField = E::ScalarField::ONE - beta;
 
         let new_error_term: E::G1Affine = {

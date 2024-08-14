@@ -56,6 +56,8 @@ where
     pub instance: AccumulatorInstanceCircuit<G1>,
     /// the running accumulator
     pub acc: AccumulatorInstanceCircuit<G1>,
+    /// the result accumulator
+    pub result_acc: AccumulatorInstanceCircuit<G1>,
 
     // these are constant values
     pub n: u32,
@@ -92,6 +94,7 @@ where
 
     pub instance: AccumulatorInstanceCircuitVar<G1>,
     pub acc: AccumulatorInstanceCircuitVar<G1>,
+    pub result_acc: AccumulatorInstanceCircuitVar<G1>,
 
     // these are constant values
     pub n: u32,
@@ -152,6 +155,13 @@ where
             mode,
         ).unwrap();
 
+        let result_acc = AccumulatorInstanceCircuitVar::new_variable(
+            ns!(cs, "result acc"),
+            || circuit.map(|e| e.result_acc.clone()),
+            mode,
+        ).unwrap();
+
+
         let beta = FpVar::new_variable(
             ns!(cs, "beta"),
             || circuit.map(|e| e.beta.clone()),
@@ -180,13 +190,14 @@ where
             Q,
             instance,
             acc,
-            n: 0,
-            m: 0,
+            result_acc,
+            n: circuit.map(|e| e.n).unwrap(),
+            m: circuit.map(|e| e.m).unwrap(),
         })
     }
 }
 
-/// Here we assume instance to be A.X and acc to be A.X'
+/// Here we assume instance to be A.X and acc to be A.X' ==> beta * instance + (1-beta) * instance
 impl<G1: SWCurveConfig, G2: SWCurveConfig, C2> AccumulatorVerifierVar<G1, G2, C2>
 where
     G1: SWCurveConfig + Clone,
@@ -202,14 +213,15 @@ where
         let beta_ = non_native_to_fpvar(&self.beta_non_native);
         self.beta.enforce_equal(&beta_).expect("error while enforcing equality");
 
-        // compute Poseidon hash and make sure it's consistent with input beta
+        // todo: compute Poseidon hash and make sure it's consistent with input beta
+
 
         // Non-native scalar multiplication: linear combination of C
         let (flag,
             r,
             g1,
             g2,
-            new_C
+            C_var
         ) = self.auxiliary_input_C.parse_secondary_io().unwrap();
         // g1 == acc.C
         self.acc.C_var.enforce_equal(&g1).expect("error while enforcing equality");
@@ -219,6 +231,8 @@ where
         flag.enforce_equal(&NonNativeFieldVar::zero()).expect("error while enforcing equality");
         // check r to be equal to beta
         r.enforce_equal(&self.beta_non_native).expect("error while enforcing equality");
+        // check out the result C_var is consistent with result_acc
+        C_var.enforce_equal(&self.result_acc.C_var).expect("error while enforcing equality");
 
 
         // Non-native scalar multiplication: linear combination of T
@@ -226,7 +240,7 @@ where
             r,
             g1,
             g2,
-            new_T
+            T_var
         ) = self.auxiliary_input_T.parse_secondary_io().unwrap();
         // g1 == acc.T
         self.acc.T_var.enforce_equal(&g1).expect("error while enforcing equality");
@@ -236,6 +250,8 @@ where
         flag.enforce_equal(&NonNativeFieldVar::zero()).expect("error while enforcing equality");
         // check r to be equal to beta
         r.enforce_equal(&self.beta_non_native).expect("error while enforcing equality");
+        // check out the result T_var is consistent with result_acc
+        T_var.enforce_equal(&self.result_acc.T_var).expect("error while enforcing equality");
 
 
         // Non-native scalar multiplication: linear combination E_temp = (instance.E * (1-beta) + acc.E * beta)
@@ -260,7 +276,7 @@ where
             r,
             g1,
             g2,
-            new_E
+            E_var
         ) = self.auxiliary_input_E_2.parse_secondary_io().unwrap();
         // g1 == Q
         g1.enforce_equal(&self.Q).expect("error while enforcing equality");
@@ -271,30 +287,51 @@ where
         // check r to be equal to beta
         let beta_times_beta_minus_one = self.beta_non_native.clone() * (NonNativeFieldVar::one() - self.beta_non_native.clone());
         r.enforce_equal(&beta_times_beta_minus_one).expect("error while enforcing equality");
+        // check out the result E_var is consistent with result_acc
+        E_var.enforce_equal(&self.result_acc.E_var).expect("error while enforcing equality");
 
+
+        let beta_minus_one = FpVar::<G1::ScalarField>::one() - &self.beta;
 
         // Native field operation: linear combination of b
-        let _ = &self.acc.b_var + &self.beta * &self.instance.b_var;
+        let b_var = &self.beta * &self.acc.b_var + &beta_minus_one * &self.instance.b_var;
+        // check out the result b_var is consistent with result_acc
+        b_var.enforce_equal(&self.result_acc.b_var).expect("error while enforcing equality");
+
 
         // Native field operation: linear combination of c
-        let _ = &self.acc.c_var + &self.beta * &self.instance.c_var;
+        let c_var = &self.beta * &self.acc.c_var + &beta_minus_one * &self.instance.c_var;
+        // check out the result c_var is consistent with result_acc
+        c_var.enforce_equal(&self.result_acc.c_var).expect("error while enforcing equality");
+
 
         // Native field operation: linear combination of y
-        let _ = &self.acc.y_var + &self.beta * &self.instance.y_var;
+        let y_var = &self.beta * &self.acc.y_var + &beta_minus_one * &self.instance.y_var;
+        // check out the result y_var is consistent with result_acc
+        y_var.enforce_equal(&self.result_acc.y_var).expect("error while enforcing equality");
+
 
         // Native field operation: linear combination of z_b
-        let _ = &self.acc.z_b_var + &self.beta * &self.instance.z_b_var;
+        let z_b_var = &self.beta * &self.acc.z_b_var + &beta_minus_one * &self.instance.z_b_var;
+        // check out the result z_b_var is consistent with result_acc
+        z_b_var.enforce_equal(&self.result_acc.z_b_var).expect("error while enforcing equality");
+
 
         // Native field operation: linear combination of z_c
-        let _ = &self.acc.z_c_var + &self.beta * &self.instance.z_c_var;
+        let z_c_var = &self.beta * &self.acc.z_c_var + &beta_minus_one * &self.instance.z_c_var;
+        // check out the result z_c_var is consistent with result_acc
+        z_c_var.enforce_equal(&self.result_acc.z_c_var).expect("error while enforcing equality");
+
 
         // Native field operation: equality assertion that z_b = b^n-1 for the first instance
         let n = BigInteger64::from(self.n);
         let z_b_ = self.acc.b_var.pow_by_constant(n.as_ref()).expect("error while enforcing equality");
 
+
         // Native field operation: equality assertion that z_c = c^m-1 for the first instance
         let m = BigInteger64::from(self.m);
         let z_c_ = self.acc.c_var.pow_by_constant(m.as_ref()).expect("error while enforcing equality");
+
 
         // Conditional check: if instance.E_var == 0, then enforce z_b_ == instance.z_b_var and z_c_ == instance.z_c_var
         let is_E_zero = &self.instance.E_var.infinity.clone();
@@ -307,6 +344,7 @@ where
 #[cfg(test)]
 mod tests {
     use std::fmt::Debug;
+
     use ark_ec::short_weierstrass::Projective;
     use ark_ff::Field;
     use ark_r1cs_std::alloc::{AllocationMode, AllocVar};
@@ -331,9 +369,6 @@ mod tests {
     type GrumpkinCurveGroup = ark_grumpkin::Projective;
 
     #[test]
-    fn shitting() {}
-
-    #[test]
     fn initialisation_test() {
         // specifying degrees of polynomials
         let n = 16;
@@ -344,19 +379,23 @@ mod tests {
 
         // build an instance of AccInstanceCircuit
         let instance = get_satisfying_accumulator(&srs);
-
         let acc = get_satisfying_accumulator(&srs);
 
+
         // accumulate proof
-        let (_, _, Q) = Accumulator::prove(&srs, &acc, &instance);
+        let (result_instance, _, Q) = Accumulator::prove(&srs, &acc, &instance);
         let Q = Projective::new(Q.x, Q.y, BaseField::ONE);
+
 
         // build instance/acc circuits
         let instance = accumulator_instance_to_circuit(instance.instance);
         let acc = accumulator_instance_to_circuit(acc.instance);
+        let result_acc = accumulator_instance_to_circuit(result_instance);
+
 
         // a constraint system
         let cs = ConstraintSystem::<ScalarField>::new_ref();
+
 
         // make a circuit_var
         let instance_var = AccumulatorInstanceCircuitVar::new_variable(
@@ -370,6 +409,13 @@ mod tests {
             || Ok(acc.clone()),
             AllocationMode::Witness,
         ).unwrap();
+
+        let result_acc_var = AccumulatorInstanceCircuitVar::new_variable(
+            cs.clone(),
+            || Ok(result_acc.clone()),
+            AllocationMode::Witness,
+        ).unwrap();
+
 
         // the randomness in different formats
         let beta_scalar = ScalarField::from(2u128);
@@ -485,7 +531,7 @@ mod tests {
                 let g2 = acc.E.clone();
                 // E = E_temp + (beta * (1- beta)) * Q
                 let E_temp = (instance.E.clone() * beta_scalar) + (acc.E.clone() * (ScalarField::ONE - beta_scalar));
-                let g_out = E_temp + Q * (beta_scalar * (ScalarField::ONE - beta_scalar)) ;
+                let g_out = E_temp + Q * (beta_scalar * (ScalarField::ONE - beta_scalar));
                 SecondaryCircuit {
                     g1: Q,
                     g2: acc.E,
@@ -525,6 +571,7 @@ mod tests {
             Q: Q_var,
             instance: instance_var,
             acc: acc_var,
+            result_acc: result_acc_var,
             n: n as u32,
             m: m as u32,
         };
