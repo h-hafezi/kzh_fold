@@ -1,3 +1,4 @@
-pub mod acc_instance_circuit;
+pub mod instance_circuit;
 
-pub mod acc_verifier_circuit;
+pub mod verifier_circuit;
+mod prover;

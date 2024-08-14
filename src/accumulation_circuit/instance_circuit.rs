@@ -197,7 +197,7 @@ pub mod tests {
     use rand::thread_rng;
 
     use crate::accumulation::accumulator::AccInstance;
-    use crate::accumulation_circuit::acc_instance_circuit::{AccumulatorInstanceCircuit, AccumulatorInstanceCircuitVar};
+    use crate::accumulation_circuit::instance_circuit::{AccumulatorInstanceCircuit, AccumulatorInstanceCircuitVar};
     use crate::constant_for_curves::{E, G1, ScalarField};
 
     pub fn accumulator_instance_to_circuit(acc_instance: AccInstance<E>) -> AccumulatorInstanceCircuit<G1> {
@@ -225,7 +225,6 @@ pub mod tests {
             z_c: circuit.z_c,
         }
     }
-
 
     #[test]
     fn initialisation_test() {
