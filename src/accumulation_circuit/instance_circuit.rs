@@ -183,6 +183,49 @@ where
     }
 }
 
+impl<G1> AccumulatorInstanceCircuit<G1>
+where
+    G1: SWCurveConfig + Clone + CurveGroup<Affine = ark_ec::short_weierstrass::Projective<G1>>,
+    <G1 as CurveConfig>::ScalarField: PrimeField,
+    <G1 as CurveConfig>::BaseField: PrimeField,
+{
+    /// Converts an `AccInstance<E>` into an `AccumulatorInstanceCircuitVar<G1>`.
+    pub fn from_acc_instance<E>(acc_instance: &AccInstance<E>) -> Self
+    where
+        E: Pairing<G1Affine = G1::Affine, ScalarField = <G1 as CurveConfig>::ScalarField>,
+    {
+        // Convert the affine points and scalar fields
+        AccumulatorInstanceCircuit {
+            C: acc_instance.C,
+            T: acc_instance.T,
+            E: acc_instance.E,
+            b: acc_instance.b,
+            c: acc_instance.c,
+            y: acc_instance.y,
+            z_b: acc_instance.z_b,
+            z_c: acc_instance.z_c,
+        }
+    }
+
+    /// Converts an `AccumulatorInstanceCircuitVar<G1>` back into an `AccInstance<E>`.
+    pub fn to_acc_instance<E>(&self) -> AccInstance<E>
+    where
+        E: Pairing<G1Affine = G1::Affine, ScalarField = <G1 as CurveConfig>::ScalarField>,
+    {
+        // Convert the affine points and scalar fields
+        AccInstance {
+            C: self.C,
+            T: self.T,
+            E: self.E,
+            b: self.b,
+            c: self.c,
+            y: self.y,
+            z_b: self.z_b,
+            z_c: self.z_c,
+        }
+    }
+}
+
 
 #[cfg(test)]
 pub mod tests {
