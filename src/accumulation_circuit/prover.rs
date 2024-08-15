@@ -1,13 +1,11 @@
-use ark_ec::CurveGroup;
+use ark_ec::{CurveConfig, CurveGroup};
 use ark_ec::pairing::Pairing;
-use ark_ec::short_weierstrass::{Projective, SWCurveConfig};
+use ark_ec::short_weierstrass::{Affine, Projective, SWCurveConfig};
 use ark_ff::PrimeField;
 
 use crate::accumulation::accumulator::Accumulator;
-use crate::gadgets::non_native::util::convert_field_one_to_field_two;
 use crate::gadgets::r1cs::{R1CSInstance, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness};
 use crate::nova::commitment::CommitmentScheme;
-use crate::nova::cycle_fold::coprocessor::{SecondaryCircuit, synthesize};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AccumulatorVerifierCircuitProver<G1, G2, C2, E>
@@ -19,16 +17,15 @@ where
     G2::BaseField: PrimeField,
     C2: CommitmentScheme<Projective<G2>>,
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField>,
-    E: Pairing,
-    E::G1: CurveGroup<Config=G1>,
+    E: Pairing<G1Affine=Affine<G1>, ScalarField=<G1 as CurveConfig>::ScalarField>,
 {
     /// the randomness used for taking linear combination
     pub beta: G1::ScalarField,
 
     /// the instance to be folded
-    pub instance: Accumulator<E>,
+    pub acc_instance: Accumulator<E>,
     /// the running accumulator
-    pub acc: Accumulator<E>,
+    pub acc_running: Accumulator<E>,
 
     /// running cycle fold instance
     pub cycle_fold_running_instance: RelaxedR1CSInstance<G2, C2>,
@@ -48,8 +45,7 @@ where
     G2::BaseField: PrimeField,
     C2: CommitmentScheme<Projective<G2>>,
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField>,
-    E: Pairing,
-    E::G1: CurveGroup<Config=G1>,
+    E: Pairing<G1Affine=Affine<G1>, ScalarField=<G1 as CurveConfig>::ScalarField>,
 {
     fn compute_auxiliary_input_C(&self) -> (R1CSInstance<G2, C2>, R1CSWitness<G2>);
 
@@ -73,8 +69,7 @@ where
     G2::BaseField: PrimeField,
     C2: CommitmentScheme<Projective<G2>>,
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField>,
-    E: Pairing,
-    E::G1: CurveGroup<Config=G1>,
+    E: Pairing<G1Affine=Affine<G1>, ScalarField=<G1 as CurveConfig>::ScalarField>,
 {
     fn compute_auxiliary_input_C(&self) -> (R1CSInstance<G2, C2>, R1CSWitness<G2>) {
         unimplemented!()

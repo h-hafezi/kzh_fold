@@ -3,7 +3,8 @@ use std::marker::PhantomData;
 use std::ops::Add;
 
 use ark_ec::CurveConfig;
-use ark_ec::short_weierstrass::{Projective, SWCurveConfig};
+use ark_ec::pairing::Pairing;
+use ark_ec::short_weierstrass::{Affine, Projective, SWCurveConfig};
 use ark_ff::{BigInteger64, Field, PrimeField};
 use ark_r1cs_std::{R1CSVar, ToBitsGadget};
 use ark_r1cs_std::alloc::{AllocationMode, AllocVar};
@@ -19,7 +20,8 @@ use ark_relations::r1cs::{Namespace, SynthesisError};
 use ark_std::UniformRand;
 use rand::thread_rng;
 
-use crate::accumulation_circuit::instance_circuit::{AccumulatorInstanceCircuit, AccumulatorInstanceCircuitVar};
+use crate::accumulation::accumulator::AccInstance;
+use crate::accumulation_circuit::instance_circuit::AccumulatorInstanceVar;
 use crate::constant_for_curves::{BaseField, ScalarField};
 use crate::gadgets::non_native::short_weierstrass::NonNativeAffineVar;
 use crate::gadgets::non_native::util::{convert_field_one_to_field_two, non_native_to_fpvar};
@@ -29,7 +31,7 @@ use crate::nova::cycle_fold::coprocessor::{SecondaryCircuit as SecondaryCircuit,
 use crate::nova::cycle_fold::coprocessor_constraints::{R1CSInstanceVar, RelaxedR1CSInstanceVar};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct AccumulatorVerifier<G1, G2, C2>
+pub struct AccumulatorVerifier<G1, G2, C2, E>
 where
     G1: SWCurveConfig + Clone,
     G1::BaseField: PrimeField,
@@ -37,8 +39,8 @@ where
     G2: SWCurveConfig,
     G2::BaseField: PrimeField,
     C2: CommitmentScheme<Projective<G2>>,
-// this condition is needed for cycle of curves
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField>,
+    E: Pairing<G1Affine=Affine<G1>, ScalarField=<G1 as CurveConfig>::ScalarField>,
 {
     /// the randomness used for taking linear combination
     pub beta: G1::ScalarField,
@@ -56,11 +58,11 @@ where
     pub Q: Projective<G1>,
 
     /// the instance to be folded
-    pub instance: AccumulatorInstanceCircuit<G1>,
+    pub acc_instance: AccInstance<E>,
     /// the running accumulator
-    pub acc: AccumulatorInstanceCircuit<G1>,
+    pub acc_running: AccInstance<E>,
     /// the result accumulator
-    pub result_acc: AccumulatorInstanceCircuit<G1>,
+    pub acc_result: AccInstance<E>,
 
     /// running cycle fold instance
     pub cycle_fold_running_instance: RelaxedR1CSInstance<G2, C2>,
@@ -98,9 +100,9 @@ where
     /// accumulation proof
     pub Q_var: NonNativeAffineVar<G1>,
 
-    pub instance_var: AccumulatorInstanceCircuitVar<G1>,
-    pub acc_var: AccumulatorInstanceCircuitVar<G1>,
-    pub result_acc_var: AccumulatorInstanceCircuitVar<G1>,
+    pub acc_instance_var: AccumulatorInstanceVar<G1>,
+    pub acc_running_var: AccumulatorInstanceVar<G1>,
+    pub acc_result_var: AccumulatorInstanceVar<G1>,
 
     pub cycle_fold_running_instance_var: RelaxedR1CSInstanceVar<G2, C2>,
 
@@ -109,7 +111,7 @@ where
     pub m: u32,
 }
 
-impl<G1, G2, C2> AllocVar<AccumulatorVerifier<G1, G2, C2>, G1::ScalarField> for AccumulatorVerifierVar<G1, G2, C2>
+impl<G1, G2, C2, E> AllocVar<AccumulatorVerifier<G1, G2, C2, E>, G1::ScalarField> for AccumulatorVerifierVar<G1, G2, C2>
 where
     G1: SWCurveConfig + Clone,
     G1::BaseField: PrimeField,
@@ -118,8 +120,9 @@ where
     G2::BaseField: PrimeField,
     C2: CommitmentScheme<Projective<G2>>,
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField>,
+    E: Pairing<G1Affine=Affine<G1>, ScalarField=<G1 as CurveConfig>::ScalarField>,
 {
-    fn new_variable<T: Borrow<AccumulatorVerifier<G1, G2, C2>>>(cs: impl Into<Namespace<G1::ScalarField>>, f: impl FnOnce() -> Result<T, SynthesisError>, mode: AllocationMode) -> Result<Self, SynthesisError> {
+    fn new_variable<T: Borrow<AccumulatorVerifier<G1, G2, C2, E>>>(cs: impl Into<Namespace<G1::ScalarField>>, f: impl FnOnce() -> Result<T, SynthesisError>, mode: AllocationMode) -> Result<Self, SynthesisError> {
         let ns = cs.into();
         let cs = ns.cs();
 
@@ -151,21 +154,21 @@ where
         ).unwrap();
 
 
-        let instance_var = AccumulatorInstanceCircuitVar::new_variable(
+        let acc_instance_var = AccumulatorInstanceVar::new_variable(
             ns!(cs, "instance"),
-            || circuit.map(|e| e.instance.clone()),
+            || circuit.map(|e| e.acc_instance.clone()),
             mode,
         ).unwrap();
 
-        let acc_var = AccumulatorInstanceCircuitVar::new_variable(
+        let acc_running_var = AccumulatorInstanceVar::new_variable(
             ns!(cs, "acc"),
-            || circuit.map(|e| e.acc.clone()),
+            || circuit.map(|e| e.acc_running.clone()),
             mode,
         ).unwrap();
 
-        let result_acc_var = AccumulatorInstanceCircuitVar::new_variable(
+        let acc_result_var = AccumulatorInstanceVar::new_variable(
             ns!(cs, "result acc"),
-            || circuit.map(|e| e.result_acc.clone()),
+            || circuit.map(|e| e.acc_result.clone()),
             mode,
         ).unwrap();
 
@@ -205,9 +208,9 @@ where
             beta_var,
             beta_var_non_native,
             Q_var,
-            instance_var,
-            acc_var,
-            result_acc_var,
+            acc_instance_var,
+            acc_running_var,
+            acc_result_var,
             cycle_fold_running_instance_var,
             n: circuit.map(|e| e.n).unwrap(),
             m: circuit.map(|e| e.m).unwrap(),
@@ -242,15 +245,15 @@ where
             C_var
         ) = self.auxiliary_input_C_var.parse_secondary_io().unwrap();
         // g1 == acc.C
-        self.acc_var.C_var.enforce_equal(&g1).expect("error while enforcing equality");
+        self.acc_running_var.C_var.enforce_equal(&g1).expect("error while enforcing equality");
         // g2 == instance.C
-        self.instance_var.C_var.enforce_equal(&g2).expect("error while enforcing equality");
+        self.acc_instance_var.C_var.enforce_equal(&g2).expect("error while enforcing equality");
         // enforce flag to be false
         flag.enforce_equal(&NonNativeFieldVar::zero()).expect("error while enforcing equality");
         // check r to be equal to beta
         r.enforce_equal(&self.beta_var_non_native).expect("error while enforcing equality");
         // check out the result C_var is consistent with result_acc
-        C_var.enforce_equal(&self.result_acc_var.C_var).expect("error while enforcing equality");
+        C_var.enforce_equal(&self.acc_result_var.C_var).expect("error while enforcing equality");
 
 
         // Non-native scalar multiplication: linear combination of T
@@ -261,15 +264,15 @@ where
             T_var
         ) = self.auxiliary_input_T_var.parse_secondary_io().unwrap();
         // g1 == acc.T
-        self.acc_var.T_var.enforce_equal(&g1).expect("error while enforcing equality");
+        self.acc_running_var.T_var.enforce_equal(&g1).expect("error while enforcing equality");
         // g2 == instance.C
-        self.instance_var.T_var.enforce_equal(&g2).expect("error while enforcing equality");
+        self.acc_instance_var.T_var.enforce_equal(&g2).expect("error while enforcing equality");
         // enforce flag to be false
         flag.enforce_equal(&NonNativeFieldVar::zero()).expect("error while enforcing equality");
         // check r to be equal to beta
         r.enforce_equal(&self.beta_var_non_native).expect("error while enforcing equality");
         // check out the result T_var is consistent with result_acc
-        T_var.enforce_equal(&self.result_acc_var.T_var).expect("error while enforcing equality");
+        T_var.enforce_equal(&self.acc_result_var.T_var).expect("error while enforcing equality");
 
 
         // Non-native scalar multiplication: linear combination E_temp = (instance.E * (1-beta) + acc.E * beta)
@@ -280,9 +283,9 @@ where
             E_temp
         ) = self.auxiliary_input_E_1_var.parse_secondary_io().unwrap();
         // g1 == acc.E
-        self.acc_var.E_var.enforce_equal(&g1).expect("error while enforcing equality");
+        self.acc_running_var.E_var.enforce_equal(&g1).expect("error while enforcing equality");
         // g2 == instance.E
-        self.instance_var.E_var.enforce_equal(&g2).expect("error while enforcing equality");
+        self.acc_instance_var.E_var.enforce_equal(&g2).expect("error while enforcing equality");
         // enforce flag to be false
         flag.enforce_equal(&NonNativeFieldVar::zero()).expect("error while enforcing equality");
         // check r to be equal to beta
@@ -306,55 +309,55 @@ where
         let beta_times_beta_minus_one = self.beta_var_non_native.clone() * (NonNativeFieldVar::one() - self.beta_var_non_native.clone());
         r.enforce_equal(&beta_times_beta_minus_one).expect("error while enforcing equality");
         // check out the result E_var is consistent with result_acc
-        E_var.enforce_equal(&self.result_acc_var.E_var).expect("error while enforcing equality");
+        E_var.enforce_equal(&self.acc_result_var.E_var).expect("error while enforcing equality");
 
 
         let beta_minus_one = FpVar::<G1::ScalarField>::one() - &self.beta_var;
 
         // Native field operation: linear combination of b
-        let b_var = &self.beta_var * &self.acc_var.b_var + &beta_minus_one * &self.instance_var.b_var;
+        let b_var = &self.beta_var * &self.acc_running_var.b_var + &beta_minus_one * &self.acc_instance_var.b_var;
         // check out the result b_var is consistent with result_acc
-        b_var.enforce_equal(&self.result_acc_var.b_var).expect("error while enforcing equality");
+        b_var.enforce_equal(&self.acc_result_var.b_var).expect("error while enforcing equality");
 
 
         // Native field operation: linear combination of c
-        let c_var = &self.beta_var * &self.acc_var.c_var + &beta_minus_one * &self.instance_var.c_var;
+        let c_var = &self.beta_var * &self.acc_running_var.c_var + &beta_minus_one * &self.acc_instance_var.c_var;
         // check out the result c_var is consistent with result_acc
-        c_var.enforce_equal(&self.result_acc_var.c_var).expect("error while enforcing equality");
+        c_var.enforce_equal(&self.acc_result_var.c_var).expect("error while enforcing equality");
 
 
         // Native field operation: linear combination of y
-        let y_var = &self.beta_var * &self.acc_var.y_var + &beta_minus_one * &self.instance_var.y_var;
+        let y_var = &self.beta_var * &self.acc_running_var.y_var + &beta_minus_one * &self.acc_instance_var.y_var;
         // check out the result y_var is consistent with result_acc
-        y_var.enforce_equal(&self.result_acc_var.y_var).expect("error while enforcing equality");
+        y_var.enforce_equal(&self.acc_result_var.y_var).expect("error while enforcing equality");
 
 
         // Native field operation: linear combination of z_b
-        let z_b_var = &self.beta_var * &self.acc_var.z_b_var + &beta_minus_one * &self.instance_var.z_b_var;
+        let z_b_var = &self.beta_var * &self.acc_running_var.z_b_var + &beta_minus_one * &self.acc_instance_var.z_b_var;
         // check out the result z_b_var is consistent with result_acc
-        z_b_var.enforce_equal(&self.result_acc_var.z_b_var).expect("error while enforcing equality");
+        z_b_var.enforce_equal(&self.acc_result_var.z_b_var).expect("error while enforcing equality");
 
 
         // Native field operation: linear combination of z_c
-        let z_c_var = &self.beta_var * &self.acc_var.z_c_var + &beta_minus_one * &self.instance_var.z_c_var;
+        let z_c_var = &self.beta_var * &self.acc_running_var.z_c_var + &beta_minus_one * &self.acc_instance_var.z_c_var;
         // check out the result z_c_var is consistent with result_acc
-        z_c_var.enforce_equal(&self.result_acc_var.z_c_var).expect("error while enforcing equality");
+        z_c_var.enforce_equal(&self.acc_result_var.z_c_var).expect("error while enforcing equality");
 
 
         // Native field operation: equality assertion that z_b = b^n-1 for the first instance
         let n = BigInteger64::from(self.n);
-        let z_b_ = self.acc_var.b_var.pow_by_constant(n.as_ref()).expect("error while enforcing equality");
+        let z_b_ = self.acc_running_var.b_var.pow_by_constant(n.as_ref()).expect("error while enforcing equality");
 
 
         // Native field operation: equality assertion that z_c = c^m-1 for the first instance
         let m = BigInteger64::from(self.m);
-        let z_c_ = self.acc_var.c_var.pow_by_constant(m.as_ref()).expect("error while enforcing equality");
+        let z_c_ = self.acc_running_var.c_var.pow_by_constant(m.as_ref()).expect("error while enforcing equality");
 
 
         // Conditional check: if instance.E_var == 0, then enforce z_b_ == instance.z_b_var and z_c_ == instance.z_c_var
-        let is_E_zero = &self.instance_var.E_var.infinity.clone();
-        z_b_.conditional_enforce_equal(&self.instance_var.z_b_var, is_E_zero).expect("error while enforcing z_b equality under condition");
-        z_c_.conditional_enforce_equal(&self.instance_var.z_c_var, is_E_zero).expect("error while enforcing z_c equality under condition");
+        let is_E_zero = &self.acc_instance_var.E_var.infinity.clone();
+        z_b_.conditional_enforce_equal(&self.acc_instance_var.z_b_var, is_E_zero).expect("error while enforcing z_b equality under condition");
+        z_c_.conditional_enforce_equal(&self.acc_instance_var.z_c_var, is_E_zero).expect("error while enforcing z_c equality under condition");
     }
 }
 
@@ -374,8 +377,8 @@ mod tests {
 
     use crate::accumulation::accumulator::{Accumulator, AccumulatorTrait};
     use crate::accumulation::accumulator::tests::{get_satisfying_accumulator, get_srs};
-    use crate::accumulation_circuit::instance_circuit::AccumulatorInstanceCircuitVar;
-    use crate::accumulation_circuit::instance_circuit::tests::accumulator_instance_to_circuit;
+    use crate::accumulation_circuit::affine_to_projective;
+    use crate::accumulation_circuit::instance_circuit::AccumulatorInstanceVar;
     use crate::accumulation_circuit::verifier_circuit::AccumulatorVerifierVar;
     use crate::constant_for_curves::{BaseField, G1, G2, ScalarField};
     use crate::gadgets::non_native::short_weierstrass::NonNativeAffineVar;
@@ -443,8 +446,8 @@ mod tests {
         let cs = ConstraintSystem::<ScalarField>::new_ref();
 
         // build an instance of AccInstanceCircuit
-        let instance = get_satisfying_accumulator(&srs);
-        let acc = get_satisfying_accumulator(&srs);
+        let acc_instance = get_satisfying_accumulator(&srs);
+        let acc_running = get_satisfying_accumulator(&srs);
 
         // the randomness in different formats
         let beta_scalar = ScalarField::from(2u128);
@@ -452,33 +455,26 @@ mod tests {
 
 
         // accumulate proof
-        let (result_instance, _, Q) = Accumulator::prove(&srs, &beta_scalar, &acc, &instance);
+        let (result_instance, _, Q) = Accumulator::prove(&srs, &beta_scalar, &acc_running, &acc_instance);
         let Q = Projective::new(Q.x, Q.y, BaseField::ONE);
 
 
-        // build instance/acc circuits
-        let instance_circuit = accumulator_instance_to_circuit(instance.instance);
-        let acc_circuit = accumulator_instance_to_circuit(acc.instance);
-        let result_acc_circuit = accumulator_instance_to_circuit(result_instance);
-
-
-
         // make a circuit_var
-        let instance_var = AccumulatorInstanceCircuitVar::new_variable(
+        let instance_var = AccumulatorInstanceVar::new_variable(
             cs.clone(),
-            || Ok(instance_circuit.clone()),
+            || Ok(acc_instance.instance.clone()),
             AllocationMode::Witness,
         ).unwrap();
 
-        let acc_var = AccumulatorInstanceCircuitVar::new_variable(
+        let acc_var = AccumulatorInstanceVar::new_variable(
             cs.clone(),
-            || Ok(acc_circuit.clone()),
+            || Ok(acc_running.instance.clone()),
             AllocationMode::Witness,
         ).unwrap();
 
-        let result_acc_circuit_var = AccumulatorInstanceCircuitVar::new_variable(
+        let result_acc_circuit_var = AccumulatorInstanceVar::new_variable(
             cs.clone(),
-            || Ok(result_acc_circuit.clone()),
+            || Ok(result_instance.clone()),
             AllocationMode::Witness,
         ).unwrap();
 
@@ -492,8 +488,8 @@ mod tests {
 
         let (auxiliary_input_C, auxiliary_input_C_witness, auxiliary_input_C_var) = {
             secondary_circuit_to_r1cs(&pp, cs.clone(), {
-                let g1 = acc_circuit.C.clone();
-                let g2 = instance_circuit.C.clone();
+                let g1 = affine_to_projective(acc_running.instance.C.clone());
+                let g2 = affine_to_projective(acc_instance.instance.C.clone());
                 // C'' = beta * acc.C + (1 - beta) * instance.C
                 let g_out = (g1 * beta_scalar) + (g2 * (ScalarField::ONE - beta_scalar));
                 SecondaryCircuit {
@@ -508,8 +504,8 @@ mod tests {
 
         let (auxiliary_input_T, auxiliary_input_T_witness, auxiliary_input_T_var) = {
             secondary_circuit_to_r1cs(&pp, cs.clone(), {
-                let g1 = acc_circuit.T.clone();
-                let g2 = instance_circuit.T.clone();
+                let g1 = affine_to_projective(acc_running.instance.T.clone());
+                let g2 = affine_to_projective(acc_instance.instance.T.clone());
                 // T'' = beta * acc.T + (1 - beta) * instance.T
                 let g_out = (g1 * beta_scalar) + (g2 * (ScalarField::ONE - beta_scalar));
                 SecondaryCircuit {
@@ -524,8 +520,8 @@ mod tests {
 
         let (auxiliary_input_E_1, auxiliary_input_E_1_witness, auxiliary_input_E_1_var) = {
             secondary_circuit_to_r1cs(&pp, cs.clone(), {
-                let g1 = instance_circuit.E.clone();
-                let g2 = acc_circuit.E.clone();
+                let g1 = affine_to_projective(acc_instance.instance.E.clone());
+                let g2 = affine_to_projective(acc_running.instance.E.clone());
                 // E_temp = beta * acc.E + (1 - beta) * instance.E
                 let g_out = (g1 * beta_scalar) + (g2 * (ScalarField::ONE - beta_scalar));
                 SecondaryCircuit {
@@ -541,10 +537,10 @@ mod tests {
         let (auxiliary_input_E_2, auxiliary_input_E_2_witness, auxiliary_input_E_2_var) = {
             // the circuit
             secondary_circuit_to_r1cs(&pp, cs.clone(), {
-                let g1 = instance_circuit.E.clone();
-                let g2 = acc_circuit.E.clone();
+                let g1 = affine_to_projective(acc_instance.instance.E.clone());
+                let g2 = affine_to_projective(acc_running.instance.E.clone());
                 // E = E_temp + (beta * (1- beta)) * Q
-                let E_temp = (instance_circuit.E.clone() * beta_scalar) + (acc_circuit.E.clone() * (ScalarField::ONE - beta_scalar));
+                let E_temp = (g1 * beta_scalar) + (g2 * (ScalarField::ONE - beta_scalar));
                 let g_out = E_temp + Q * (beta_scalar * (ScalarField::ONE - beta_scalar));
                 SecondaryCircuit {
                     g1,
@@ -584,9 +580,9 @@ mod tests {
             beta_var,
             beta_var_non_native,
             Q_var,
-            instance_var,
-            acc_var,
-            result_acc_var: result_acc_circuit_var,
+            acc_instance_var: instance_var,
+            acc_running_var: acc_var,
+            acc_result_var: result_acc_circuit_var,
             cycle_fold_running_instance_var: trivial_cycle_fold_running_instance,
             n: n as u32,
             m: m as u32,
@@ -596,5 +592,4 @@ mod tests {
         assert!(cs.is_satisfied().unwrap())
     }
 }
-
 
