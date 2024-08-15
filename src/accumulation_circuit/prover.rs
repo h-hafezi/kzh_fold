@@ -77,24 +77,7 @@ where
     E::G1: CurveGroup<Config=G1>,
 {
     fn compute_auxiliary_input_C(&self) -> (R1CSInstance<G2, C2>, R1CSWitness<G2>) {
-        let circuit = {
-            let g1 = self.acc.instance.C.clone();
-            let g2 = self.instance.instance.C.clone();
-            // C'' = beta * acc.C + (1 - beta) * instance.C
-            let g_out = (g1 * self.beta) + (g2 * (G1::ScalarField::ONE - self.beta));
-            SecondaryCircuit {
-                g1,
-                g2,
-                g_out,
-                r: convert_field_one_to_field_two::<G1::ScalarField, G1::BaseField>(self.beta),
-                flag: false,
-            }
-        };
-        synthesize::<
-            G1,
-            G2,
-            C2,
-        >(circuit, C2::PP).unwrap()
+        unimplemented!()
     }
 
     fn compute_auxiliary_input_T(&self) -> (R1CSInstance<G2, C2>, R1CSWitness<G2>) {

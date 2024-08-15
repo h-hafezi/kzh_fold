@@ -1,19 +1,15 @@
 #![allow(non_snake_case)]
 #![allow(unused_imports)]
 
-use ark_bn254::{Bn254, Fr};
 use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
 use ark_std::UniformRand;
 use criterion::{Criterion, criterion_group, criterion_main};
 use rand::thread_rng;
+use sqrtn_pcs::constant_for_curves::{E, ScalarField};
+use sqrtn_pcs::polynomial::bivariate_poly::{BivariatePolynomial, BivariatePolynomialTrait};
+use sqrtn_pcs::polynomial::lagrange_basis::LagrangeBasis;
+use sqrtn_pcs::polynomial_commitment::pcs::{PolyCommit, PolyCommitTrait, SRS};
 
-use sqrtn_pcs::bivariate_poly::BivariatePolynomial;
-use sqrtn_pcs::bivariate_poly::BivariatePolynomialTrait;
-use sqrtn_pcs::lagrange_basis::LagrangeBasis;
-use sqrtn_pcs::pcs::{PolyCommit, PolyCommitTrait, SRS};
-
-type E = Bn254;
-type F = Fr;
 
 fn bench_setup(c: &mut Criterion) {
     let mut rng = thread_rng();
@@ -44,8 +40,8 @@ fn bench_commit(c: &mut Criterion) {
     let mut rng = thread_rng();
     let degrees = vec![(4, 4), (8, 8), (16, 16), (32, 32), (64, 64), (128, 128), (256, 256), (512, 512), (1024, 1024)];
     for (degree_x, degree_y) in degrees {
-        let domain_x = GeneralEvaluationDomain::<F>::new(degree_x).unwrap();
-        let domain_y = GeneralEvaluationDomain::<F>::new(degree_y).unwrap();
+        let domain_x = GeneralEvaluationDomain::<ScalarField>::new(degree_x).unwrap();
+        let domain_y = GeneralEvaluationDomain::<ScalarField>::new(degree_y).unwrap();
         let srs: SRS<E> = PolyCommit::setup(degree_x, degree_y, &mut rng);
         let poly_commit = PolyCommit { srs };
         let polynomial = BivariatePolynomial::random(&mut rng, domain_x.clone(), domain_y.clone(), degree_x, degree_y);
@@ -63,8 +59,8 @@ fn bench_open(c: &mut Criterion) {
     let degrees = vec![(4, 4), (8, 8), (16, 16), (32, 32), (64, 64), (128, 128), (256, 256), (512, 512), (1024, 1024)];
 
     for (degree_x, degree_y) in degrees {
-        let domain_x = GeneralEvaluationDomain::<F>::new(degree_x).unwrap();
-        let domain_y = GeneralEvaluationDomain::<F>::new(degree_y).unwrap();
+        let domain_x = GeneralEvaluationDomain::<ScalarField>::new(degree_x).unwrap();
+        let domain_y = GeneralEvaluationDomain::<ScalarField>::new(degree_y).unwrap();
         let srs: SRS<E> = PolyCommit::setup(degree_x, degree_y, &mut rng);
         let poly_commit = PolyCommit { srs };
         let polynomial = BivariatePolynomial::random(&mut rng, domain_x.clone(), domain_y.clone(), degree_x, degree_y);
@@ -72,7 +68,7 @@ fn bench_open(c: &mut Criterion) {
 
         let bench_name = format!("open for degree n={} * m={}", degree_x, degree_y);
         c.bench_function(&bench_name, |x| {
-            let b = F::rand(&mut rng);
+            let b = ScalarField::rand(&mut rng);
             x.iter(|| {
                 poly_commit.open(&polynomial, com.clone(), &b)
             })
@@ -85,8 +81,8 @@ fn bench_verify(c: &mut Criterion) {
     let degrees = vec![(4, 4), (8, 8), (16, 16), (32, 32), (64, 64), (128, 128), (256, 256), (512, 512), (1024, 1024)];
 
     for (degree_x, degree_y) in degrees {
-        let domain_x = GeneralEvaluationDomain::<F>::new(degree_x).unwrap();
-        let domain_y = GeneralEvaluationDomain::<F>::new(degree_y).unwrap();
+        let domain_x = GeneralEvaluationDomain::<ScalarField>::new(degree_x).unwrap();
+        let domain_y = GeneralEvaluationDomain::<ScalarField>::new(degree_y).unwrap();
         let srs: SRS<E> = PolyCommit::setup(degree_x, degree_y, &mut rng);
         let poly_commit = PolyCommit { srs };
         let polynomial = BivariatePolynomial::random(&mut rng, domain_x.clone(), domain_y.clone(), degree_x, degree_y);
@@ -94,8 +90,8 @@ fn bench_verify(c: &mut Criterion) {
 
         let bench_name = format!("verify for degree n={} * m={}", degree_x, degree_y);
         c.bench_function(&bench_name, |x| {
-            let b = F::rand(&mut rng);
-            let c = F::rand(&mut rng);
+            let b = ScalarField::rand(&mut rng);
+            let c = ScalarField::rand(&mut rng);
             let y = polynomial.evaluate(&b, &c);
             let open = poly_commit.open(&polynomial, com.clone(), &b);
             x.iter(|| {

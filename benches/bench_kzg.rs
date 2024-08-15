@@ -8,11 +8,9 @@ use ark_poly::polynomial::univariate::DensePolynomial;
 use ark_std::UniformRand;
 use criterion::{Criterion, criterion_group, criterion_main};
 use rand::{Rng, thread_rng};
-
+use sqrtn_pcs::constant_for_curves::{E, ScalarField};
 use sqrtn_pcs::kzg::{KZG10, KZGPowers, KZGUniversalParams, KZGVerifierKey};
 
-type E = Bn254;
-type F = Fr;
 type Poly = DensePolynomial<<E as Pairing>::ScalarField>;
 
 pub(crate) fn trim(pp: &KZGUniversalParams<E>, mut supported_degree: usize) -> (KZGPowers<E>, KZGVerifierKey<E>) {
@@ -42,7 +40,7 @@ pub(crate) fn trim(pp: &KZGUniversalParams<E>, mut supported_degree: usize) -> (
 fn rand<R: Rng>(d: usize, rng: &mut R) -> Poly {
     let mut random_coeffs = Vec::new();
     for _ in 0..=d {
-        random_coeffs.push(F::rand(rng));
+        random_coeffs.push(ScalarField::rand(rng));
     }
     Poly::from_coefficients_vec(random_coeffs)
 }
@@ -96,7 +94,7 @@ fn bench_open(c: &mut Criterion) {
         let bench_name = format!("open for degree {}", degree);
         c.bench_function(&bench_name, |b| {
             b.iter(|| {
-                let point = F::rand(&mut rng);
+                let point = ScalarField::rand(&mut rng);
                 KZG10::<E, Poly>::open(&ck, &polynomial, point, &r).expect("Proof generation failed")
             })
         });
@@ -115,7 +113,7 @@ fn bench_verify(c: &mut Criterion) {
         let polynomial = Poly::rand(degree, &mut rng);
         let (comm, r) = KZG10::<E, Poly>::commit(&ck, &polynomial, None, Some(&mut rng)).expect("Commitment failed");
 
-        let point = F::rand(&mut rng);
+        let point = ScalarField::rand(&mut rng);
         let proof = KZG10::<E, Poly>::open(&ck, &polynomial, point, &r).expect("Proof generation failed");
         let value = polynomial.evaluate(&point);
 

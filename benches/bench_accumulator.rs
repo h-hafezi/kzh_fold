@@ -1,23 +1,20 @@
 #![allow(non_snake_case)]
 #![allow(unused_imports)]
 
-use ark_bn254::{Bn254, Fr};
 use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
 use ark_std::UniformRand;
 use criterion::{Criterion, criterion_group, criterion_main};
 use rand::thread_rng;
 
 use sqrtn_pcs::accumulation::accumulator::{AccSRS, Accumulator, AccumulatorTrait};
-use sqrtn_pcs::bivariate_poly::{BivariatePolynomial, BivariatePolynomialTrait};
-use sqrtn_pcs::lagrange_basis::LagrangeBasis;
-use sqrtn_pcs::pcs::{PolyCommit, PolyCommitTrait, SRS};
-
-type E = Bn254;
-type F = Fr;
+use sqrtn_pcs::constant_for_curves::{E, ScalarField};
+use sqrtn_pcs::polynomial::bivariate_poly::{BivariatePolynomial, BivariatePolynomialTrait};
+use sqrtn_pcs::polynomial::lagrange_basis::LagrangeBasis;
+use sqrtn_pcs::polynomial_commitment::pcs::{PolyCommit, PolyCommitTrait, SRS};
 
 fn get_srs(degree_x: usize, degree_y: usize) -> AccSRS<E> {
-    let domain_x = GeneralEvaluationDomain::<F>::new(degree_x).unwrap();
-    let domain_y = GeneralEvaluationDomain::<F>::new(degree_y).unwrap();
+    let domain_x = GeneralEvaluationDomain::<ScalarField>::new(degree_x).unwrap();
+    let domain_y = GeneralEvaluationDomain::<ScalarField>::new(degree_y).unwrap();
 
     // define the srs
     let pc_srs: SRS<E> = PolyCommit::setup(degree_x, degree_y, &mut thread_rng());
@@ -55,11 +52,11 @@ fn get_satisfying_accumulator(srs: &AccSRS<E>) -> Accumulator<E> {
     );
 
     // random points and evaluation
-    let b_1 = F::rand(&mut thread_rng());
-    let c_1 = F::rand(&mut thread_rng());
+    let b_1 = ScalarField::rand(&mut thread_rng());
+    let c_1 = ScalarField::rand(&mut thread_rng());
     let y_1 = polynomial_1.evaluate(&b_1, &c_1);
-    let b_2 = F::rand(&mut thread_rng());
-    let c_2 = F::rand(&mut thread_rng());
+    let b_2 = ScalarField::rand(&mut thread_rng());
+    let c_2 = ScalarField::rand(&mut thread_rng());
     let y_2 = polynomial_2.evaluate(&b_2, &c_2);
 
     // define the polynomial commitment scheme
@@ -88,7 +85,9 @@ fn get_satisfying_accumulator(srs: &AccSRS<E>) -> Accumulator<E> {
     assert!(Accumulator::decide(&srs, &acc_1));
     assert!(Accumulator::decide(&srs, &acc_2));
 
-    let (acc_instance, acc_witness, _Q) = Accumulator::prove(&srs, &acc_1, &acc_2);
+    let beta = ScalarField::rand(&mut thread_rng());
+
+    let (acc_instance, acc_witness, _Q) = Accumulator::prove(&srs, &beta, &acc_1, &acc_2);
 
     return Accumulator {
         witness: acc_witness,
@@ -118,7 +117,8 @@ fn bench_prove(c: &mut Criterion) {
         let bench_name = format!("prove for degree n={} * m={}", degree_x, degree_y);
         c.bench_function(&bench_name, |b| {
             b.iter(|| {
-                Accumulator::prove(&srs, &acc_1, &acc_2);
+                let beta = ScalarField::rand(&mut thread_rng());
+                Accumulator::prove(&srs, &beta, &acc_1, &acc_2);
             })
         });
     }
@@ -130,11 +130,12 @@ fn bench_verify(c: &mut Criterion) {
         let srs = get_srs(degree_x, degree_y);
         let acc_1 = get_satisfying_accumulator(&srs);
         let acc_2 = get_satisfying_accumulator(&srs);
-        let (_, _, Q) = Accumulator::prove(&srs, &acc_1, &acc_2);
+        let beta = ScalarField::rand(&mut thread_rng());
+        let (_, _, Q) = Accumulator::prove(&srs, &beta, &acc_1, &acc_2);
         let bench_name = format!("verify for degree n={} * m={}", degree_x, degree_y);
         c.bench_function(&bench_name, |b| {
             b.iter(|| {
-                Accumulator::verify(&acc_1.instance, &acc_2.instance, Q);
+                Accumulator::verify(&acc_1.instance, &acc_2.instance, Q, &beta);
             })
         });
     }

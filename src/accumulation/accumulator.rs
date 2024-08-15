@@ -91,9 +91,9 @@ where
 
     fn new_accumulator_witness_from_proof(srs: &AccSRS<E>, proof: OpeningProof<E>, b: &E::ScalarField, c: &E::ScalarField) -> AccWitness<E>;
 
-    fn prove(srs: &AccSRS<E>, acc_1: &Accumulator<E>, acc_2: &Accumulator<E>) -> (AccInstance<E>, AccWitness<E>, E::G1Affine);
+    fn prove(srs: &AccSRS<E>, beta: &E::ScalarField, acc_1: &Accumulator<E>, acc_2: &Accumulator<E>) -> (AccInstance<E>, AccWitness<E>, E::G1Affine);
 
-    fn verify(instance_1: &AccInstance<E>, instance_2: &AccInstance<E>, Q: E::G1Affine) -> AccInstance<E>;
+    fn verify(instance_1: &AccInstance<E>, instance_2: &AccInstance<E>, Q: E::G1Affine, beta: &E::ScalarField) -> AccInstance<E>;
 
     fn decide(srs: &AccSRS<E>, acc: &Accumulator<E>) -> bool;
 
@@ -197,7 +197,7 @@ where
         };
     }
 
-    fn prove(srs: &AccSRS<E>, acc_1: &Accumulator<E>, acc_2: &Accumulator<E>) -> (AccInstance<E>, AccWitness<E>, E::G1Affine)
+    fn prove(srs: &AccSRS<E>, beta: &E::ScalarField, acc_1: &Accumulator<E>, acc_2: &Accumulator<E>) -> (AccInstance<E>, AccWitness<E>, E::G1Affine)
     where
         <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb,
     {
@@ -213,20 +213,10 @@ where
         // compute the quotient variable Q
         let Q: E::G1Affine = Self::helper_function_Q(srs, acc_1, acc_2);
 
-        // generate random values beta
-        let beta = E::ScalarField::from(2u128);
-        /*{
-            let mut hash_object: PoseidonHash<E::ScalarField> = PoseidonHash::new();
-            instance_1.update_sponge(&mut hash_object);
-            instance_2.update_sponge(&mut hash_object);
-            hash_object.update_sponge(vec![Q.x(), Q.y()]);
-            hash_object.output()
-        };
-        */
         let one_minus_beta: E::ScalarField = E::ScalarField::ONE - beta;
 
         // get the accumulated new_instance
-        let new_instance = Self::verify(instance_1, instance_2, Q);
+        let new_instance = Self::verify(instance_1, instance_2, Q, beta);
 
         // get the accumulated witness
         let new_witness = AccWitness {
@@ -273,17 +263,7 @@ where
         return (new_instance, new_witness, Q);
     }
 
-    fn verify(instance_1: &AccInstance<E>, instance_2: &AccInstance<E>, Q: E::G1Affine) -> AccInstance<E> {
-        // compute beta through hashing
-        let beta = E::ScalarField::from(2u128);
-        /*{
-            let mut hash_object: PoseidonHash<E::ScalarField> = PoseidonHash::new();
-            instance_1.update_sponge(&mut hash_object);
-            instance_2.update_sponge(&mut hash_object);
-            hash_object.update_sponge(vec![Q.x(), Q.y()]);
-            hash_object.output()
-        };
-         */
+    fn verify(instance_1: &AccInstance<E>, instance_2: &AccInstance<E>, Q: E::G1Affine, beta: &E::ScalarField) -> AccInstance<E> {
         let one_minus_beta: E::ScalarField = E::ScalarField::ONE - beta;
 
         let new_error_term: E::G1Affine = {
@@ -543,7 +523,9 @@ pub mod tests {
         assert!(Accumulator::decide(&srs, &acc_1));
         assert!(Accumulator::decide(&srs, &acc_2));
 
-        let (acc_instance, acc_witness, _Q) = Accumulator::prove(&srs, &acc_1, &acc_2);
+        let beta = ScalarField::from(2u8);
+
+        let (acc_instance, acc_witness, _Q) = Accumulator::prove(&srs, &beta, &acc_1, &acc_2);
 
         return Accumulator {
             witness: acc_witness,
@@ -635,11 +617,13 @@ pub mod tests {
         assert!(Accumulator::decide(&srs, &acc_1));
         assert!(Accumulator::decide(&srs, &acc_2));
 
+        let beta = ScalarField::rand(&mut thread_rng());
+
         // accumulate proof
-        let (instance, witness, Q) = Accumulator::prove(&srs, &acc_1, &acc_2);
+        let (instance, witness, Q) = Accumulator::prove(&srs, &beta, &acc_1, &acc_2);
 
         // accumulate verifier
-        let instance_prime = Accumulator::verify(&acc_1.instance, &acc_2.instance, Q);
+        let instance_prime = Accumulator::verify(&acc_1.instance, &acc_2.instance, Q, &beta);
 
         // define accumulators
         let acc = Accumulator::new_accumulator(&instance, &witness);
@@ -650,3 +634,12 @@ pub mod tests {
         assert_eq!(instance, instance_prime);
     }
 }
+
+/*{
+    let mut hash_object: PoseidonHash<E::ScalarField> = PoseidonHash::new();
+    instance_1.update_sponge(&mut hash_object);
+    instance_2.update_sponge(&mut hash_object);
+    hash_object.update_sponge(vec![Q.x(), Q.y()]);
+    hash_object.output()
+};
+*/

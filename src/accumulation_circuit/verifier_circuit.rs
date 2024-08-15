@@ -439,13 +439,20 @@ mod tests {
         // get a random srs
         let srs = get_srs(n, m);
 
+        // a constraint system
+        let cs = ConstraintSystem::<ScalarField>::new_ref();
+
         // build an instance of AccInstanceCircuit
         let instance = get_satisfying_accumulator(&srs);
         let acc = get_satisfying_accumulator(&srs);
 
+        // the randomness in different formats
+        let beta_scalar = ScalarField::from(2u128);
+        let (beta_base, beta_var, beta_var_non_native) = randomness_different_formats(cs.clone(), beta_scalar);
+
 
         // accumulate proof
-        let (result_instance, _, Q) = Accumulator::prove(&srs, &acc, &instance);
+        let (result_instance, _, Q) = Accumulator::prove(&srs, &beta_scalar, &acc, &instance);
         let Q = Projective::new(Q.x, Q.y, BaseField::ONE);
 
 
@@ -454,9 +461,6 @@ mod tests {
         let acc_circuit = accumulator_instance_to_circuit(acc.instance);
         let result_acc_circuit = accumulator_instance_to_circuit(result_instance);
 
-
-        // a constraint system
-        let cs = ConstraintSystem::<ScalarField>::new_ref();
 
 
         // make a circuit_var
@@ -477,11 +481,6 @@ mod tests {
             || Ok(result_acc_circuit.clone()),
             AllocationMode::Witness,
         ).unwrap();
-
-
-        // the randomness in different formats
-        let beta_scalar = ScalarField::from(2u128);
-        let (beta_base, beta_var, beta_var_non_native) = randomness_different_formats(cs.clone(), beta_scalar);
 
 
         // the shape of the R1CS instance
