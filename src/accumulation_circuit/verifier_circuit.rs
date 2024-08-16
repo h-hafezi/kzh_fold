@@ -520,8 +520,8 @@ mod tests {
 
         let (auxiliary_input_E_1, auxiliary_input_E_1_witness, auxiliary_input_E_1_var) = {
             secondary_circuit_to_r1cs(&pp, cs.clone(), {
-                let g1 = affine_to_projective(acc_instance.instance.E.clone());
-                let g2 = affine_to_projective(acc_running.instance.E.clone());
+                let g1 = affine_to_projective(acc_running.instance.E.clone());
+                let g2 = affine_to_projective(acc_instance.instance.E.clone());
                 // E_temp = beta * acc.E + (1 - beta) * instance.E
                 let g_out = (g1 * beta_scalar) + (g2 * (ScalarField::ONE - beta_scalar));
                 SecondaryCircuit {
@@ -537,14 +537,14 @@ mod tests {
         let (auxiliary_input_E_2, auxiliary_input_E_2_witness, auxiliary_input_E_2_var) = {
             // the circuit
             secondary_circuit_to_r1cs(&pp, cs.clone(), {
-                let g1 = affine_to_projective(acc_instance.instance.E.clone());
-                let g2 = affine_to_projective(acc_running.instance.E.clone());
+                let g1 = affine_to_projective(acc_running.instance.E.clone());
+                let g2 = affine_to_projective(acc_instance.instance.E.clone());
                 // E = E_temp + (beta * (1- beta)) * Q
                 let E_temp = (g1 * beta_scalar) + (g2 * (ScalarField::ONE - beta_scalar));
                 let g_out = E_temp + Q * (beta_scalar * (ScalarField::ONE - beta_scalar));
                 SecondaryCircuit {
-                    g1,
-                    g2,
+                    g1: Q,
+                    g2: E_temp,
                     g_out,
                     r: convert_field_one_to_field_two::<ScalarField, BaseField>(beta_scalar * (ScalarField::ONE - beta_scalar)),
                     flag: true,

@@ -66,7 +66,7 @@ where
 
 pub trait CommitmentScheme<G: CurveGroup>: Send + Sync {
     /// Commitment scheme public parameters.
-    type PP: CanonicalSerialize + CanonicalDeserialize + Sync;
+    type PP: CanonicalSerialize + CanonicalDeserialize + Sync + Clone + Debug + PartialEq + Eq;
 
     /// Auxiliary data used for setup (such as an SRS)
     type SetupAux;
