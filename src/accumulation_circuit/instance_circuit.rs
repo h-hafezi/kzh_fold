@@ -159,6 +159,7 @@ pub mod tests {
     use std::fmt::Debug;
 
     use ark_ec::AffineRepr;
+    use ark_ec::pairing::Pairing;
     use ark_ff::AdditiveGroup;
     use ark_r1cs_std::alloc::{AllocationMode, AllocVar};
     use ark_r1cs_std::R1CSVar;
@@ -173,9 +174,9 @@ pub mod tests {
     fn initialisation_test() {
         // build an instance of AccInstanceCircuit
         let instance = AccInstance::<E> {
-            C: <E as ark_ec::pairing::Pairing>::G1Affine::rand(&mut thread_rng()),
-            T: <E as ark_ec::pairing::Pairing>::G1Affine::rand(&mut thread_rng()),
-            E: <E as ark_ec::pairing::Pairing>::G1Affine::rand(&mut thread_rng()),
+            C: <E as Pairing>::G1Affine::rand(&mut thread_rng()),
+            T: <E as Pairing>::G1Affine::rand(&mut thread_rng()),
+            E: <E as Pairing>::G1Affine::rand(&mut thread_rng()),
             b: ScalarField::rand(&mut thread_rng()),
             c: ScalarField::rand(&mut thread_rng()),
             y: ScalarField::rand(&mut thread_rng()),

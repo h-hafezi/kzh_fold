@@ -5,7 +5,7 @@ use ark_ec::short_weierstrass::{Affine, Projective, SWCurveConfig};
 use ark_ff::Field;
 use ark_ff::PrimeField;
 
-use crate::accumulation::accumulator::{AccSRS, Accumulator, AccumulatorTrait};
+use crate::accumulation::accumulator::{AccInstance, AccSRS, Accumulator, AccumulatorTrait};
 use crate::accumulation_circuit::affine_to_projective;
 use crate::gadgets::non_native::util::convert_field_one_to_field_two;
 use crate::gadgets::r1cs::{R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness};
@@ -31,9 +31,9 @@ where
     pub srs: AccSRS<E>,
 
     /// the instance to be folded
-    pub acc_instance: Accumulator<E>,
+    pub current_acc: Accumulator<E>,
     /// the running accumulator
-    pub acc_running: Accumulator<E>,
+    pub running_acc: Accumulator<E>,
 
     /// running cycle fold instance
     pub shape: R1CSShape<G2>,
@@ -44,6 +44,27 @@ where
     // these are constant values
     pub n: u32,
     pub m: u32,
+}
+
+impl<G1, G2, C2, E> AccumulatorVerifierCircuitProver<G1, G2, C2, E>
+where
+    G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField> + Clone,
+    G1::BaseField: PrimeField,
+    G1::ScalarField: PrimeField,
+    G2: SWCurveConfig,
+    G2::BaseField: PrimeField,
+    C2: CommitmentScheme<Projective<G2>>,
+    E: Pairing<G1Affine=Affine<G1>, ScalarField=G1::ScalarField>,
+{
+    #[inline(always)]
+    pub fn get_current_acc_instance(&self) -> &AccInstance<E> {
+        &self.current_acc.instance
+    }
+
+    #[inline(always)]
+    pub fn get_running_acc_instance(&self) -> &AccInstance<E> {
+        &self.running_acc.instance
+    }
 }
 
 
@@ -71,6 +92,8 @@ where
 
     fn compute_proof_Q(&self) -> Projective<G1>;
 
+    fn compute_result_accumulator_instance(&self) -> AccInstance<E>;
+
     fn compute_cycle_fold_proofs(&self) -> (C2::Commitment, C2::Commitment, C2::Commitment, C2::Commitment);
 }
 
@@ -91,8 +114,8 @@ where
     where
         <G2 as CurveConfig>::ScalarField: Absorb,
     {
-        assert!(Accumulator::decide(&self.srs, &self.acc_running));
-        assert!(Accumulator::decide(&self.srs, &self.acc_instance));
+        assert!(Accumulator::decide(&self.srs, &self.running_acc));
+        assert!(Accumulator::decide(&self.srs, &self.current_acc));
         self.shape.is_relaxed_satisfied(
             &self.cycle_fold_running_instance,
             &self.cycle_fold_running_witness,
@@ -101,9 +124,9 @@ where
     }
 
     fn compute_auxiliary_input_C(&self) -> (R1CSInstance<G2, C2>, R1CSWitness<G2>) {
-        let g1 = affine_to_projective(self.acc_running.instance.C.clone());
-        let g2 = affine_to_projective(self.acc_instance.instance.C.clone());
-        // C'' = beta * acc.C + (1 - beta) * instance.C
+        let g1 = affine_to_projective(self.running_acc.instance.C.clone());
+        let g2 = affine_to_projective(self.current_acc.instance.C.clone());
+        // C'' = beta * acc_running.instance.C + (1 - beta) * acc_instance.instance.C
         let g_out = (g1 * self.beta) + (g2 * (G1::ScalarField::ONE - self.beta));
         synthesize::<G1, G2, C2>(SecondaryCircuit {
             g1,
@@ -115,9 +138,9 @@ where
     }
 
     fn compute_auxiliary_input_T(&self) -> (R1CSInstance<G2, C2>, R1CSWitness<G2>) {
-        let g1 = affine_to_projective(self.acc_running.instance.T.clone());
-        let g2 = affine_to_projective(self.acc_instance.instance.T.clone());
-        // T'' = beta * acc.T + (1 - beta) * instance.T
+        let g1 = affine_to_projective(self.running_acc.instance.T.clone());
+        let g2 = affine_to_projective(self.current_acc.instance.T.clone());
+        // T'' = beta * acc_running.instance.T + (1 - beta) * acc_instance.instance.T
         let g_out = (g1 * self.beta) + (g2 * (G1::ScalarField::ONE - self.beta));
         synthesize::<G1, G2, C2>(SecondaryCircuit {
             g1,
@@ -129,9 +152,9 @@ where
     }
 
     fn compute_auxiliary_input_E_1(&self) -> (R1CSInstance<G2, C2>, R1CSWitness<G2>) {
-        let g1 = affine_to_projective(self.acc_running.instance.E.clone());
-        let g2 = affine_to_projective(self.acc_instance.instance.E.clone());
-        // E_temp = beta * acc.E + (1 - beta) * instance.E
+        let g1 = affine_to_projective(self.running_acc.instance.E.clone());
+        let g2 = affine_to_projective(self.current_acc.instance.E.clone());
+        // E_temp = beta * acc_running.instance.E + (1 - beta) * acc_instance.instance.E
         let g_out = (g1 * self.beta) + (g2 * (G1::ScalarField::ONE - self.beta));
         synthesize::<G1, G2, C2>(SecondaryCircuit {
             g1,
@@ -143,8 +166,8 @@ where
     }
 
     fn compute_auxiliary_input_E_2(&self) -> (R1CSInstance<G2, C2>, R1CSWitness<G2>) {
-        let e1 = affine_to_projective(self.acc_running.instance.E.clone());
-        let e2 = affine_to_projective(self.acc_instance.instance.E.clone());
+        let e1 = affine_to_projective(self.running_acc.instance.E.clone());
+        let e2 = affine_to_projective(self.current_acc.instance.E.clone());
         // E_temp = beta * e1 + (1 - beta) * e2
         let E_temp = (e1 * self.beta) + (e2 * (G1::ScalarField::ONE - self.beta));
         let Q = self.compute_proof_Q();
@@ -160,7 +183,11 @@ where
 
     fn compute_proof_Q(&self) -> Projective<G1> {
         // since acc_instance takes (1- beta) then it should be first in the function argument
-        affine_to_projective(Accumulator::prove(&self.srs, &self.beta, &self.acc_instance, &self.acc_running).2)
+        affine_to_projective(Accumulator::prove(&self.srs, &self.beta, &self.current_acc, &self.running_acc).2)
+    }
+
+    fn compute_result_accumulator_instance(&self) -> AccInstance<E> {
+        Accumulator::prove(&self.srs, &self.beta, &self.current_acc, &self.running_acc).0
     }
 
     fn compute_cycle_fold_proofs(&self) -> (C2::Commitment, C2::Commitment, C2::Commitment, C2::Commitment) {
@@ -247,7 +274,7 @@ where
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use ark_ec::CurveConfig;
     use ark_ff::Field;
     use ark_std::UniformRand;
@@ -293,8 +320,8 @@ mod tests {
         AccumulatorVerifierCircuitProver {
             beta,
             srs,
-            acc_instance,
-            acc_running,
+            current_acc: acc_instance,
+            running_acc: acc_running,
             shape,
             commitment_pp,
             cycle_fold_running_instance,
@@ -317,12 +344,12 @@ mod tests {
         let secondary_circuit = r1cs_instance.parse_secondary_io().unwrap();
 
         // get the accumulated result
-        let new_acc_instance = Accumulator::prove(&prover.srs, &prover.beta, &prover.acc_instance, &prover.acc_running).0;
+        let new_acc_instance = Accumulator::prove(&prover.srs, &prover.beta, &prover.current_acc, &prover.running_acc).0;
 
         assert_eq!(secondary_circuit.r, convert_field_one_to_field_two::<ScalarField, BaseField>(prover.beta));
         assert_eq!(secondary_circuit.flag, false);
-        assert_eq!(secondary_circuit.g1, prover.acc_running.instance.C);
-        assert_eq!(secondary_circuit.g2, prover.acc_instance.instance.C);
+        assert_eq!(secondary_circuit.g1, prover.running_acc.instance.C);
+        assert_eq!(secondary_circuit.g2, prover.current_acc.instance.C);
         assert_eq!(secondary_circuit.g_out, new_acc_instance.C);
     }
 
@@ -333,12 +360,12 @@ mod tests {
         let secondary_circuit = r1cs_instance.parse_secondary_io().unwrap();
 
         // get the accumulated result
-        let new_acc_instance = Accumulator::prove(&prover.srs, &prover.beta, &prover.acc_instance, &prover.acc_running).0;
+        let new_acc_instance = Accumulator::prove(&prover.srs, &prover.beta, &prover.current_acc, &prover.running_acc).0;
 
         assert_eq!(secondary_circuit.r, convert_field_one_to_field_two::<ScalarField, BaseField>(prover.beta));
         assert_eq!(secondary_circuit.flag, false);
-        assert_eq!(secondary_circuit.g1, prover.acc_running.instance.T);
-        assert_eq!(secondary_circuit.g2, prover.acc_instance.instance.T);
+        assert_eq!(secondary_circuit.g1, prover.running_acc.instance.T);
+        assert_eq!(secondary_circuit.g2, prover.current_acc.instance.T);
         assert_eq!(secondary_circuit.g_out, new_acc_instance.T);
     }
 
@@ -356,7 +383,7 @@ mod tests {
         let Q = prover.compute_proof_Q();
 
         // get the accumulated result
-        let new_acc_instance = Accumulator::prove(&prover.srs, &prover.beta, &prover.acc_instance, &prover.acc_running).0;
+        let new_acc_instance = Accumulator::prove(&prover.srs, &prover.beta, &prover.current_acc, &prover.running_acc).0;
 
         // checking correctness of flags
         assert_eq!(secondary_circuit_E_1.flag, false);
@@ -370,8 +397,8 @@ mod tests {
         assert_eq!(secondary_circuit_E_1.g_out, secondary_circuit_E_2.g2);
 
         // check input to the first circuit is correct
-        assert_eq!(secondary_circuit_E_1.g1, prover.acc_running.instance.E);
-        assert_eq!(secondary_circuit_E_1.g2, prover.acc_instance.instance.E);
+        assert_eq!(secondary_circuit_E_1.g1, prover.running_acc.instance.E);
+        assert_eq!(secondary_circuit_E_1.g2, prover.current_acc.instance.E);
 
         // check input to the first circuit is correct
         assert_eq!(secondary_circuit_E_2.g1, Q);
