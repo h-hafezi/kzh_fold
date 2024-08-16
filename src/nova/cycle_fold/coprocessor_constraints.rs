@@ -356,7 +356,7 @@ where
     G2::BaseField: PrimeField,
     C2: CommitmentScheme<Projective<G2>>,
 {
-    pub(super) fn fold(
+    pub fn fold(
         &self,
         instances: &[(
             (
@@ -379,7 +379,6 @@ where
         for ((U, comm_E), commitment_T, r, r_bits) in instances {
             commitment_W += U.commitment_W.scalar_mul_le(r_bits.iter())?;
             commitment_E += commitment_T.scalar_mul_le(r_bits.iter())?;
-
             for (x1, x2) in X.iter_mut().zip(&U.X) {
                 *x1 += x2.mul_without_reduce(r)?;
             }

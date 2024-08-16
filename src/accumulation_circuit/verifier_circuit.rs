@@ -54,18 +54,25 @@ where
     /// auxiliary input which helps to have E'' = E_{temp} + beta * (1-beta) * Q without scalar multiplication
     pub auxiliary_input_E_2: R1CSInstance<G2, C2>,
 
-    /// accumulation proof
+    /// accumulation proof for accumulators
     pub Q: Projective<G1>,
 
+    /// accumulation proof for cycle fold (this is also the order of accumulating with cycle_fold_running_instance)
+    pub com_C: Projective<G2>,
+    pub com_T: Projective<G2>,
+    pub com_E_1: Projective<G2>,
+    pub com_E_2: Projective<G2>,
+
     /// the instance to be folded
-    pub current_acc: AccInstance<E>,
+    pub current_accumulator_instance: AccInstance<E>,
     /// the running accumulator
-    pub running_acc: AccInstance<E>,
+    pub running_accumulator_instance: AccInstance<E>,
     /// the result accumulator
-    pub resulted_acc: AccInstance<E>,
+    pub final_accumulator_instance: AccInstance<E>,
 
     /// running cycle fold instance
-    pub cycle_fold_running_instance: RelaxedR1CSInstance<G2, C2>,
+    pub running_cycle_fold_instance: RelaxedR1CSInstance<G2, C2>,
+    pub final_cycle_fold_instance: RelaxedR1CSInstance<G2, C2>,
 
     // these are constant values
     pub n: u32,
@@ -100,11 +107,18 @@ where
     /// accumulation proof
     pub Q_var: NonNativeAffineVar<G1>,
 
-    pub current_acc_var: AccumulatorInstanceVar<G1>,
-    pub running_acc_var: AccumulatorInstanceVar<G1>,
-    pub resulted_acc_var: AccumulatorInstanceVar<G1>,
+    /// accumulation proof for cycle fold (this is also the order of accumulating with cycle_fold_running_instance)
+    pub com_C_var: ProjectiveVar<G2, FpVar<G2::BaseField>>,
+    pub com_T_var: ProjectiveVar<G2, FpVar<G2::BaseField>>,
+    pub com_E_1_var: ProjectiveVar<G2, FpVar<G2::BaseField>>,
+    pub com_E_2_var: ProjectiveVar<G2, FpVar<G2::BaseField>>,
 
-    pub cycle_fold_running_instance_var: RelaxedR1CSInstanceVar<G2, C2>,
+    pub current_accumulator_instance_var: AccumulatorInstanceVar<G1>,
+    pub running_accumulator_instance_var: AccumulatorInstanceVar<G1>,
+    pub final_accumulator_instance_var: AccumulatorInstanceVar<G1>,
+
+    pub running_cycle_fold_instance_var: RelaxedR1CSInstanceVar<G2, C2>,
+    pub final_cycle_fold_instance_var: RelaxedR1CSInstanceVar<G2, C2>,
 
     // these are constant values
     pub n: u32,
@@ -129,6 +143,7 @@ where
         let res = f();
         let circuit = res.as_ref().map(|e| e.borrow()).map_err(|err| *err);
 
+        // auxiliary inputs
         let auxiliary_input_C_var = R1CSInstanceVar::new_variable(
             ns!(cs, "auxiliary_input_C"),
             || Ok(circuit.map(|e| e.auxiliary_input_C.clone()).unwrap()),
@@ -154,32 +169,41 @@ where
         ).unwrap();
 
 
-        let current_acc_var = AccumulatorInstanceVar::new_variable(
+        // accumulator instances
+        let current_accumulator_instance_var = AccumulatorInstanceVar::new_variable(
             ns!(cs, "instance"),
-            || circuit.map(|e| e.current_acc.clone()),
+            || circuit.map(|e| e.current_accumulator_instance.clone()),
             mode,
         ).unwrap();
 
-        let running_acc_var = AccumulatorInstanceVar::new_variable(
+        let running_accumulator_instance_var = AccumulatorInstanceVar::new_variable(
             ns!(cs, "acc"),
-            || circuit.map(|e| e.running_acc.clone()),
+            || circuit.map(|e| e.running_accumulator_instance.clone()),
             mode,
         ).unwrap();
 
-        let resulted_acc_var = AccumulatorInstanceVar::new_variable(
+        let final_accumulator_instance_var = AccumulatorInstanceVar::new_variable(
             ns!(cs, "result acc"),
-            || circuit.map(|e| e.resulted_acc.clone()),
+            || circuit.map(|e| e.final_accumulator_instance.clone()),
             mode,
         ).unwrap();
 
 
-        let cycle_fold_running_instance_var = RelaxedR1CSInstanceVar::new_variable(
+        // cycle fold instances
+        let running_cycle_fold_instance_var = RelaxedR1CSInstanceVar::new_variable(
             ns!(cs, "cycle fold running instance"),
-            || circuit.map(|e| e.cycle_fold_running_instance.clone()),
+            || circuit.map(|e| e.running_cycle_fold_instance.clone()),
+            mode,
+        ).unwrap();
+
+        let final_cycle_fold_instance_var = RelaxedR1CSInstanceVar::new_variable(
+            ns!(cs, "cycle fold running instance"),
+            || circuit.map(|e| e.final_cycle_fold_instance.clone()),
             mode,
         ).unwrap();
 
 
+        // randomness variables
         let beta_var = FpVar::new_variable(
             ns!(cs, "beta"),
             || circuit.map(|e| e.beta.clone()),
@@ -193,9 +217,34 @@ where
         ).unwrap();
 
 
+        // folding proofs for cycle fold and accumulator
         let Q_var = NonNativeAffineVar::new_variable(
             ns!(cs, "Q"),
             || circuit.map(|e| e.Q),
+            mode,
+        ).unwrap();
+
+        let com_C_var = ProjectiveVar::new_variable(
+            ns!(cs, "cycle fold running instance"),
+            || circuit.map(|e| e.com_C.clone()),
+            mode,
+        ).unwrap();
+
+        let com_T_var = ProjectiveVar::new_variable(
+            ns!(cs, "cycle fold running instance"),
+            || circuit.map(|e| e.com_T.clone()),
+            mode,
+        ).unwrap();
+
+        let com_E_1_var = ProjectiveVar::new_variable(
+            ns!(cs, "cycle fold running instance"),
+            || circuit.map(|e| e.com_E_1.clone()),
+            mode,
+        ).unwrap();
+
+        let com_E_2_var = ProjectiveVar::new_variable(
+            ns!(cs, "cycle fold running instance"),
+            || circuit.map(|e| e.com_E_2.clone()),
             mode,
         ).unwrap();
 
@@ -208,10 +257,15 @@ where
             beta_var,
             beta_var_non_native,
             Q_var,
-            current_acc_var,
-            running_acc_var,
-            resulted_acc_var,
-            cycle_fold_running_instance_var,
+            com_C_var,
+            com_T_var,
+            com_E_1_var,
+            com_E_2_var,
+            current_accumulator_instance_var,
+            running_accumulator_instance_var,
+            final_accumulator_instance_var,
+            running_cycle_fold_instance_var,
+            final_cycle_fold_instance_var,
             n: circuit.map(|e| e.n).unwrap(),
             m: circuit.map(|e| e.m).unwrap(),
         })
@@ -233,6 +287,7 @@ where
         // checking beta and non_native beta are consistent
         let beta_ = non_native_to_fpvar(&self.beta_var_non_native);
         self.beta_var.enforce_equal(&beta_).expect("error while enforcing equality");
+        let beta_bits = self.beta_var_non_native.to_bits_le().unwrap();
 
         // todo: compute Poseidon hash and make sure it's consistent with input beta
 
@@ -243,17 +298,17 @@ where
             g1,
             g2,
             C_var
-        ) = self.auxiliary_input_C_var.parse_secondary_io().unwrap();
+        ) = self.auxiliary_input_C_var.parse_secondary_io::<G1>().unwrap();
         // g1 == acc.C
-        self.running_acc_var.C_var.enforce_equal(&g1).expect("error while enforcing equality");
+        self.running_accumulator_instance_var.C_var.enforce_equal(&g1).expect("error while enforcing equality");
         // g2 == instance.C
-        self.current_acc_var.C_var.enforce_equal(&g2).expect("error while enforcing equality");
+        self.current_accumulator_instance_var.C_var.enforce_equal(&g2).expect("error while enforcing equality");
         // enforce flag to be false
         flag.enforce_equal(&NonNativeFieldVar::zero()).expect("error while enforcing equality");
         // check r to be equal to beta
         r.enforce_equal(&self.beta_var_non_native).expect("error while enforcing equality");
         // check out the result C_var is consistent with result_acc
-        C_var.enforce_equal(&self.resulted_acc_var.C_var).expect("error while enforcing equality");
+        C_var.enforce_equal(&self.final_accumulator_instance_var.C_var).expect("error while enforcing equality");
 
 
         // Non-native scalar multiplication: linear combination of T
@@ -262,17 +317,17 @@ where
             g1,
             g2,
             T_var
-        ) = self.auxiliary_input_T_var.parse_secondary_io().unwrap();
+        ) = self.auxiliary_input_T_var.parse_secondary_io::<G1>().unwrap();
         // g1 == acc.T
-        self.running_acc_var.T_var.enforce_equal(&g1).expect("error while enforcing equality");
+        self.running_accumulator_instance_var.T_var.enforce_equal(&g1).expect("error while enforcing equality");
         // g2 == instance.C
-        self.current_acc_var.T_var.enforce_equal(&g2).expect("error while enforcing equality");
+        self.current_accumulator_instance_var.T_var.enforce_equal(&g2).expect("error while enforcing equality");
         // enforce flag to be false
         flag.enforce_equal(&NonNativeFieldVar::zero()).expect("error while enforcing equality");
         // check r to be equal to beta
         r.enforce_equal(&self.beta_var_non_native).expect("error while enforcing equality");
         // check out the result T_var is consistent with result_acc
-        T_var.enforce_equal(&self.resulted_acc_var.T_var).expect("error while enforcing equality");
+        T_var.enforce_equal(&self.final_accumulator_instance_var.T_var).expect("error while enforcing equality");
 
 
         // Non-native scalar multiplication: linear combination E_temp = (instance.E * (1-beta) + acc.E * beta)
@@ -281,11 +336,11 @@ where
             g1,
             g2,
             E_temp
-        ) = self.auxiliary_input_E_1_var.parse_secondary_io().unwrap();
+        ) = self.auxiliary_input_E_1_var.parse_secondary_io::<G1>().unwrap();
         // g1 == acc.E
-        self.running_acc_var.E_var.enforce_equal(&g1).expect("error while enforcing equality");
+        self.running_accumulator_instance_var.E_var.enforce_equal(&g1).expect("error while enforcing equality");
         // g2 == instance.E
-        self.current_acc_var.E_var.enforce_equal(&g2).expect("error while enforcing equality");
+        self.current_accumulator_instance_var.E_var.enforce_equal(&g2).expect("error while enforcing equality");
         // enforce flag to be false
         flag.enforce_equal(&NonNativeFieldVar::zero()).expect("error while enforcing equality");
         // check r to be equal to beta
@@ -298,7 +353,7 @@ where
             g1,
             g2,
             E_var
-        ) = self.auxiliary_input_E_2_var.parse_secondary_io().unwrap();
+        ) = self.auxiliary_input_E_2_var.parse_secondary_io::<G1>().unwrap();
         // g1 == Q
         g1.enforce_equal(&self.Q_var).expect("error while enforcing equality");
         // g2 == E_temp
@@ -306,58 +361,70 @@ where
         // enforce flag to be true
         flag.enforce_equal(&NonNativeFieldVar::one()).expect("error while enforcing equality");
         // check r to be equal to beta
-        let beta_times_beta_minus_one = self.beta_var_non_native.clone() * (NonNativeFieldVar::one() - self.beta_var_non_native.clone());
-        r.enforce_equal(&beta_times_beta_minus_one).expect("error while enforcing equality");
+        let beta_times_beta_minus_one = self.beta_var_non_native.clone() - self.beta_var_non_native.square().unwrap();
+        //r.enforce_equal(&beta_times_beta_minus_one).expect("error while enforcing equality");
         // check out the result E_var is consistent with result_acc
-        E_var.enforce_equal(&self.resulted_acc_var.E_var).expect("error while enforcing equality");
+       E_var.enforce_equal(&self.final_accumulator_instance_var.E_var).expect("error while enforcing equality");
 
 
         let beta_minus_one = FpVar::<G1::ScalarField>::one() - &self.beta_var;
 
         // Native field operation: linear combination of b
-        let b_var = &self.beta_var * &self.running_acc_var.b_var + &beta_minus_one * &self.current_acc_var.b_var;
+        let b_var = &self.beta_var * &self.running_accumulator_instance_var.b_var + &beta_minus_one * &self.current_accumulator_instance_var.b_var;
         // check out the result b_var is consistent with result_acc
-        b_var.enforce_equal(&self.resulted_acc_var.b_var).expect("error while enforcing equality");
+        b_var.enforce_equal(&self.final_accumulator_instance_var.b_var).expect("error while enforcing equality");
 
 
         // Native field operation: linear combination of c
-        let c_var = &self.beta_var * &self.running_acc_var.c_var + &beta_minus_one * &self.current_acc_var.c_var;
+        let c_var = &self.beta_var * &self.running_accumulator_instance_var.c_var + &beta_minus_one * &self.current_accumulator_instance_var.c_var;
         // check out the result c_var is consistent with result_acc
-        c_var.enforce_equal(&self.resulted_acc_var.c_var).expect("error while enforcing equality");
+        c_var.enforce_equal(&self.final_accumulator_instance_var.c_var).expect("error while enforcing equality");
 
 
         // Native field operation: linear combination of y
-        let y_var = &self.beta_var * &self.running_acc_var.y_var + &beta_minus_one * &self.current_acc_var.y_var;
+        let y_var = &self.beta_var * &self.running_accumulator_instance_var.y_var + &beta_minus_one * &self.current_accumulator_instance_var.y_var;
         // check out the result y_var is consistent with result_acc
-        y_var.enforce_equal(&self.resulted_acc_var.y_var).expect("error while enforcing equality");
+        y_var.enforce_equal(&self.final_accumulator_instance_var.y_var).expect("error while enforcing equality");
 
 
         // Native field operation: linear combination of z_b
-        let z_b_var = &self.beta_var * &self.running_acc_var.z_b_var + &beta_minus_one * &self.current_acc_var.z_b_var;
+        let z_b_var = &self.beta_var * &self.running_accumulator_instance_var.z_b_var + &beta_minus_one * &self.current_accumulator_instance_var.z_b_var;
         // check out the result z_b_var is consistent with result_acc
-        z_b_var.enforce_equal(&self.resulted_acc_var.z_b_var).expect("error while enforcing equality");
+        z_b_var.enforce_equal(&self.final_accumulator_instance_var.z_b_var).expect("error while enforcing equality");
 
 
         // Native field operation: linear combination of z_c
-        let z_c_var = &self.beta_var * &self.running_acc_var.z_c_var + &beta_minus_one * &self.current_acc_var.z_c_var;
+        let z_c_var = &self.beta_var * &self.running_accumulator_instance_var.z_c_var + &beta_minus_one * &self.current_accumulator_instance_var.z_c_var;
         // check out the result z_c_var is consistent with result_acc
-        z_c_var.enforce_equal(&self.resulted_acc_var.z_c_var).expect("error while enforcing equality");
+        z_c_var.enforce_equal(&self.final_accumulator_instance_var.z_c_var).expect("error while enforcing equality");
 
 
         // Native field operation: equality assertion that z_b = b^n-1 for the first instance
         let n = BigInteger64::from(self.n);
-        let z_b_ = self.running_acc_var.b_var.pow_by_constant(n.as_ref()).expect("error while enforcing equality");
+        let z_b_ = self.running_accumulator_instance_var.b_var.pow_by_constant(n.as_ref()).expect("error while enforcing equality");
 
 
         // Native field operation: equality assertion that z_c = c^m-1 for the first instance
         let m = BigInteger64::from(self.m);
-        let z_c_ = self.running_acc_var.c_var.pow_by_constant(m.as_ref()).expect("error while enforcing equality");
+        let z_c_ = self.running_accumulator_instance_var.c_var.pow_by_constant(m.as_ref()).expect("error while enforcing equality");
 
 
         // Conditional check: if instance.E_var == 0, then enforce z_b_ == instance.z_b_var and z_c_ == instance.z_c_var
-        let is_E_zero = &self.current_acc_var.E_var.infinity.clone();
-        z_b_.conditional_enforce_equal(&self.current_acc_var.z_b_var, is_E_zero).expect("error while enforcing z_b equality under condition");
-        z_c_.conditional_enforce_equal(&self.current_acc_var.z_c_var, is_E_zero).expect("error while enforcing z_c equality under condition");
+        let is_E_zero = &self.current_accumulator_instance_var.E_var.infinity.clone();
+        z_b_.conditional_enforce_equal(&self.current_accumulator_instance_var.z_b_var, is_E_zero).expect("error while enforcing z_b equality under condition");
+        z_c_.conditional_enforce_equal(&self.current_accumulator_instance_var.z_c_var, is_E_zero).expect("error while enforcing z_c equality under condition");
+
+        let final_instance = self.running_cycle_fold_instance_var.fold(
+            &[((&self.auxiliary_input_C_var, None), &self.com_C_var, &self.beta_var_non_native, &beta_bits),
+                ((&self.auxiliary_input_T_var, None), &self.com_T_var, &self.beta_var_non_native, &beta_bits),
+                ((&self.auxiliary_input_E_1_var, None), &self.com_E_1_var, &self.beta_var_non_native, &beta_bits),
+                ((&self.auxiliary_input_E_2_var, None), &self.com_E_2_var, &self.beta_var_non_native, &beta_bits),
+            ]
+        ).unwrap();
+        self.final_cycle_fold_instance_var.X.enforce_equal(&final_instance.X).expect("TODO: panic message");
+        self.final_cycle_fold_instance_var.commitment_E.enforce_equal(&final_instance.commitment_E).expect("TODO: panic message");
+        self.final_cycle_fold_instance_var.commitment_W.enforce_equal(&final_instance.commitment_W).expect("TODO: panic message");
+
     }
 }
 
@@ -369,6 +436,8 @@ mod tests {
     use ark_r1cs_std::alloc::{AllocationMode, AllocVar};
     use ark_r1cs_std::fields::fp::FpVar;
     use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
+    use ark_r1cs_std::groups::curves::short_weierstrass::ProjectiveVar;
+    use ark_relations::ns;
     use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
 
     use crate::accumulation_circuit::instance_circuit::AccumulatorInstanceVar;
@@ -391,12 +460,12 @@ mod tests {
     ) {
         let beta_base = convert_field_one_to_field_two::<ScalarField, BaseField>(beta);
         let beta_var = FpVar::new_variable(
-            cs.clone(),
+            ns!(cs, "beta var"),
             || Ok(beta.clone()),
             AllocationMode::Witness,
         ).unwrap();
         let beta_var_non_native = NonNativeFieldVar::new_variable(
-            cs.clone(),
+            ns!(cs, "beta var non-native"),
             || Ok(beta_base.clone()),
             AllocationMode::Witness,
         ).unwrap();
@@ -417,20 +486,20 @@ mod tests {
 
 
         // initialise accumulator variables
-        let current_acc_var = AccumulatorInstanceVar::new_variable(
-            cs.clone(),
+        let current_accumulator_instance_var = AccumulatorInstanceVar::new_variable(
+            ns!(cs, "current accumulator instance var"),
             || Ok(prover.get_current_acc_instance().clone()),
             AllocationMode::Witness,
         ).unwrap();
 
-        let running_acc_var = AccumulatorInstanceVar::new_variable(
-            cs.clone(),
+        let running_accumulator_instance_var = AccumulatorInstanceVar::new_variable(
+            ns!(cs, "running accumulator instance var"),
             || Ok(prover.get_running_acc_instance().clone()),
             AllocationMode::Witness,
         ).unwrap();
 
-        let resulted_acc_var = AccumulatorInstanceVar::new_variable(
-            cs.clone(),
+        let final_accumulator_instance_var = AccumulatorInstanceVar::new_variable(
+            ns!(cs, "final accumulator instance var"),
             || Ok(prover.compute_result_accumulator_instance()),
             AllocationMode::Witness,
         ).unwrap();
@@ -438,25 +507,25 @@ mod tests {
 
         // initialise auxiliary input variables
         let auxiliary_input_C_var = R1CSInstanceVar::new_variable(
-            cs.clone(),
+            ns!(cs, "auxiliary input C var"),
             || Ok(prover.compute_auxiliary_input_C().0),
             AllocationMode::Witness,
         ).unwrap();
 
         let auxiliary_input_T_var = R1CSInstanceVar::new_variable(
-            cs.clone(),
+            ns!(cs, "auxiliary input T var"),
             || Ok(prover.compute_auxiliary_input_T().0),
             AllocationMode::Witness,
         ).unwrap();
 
         let auxiliary_input_E_1_var = R1CSInstanceVar::new_variable(
-            cs.clone(),
+            ns!(cs, "auxiliary input E_1 var"),
             || Ok(prover.compute_auxiliary_input_E_1().0),
             AllocationMode::Witness,
         ).unwrap();
 
         let auxiliary_input_E_2_var = R1CSInstanceVar::new_variable(
-            cs.clone(),
+            ns!(cs, "auxiliary input E_2 var"),
             || Ok(prover.compute_auxiliary_input_E_2().0),
             AllocationMode::Witness,
         ).unwrap();
@@ -464,16 +533,49 @@ mod tests {
 
         // initialise Q variables
         let Q_var = NonNativeAffineVar::new_variable(
-            cs.clone(),
+            ns!(cs, "Q var"),
             || Ok(prover.compute_proof_Q()),
+            AllocationMode::Witness,
+        ).unwrap();
+
+        let cycle_fold_proof = prover.compute_cycle_fold_proofs_and_final_instance();
+
+        let com_C_var = ProjectiveVar::new_variable(
+            ns!(cs, "com_C_var"),
+            || Ok(cycle_fold_proof.0),
+            AllocationMode::Witness,
+        ).unwrap();
+
+        let com_T_var = ProjectiveVar::new_variable(
+            ns!(cs, "com_T_var"),
+            || Ok(cycle_fold_proof.1),
+            AllocationMode::Witness,
+        ).unwrap();
+
+        let com_E_1_var = ProjectiveVar::new_variable(
+            ns!(cs, "com_E_1_var"),
+            || Ok(cycle_fold_proof.2),
+            AllocationMode::Witness,
+        ).unwrap();
+
+        let com_E_2_var = ProjectiveVar::new_variable(
+            ns!(cs, "com_E_2_var"),
+            || Ok(cycle_fold_proof.3),
             AllocationMode::Witness,
         ).unwrap();
 
 
         // initialise cycle fold running instance var
-        let cycle_fold_running_instance_var = RelaxedR1CSInstanceVar::new_variable(
-            cs.clone(),
-            || Ok(prover.cycle_fold_running_instance),
+        let running_cycle_fold_instance_var = RelaxedR1CSInstanceVar::new_variable(
+            ns!(cs, "running cycle fold instance var"),
+            || Ok(prover.running_cycle_fold_instance),
+            AllocationMode::Witness,
+        ).unwrap();
+
+        // initialise cycle fold running instance var
+        let final_cycle_fold_instance_var = RelaxedR1CSInstanceVar::new_variable(
+            ns!(cs, "final cycle fold instance var"),
+            || Ok(cycle_fold_proof.4),
             AllocationMode::Witness,
         ).unwrap();
 
@@ -486,14 +588,21 @@ mod tests {
             beta_var,
             beta_var_non_native,
             Q_var,
-            current_acc_var,
-            running_acc_var,
-            resulted_acc_var,
-            cycle_fold_running_instance_var,
+            com_C_var,
+            com_T_var,
+            com_E_1_var,
+            com_E_2_var,
+            current_accumulator_instance_var,
+            running_accumulator_instance_var,
+            final_accumulator_instance_var,
+            running_cycle_fold_instance_var,
+            final_cycle_fold_instance_var,
             n: prover.n,
             m: prover.m,
         };
 
+        println!("number of constraint for initialisation: {}", cs.num_constraints());
+        verifier.accumulate();
         println!("number of constraint for initialisation: {}", cs.num_constraints());
         assert!(cs.is_satisfied().unwrap())
     }
