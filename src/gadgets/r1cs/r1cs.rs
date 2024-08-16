@@ -132,8 +132,6 @@ impl<G: CurveGroup> R1CSShape<G> {
         W: &R1CSWitness<G>,
         pp: &C::PP,
     ) -> Result<(), Error> {
-        println!("1= {} {}", W.W.len(), self.num_vars);
-        println!("2= {} {}", U.X.len(), self.num_io);
         assert_eq!(W.W.len(), self.num_vars);
         assert_eq!(U.X.len(), self.num_io);
 
@@ -148,7 +146,6 @@ impl<G: CurveGroup> R1CSShape<G> {
         }
 
         if U.commitment_W != C::commit(pp, &W.W) {
-            println!("here2");
             return Err(Error::NotSatisfied);
         }
 

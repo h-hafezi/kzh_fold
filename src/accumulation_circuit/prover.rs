@@ -71,7 +71,7 @@ where
 
     fn compute_proof_Q(&self) -> Projective<G1>;
 
-    fn compute_cycle_fold_proofs(&self) -> (Projective<G2>, Projective<G2>, Projective<G2>, Projective<G2>);
+    fn compute_cycle_fold_proofs(&self) -> (C2::Commitment, C2::Commitment, C2::Commitment, C2::Commitment);
 }
 
 impl<G1, G2, C2, E> AccumulatorVerifierCircuitProverTrait<G1, G2, C2, E> for AccumulatorVerifierCircuitProver<G1, G2, C2, E>
@@ -169,7 +169,7 @@ where
              running_instance: &RelaxedR1CSInstance<G2, C2>,
              witness: &R1CSWitness<G2>,
              instance: &R1CSInstance<G2, C2>,
-             beta: &G1::ScalarField,
+             beta: &G2::ScalarField,
             | -> (C2::Commitment, RelaxedR1CSWitness<G2>, RelaxedR1CSInstance<G2, C2>) {
                 let (T, com_T) = commit_T(
                     &self.shape,
@@ -187,6 +187,8 @@ where
                 (com_T, new_running_witness, new_running_instance)
             };
 
+        let beta_non_native = convert_field_one_to_field_two::<G1::ScalarField, G1::BaseField>(self.beta);
+
         // first fold auxiliary_input_C with the running instance
         let (instance_C, witness_C) = self.compute_auxiliary_input_C();
         let (com_C, new_running_witness, new_running_instance) = compute_commit_and_fold(
@@ -194,8 +196,12 @@ where
             &self.cycle_fold_running_instance,
             &witness_C,
             &instance_C,
-            &self.beta,
+            &beta_non_native,
         );
+
+        self.shape.is_satisfied(&instance_C, &witness_C, &self.commitment_pp).unwrap();
+        self.shape.is_relaxed_satisfied(&new_running_instance, &new_running_witness, &self.commitment_pp).unwrap();
+
 
         // first fold auxiliary_input_T with the running instance
         let (instance_T, witness_T) = self.compute_auxiliary_input_T();
@@ -204,8 +210,11 @@ where
             &new_running_instance,
             &witness_T,
             &instance_T,
-            &self.beta,
+            &beta_non_native,
         );
+
+        self.shape.is_satisfied(&instance_T, &witness_T, &self.commitment_pp).unwrap();
+        self.shape.is_relaxed_satisfied(&new_running_instance, &new_running_witness, &self.commitment_pp).unwrap();
 
         // first fold auxiliary_input_E_1 with the running instance
         let (instance_E_1, witness_E_1) = self.compute_auxiliary_input_E_1();
@@ -214,8 +223,11 @@ where
             &new_running_instance,
             &witness_E_1,
             &instance_E_1,
-            &self.beta,
+            &beta_non_native,
         );
+
+        self.shape.is_satisfied(&instance_E_1, &witness_E_1, &self.commitment_pp).unwrap();
+        self.shape.is_relaxed_satisfied(&new_running_instance, &new_running_witness, &self.commitment_pp).unwrap();
 
         // first fold auxiliary_input_E_1 with the running instance
         let (instance_E_2, witness_E_2) = self.compute_auxiliary_input_E_2();
@@ -224,8 +236,11 @@ where
             &new_running_instance,
             &witness_E_2,
             &instance_E_2,
-            &self.beta,
+            &beta_non_native,
         );
+
+        self.shape.is_satisfied(&instance_E_2, &witness_E_2, &self.commitment_pp).unwrap();
+        self.shape.is_relaxed_satisfied(&new_running_instance, &new_running_witness, &self.commitment_pp).unwrap();
 
         (com_C, com_T, com_E_1, com_E_2)
     }
@@ -288,6 +303,7 @@ mod tests {
             m: m as u32,
         }
     }
+
     #[test]
     pub fn random_instance_is_satisfying() {
         let p = get_random_prover();
@@ -359,5 +375,11 @@ mod tests {
 
         // check input to the first circuit is correct
         assert_eq!(secondary_circuit_E_2.g1, Q);
+    }
+
+    #[test]
+    pub fn compute_cycle_fold_proofs_correctness() {
+        let p = get_random_prover();
+        let _ = p.compute_cycle_fold_proofs();
     }
 }
