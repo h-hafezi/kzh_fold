@@ -21,7 +21,6 @@ use ark_r1cs_std::{
 };
 use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 
-use crate::gadgets::non_native::cast_field_element_unique;
 use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
 use crate::gadgets::r1cs::{R1CSInstance, RelaxedR1CSInstance};
 use crate::nova::commitment::CommitmentScheme;
@@ -152,29 +151,6 @@ where
     }
 }
 
-impl<G2, C2> AbsorbGadget<G2::BaseField> for R1CSInstanceVar<G2, C2>
-where
-    G2: SWCurveConfig,
-    G2::BaseField: PrimeField,
-    C2: CommitmentScheme<Projective<G2>>,
-{
-    fn to_sponge_bytes(&self) -> Result<Vec<UInt8<G2::BaseField>>, SynthesisError> {
-        unreachable!()
-    }
-
-    fn to_sponge_field_elements(&self) -> Result<Vec<FpVar<G2::BaseField>>, SynthesisError> {
-        assert_eq!(self.X.len(), SecondaryCircuit::<G2>::NUM_IO);
-        let X = self
-            .X
-            .iter()
-            .skip(1)
-            .map(cast_field_element_unique)
-            .collect::<Result<Vec<_>, _>>()?
-            .concat();
-        Ok([self.commitment_W.to_sponge_field_elements()?, X].concat())
-    }
-}
-
 impl<G2, C2> From<&RelaxedR1CSInstanceVar<G2, C2>> for R1CSInstanceVar<G2, C2>
 where
     G2: SWCurveConfig,
@@ -294,31 +270,6 @@ where
     }
 }
 
-impl<G2, C2> AbsorbGadget<G2::BaseField> for RelaxedR1CSInstanceVar<G2, C2>
-where
-    G2: SWCurveConfig,
-    G2::BaseField: PrimeField,
-    C2: CommitmentScheme<Projective<G2>>,
-{
-    fn to_sponge_bytes(&self) -> Result<Vec<UInt8<G2::BaseField>>, SynthesisError> {
-        unreachable!()
-    }
-
-    fn to_sponge_field_elements(&self) -> Result<Vec<FpVar<G2::BaseField>>, SynthesisError> {
-        let X = self
-            .X
-            .iter()
-            .map(cast_field_element_unique)
-            .collect::<Result<Vec<_>, _>>()?
-            .concat();
-        Ok([
-            self.commitment_W.to_sponge_field_elements()?,
-            self.commitment_E.to_sponge_field_elements()?,
-            X,
-        ]
-            .concat())
-    }
-}
 
 impl<G2, C2> CondSelectGadget<G2::BaseField> for RelaxedR1CSInstanceVar<G2, C2>
 where

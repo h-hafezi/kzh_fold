@@ -423,6 +423,7 @@ where
         z_b_.conditional_enforce_equal(&self.current_accumulator_instance_var.z_b_var, is_E_zero).expect("error while enforcing z_b equality under condition");
         z_c_.conditional_enforce_equal(&self.current_accumulator_instance_var.z_c_var, is_E_zero).expect("error while enforcing z_c equality under condition");
 
+
         let final_instance = self.running_cycle_fold_instance_var.fold(
             &[((&self.auxiliary_input_C_var, None), &self.com_C_var, &self.beta_var_non_native, &beta_bits),
                 ((&self.auxiliary_input_T_var, None), &self.com_T_var, &self.beta_var_non_native, &beta_bits),
@@ -430,6 +431,7 @@ where
                 ((&self.auxiliary_input_E_2_var, None), &self.com_E_2_var, &self.beta_var_non_native, &beta_bits),
             ]
         ).unwrap();
+
         self.final_cycle_fold_instance_var.X.enforce_equal(&final_instance.X).expect("TODO: panic message");
         self.final_cycle_fold_instance_var.commitment_E.enforce_equal(&final_instance.commitment_E).expect("TODO: panic message");
         self.final_cycle_fold_instance_var.commitment_W.enforce_equal(&final_instance.commitment_W).expect("TODO: panic message");
