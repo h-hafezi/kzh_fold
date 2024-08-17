@@ -2,7 +2,7 @@ use ark_ff::{BigInteger, Field, PrimeField};
 use ark_r1cs_std::boolean::Boolean;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
-use ark_r1cs_std::ToBitsGadget;
+use ark_r1cs_std::{ToBitsGadget, ToConstraintFieldGadget};
 use num_bigint::BigUint;
 
 pub fn non_native_to_fpvar<ScalarField, BaseField>(

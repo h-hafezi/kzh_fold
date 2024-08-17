@@ -5,20 +5,20 @@ use ark_ec::{
     CurveGroup,
     short_weierstrass::{Projective, SWCurveConfig},
 };
-use ark_ff::{Field, PrimeField};
+use ark_ff::{Field, One, PrimeField};
 use ark_r1cs_std::{
     alloc::{AllocationMode, AllocVar},
     boolean::Boolean,
+    eq::EqGadget,
     fields::{FieldVar, fp::FpVar, nonnative::NonNativeFieldVar},
     R1CSVar,
     select::CondSelectGadget,
     uint8::UInt8,
 };
-use ark_r1cs_std::eq::EqGadget;
 use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 use ark_std::Zero;
 
-use super::cast_field_element_unique;
+use crate::gadgets::non_native::util::non_native_to_fpvar;
 
 #[must_use]
 #[derive(Debug)]
@@ -127,14 +127,10 @@ where
     }
 
     fn to_sponge_field_elements(&self) -> Result<Vec<FpVar<G1::ScalarField>>, SynthesisError> {
-        let infinity = FpVar::from(self.infinity.clone());
-
-        Ok([
-            &cast_field_element_unique(&self.x)?[..],
-            &cast_field_element_unique(&self.y)?[..],
-            &[infinity],
-        ]
-            .concat())
+        Ok(vec![
+            non_native_to_fpvar(&self.x),
+            non_native_to_fpvar(&self.y),
+        ])
     }
 }
 

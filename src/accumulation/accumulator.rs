@@ -3,11 +3,12 @@ use std::ops::{Add, Mul, Neg, Sub};
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::{AffineRepr, CurveGroup, VariableBaseMSM};
 use ark_ec::pairing::Pairing;
-use ark_ff::{FftField, Field, Zero};
+use ark_ff::{FftField, Field, PrimeField, Zero};
 use ark_poly::EvaluationDomain;
 use ark_std::UniformRand;
 use rand::RngCore;
 
+use crate::gadgets::non_native::util::convert_field_one_to_field_two;
 use crate::hash::poseidon::{PoseidonHash, PoseidonHashTrait};
 use crate::polynomial::lagrange_basis::{LagrangeBasis, LagrangeTraits};
 use crate::polynomial::univariate_poly::UnivariatePolynomial;
@@ -35,22 +36,40 @@ pub struct AccSRS<E: Pairing> {
 pub struct AccInstance<E: Pairing> {
     pub C: E::G1Affine,
     pub T: E::G1Affine,
+    pub E: E::G1Affine,
     pub b: E::ScalarField,
     pub c: E::ScalarField,
     pub y: E::ScalarField,
     pub z_b: E::ScalarField,
     pub z_c: E::ScalarField,
-    pub E: E::G1Affine,
 }
 
-impl<E: Pairing> AccInstance<E> {
-    pub fn update_sponge(&self, hash: &mut PoseidonHash<E::ScalarField>) -> ()
-    where
-        <E as Pairing>::ScalarField: Absorb,
-        <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb,
-    {
-        hash.update_sponge(vec![self.b, self.c, self.y, self.z_b, self.z_c]);
-        hash.update_sponge(vec![self.C.x(), self.C.y(), self.T.x(), self.T.y(), self.E.x(), self.E.y()]);
+impl<E: Pairing> AccInstance<E>
+where
+    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
+{
+    pub fn to_sponge_field_elements(&self) -> Vec<E::ScalarField> {
+        let mut dest = Vec::new();
+
+        dest.extend(
+            vec![
+                self.C.x().unwrap(),
+                self.C.y().unwrap(),
+                self.T.x().unwrap(),
+                self.T.y().unwrap(),
+                self.E.x().unwrap(),
+                self.E.y().unwrap(),
+            ]
+                .into_iter()
+                .map(|element| {
+                    convert_field_one_to_field_two::<<<E as Pairing>::G1Affine as AffineRepr>::BaseField, E::ScalarField>(element)
+                })
+                .collect::<Vec<E::ScalarField>>()
+        );
+
+        dest.extend(vec![self.b, self.c, self.y, self.z_b, self.z_c]);
+
+        dest
     }
 }
 
@@ -86,6 +105,8 @@ where
     ) -> AccSRS<E>;
 
     fn new_accumulator(instance: &AccInstance<E>, witness: &AccWitness<E>) -> Accumulator<E>;
+
+    fn compute_randomness(instance_1: &AccInstance<E>, instance_2: &AccInstance<E>, Q: E::G1Affine) -> E::ScalarField;
 
     fn new_accumulator_instance_from_proof(srs: &AccSRS<E>, C: &E::G1Affine, b: &E::ScalarField, c: &E::ScalarField, y: &E::ScalarField) -> AccInstance<E>;
 
@@ -152,6 +173,23 @@ where
             witness: witness.clone(),
             instance: instance.clone(),
         }
+    }
+
+    fn compute_randomness(instance_1: &AccInstance<E>, instance_2: &AccInstance<E>, Q: E::G1Affine) -> E::ScalarField {
+        let mut sponge = Vec::new();
+        sponge.extend(instance_1.to_sponge_field_elements());
+        sponge.extend(instance_2.to_sponge_field_elements());
+        sponge.extend(vec![Q.x().unwrap(), Q.y().unwrap()]
+            .into_iter()
+            .map(|element| {
+                convert_field_one_to_field_two::<<<E as Pairing>::G1Affine as AffineRepr>::BaseField, E::ScalarField>(element)
+            })
+            .collect::<Vec<E::ScalarField>>()
+        );
+
+        let mut hash_object = PoseidonHash::new();
+        hash_object.update_sponge(sponge);
+        hash_object.output()
     }
 
     fn new_accumulator_instance_from_proof(srs: &AccSRS<E>, C: &E::G1Affine, b: &E::ScalarField, c: &E::ScalarField, y: &E::ScalarField) -> AccInstance<E> {

@@ -111,7 +111,6 @@ impl<F: Absorb + PrimeField> PoseidonHashVarTrait<F> for PoseidonHashVar<F> {
 #[cfg(test)]
 mod tests {
     use std::ops::Mul;
-    use ark_bn254::{Bn254, Fq, Fr, G1Projective, G2Projective};
     use ark_crypto_primitives::sponge::{Absorb, CryptographicSponge};
     use ark_crypto_primitives::sponge::poseidon::{PoseidonConfig, PoseidonSponge};
     use ark_ec::CurveGroup;
@@ -121,58 +120,33 @@ mod tests {
     use ark_r1cs_std::fields::fp::FpVar;
     use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
     use ark_r1cs_std::{R1CSVar, ToConstraintFieldGadget};
+    use ark_r1cs_std::fields::FieldVar;
     use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
     use ark_std::UniformRand;
     use rand::rngs::OsRng;
     use rand::thread_rng;
+    use crate::constant_for_curves::{BaseField, ScalarField};
+    use crate::gadgets::non_native::util::{convert_field_one_to_field_two, non_native_to_fpvar};
     use crate::hash::poseidon::{PoseidonHash, PoseidonHashTrait, PoseidonHashVar, PoseidonHashVarTrait};
 
-    type FirstCurve = Fr;
-    type SecondCurve = Fq;
 
     #[test]
     fn hash_test() {
-        let mut hash_object: PoseidonHash<Fr> = PoseidonHash::new();
-        let field_vector: Vec<FirstCurve> = vec![FirstCurve::ONE, FirstCurve::ONE];
-        hash_object.update_sponge(field_vector);
-        println!("{}", hash_object.output());
-        let mut temp = SecondCurve::ONE.to_sponge_field_elements_as_vec::<FirstCurve>();
-        println!("{:?}", temp);
-        temp.extend(temp.clone());
-        hash_object.update_sponge(temp);
-        println!("{}", hash_object.output());
-    }
+        let mut hash_object: PoseidonHash<ScalarField> = PoseidonHash::new();
+        hash_object.update_sponge(vec![ScalarField::ONE, ScalarField::ONE]);
+        hash_object.update_sponge(vec![convert_field_one_to_field_two::<BaseField, ScalarField>(BaseField::ONE)]);
 
-    #[test]
-    fn hash_var_test() {
         let cs = ConstraintSystem::new_ref();
 
-        let mut hash_object: PoseidonHashVar<Fr> = PoseidonHashVar::new(cs.clone());
+        let mut hash_object_var: PoseidonHashVar<ScalarField> = PoseidonHashVar::new(cs.clone());
 
-        let one_on_first_curve = FpVar::new_variable(
-            cs.clone(),
-            || Ok(FirstCurve::ONE),
-            AllocationMode::Witness,
-        ).unwrap();
+        let one_on_first_curve_var = FpVar::Constant(ScalarField::ONE);
+        hash_object_var.update_sponge(vec![one_on_first_curve_var.clone(), one_on_first_curve_var.clone()]);
+        let one_on_second_curve_var = NonNativeFieldVar::Constant(BaseField::ONE);
 
-        let field_vector: Vec<FpVar<FirstCurve>> = vec![one_on_first_curve.clone(), one_on_first_curve.clone()];
+        hash_object_var.update_sponge(vec![non_native_to_fpvar(&one_on_second_curve_var)]);
 
-        hash_object.update_sponge(field_vector);
-        println!("{}", hash_object.output().value().unwrap());
-
-        let one_on_second_curve = NonNativeFieldVar::new_variable(
-            cs.clone(),
-            || Ok(SecondCurve::ONE),
-            AllocationMode::Witness,
-        ).unwrap();
-
-        println!("num of constraints before: {}", cs.num_constraints());
-        let temp = one_on_second_curve.clone().to_constraint_field().unwrap();
-        println!("num of constraints after: {}", cs.num_constraints());
-
-        hash_object.update_sponge(temp);
-
-        println!("{}", hash_object.output().value().unwrap());
+        assert_eq!(hash_object_var.output().value().unwrap(), hash_object.output());
     }
 }
 

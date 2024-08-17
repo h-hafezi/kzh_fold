@@ -272,7 +272,7 @@ where
     }
 }
 
-/// Here we assume instance to be A.X and acc to be A.X' ==> beta * instance + (1-beta) * instance
+/// Here we assume current_acc to be A.X and running_acc to be A.X' ==> beta * running_acc + (1-beta) * current_acc
 impl<G1: SWCurveConfig, G2: SWCurveConfig, C2> AccumulatorVerifierVar<G1, G2, C2>
 where
     G1: SWCurveConfig + Clone,
@@ -482,7 +482,7 @@ mod tests {
 
         // the randomness in different formats
         let beta_scalar = prover.beta.clone();
-        let (beta_base, beta_var, beta_var_non_native) = randomness_different_formats(cs.clone(), beta_scalar);
+        let (_, beta_var, beta_var_non_native) = randomness_different_formats(cs.clone(), beta_scalar);
 
 
         // initialise accumulator variables

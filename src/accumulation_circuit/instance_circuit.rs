@@ -1,6 +1,7 @@
 use std::borrow::Borrow;
 use std::fmt::Debug;
 
+use ark_crypto_primitives::sponge::constraints::AbsorbGadget;
 use ark_ec::{AffineRepr, CurveConfig, CurveGroup};
 use ark_ec::pairing::Pairing;
 use ark_ec::short_weierstrass::{Affine, Projective, SWCurveConfig};
@@ -10,6 +11,7 @@ use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
 use ark_r1cs_std::groups::curves::short_weierstrass::{AffineVar, ProjectiveVar};
+use ark_r1cs_std::prelude::UInt8;
 use ark_r1cs_std::R1CSVar;
 use ark_r1cs_std::uint32::UInt32;
 use ark_relations::ns;
@@ -18,6 +20,7 @@ use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 use crate::accumulation::accumulator::AccInstance;
 use crate::accumulation_circuit::affine_to_projective;
 use crate::gadgets::non_native::short_weierstrass::NonNativeAffineVar;
+use crate::gadgets::non_native::util::non_native_to_fpvar;
 
 #[derive(Clone)]
 /// the circuit is defined on scalar of G1
@@ -153,22 +156,54 @@ where
     }
 }
 
+impl<G1> AbsorbGadget<G1::ScalarField> for AccumulatorInstanceVar<G1>
+where
+    G1: SWCurveConfig + Clone,
+    <G1 as CurveConfig>::ScalarField: PrimeField,
+    <G1 as CurveConfig>::BaseField: PrimeField,
+{
+    fn to_sponge_bytes(&self) -> Result<Vec<UInt8<G1::ScalarField>>, SynthesisError> {
+        unreachable!()
+    }
+
+    fn to_sponge_field_elements(&self) -> Result<Vec<FpVar<G1::ScalarField>>, SynthesisError> {
+        // Call to_sponge_field_elements on each NonNativeAffineVar
+        let mut fpvar_vec = Vec::new();
+
+        fpvar_vec.extend(self.C_var.to_sponge_field_elements()?);
+        fpvar_vec.extend(self.T_var.to_sponge_field_elements()?);
+        fpvar_vec.extend(self.E_var.to_sponge_field_elements()?);
+
+        // Extend the vector with the other FpVar fields
+        fpvar_vec.push(self.b_var.clone());
+        fpvar_vec.push(self.c_var.clone());
+        fpvar_vec.push(self.y_var.clone());
+        fpvar_vec.push(self.z_b_var.clone());
+        fpvar_vec.push(self.z_c_var.clone());
+
+        // Return the concatenated vector
+        Ok(fpvar_vec)
+    }
+}
+
 
 #[cfg(test)]
 pub mod tests {
     use std::fmt::Debug;
+    use std::iter::zip;
 
+    use ark_crypto_primitives::sponge::constraints::AbsorbGadget;
     use ark_ec::AffineRepr;
     use ark_ec::pairing::Pairing;
-    use ark_ff::AdditiveGroup;
     use ark_r1cs_std::alloc::{AllocationMode, AllocVar};
     use ark_r1cs_std::R1CSVar;
     use ark_relations::r1cs::ConstraintSystem;
     use ark_std::UniformRand;
     use rand::thread_rng;
+
     use crate::accumulation::accumulator::AccInstance;
     use crate::accumulation_circuit::instance_circuit::AccumulatorInstanceVar;
-    use crate::constant_for_curves::{E, ScalarField};
+    use crate::constant_for_curves::{E, G1Affine, ScalarField};
 
     #[test]
     fn initialisation_test() {
@@ -192,5 +227,36 @@ pub mod tests {
         // get its value and assert its equal to the original instance
         let c = circuit_var.value().unwrap();
         assert_eq!(c, instance, "the value function doesn't work well");
+    }
+
+    #[test]
+    fn absorb_test() {
+        let instance: AccInstance<E> = AccInstance {
+            C: G1Affine::rand(&mut thread_rng()),
+            T: G1Affine::rand(&mut thread_rng()),
+            E: G1Affine::rand(&mut thread_rng()),
+            b: ScalarField::rand(&mut thread_rng()),
+            c: ScalarField::rand(&mut thread_rng()),
+            y: ScalarField::rand(&mut thread_rng()),
+            z_b: ScalarField::rand(&mut thread_rng()),
+            z_c: ScalarField::rand(&mut thread_rng()),
+        };
+
+        // a constraint system
+        let cs = ConstraintSystem::<ScalarField>::new_ref();
+
+        // make a circuit_var
+        let instance_var = AccumulatorInstanceVar::new_variable(
+            cs,
+            || Ok(instance.clone()),
+            AllocationMode::Constant,
+        ).unwrap();
+
+        let sponge = instance.to_sponge_field_elements();
+        let sponge_var = instance_var.to_sponge_field_elements().unwrap();
+
+        for (x, x_var) in zip(sponge, sponge_var) {
+            assert_eq!(x, x_var.value().unwrap());
+        }
     }
 }
