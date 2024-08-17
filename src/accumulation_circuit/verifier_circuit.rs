@@ -2,6 +2,7 @@ use std::borrow::Borrow;
 use std::marker::PhantomData;
 use std::ops::Add;
 
+use ark_crypto_primitives::sponge::constraints::AbsorbGadget;
 use ark_ec::CurveConfig;
 use ark_ec::pairing::Pairing;
 use ark_ec::short_weierstrass::{Affine, Projective, SWCurveConfig};
@@ -23,9 +24,10 @@ use rand::thread_rng;
 use crate::accumulation::accumulator::AccInstance;
 use crate::accumulation_circuit::instance_circuit::AccumulatorInstanceVar;
 use crate::constant_for_curves::{BaseField, ScalarField};
-use crate::gadgets::non_native::short_weierstrass::NonNativeAffineVar;
+use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
 use crate::gadgets::non_native::util::{convert_field_one_to_field_two, non_native_to_fpvar};
 use crate::gadgets::r1cs::{R1CSInstance, RelaxedR1CSInstance};
+use crate::hash::poseidon::{PoseidonHashVar, PoseidonHashVarTrait};
 use crate::nova::commitment::CommitmentScheme;
 use crate::nova::cycle_fold::coprocessor::{SecondaryCircuit as SecondaryCircuit, synthesize};
 use crate::nova::cycle_fold::coprocessor_constraints::{R1CSInstanceVar, RelaxedR1CSInstanceVar};
@@ -283,14 +285,21 @@ where
     C2: CommitmentScheme<Projective<G2>>,
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField>,
 {
-    pub fn accumulate(&self) {
+    pub fn accumulate(&self) where <G2 as CurveConfig>::BaseField: ark_crypto_primitives::sponge::Absorb {
         // checking beta and non_native beta are consistent
         let beta_ = non_native_to_fpvar(&self.beta_var_non_native);
         self.beta_var.enforce_equal(&beta_).expect("error while enforcing equality");
         let beta_bits = self.beta_var_non_native.to_bits_le().unwrap();
 
-        // todo: compute Poseidon hash and make sure it's consistent with input beta
-
+        // compute Poseidon hash and make sure it's consistent with input beta
+        let mut hash_object = PoseidonHashVar::new(self.current_accumulator_instance_var.cs());
+        let mut sponge = Vec::new();
+        sponge.extend(self.current_accumulator_instance_var.to_sponge_field_elements().unwrap());
+        sponge.extend(self.running_accumulator_instance_var.to_sponge_field_elements().unwrap());
+        sponge.extend(self.Q_var.to_sponge_field_elements().unwrap());
+        hash_object.update_sponge(sponge);
+        hash_object.output().enforce_equal(&self.beta_var).expect("error while enforcing equality");
+        
 
         // Non-native scalar multiplication: linear combination of C
         let (flag,
@@ -364,7 +373,7 @@ where
         let beta_times_beta_minus_one = self.beta_var_non_native.clone() - self.beta_var_non_native.square().unwrap();
         //r.enforce_equal(&beta_times_beta_minus_one).expect("error while enforcing equality");
         // check out the result E_var is consistent with result_acc
-       E_var.enforce_equal(&self.final_accumulator_instance_var.E_var).expect("error while enforcing equality");
+        E_var.enforce_equal(&self.final_accumulator_instance_var.E_var).expect("error while enforcing equality");
 
 
         let beta_minus_one = FpVar::<G1::ScalarField>::one() - &self.beta_var;
@@ -424,7 +433,6 @@ where
         self.final_cycle_fold_instance_var.X.enforce_equal(&final_instance.X).expect("TODO: panic message");
         self.final_cycle_fold_instance_var.commitment_E.enforce_equal(&final_instance.commitment_E).expect("TODO: panic message");
         self.final_cycle_fold_instance_var.commitment_W.enforce_equal(&final_instance.commitment_W).expect("TODO: panic message");
-
     }
 }
 
@@ -445,7 +453,7 @@ mod tests {
     use crate::accumulation_circuit::prover::tests::get_random_prover;
     use crate::accumulation_circuit::verifier_circuit::AccumulatorVerifierVar;
     use crate::constant_for_curves::{BaseField, ScalarField};
-    use crate::gadgets::non_native::short_weierstrass::NonNativeAffineVar;
+    use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
     use crate::gadgets::non_native::util::convert_field_one_to_field_two;
     use crate::hash::pederson::PedersenCommitment;
     use crate::nova::cycle_fold::coprocessor_constraints::{R1CSInstanceVar, RelaxedR1CSInstanceVar};

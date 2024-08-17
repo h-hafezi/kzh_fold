@@ -19,7 +19,7 @@ use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 
 use crate::accumulation::accumulator::AccInstance;
 use crate::accumulation_circuit::affine_to_projective;
-use crate::gadgets::non_native::short_weierstrass::NonNativeAffineVar;
+use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
 use crate::gadgets::non_native::util::non_native_to_fpvar;
 
 #[derive(Clone)]
@@ -234,7 +234,7 @@ pub mod tests {
         let instance: AccInstance<E> = AccInstance {
             C: G1Affine::rand(&mut thread_rng()),
             T: G1Affine::rand(&mut thread_rng()),
-            E: G1Affine::rand(&mut thread_rng()),
+            E: G1Affine::zero(),
             b: ScalarField::rand(&mut thread_rng()),
             c: ScalarField::rand(&mut thread_rng()),
             y: ScalarField::rand(&mut thread_rng()),

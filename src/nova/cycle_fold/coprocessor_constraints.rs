@@ -22,7 +22,7 @@ use ark_r1cs_std::{
 use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 
 use crate::gadgets::non_native::cast_field_element_unique;
-use crate::gadgets::non_native::short_weierstrass::NonNativeAffineVar;
+use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
 use crate::gadgets::r1cs::{R1CSInstance, RelaxedR1CSInstance};
 use crate::nova::commitment::CommitmentScheme;
 use crate::nova::cycle_fold::coprocessor::{SecondaryCircuit as SecondaryCircuit, SecondaryCircuitFoldingProof};

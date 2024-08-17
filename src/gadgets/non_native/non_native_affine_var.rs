@@ -5,7 +5,7 @@ use ark_ec::{
     CurveGroup,
     short_weierstrass::{Projective, SWCurveConfig},
 };
-use ark_ff::{Field, One, PrimeField};
+use ark_ff::{AdditiveGroup, Field, One, PrimeField};
 use ark_r1cs_std::{
     alloc::{AllocationMode, AllocVar},
     boolean::Boolean,
@@ -127,10 +127,19 @@ where
     }
 
     fn to_sponge_field_elements(&self) -> Result<Vec<FpVar<G1::ScalarField>>, SynthesisError> {
-        Ok(vec![
-            non_native_to_fpvar(&self.x),
-            non_native_to_fpvar(&self.y),
-        ])
+        // Convert the non-native fields to FpVars
+        let x_fpvar = non_native_to_fpvar(&self.x);
+        let y_fpvar = non_native_to_fpvar(&self.y);
+
+        // Define the constants for infinity (FpVar::ONE, FpVar::ZERO)
+        let one_fpvar = FpVar::constant(G1::ScalarField::ONE);
+        let zero_fpvar = FpVar::constant(G1::ScalarField::ZERO);
+
+        // Conditionally select based on the infinity flag
+        let x = FpVar::conditionally_select(&self.infinity, &one_fpvar, &x_fpvar)?;
+        let y = FpVar::conditionally_select(&self.infinity, &zero_fpvar, &y_fpvar)?;
+
+        Ok(vec![x, y])
     }
 }
 

@@ -3,7 +3,7 @@ use std::ops::{Add, Mul, Neg, Sub};
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::{AffineRepr, CurveGroup, VariableBaseMSM};
 use ark_ec::pairing::Pairing;
-use ark_ff::{FftField, Field, PrimeField, Zero};
+use ark_ff::{AdditiveGroup, FftField, Field, PrimeField, Zero};
 use ark_poly::EvaluationDomain;
 use ark_std::UniformRand;
 use rand::RngCore;
@@ -46,27 +46,32 @@ pub struct AccInstance<E: Pairing> {
 
 impl<E: Pairing> AccInstance<E>
 where
+    E::ScalarField: PrimeField,
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
 {
     pub fn to_sponge_field_elements(&self) -> Vec<E::ScalarField> {
         let mut dest = Vec::new();
+        // Define a closure to handle the conversion of affine points to scalars
+        let convert_affine_to_scalars = |point: E::G1Affine| {
+            if point.is_zero() {
+                (E::ScalarField::ONE, E::ScalarField::ZERO)
+            } else {
+                // Extract x and y coordinates and convert them
+                let x = convert_field_one_to_field_two::<<<E as Pairing>::G1Affine as AffineRepr>::BaseField, E::ScalarField>(point.x().unwrap());
+                let y = convert_field_one_to_field_two::<<<E as Pairing>::G1Affine as AffineRepr>::BaseField, E::ScalarField>(point.y().unwrap());
+                (x, y)
+            }
+        };
 
-        dest.extend(
-            vec![
-                self.C.x().unwrap(),
-                self.C.y().unwrap(),
-                self.T.x().unwrap(),
-                self.T.y().unwrap(),
-                self.E.x().unwrap(),
-                self.E.y().unwrap(),
-            ]
-                .into_iter()
-                .map(|element| {
-                    convert_field_one_to_field_two::<<<E as Pairing>::G1Affine as AffineRepr>::BaseField, E::ScalarField>(element)
-                })
-                .collect::<Vec<E::ScalarField>>()
-        );
+        // Use the closure for C, T, and E
+        let (c_x, c_y) = convert_affine_to_scalars(self.C);
+        let (t_x, t_y) = convert_affine_to_scalars(self.T);
+        let (e_x, e_y) = convert_affine_to_scalars(self.E);
 
+        // Extend the destination vector with the computed values
+        dest.extend(vec![c_x, c_y, t_x, t_y, e_x, e_y]);
+
+        // Extend with other scalar fields
         dest.extend(vec![self.b, self.c, self.y, self.z_b, self.z_c]);
 
         dest
@@ -94,7 +99,7 @@ pub struct Accumulator<E: Pairing> {
 pub trait AccumulatorTrait<E: Pairing>
 where
     <E as Pairing>::ScalarField: Absorb,
-    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb,
+    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
 {
     fn setup<T: RngCore>(degree_x: usize,
                          degree_y: usize,
@@ -112,9 +117,9 @@ where
 
     fn new_accumulator_witness_from_proof(srs: &AccSRS<E>, proof: OpeningProof<E>, b: &E::ScalarField, c: &E::ScalarField) -> AccWitness<E>;
 
-    fn prove(srs: &AccSRS<E>, beta: &E::ScalarField, acc_1: &Accumulator<E>, acc_2: &Accumulator<E>) -> (AccInstance<E>, AccWitness<E>, E::G1Affine);
+    fn prove(srs: &AccSRS<E>, acc_1: &Accumulator<E>, acc_2: &Accumulator<E>) -> (AccInstance<E>, AccWitness<E>, E::G1Affine);
 
-    fn verify(instance_1: &AccInstance<E>, instance_2: &AccInstance<E>, Q: E::G1Affine, beta: &E::ScalarField) -> AccInstance<E>;
+    fn verify(instance_1: &AccInstance<E>, instance_2: &AccInstance<E>, Q: E::G1Affine) -> AccInstance<E>;
 
     fn decide(srs: &AccSRS<E>, acc: &Accumulator<E>) -> bool;
 
@@ -131,7 +136,7 @@ where
 impl<E: Pairing> AccumulatorTrait<E> for Accumulator<E>
 where
     <E as Pairing>::ScalarField: Absorb,
-    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb,
+    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
 {
     fn setup<T: RngCore>(degree_x: usize,
                          degree_y: usize,
@@ -179,13 +184,19 @@ where
         let mut sponge = Vec::new();
         sponge.extend(instance_1.to_sponge_field_elements());
         sponge.extend(instance_2.to_sponge_field_elements());
-        sponge.extend(vec![Q.x().unwrap(), Q.y().unwrap()]
-            .into_iter()
-            .map(|element| {
-                convert_field_one_to_field_two::<<<E as Pairing>::G1Affine as AffineRepr>::BaseField, E::ScalarField>(element)
-            })
-            .collect::<Vec<E::ScalarField>>()
-        );
+
+        // Define a closure to handle the conversion of affine points to scalars
+        let convert_affine_to_scalars = |point: E::G1Affine| {
+            if point.is_zero() {
+                vec![E::ScalarField::ONE, E::ScalarField::ZERO]
+            } else {
+                // Extract x and y coordinates and convert them
+                let x = convert_field_one_to_field_two::<<<E as Pairing>::G1Affine as AffineRepr>::BaseField, E::ScalarField>(point.x().unwrap());
+                let y = convert_field_one_to_field_two::<<<E as Pairing>::G1Affine as AffineRepr>::BaseField, E::ScalarField>(point.y().unwrap());
+                vec![x, y]
+            }
+        };
+        sponge.extend(convert_affine_to_scalars(Q));
 
         let mut hash_object = PoseidonHash::new();
         hash_object.update_sponge(sponge);
@@ -235,7 +246,7 @@ where
         };
     }
 
-    fn prove(srs: &AccSRS<E>, beta: &E::ScalarField, acc_1: &Accumulator<E>, acc_2: &Accumulator<E>) -> (AccInstance<E>, AccWitness<E>, E::G1Affine)
+    fn prove(srs: &AccSRS<E>, acc_1: &Accumulator<E>, acc_2: &Accumulator<E>) -> (AccInstance<E>, AccWitness<E>, E::G1Affine)
     where
         <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb,
     {
@@ -251,10 +262,12 @@ where
         // compute the quotient variable Q
         let Q: E::G1Affine = Self::helper_function_Q(srs, acc_1, acc_2);
 
+        let beta = Accumulator::compute_randomness(instance_1, instance_2, Q);
+
         let one_minus_beta: E::ScalarField = E::ScalarField::ONE - beta;
 
         // get the accumulated new_instance
-        let new_instance = Self::verify(instance_1, instance_2, Q, beta);
+        let new_instance = Self::verify(instance_1, instance_2, Q);
 
         // get the accumulated witness
         let new_witness = AccWitness {
@@ -301,7 +314,8 @@ where
         return (new_instance, new_witness, Q);
     }
 
-    fn verify(instance_1: &AccInstance<E>, instance_2: &AccInstance<E>, Q: E::G1Affine, beta: &E::ScalarField) -> AccInstance<E> {
+    fn verify(instance_1: &AccInstance<E>, instance_2: &AccInstance<E>, Q: E::G1Affine) -> AccInstance<E> {
+        let beta = Accumulator::compute_randomness(instance_1, instance_2, Q);
         let one_minus_beta: E::ScalarField = E::ScalarField::ONE - beta;
 
         let new_error_term: E::G1Affine = {
@@ -561,9 +575,7 @@ pub mod tests {
         assert!(Accumulator::decide(&srs, &acc_1));
         assert!(Accumulator::decide(&srs, &acc_2));
 
-        let beta = ScalarField::from(2u8);
-
-        let (acc_instance, acc_witness, _Q) = Accumulator::prove(&srs, &beta, &acc_1, &acc_2);
+        let (acc_instance, acc_witness, _Q) = Accumulator::prove(&srs, &acc_1, &acc_2);
 
         return Accumulator {
             witness: acc_witness,
@@ -658,10 +670,10 @@ pub mod tests {
         let beta = ScalarField::rand(&mut thread_rng());
 
         // accumulate proof
-        let (instance, witness, Q) = Accumulator::prove(&srs, &beta, &acc_1, &acc_2);
+        let (instance, witness, Q) = Accumulator::prove(&srs, &acc_1, &acc_2);
 
         // accumulate verifier
-        let instance_prime = Accumulator::verify(&acc_1.instance, &acc_2.instance, Q, &beta);
+        let instance_prime = Accumulator::verify(&acc_1.instance, &acc_2.instance, Q);
 
         // define accumulators
         let acc = Accumulator::new_accumulator(&instance, &witness);
@@ -672,12 +684,3 @@ pub mod tests {
         assert_eq!(instance, instance_prime);
     }
 }
-
-/*{
-    let mut hash_object: PoseidonHash<E::ScalarField> = PoseidonHash::new();
-    instance_1.update_sponge(&mut hash_object);
-    instance_2.update_sponge(&mut hash_object);
-    hash_object.update_sponge(vec![Q.x(), Q.y()]);
-    hash_object.output()
-};
-*/

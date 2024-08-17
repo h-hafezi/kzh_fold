@@ -24,7 +24,7 @@ where
     C2: CommitmentScheme<Projective<G2>>,
     E: Pairing<G1Affine=Affine<G1>, ScalarField=G1::ScalarField>,
 {
-    /// the randomness used for taking linear combination
+    /// the randomness used for taking linear combination, it should be input from Accumulator::compute_randomness()
     pub beta: G1::ScalarField,
 
     /// srs for the accumulation
@@ -183,11 +183,11 @@ where
 
     fn compute_proof_Q(&self) -> Projective<G1> {
         // since acc_instance takes (1- beta) then it should be first in the function argument
-        affine_to_projective(Accumulator::prove(&self.srs, &self.beta, &self.current_accumulator, &self.running_accumulator).2)
+        affine_to_projective(Accumulator::prove(&self.srs, &self.current_accumulator, &self.running_accumulator).2)
     }
 
     fn compute_result_accumulator_instance(&self) -> AccInstance<E> {
-        Accumulator::prove(&self.srs, &self.beta, &self.current_accumulator, &self.running_accumulator).0
+        Accumulator::prove(&self.srs, &self.current_accumulator, &self.running_accumulator).0
     }
 
     fn compute_cycle_fold_proofs_and_final_instance(&self) -> (
@@ -283,8 +283,6 @@ where
 pub mod tests {
     use ark_ec::CurveConfig;
     use ark_ff::Field;
-    use ark_std::UniformRand;
-    use rand::thread_rng;
 
     use crate::accumulation::accumulator::{Accumulator, AccumulatorTrait};
     use crate::accumulation::accumulator::tests::{get_satisfying_accumulator, get_srs};
@@ -309,10 +307,11 @@ pub mod tests {
         let srs = get_srs(n, m);
 
         // build an instance of AccInstanceCircuit
-        let acc_instance = get_satisfying_accumulator(&srs);
-        let acc_running = get_satisfying_accumulator(&srs);
+        let current_accumulator = get_satisfying_accumulator(&srs);
+        let running_accumulator = get_satisfying_accumulator(&srs);
 
-        let beta = ScalarField::rand(&mut thread_rng());
+        // compute Q
+        let Q = Accumulator::helper_function_Q(&srs, &current_accumulator, &running_accumulator);
 
         // the shape of the R1CS instance
         let shape = setup_shape::<G1, G2>().unwrap();
@@ -323,11 +322,13 @@ pub mod tests {
         let cycle_fold_running_instance = RelaxedR1CSInstance::new(&shape);
         let cycle_fold_running_witness = RelaxedR1CSWitness::zero(&shape);
 
+        let beta = Accumulator::compute_randomness(&current_accumulator.instance, &running_accumulator.instance, Q);
+
         AccumulatorVerifierCircuitProver {
             beta,
             srs,
-            current_accumulator: acc_instance,
-            running_accumulator: acc_running,
+            current_accumulator,
+            running_accumulator,
             shape,
             commitment_pp,
             running_cycle_fold_instance: cycle_fold_running_instance,
@@ -350,7 +351,7 @@ pub mod tests {
         let secondary_circuit = r1cs_instance.parse_secondary_io().unwrap();
 
         // get the accumulated result
-        let new_acc_instance = Accumulator::prove(&prover.srs, &prover.beta, &prover.current_accumulator, &prover.running_accumulator).0;
+        let new_acc_instance = Accumulator::prove(&prover.srs, &prover.current_accumulator, &prover.running_accumulator).0;
 
         assert_eq!(secondary_circuit.r, convert_field_one_to_field_two::<ScalarField, BaseField>(prover.beta));
         assert_eq!(secondary_circuit.flag, false);
@@ -366,7 +367,7 @@ pub mod tests {
         let secondary_circuit = r1cs_instance.parse_secondary_io().unwrap();
 
         // get the accumulated result
-        let new_acc_instance = Accumulator::prove(&prover.srs, &prover.beta, &prover.current_accumulator, &prover.running_accumulator).0;
+        let new_acc_instance = Accumulator::prove(&prover.srs, &prover.current_accumulator, &prover.running_accumulator).0;
 
         assert_eq!(secondary_circuit.r, convert_field_one_to_field_two::<ScalarField, BaseField>(prover.beta));
         assert_eq!(secondary_circuit.flag, false);
@@ -389,7 +390,7 @@ pub mod tests {
         let Q = prover.compute_proof_Q();
 
         // get the accumulated result
-        let new_acc_instance = Accumulator::prove(&prover.srs, &prover.beta, &prover.current_accumulator, &prover.running_accumulator).0;
+        let new_acc_instance = Accumulator::prove(&prover.srs, &prover.current_accumulator, &prover.running_accumulator).0;
 
         // checking correctness of flags
         assert_eq!(secondary_circuit_E_1.flag, false);
