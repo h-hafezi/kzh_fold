@@ -1,4 +1,3 @@
-Got it! Here's the revised README with the explanation about the `Absorb` trait instead of listing it as a function.
 
 # R1CS
 
