@@ -6,7 +6,7 @@ The `AccumulatorVerifier` and its corresponding variable struct `AccumulatorVeri
 
 ### AccumulatorVerifier
 The accumulator circuit in fact checks that one accumulator instance is result of the two given instances. More concretely apart from the two instances, the randomness and the accumulation proof `Q` and the result accumulation instance, it takes some auxiliary inputs which are instance of CycleFold to help it with multi scalar operations and as a result since these instances will be folded with a running cycle fold instances, it will also require to takes some `ProjectiveVar` e.g. `com_C_var`, `com_T_var`, `com_E_1_var` and `com_E_2_var` as folding proof for CycleFold. The struct looks as it follows:
-```
+```rust
 #[derive(Clone)]
 pub struct AccumulatorVerifierVar<G1, G2, C2>
 where
@@ -59,7 +59,7 @@ The `accumulate` function checks one verifier_circuit is indeed valid, by checki
 
 #### 1. Checking Consistency Between `beta` and `beta_non_native`
 
-```
+```rust
 let beta_bits = self.beta_var_non_native.to_bits_le().unwrap();
 let beta_ = Boolean::le_bits_to_fp_var(beta_bits.as_slice()).unwrap();
 self.beta_var.enforce_equal(&beta_).expect("error while enforcing equality");
@@ -68,7 +68,7 @@ self.beta_var.enforce_equal(&beta_).expect("error while enforcing equality");
 
 #### 2. Poseidon Hash and Consistency Check with `beta`
 
-```
+```rust
 // compute Poseidon hash and make sure it's consistent with input beta
 let mut hash_object = PoseidonHashVar::new(self.current_accumulator_instance_var.cs());
 let mut sponge = Vec::new();
@@ -82,7 +82,7 @@ hash_object.output().enforce_equal(&self.beta_var).expect("error while enforcing
 
 #### 3. Linear Combination of Commitment `C`
 
-```
+```rust
 let (flag, r, g1, g2, C_var) = self.auxiliary_input_C_var.parse_secondary_io::<G1>().unwrap();
 // g1 == acc.C
 self.running_accumulator_instance_var.C_var.enforce_equal(&g1).expect("error while enforcing equality");
@@ -96,7 +96,7 @@ r.enforce_equal(&self.beta_var_non_native).expect("error while enforcing equalit
 C_var.enforce_equal(&self.final_accumulator_instance_var.C_var).expect("error while enforcing equality");
 ```
 - **Operation**:  Since `C'' = (1-beta) * C + beta * C'`, then to compute this with cycle fold, we use a secondary circuit with the following parameters:
-```
+```rust
 auxiliary_input_C = SecondaryCircuit {
     g1: C',
     g2: C,
@@ -115,7 +115,7 @@ Despite `C''` and `T''`, the error vector require two multi scalar operation sin
  * `E_temp = (1-beta) * E + beta * E'`
  * `E'' = E_temp + beta * (1-beta) * Q'`
 Which means we need to secondary circuits with the following parameters:
-```
+```rust
 auxiliary_input_E_1 = SecondaryCircuit {
     g1: E',
     g2: E,
