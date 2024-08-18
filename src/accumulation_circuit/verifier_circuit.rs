@@ -287,9 +287,9 @@ where
 {
     pub fn accumulate(&self) where <G2 as CurveConfig>::BaseField: ark_crypto_primitives::sponge::Absorb {
         // checking beta and non_native beta are consistent
-        let beta_ = non_native_to_fpvar(&self.beta_var_non_native);
-        self.beta_var.enforce_equal(&beta_).expect("error while enforcing equality");
         let beta_bits = self.beta_var_non_native.to_bits_le().unwrap();
+        let beta_ = Boolean::le_bits_to_fp_var(beta_bits.as_slice()).unwrap();
+        self.beta_var.enforce_equal(&beta_).expect("error while enforcing equality");
 
         // compute Poseidon hash and make sure it's consistent with input beta
         let mut hash_object = PoseidonHashVar::new(self.current_accumulator_instance_var.cs());
@@ -410,12 +410,12 @@ where
 
         // Native field operation: equality assertion that z_b = b^n-1 for the first instance
         let n = BigInteger64::from(self.n);
-        let z_b_ = self.running_accumulator_instance_var.b_var.pow_by_constant(n.as_ref()).expect("error while enforcing equality");
+        let z_b_ = self.current_accumulator_instance_var.b_var.pow_by_constant(n.as_ref()).expect("error while enforcing equality");
 
 
         // Native field operation: equality assertion that z_c = c^m-1 for the first instance
         let m = BigInteger64::from(self.m);
-        let z_c_ = self.running_accumulator_instance_var.c_var.pow_by_constant(m.as_ref()).expect("error while enforcing equality");
+        let z_c_ = self.current_accumulator_instance_var.c_var.pow_by_constant(m.as_ref()).expect("error while enforcing equality");
 
 
         // Conditional check: if instance.E_var == 0, then enforce z_b_ == instance.z_b_var and z_c_ == instance.z_c_var

@@ -17,14 +17,14 @@ use ark_r1cs_std::{
     groups::{curves::short_weierstrass::ProjectiveVar, CurveVar},
     R1CSVar,
     select::CondSelectGadget,
-    ToBitsGadget, uint8::UInt8,
+    ToBitsGadget,
 };
 use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 
+use crate::commitment::CommitmentScheme;
 use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
 use crate::gadgets::r1cs::{R1CSInstance, RelaxedR1CSInstance};
-use crate::commitment::CommitmentScheme;
-use crate::nova::cycle_fold::coprocessor::{SecondaryCircuit as SecondaryCircuit};
+use crate::nova::cycle_fold::coprocessor::SecondaryCircuit as SecondaryCircuit;
 
 #[must_use]
 #[derive(Debug)]
@@ -381,19 +381,24 @@ where
 #[cfg(test)]
 mod tests {
     use std::fmt::Debug;
+    use ark_bls12_381::Fr;
+    use ark_crypto_primitives::crh::sha256::digest::generic_array::functional::FunctionalSequence;
     use ark_ff::Zero;
-    use ark_pallas::{PallasConfig};
+    use ark_pallas::PallasConfig;
     use ark_r1cs_std::alloc::{AllocationMode, AllocVar};
-    use ark_r1cs_std::R1CSVar;
-    use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystem};
+    use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
+    use ark_r1cs_std::groups::curves::short_weierstrass::ProjectiveVar;
+    use ark_r1cs_std::{R1CSVar, ToBitsGadget};
+    use ark_relations::r1cs::ConstraintSystem;
     use ark_std::UniformRand;
-    use ark_vesta::{VestaConfig, Fq, Fr};
+    use ark_vesta::{Fq, Projective, VestaConfig};
     use rand::thread_rng;
 
-    use crate::hash::pederson::PedersenCommitment;
     use crate::commitment::*;
+    use crate::gadgets::r1cs::r1cs::RelaxedR1CSInstance;
+    use crate::hash::pederson::PedersenCommitment;
     use crate::nova::cycle_fold::coprocessor::{setup_shape, synthesize};
-    use crate::nova::cycle_fold::coprocessor_constraints::R1CSInstanceVar;
+    use crate::nova::cycle_fold::coprocessor_constraints::{R1CSInstanceVar, RelaxedR1CSInstanceVar};
     use crate::nova::cycle_fold::test::tests::get_random_circuit;
 
     #[test]

@@ -60,3 +60,5 @@ pub trait PolyCommitTrait<E: Pairing> {
     ) -> bool;
 }
 ```
+
+Parameter `b` is X domain and parameter `c` is in Y domain and value `y` is such that `y=poly(b, c)`

@@ -29,7 +29,7 @@ The instance size, when translated to Rank-1 Constraint System (R1CS) form, incl
 
 ### `SecondaryCircuit` Struct
 
-```rust
+```
 pub struct SecondaryCircuit<G1: SWCurveConfig> {
     pub(crate) g1: Projective<G1>,
     pub(crate) g2: Projective<G1>,
@@ -43,7 +43,7 @@ pub struct SecondaryCircuit<G1: SWCurveConfig> {
 
 Generates the constraints needed for the circuit based on the provided inputs.
 
-```rust
+```
 fn generate_constraints(
     self,
     cs: ConstraintSystemRef<G1::BaseField>,
@@ -54,7 +54,7 @@ fn generate_constraints(
 
 Sets up the R1CS shape for the secondary circuit, defining it over the base field of the secondary curve.
 
-```rust
+```
 pub fn setup_shape<G1, G2>() -> Result<R1CSShape<G2>, SynthesisError>
 ```
 
@@ -62,7 +62,7 @@ pub fn setup_shape<G1, G2>() -> Result<R1CSShape<G2>, SynthesisError>
 
 Synthesizes the public input and witness for the circuit.
 
-```rust
+```
 pub fn synthesize<G1, G2, C2>(
     circuit: SecondaryCircuit<G1>,
     pp_secondary: &C2::PP,
@@ -75,9 +75,9 @@ This file extends the functionality of the `SecondaryCircuit` by providing mecha
 
 ### `R1CSInstanceVar` Struct
 
-The `R1CSInstanceVar` struct represents the commitments (group points) and non-native field elements for the secondary circuit's R1CS instance. This struct is used for efficient scalar multiplication on the main curve.
+The `R1CSInstanceVar` struct represents the commitments (group points) and non-native field elements for the secondary circuit's R1CS instance. This struct is used for efficient scalar multiplication on the main curve. It takes **2997** constraint to initialise this struct.
 
-```rust
+```
 /// Struct native on G2::BaseField = G1::ScalarField, hence native on primary curve
 pub struct R1CSInstanceVar<G2, C2>
 where
@@ -95,9 +95,9 @@ where
 
 ### `RelaxedR1CSInstanceVar` Struct
 
-The `RelaxedR1CSInstanceVar` struct functions as the running instance on the main curve, and in each cycle, it folds the `R1CSInstanceVar` with itself. Note this folding operation requires scalar multiplication on the native field which is cheap and linear combination of non-native field elements which is expensive. In fact, it requires 12 non-native linear combination since the instance size of the R1CS instance for the secondary curve is 12, as previously pointed out.
+The `RelaxedR1CSInstanceVar` struct functions as the running instance on the main curve, and in each cycle, it folds the `R1CSInstanceVar` with itself. Note this folding operation requires scalar multiplication on the native field which is cheap and linear combination of non-native field elements which is expensive. In fact, it requires 12 non-native linear combination since the instance size of the R1CS instance for the secondary curve is 12, as previously pointed out. It takes almost **3000** to initialise this struct.
 
-```rust
+```
 pub struct RelaxedR1CSInstanceVar<G2, C2>
 where
     G2: SWCurveConfig,
@@ -114,3 +114,4 @@ where
 }
 ```
 
+The fold function between a relaxed and non-relaxed R1CS instance takes almost **7350** constraints.
