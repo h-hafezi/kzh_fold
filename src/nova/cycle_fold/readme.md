@@ -1,6 +1,6 @@
 
 # Coprocessor Circuit Implementation
-
+This code has been borrowed from [Nexus](https://github.com/nexus-xyz/nexus-zkvm).
 ## `SecondaryCircuit` Structure
 
 The `SecondaryCircuit` struct is the core component of this implementation. It accepts the following inputs:
