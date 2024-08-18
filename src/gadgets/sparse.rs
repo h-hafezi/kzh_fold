@@ -1,3 +1,4 @@
+//! Borrowed from Nexus
 //! # Sparse Matrices
 //!
 //! This module defines a custom implementation of CSR/CSC sparse matrices.

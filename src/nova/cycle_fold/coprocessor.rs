@@ -28,7 +28,7 @@ use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::Zero;
 
 use crate::gadgets::r1cs::*;
-use crate::nova::commitment::CommitmentScheme;
+use crate::commitment::CommitmentScheme;
 
 /// Leading One + 3 curve points + 1 scalar + 1 flag.
 const SECONDARY_NUM_IO: usize = 12;
@@ -155,42 +155,6 @@ where
     Ok((U, W))
 }
 
-/// Folding scheme proof for a secondary circuit.
-#[derive(CanonicalDeserialize, CanonicalSerialize)]
-pub struct SecondaryCircuitFoldingProof<G2: SWCurveConfig, C2: CommitmentScheme<Projective<G2>>> {
-    pub(crate) U: R1CSInstance<G2, C2>,
-    pub(crate) commitment_T: C2::Commitment,
-}
-
-impl<G2, C2> Clone for SecondaryCircuitFoldingProof<G2, C2>
-where
-    G2: SWCurveConfig,
-    C2: CommitmentScheme<Projective<G2>>,
-{
-    fn clone(&self) -> Self {
-        Self {
-            U: self.U.clone(),
-            commitment_T: self.commitment_T,
-        }
-    }
-}
-
-impl<G2, C2> Default for SecondaryCircuitFoldingProof<G2, C2>
-where
-    G2: SWCurveConfig,
-    C2: CommitmentScheme<Projective<G2>>,
-{
-    fn default() -> Self {
-        let U = R1CSInstance {
-            commitment_W: Projective::zero().into(),
-            X: vec![G2::ScalarField::ZERO; SECONDARY_NUM_IO],
-        };
-        Self {
-            U,
-            commitment_T: Projective::zero().into(),
-        }
-    }
-}
 #[cfg(any(test, feature = "spartan"))]
 macro_rules! parse_projective {
     ($X:expr) => {

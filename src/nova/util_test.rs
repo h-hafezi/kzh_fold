@@ -1,9 +1,10 @@
 //! Common setup methods used for tests.
+//! Borrowed from Nexus
 
 use ark_ec::short_weierstrass::{Projective, SWCurveConfig};
 use ark_ff::PrimeField;
 use ark_r1cs_std::{
-    fields::{fp::FpVar, FieldVar},
+    fields::{FieldVar, fp::FpVar},
     prelude::{AllocVar, EqGadget},
     R1CSVar,
 };
@@ -11,10 +12,7 @@ use ark_relations::r1cs::{
     ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef, SynthesisError, SynthesisMode,
 };
 use ark_std::rand::RngCore;
-
-use super::{
-    commitment::CommitmentScheme,
-};
+use crate::commitment::CommitmentScheme;
 use crate::gadgets::r1cs::r1cs::{R1CSInstance, R1CSShape, R1CSWitness};
 
 

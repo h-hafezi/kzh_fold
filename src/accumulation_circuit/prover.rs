@@ -10,7 +10,7 @@ use crate::accumulation_circuit::affine_to_projective;
 use crate::gadgets::non_native::util::convert_field_one_to_field_two;
 use crate::gadgets::r1cs::{R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness};
 use crate::gadgets::r1cs::r1cs::commit_T;
-use crate::nova::commitment::CommitmentScheme;
+use crate::commitment::CommitmentScheme;
 use crate::nova::cycle_fold::coprocessor::{SecondaryCircuit, synthesize};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -292,7 +292,7 @@ pub mod tests {
     use crate::gadgets::r1cs::r1cs::RelaxedR1CSInstance;
     use crate::gadgets::r1cs::RelaxedR1CSWitness;
     use crate::hash::pederson::PedersenCommitment;
-    use crate::nova::commitment::CommitmentScheme;
+    use crate::commitment::CommitmentScheme;
     use crate::nova::cycle_fold::coprocessor::setup_shape;
 
     type GrumpkinCurveGroup = ark_grumpkin::Projective;

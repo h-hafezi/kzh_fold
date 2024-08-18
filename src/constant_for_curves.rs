@@ -7,6 +7,8 @@ use ark_ec::AffineRepr;
 use ark_ec::short_weierstrass::Projective;
 use ark_ff::Zero;
 
+/// Since we use the cycle of curves (Bn254, Grumpkin) throughout our tests, we define some types here, so later we can easily use them in out tests
+
 pub type E = Bn254;
 
 pub type ScalarField = Fr;

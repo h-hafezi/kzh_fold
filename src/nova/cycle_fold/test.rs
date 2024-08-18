@@ -8,7 +8,7 @@ pub(crate) mod tests {
     use ark_vesta::VestaConfig;
     use rand::thread_rng;
     pub use crate::hash::pederson::PedersenCommitment;
-    use crate::nova::commitment::CommitmentScheme;
+    use crate::commitment::CommitmentScheme;
     use crate::nova::cycle_fold::coprocessor::{SecondaryCircuit, setup_shape, synthesize};
     use crate::gadgets::r1cs::r1cs::{commit_T, commit_T_with_relaxed, RelaxedR1CSWitness};
     use crate::gadgets::r1cs::RelaxedR1CSInstance;

@@ -5,7 +5,7 @@ use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::rand::SeedableRng;
 use sha3::digest::{ExtendableOutput, Update, XofReader};
 
-use crate::nova::commitment::CommitmentScheme;
+use crate::commitment::CommitmentScheme;
 
 pub(crate) const LOG_TARGET: &str = "nexus-nova";
 

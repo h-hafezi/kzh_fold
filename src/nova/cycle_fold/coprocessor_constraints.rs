@@ -23,8 +23,8 @@ use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 
 use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
 use crate::gadgets::r1cs::{R1CSInstance, RelaxedR1CSInstance};
-use crate::nova::commitment::CommitmentScheme;
-use crate::nova::cycle_fold::coprocessor::{SecondaryCircuit as SecondaryCircuit, SecondaryCircuitFoldingProof};
+use crate::commitment::CommitmentScheme;
+use crate::nova::cycle_fold::coprocessor::{SecondaryCircuit as SecondaryCircuit};
 
 #[must_use]
 #[derive(Debug)]
@@ -55,39 +55,6 @@ where
         }
     }
 }
-
-/*
-impl<G2, C2> R1CSInstanceVar<G2, C2>
-where
-    G2: SWCurveConfig,
-    G2::BaseField: PrimeField,
-{
-    /// Allocate new variable, cloning part of the public input of `U` from provided
-    /// `g1` and `g2`.
-    pub fn from_allocated_input<G1>(
-        &self,
-        g1: &NonNativeAffineVar<G1>,
-        g2: &NonNativeAffineVar<G1>,
-    ) -> Result<Self, SynthesisError>
-    where
-        G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField>,
-    {
-        let mut X = vec![NonNativeFieldVar::one()];
-        X.append(&mut g1.into_projective()?);
-        X.append(&mut g2.into_projective()?);
-
-        // extend with allocated input.
-        X.extend_from_slice(&self.X[1..]);
-
-        assert_eq!(X.len(), SecondaryCircuit::<G2>::NUM_IO);
-        Ok(Self {
-            X,
-            commitment_W: self.commitment_W.clone(),
-            _commitment_scheme: PhantomData,
-        })
-    }
-}
- */
 
 impl<G2, C2> R1CSVar<G2::BaseField> for R1CSInstanceVar<G2, C2>
 where
@@ -353,50 +320,6 @@ where
     }
 }
 
-pub struct ProofVar<G2, C2>
-where
-    G2: SWCurveConfig,
-    G2::BaseField: PrimeField,
-    C2: CommitmentScheme<Projective<G2>>,
-{
-    pub(crate) U: R1CSInstanceVar<G2, C2>,
-    pub(crate) commitment_T: ProjectiveVar<G2, FpVar<G2::BaseField>>,
-}
-
-impl<G2, C2> AllocVar<SecondaryCircuitFoldingProof<G2, C2>, G2::BaseField> for ProofVar<G2, C2>
-where
-    G2: SWCurveConfig,
-    G2::BaseField: PrimeField,
-    C2: CommitmentScheme<Projective<G2>>,
-{
-    fn new_variable<T: Borrow<SecondaryCircuitFoldingProof<G2, C2>>>(
-        cs: impl Into<Namespace<G2::BaseField>>,
-        f: impl FnOnce() -> Result<T, SynthesisError>,
-        mode: AllocationMode,
-    ) -> Result<Self, SynthesisError> {
-        let ns = cs.into();
-        let cs = ns.cs();
-
-        let proof = f()?;
-        // part of public input is contained in primary instances:
-        // skip `Variable::One`, g1 and g2.
-        let mut U = proof.borrow().U.clone();
-        let X: Vec<G2::ScalarField> = std::iter::once(G2::ScalarField::ONE)
-            .chain(U.X.drain(..).skip(7))
-            .collect();
-        U.X = X;
-
-        Ok(Self {
-            U: R1CSInstanceVar::new_variable(cs.clone(), || Ok(&U), mode)?,
-            commitment_T: <ProjectiveVar<G2, FpVar<G2::BaseField>> as AllocVar<
-                Projective<G2>,
-                G2::BaseField,
-            >>::new_variable(
-                cs.clone(), || Ok(proof.borrow().commitment_T.into()), mode,
-            )?,
-        })
-    }
-}
 
 macro_rules! parse_projective {
     ($X:ident) => {
@@ -468,7 +391,7 @@ mod tests {
     use rand::thread_rng;
 
     use crate::hash::pederson::PedersenCommitment;
-    use crate::nova::commitment::*;
+    use crate::commitment::*;
     use crate::nova::cycle_fold::coprocessor::{setup_shape, synthesize};
     use crate::nova::cycle_fold::coprocessor_constraints::R1CSInstanceVar;
     use crate::nova::cycle_fold::test::tests::get_random_circuit;

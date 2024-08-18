@@ -1,3 +1,4 @@
+//! Borrowed from Nexus
 //! An extension for arkworks interface for cryptographic sponge.
 //!
 //! Poseidon cryptographic sponge from arkworks is defined over some specified field, and current implementation may
@@ -19,7 +20,7 @@ use ark_ec::{
     CurveGroup,
 };
 use ark_ff::PrimeField;
-use crate::nova::commitment::{Commitment, CommitmentScheme};
+use crate::commitment::{Commitment, CommitmentScheme};
 use crate::gadgets::r1cs::r1cs::{R1CSInstance, RelaxedR1CSInstance};
 use crate::utils::cast_field_element_unique;
 

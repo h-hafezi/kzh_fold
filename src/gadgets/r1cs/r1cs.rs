@@ -15,7 +15,7 @@ use rayon::iter::{
 
 pub use ark_relations::r1cs::Matrix;
 use crate::gadgets::sparse::{MatrixRef, SparseMatrix};
-use crate::nova::commitment::CommitmentScheme;
+use crate::commitment::CommitmentScheme;
 use crate::gadgets::absorb::AbsorbNonNative;
 
 #[derive(Debug, Copy, Clone, PartialEq)]

@@ -1,3 +1,6 @@
+//! Borrowed from ArkWork in order to benchmark and compare to our PCS
+
+
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::marker::PhantomData;

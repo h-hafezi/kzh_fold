@@ -1,7 +1,6 @@
 
 # Non Native Group/Field
 
-
 ## `util.rs`
 
 This file contains utility functions for converting between field elements in different prime fields, namely:
@@ -34,7 +33,7 @@ where
 
 ## `non_native_affine_var.rs`
 
-This file implements an affine variable for group points where the base is in a non-native field, meaning that the constraint system operates on the scalar field `Fr` while the group points (e.g., projective coordinates) are defined over the base field `Fq`. The `NonNativeAffineVar` struct is not meant for arithmetic operations but for representing group points, hashing, and enforcing equality.
+This code has been partially borrowed from [Nexus](https://github.com/nexus-xyz/nexus-zkvm). This file implements an affine variable for group points where the base is in a non-native field, meaning that the constraint system operates on the scalar field `Fr` while the group points (e.g., projective coordinates) are defined over the base field `Fq`. The `NonNativeAffineVar` struct is not meant for arithmetic operations but for representing group points, hashing, and enforcing equality.
 
 Initialization of a `NonNativeAffineVar` requires two non-native field values and a boolean value. The boolean value takes **543** constraints, and transforming it into a vector of field elements for hashing takes **2760** constraints.
 

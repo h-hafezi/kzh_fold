@@ -28,7 +28,7 @@ use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
 use crate::gadgets::non_native::util::{convert_field_one_to_field_two, non_native_to_fpvar};
 use crate::gadgets::r1cs::{R1CSInstance, RelaxedR1CSInstance};
 use crate::hash::poseidon::{PoseidonHashVar, PoseidonHashVarTrait};
-use crate::nova::commitment::CommitmentScheme;
+use crate::commitment::CommitmentScheme;
 use crate::nova::cycle_fold::coprocessor::{SecondaryCircuit as SecondaryCircuit, synthesize};
 use crate::nova::cycle_fold::coprocessor_constraints::{R1CSInstanceVar, RelaxedR1CSInstanceVar};
 
