@@ -1,5 +1,3 @@
-Certainly! Here's a rewritten version of your `README.md`:
-
 ---
 
 # Accumulator
