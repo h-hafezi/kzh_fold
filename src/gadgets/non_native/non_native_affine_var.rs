@@ -179,3 +179,34 @@ where
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use ark_crypto_primitives::sponge::constraints::AbsorbGadget;
+    use ark_ec::short_weierstrass::Projective;
+    use ark_ff::PrimeField;
+    use ark_r1cs_std::alloc::{AllocationMode, AllocVar};
+    use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
+    use ark_r1cs_std::R1CSVar;
+    use ark_relations::ns;
+    use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
+    use ark_std::UniformRand;
+    use rand::thread_rng;
+
+    use crate::constant_for_curves::{BaseField, G1, ScalarField};
+    use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
+    use crate::gadgets::non_native::util::{convert_field_one_to_field_two, non_native_to_fpvar};
+
+    #[test]
+    fn constraint_count_test() {
+        let cs: ConstraintSystemRef<ScalarField> = ConstraintSystem::new_ref();
+        let Q_var: NonNativeAffineVar<G1> = NonNativeAffineVar::new_variable(
+            ns!(cs, "Q"),
+            || Ok(Projective::rand(&mut thread_rng())),
+            AllocationMode::Witness,
+        ).unwrap();
+        println!("{}", cs.num_constraints());
+        let _ = Q_var.to_sponge_field_elements().unwrap();
+        println!("{}", cs.num_constraints());
+    }
+}
+

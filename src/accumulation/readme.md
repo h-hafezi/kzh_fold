@@ -116,3 +116,5 @@ The `AccumulatorTrait` outlines the essential methods for working with accumulat
 - `verify`: Aggregates two `AccInstance` objects into one using the accumulation proof `Q`.
 - `decide`: Verifies the correctness of an `Accumulator`, ensuring the witness is valid concerning the instance.
 - Helper functions (`helper_function_decide` and `helper_function_Q`) aid in simplifying the code structure by isolating specific operations into standalone functions.
+
+Importantly note that function `prove` and `verify` as inputs are not given any randomness, instead they both compute the randomness through `compute_randomness` separately. 
