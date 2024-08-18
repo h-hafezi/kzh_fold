@@ -63,37 +63,37 @@ impl Polynomial for UnivariatePolynomial {
 
 ### Bivariate Polynomials
 
-The `BivariatePolynomial` struct represents bivariate polynomials, which can be structured in two distinct forms: **coefficient form** and **Lagrange basis form**. It also supports **partial evaluation**.
+The `BivariatePolynomial` struct represents bivariate polynomial in **Lagrange basis form**, supporting **partial evaluation**.
 
 ```rust
-/// Represents a bivariate polynomial in both coefficient and Lagrange basis forms.
-pub struct BivariatePolynomial {
-    coefficients: Vec<Self::ScalarField>,
-    degree: usize,
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BivariatePolynomial<F: FftField> {
+    // evaluation[i][j] corresponds to f(w_i, w_j)
+    pub evaluations: Vec<Vec<F>>,
+    // the lagrange basis used
+    pub lagrange_basis_x: LagrangeBasis<F>,
+    pub lagrange_basis_y: LagrangeBasis<F>,
+    // Degree of the polynomial in both X and Y
+    pub degree_x: usize,
+    pub degree_y: usize,
 }
 
-impl Polynomial for BivariatePolynomial {
-    /// Evaluates the bivariate polynomial at a given pair of points.
-    fn evaluate(&self, point: &(Self::ScalarField, Self::ScalarField)) -> Self::ScalarField {
-        // Implementation goes here...
-    }
-
-    /// Adds two bivariate polynomials.
-    fn add(&self, other: &Self) -> Self {
-        // Implementation goes here...
-    }
-}
-
-impl PartialEvaluation for BivariatePolynomial {
-    /// Partially evaluates a bivariate polynomial at a given X value, resulting in a univariate polynomial in Y.
-    fn partial_evaluate_x(&self, x: &Self::ScalarField) -> UnivariatePolynomial {
-        // Implementation goes here...
-    }
-
-    /// Partially evaluates a bivariate polynomial at a given Y value, resulting in a univariate polynomial in X.
-    fn partial_evaluate_y(&self, y: &Self::ScalarField) -> UnivariatePolynomial {
-        // Implementation goes here...
-    }
+pub trait BivariatePolynomialTrait<F: FftField> {
+    fn new(evaluations: Vec<Vec<F>>,
+           domain_x: GeneralEvaluationDomain<F>,
+           domain_y: GeneralEvaluationDomain<F>,
+           degree_x: usize,
+           degree_y: usize,
+    ) -> Self;
+    fn random<T: RngCore>(rng: &mut T,
+                          domain_x: GeneralEvaluationDomain<F>,
+                          domain_y: GeneralEvaluationDomain<F>,
+                          degree_x: usize,
+                          degree_y: usize,
+    ) -> Self;
+    fn evaluate(&self, x: &F, y: &F) -> F;
+    fn partially_evaluate_at_x(&self, x: &F) -> UnivariatePolynomial<F>;
+    fn partially_evaluate_at_y(&self, y: &F) -> UnivariatePolynomial<F>;
 }
 ```
 
@@ -110,36 +110,3 @@ impl PartialEvaluation for BivariatePolynomial {
   This form is particularly useful for polynomial interpolation.
 
 - **Partial Evaluation**: The `partial_evaluate_x` and `partial_evaluate_y` methods perform partial evaluation of the bivariate polynomial. For a given \( x \), `partial_evaluate_x` outputs a univariate polynomial \( g(Y) = f(x, Y) \). Similarly, `partial_evaluate_y` evaluates \( g(X) = f(X, y) \) for a given \( y \).
-
-## Traits
-
-The library defines several key traits to ensure flexibility and interoperability:
-
-```rust
-/// Defines core polynomial operations such as evaluation, addition, and multiplication.
-pub trait Polynomial {
-    /// Evaluates the polynomial at a given point.
-    fn evaluate(&self, point: &Self::ScalarField) -> Self::ScalarField;
-
-    /// Adds two polynomials.
-    fn add(&self, other: &Self) -> Self;
-}
-
-/// Provides specialized operations for polynomials in the Lagrange basis.
-pub trait LagrangeBasisOperations {
-    /// Interpolates the polynomial from its evaluations.
-    fn interpolate(&self, evaluations: &[Self::ScalarField]) -> Self;
-
-    /// Transforms the polynomial from coefficient form to Lagrange basis form.
-    fn from_coefficients(coefficients: &[Self::ScalarField]) -> Self;
-}
-
-/// Defines the partial evaluation function for bivariate polynomials.
-pub trait PartialEvaluation {
-    /// Partially evaluates a bivariate polynomial at a given point.
-    fn partial_evaluate_x(&self, x: &Self::ScalarField) -> UnivariatePolynomial;
-
-    /// Partially evaluates a bivariate polynomial at a given point.
-    fn partial_evaluate_y(&self, y: &Self::ScalarField) -> UnivariatePolynomial;
-}
-```
