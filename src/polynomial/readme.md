@@ -1,6 +1,4 @@
 
----
-
 # Polynomial Implementations 
 
 This repository provides implementations of univariate and bivariate polynomials in Rust, with a focus on working in the Lagrange basis. The library is designed for cryptographic applications, particularly in contexts where efficient polynomial operations are critical.

@@ -1,6 +1,4 @@
 
----
-
 # Polynomial Commitment Scheme
 
 ## Overview
