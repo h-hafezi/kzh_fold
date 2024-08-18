@@ -1,9 +1,12 @@
-# README
+Got it! Here's the revised README with the explanation about the `Absorb` trait instead of listing it as a function.
+
+# R1CS
 
 This code has been borrowed from [Nexus](https://github.com/nexus-xyz/nexus-zkvm). It implements R1CS (Rank-1 Constraint System) instances, witnesses, and relaxed R1CS based on the Nova paper. The R1CS structure is supported by a sparse matrix implementation found in the `sparse.rs` file, which provides fast matrix-vector multiplication similar to the SciPy library. This code constructs R1CS instances and witnesses, checks satisfiability, and provides functions to fold (relaxed) R1CS instances and witnesses, merging them into new relaxed R1CS instances and witnesses.
 
 ## R1CSShape
-This struct includes the public input for a (relaxed) R1CS instance
+
+This struct includes the public input for a (relaxed) R1CS instance.
 
 ```rust
 #[derive(Debug, Clone, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize)]
@@ -17,7 +20,7 @@ pub struct R1CSShape<G: CurveGroup> {
 }
 ```
 
-### Functions
+### Important Functions
 
 ```rust
 impl<G: CurveGroup> R1CSShape<G> {
@@ -62,7 +65,7 @@ pub struct R1CSWitness<G: CurveGroup> {
 }
 ```
 
-### Functions
+### Important Functions
 
 ```rust
 impl<G: CurveGroup> R1CSWitness<G> {
@@ -84,7 +87,7 @@ pub struct R1CSInstance<G: CurveGroup, C: CommitmentScheme<G>> {
 }
 ```
 
-### Functions
+### Important Functions
 
 ```rust
 impl<G: CurveGroup, C: CommitmentScheme<G>> R1CSInstance<G, C> {
@@ -106,7 +109,7 @@ pub struct RelaxedR1CSWitness<G: CurveGroup> {
 }
 ```
 
-### Functions
+### Important Functions
 
 ```rust
 impl<G: CurveGroup> RelaxedR1CSWitness<G> {
@@ -141,11 +144,16 @@ pub struct RelaxedR1CSInstance<G: CurveGroup, C: CommitmentScheme<G>> {
 }
 ```
 
-### Functions
+### Important Functions
 
 ```rust
 impl<G: CurveGroup, C: CommitmentScheme<G>> RelaxedR1CSInstance<G, C> {
     pub fn new(shape: &R1CSShape<G>) -> Self;
+
+    pub fn from_r1cs_instance(
+        shape: &R1CSShape<G>,
+        instance: &R1CSInstance<G, C>,
+    ) -> Result<Self, Error>;
 
     pub fn fold(
         &self,
@@ -164,7 +172,9 @@ impl<G: CurveGroup, C: CommitmentScheme<G>> RelaxedR1CSInstance<G, C> {
 ```
 
 ## commit_T Function
-This function compute the cross term error `T` as well as its commitment which is computed by the prover and given to the verifier as folding proof to aid the verifier with computing the folded instance from two (relaxed) R1CS instances.
+
+This function computes the cross-term error `T` and its commitment, which is calculated by the prover and provided to the verifier as folding proof to aid the verifier in computing the folded instance from two (relaxed) R1CS instances.
+
 ```rust
 pub fn commit_T<G: CurveGroup, C: CommitmentScheme<G>>(
     shape: &R1CSShape<G>,
@@ -176,3 +186,21 @@ pub fn commit_T<G: CurveGroup, C: CommitmentScheme<G>>(
 ) -> Result<C::Commitment, Error>;
 ```
 
+## commit_T_with_relaxed Function
+
+Similar to `commit_T`, this function computes the cross-term error `T` and its commitment, but it is used when both instances are relaxed.
+
+```rust
+pub fn commit_T_with_relaxed<G: CurveGroup, C: CommitmentScheme<G>>(
+    shape: &R1CSShape<G>,
+    pp: &C::PP,
+    U1: &RelaxedR1CSInstance<G, C>,
+    W1: &RelaxedR1CSWitness<G>,
+    U2: &RelaxedR1CSInstance<G, C>,
+    W2: &RelaxedR1CSWitness<G>,
+) -> Result<C::Commitment, Error>;
+```
+
+## Absorb Trait Implementation
+
+The `Absorb` trait is implemented for the following structs in this code, including  `R1CSInstance`  and `RelaxedR1CSInstance`. The `Absorb` trait allows these structs to absorb scalar field elements, which is typically used in the context of Poseidon hashing. 
