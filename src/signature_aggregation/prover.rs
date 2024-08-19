@@ -8,7 +8,7 @@ use transcript::IOPTranscript;
 use crate::signature_aggregation::bivariate_sumcheck::{bivariate_sumcheck, SumcheckProof};
 use crate::{polynomial::bivariate_poly::BivariatePolynomial};
 
-use crate::pcs::{Commitment, OpeningProof, CoeffFormPCS, SRS};
+use crate::polynomial_commitment::pcs::{Commitment, OpeningProof, SRS};
 
 pub struct SignatureAggrData<E: Pairing> {
     pk: E::G1Affine,
@@ -34,7 +34,7 @@ impl<E: Pairing> Aggregator<E> {
         let sk = self.A_1.sig + self.A_2.sig;
 
         let c_poly = self.A_1.bitfield_poly.bitfield_union(&self.A_2.bitfield_poly);
-        let C_commitment = CoeffFormPCS::commit(&c_poly, &self.srs);
+        // let C_commitment = CoeffFormPCS::commit(&c_poly, &self.srs);
 
         // Now aggregate all three polys into one
         // let f_poly = b_1 + b_2 - b_1*b_2 - c

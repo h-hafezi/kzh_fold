@@ -1,7 +1,7 @@
 use ark_ec::pairing::Pairing;
 use transcript::IOPTranscript;
 
-use crate::{bivariate_poly::BivariatePolynomial, univariate_poly::UnivariatePolynomial};
+use crate::{polynomial::bivariate_poly::BivariatePolynomial, polynomial::univariate_poly::UnivariatePolynomial};
 
 
 
