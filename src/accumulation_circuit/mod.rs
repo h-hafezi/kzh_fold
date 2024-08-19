@@ -1,3 +1,4 @@
+#![allow(warnings)]
 use ark_ec::AffineRepr;
 use ark_ec::short_weierstrass::{Affine, Projective, SWCurveConfig};
 use ark_ff::{One, Zero};
