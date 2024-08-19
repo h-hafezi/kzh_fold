@@ -18,6 +18,7 @@ pub struct UnivariatePolynomial<F: FftField> {
 pub trait UnivariatePolynomialTrait<F: FftField> {
     fn evaluate(&self, z: &F) -> F;
     fn new(evaluations: Vec<F>, domain: GeneralEvaluationDomain<F>) -> Self;
+    fn sum_evaluations_in_domain(&self) -> F;
 }
 
 impl<F: FftField> Display for UnivariatePolynomial<F> {
@@ -38,6 +39,10 @@ impl<F: FftField> UnivariatePolynomialTrait<F> for UnivariatePolynomial<F> {
             .zip(l_i.iter())
             .map(|(&a, &b)| a * b)
             .sum()
+    }
+
+    fn sum_evaluations_in_domain(&self) -> F {
+        self.evaluations.iter().cloned().sum()
     }
 
     #[inline]

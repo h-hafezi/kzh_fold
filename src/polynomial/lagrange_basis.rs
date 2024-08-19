@@ -18,10 +18,15 @@ impl<F: FftField> LagrangeTraits<F> for LagrangeBasis<F> {
     fn evaluate(&self, z: &F) -> Vec<F> {
         let mut evaluation_points = vec![];
         let eval = self.domain.evaluate_vanishing_polynomial(z.clone());
+
         for w_i in self.domain.elements() {
-            assert_ne!(z.clone(), w_i, "the value z is in the unity roots");
-            // L_i(z)
-            evaluation_points.push((self.domain.size_inv() * w_i * eval) / (z.clone() - w_i));
+            if z == &w_i {
+                // If z is one of the roots of unity, L_i(z) = 1 if z = w_i, otherwise 0
+                evaluation_points.push(F::one());
+            } else {
+                // L_i(z) = w_i * eval / (z - w_i)
+                evaluation_points.push((self.domain.size_inv() * w_i * eval) / (z.clone() - w_i));
+            }
         }
         evaluation_points
     }

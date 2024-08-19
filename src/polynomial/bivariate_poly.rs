@@ -217,7 +217,7 @@ impl<F: FftField> BivariatePolynomialTrait<F> for BivariatePolynomial<F> {
     ///
     /// Evaluates the polynomial at all roots of unity in the domain and sums the results.
     fn sum_partial_evaluations_in_domain(&self) -> UnivariatePolynomial<F> {
-        // This can probably be sped up...
+        // XXX This can probably be sped up...
         let mut r_poly = UnivariatePolynomial::new(vec![F::zero(); self.degree_x], self.lagrange_basis_x.domain.clone());
         for j in self.lagrange_basis_y.domain.elements() {
             r_poly = r_poly + self.partially_evaluate_at_y(&j);

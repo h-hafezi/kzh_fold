@@ -6,7 +6,8 @@ use ark_ec::VariableBaseMSM;
 use transcript::IOPTranscript;
 
 use crate::polynomial::bivariate_poly::BivariatePolynomialTrait;
-use crate::signature_aggregation::bivariate_sumcheck::{bivariate_sumcheck, SumcheckProof};
+use crate::signature_aggregation::bivariate_sumcheck;
+use crate::signature_aggregation::bivariate_sumcheck::SumcheckProof;
 use crate::{polynomial::bivariate_poly::BivariatePolynomial};
 
 use crate::polynomial_commitment::pcs::{Commitment, OpeningProof, SRS};
@@ -38,11 +39,11 @@ impl<E: Pairing> Aggregator<E> {
         // let C_commitment = CoeffFormPCS::commit(&c_poly, &self.srs);
 
         // Now aggregate all three polys into one
-        // let f_poly = b_1 + b_2 - b_1*b_2 - c
+        // let f_poly = b_1 + b_2 - b_1*b_2 - c;
 
         // for now let's pretend it's c_poly
         let f_poly = c_poly.clone();
-        let sumcheck_proof: SumcheckProof<E> = bivariate_sumcheck(transcript, &f_poly);
+        let sumcheck_proof: SumcheckProof<E> = bivariate_sumcheck::prove(&f_poly, transcript);
 
         unimplemented!()
     }
