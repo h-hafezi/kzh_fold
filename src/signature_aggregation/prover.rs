@@ -1,4 +1,4 @@
-/*use ark_ec::AffineRepr;
+use ark_ec::AffineRepr;
 use ark_ff::UniformRand;
 use rand::RngCore;
 use ark_ec::pairing::Pairing;
@@ -6,7 +6,7 @@ use ark_ec::VariableBaseMSM;
 use transcript::IOPTranscript;
 
 use crate::signature_aggregation::bivariate_sumcheck::{bivariate_sumcheck, SumcheckProof};
-use crate::{bivariate_poly::BivariatePolynomial};
+use crate::{polynomial::bivariate_poly::BivariatePolynomial};
 
 use crate::pcs::{Commitment, OpeningProof, CoeffFormPCS, SRS};
 
@@ -65,5 +65,3 @@ pub mod test {
     }
 }
 
-
- */
