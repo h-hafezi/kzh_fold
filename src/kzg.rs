@@ -1,6 +1,5 @@
 //! Borrowed from ArkWork in order to benchmark and compare to our PCS
 
-
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::marker::PhantomData;
@@ -598,44 +597,44 @@ fn convert_to_bigints<F: PrimeField>(p: &[F]) -> Vec<F::BigInt> {
     coeffs
 }
 
+/// Specializes the public parameters for a given maximum degree `d` for polynomials
+/// `d` should be less that `pp.max_degree()`.
+pub(crate) fn trim<E: Pairing>(
+    pp: &KZGUniversalParams<E>,
+    mut supported_degree: usize,
+) -> (KZGPowers<E>, KZGVerifierKey<E>) {
+    if supported_degree == 1 {
+        supported_degree += 1;
+    }
+    let powers_of_g = pp.powers_of_g[..=supported_degree].to_vec();
+    let powers_of_gamma_g = (0..=supported_degree)
+        .map(|i| pp.powers_of_gamma_g[&i])
+        .collect();
+
+    let powers = KZGPowers {
+        powers_of_g: ark_std::borrow::Cow::Owned(powers_of_g),
+        powers_of_gamma_g: ark_std::borrow::Cow::Owned(powers_of_gamma_g),
+    };
+    let vk = KZGVerifierKey {
+        g: pp.powers_of_g[0],
+        gamma_g: pp.powers_of_gamma_g[&0],
+        h: pp.h,
+        beta_h: pp.beta_h,
+        prepared_h: pp.prepared_h.clone(),
+        prepared_beta_h: pp.prepared_beta_h.clone(),
+    };
+    (powers, vk)
+}
+
 #[cfg(test)]
 mod tests {
     use ark_ec::pairing::Pairing;
     use ark_poly::{DenseUVPolynomial, Polynomial};
     use ark_poly::univariate::DensePolynomial;
     use ark_std::{test_rng, UniformRand};
+
+    use super::*;
     use crate::constant_for_curves::{E, ScalarField};
-    use crate::kzg::{KZG10, KZGPowers, KZGUniversalParams, KZGVerifierKey};
-
-    /// Specializes the public parameters for a given maximum degree `d` for polynomials
-    /// `d` should be less that `pp.max_degree()`.
-    pub(crate) fn trim(
-        pp: &KZGUniversalParams<E>,
-        mut supported_degree: usize,
-    ) -> (KZGPowers<E>, KZGVerifierKey<E>) {
-        if supported_degree == 1 {
-            supported_degree += 1;
-        }
-        let powers_of_g = pp.powers_of_g[..=supported_degree].to_vec();
-        let powers_of_gamma_g = (0..=supported_degree)
-            .map(|i| pp.powers_of_gamma_g[&i])
-            .collect();
-
-        let powers = KZGPowers {
-            powers_of_g: ark_std::borrow::Cow::Owned(powers_of_g),
-            powers_of_gamma_g: ark_std::borrow::Cow::Owned(powers_of_gamma_g),
-        };
-        let vk = KZGVerifierKey {
-            g: pp.powers_of_g[0],
-            gamma_g: pp.powers_of_gamma_g[&0],
-            h: pp.h,
-            beta_h: pp.beta_h,
-            prepared_h: pp.prepared_h.clone(),
-            prepared_beta_h: pp.prepared_beta_h.clone(),
-        };
-        (powers, vk)
-    }
-
 
     #[test]
     pub fn kzg() {
