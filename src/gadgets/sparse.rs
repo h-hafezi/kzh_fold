@@ -7,7 +7,6 @@
 
 use ark_ff::PrimeField;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-#[cfg(feature = "parallel")]
 use rayon::{iter::ParallelIterator, slice::ParallelSlice};
 
 pub type MatrixRef<'a, F> = &'a [Vec<(F, usize)>];
@@ -88,10 +87,7 @@ impl<F: PrimeField> SparseMatrix<F> {
     /// Multiply by a dense vector;
     /// This does not check that the shape of the matrix/vector are compatible.
     pub fn multiply_vec_unchecked(&self, vector: &[F]) -> Vec<F> {
-        #[cfg(feature = "parallel")]
         let iter = self.indptr.par_windows(2);
-        #[cfg(not(feature = "parallel"))]
-        let iter = self.indptr.windows(2);
 
         iter.map(|ptrs| {
             self.get_row_unchecked(ptrs.try_into().unwrap())
