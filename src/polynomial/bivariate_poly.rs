@@ -1,3 +1,4 @@
+use ark_serialize::CanonicalSerialize;
 use rand::Rng;
 use std::fmt;
 use ark_ff::{Field, Zero, PrimeField, FftField};
@@ -20,8 +21,7 @@ use crate::utils::{compute_powers, is_power_of_two};
 ///
 /// Here, L_{i,j}(w_i, w_j) are the Lagrange basis polynomials evaluated at the points w_i and w_j, and f(w_i, w_j)
 /// are the evaluations of the polynomial at those points. This form is particularly useful for polynomial interpolation.
-
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize)]
 pub struct BivariatePolynomial<F: FftField> {
     // evaluation[i][j] corresponds to f(w_i, w_j)
     pub evaluations: Vec<Vec<F>>,
@@ -33,6 +33,7 @@ pub struct BivariatePolynomial<F: FftField> {
     pub degree_y: usize,
 }
 
+// XXX No reason to have this IMO
 pub trait BivariatePolynomialTrait<F: FftField> {
     fn new(evaluations: Vec<Vec<F>>,
            domain_x: GeneralEvaluationDomain<F>,
@@ -52,6 +53,7 @@ pub trait BivariatePolynomialTrait<F: FftField> {
                           degree_x: usize,
                           degree_y: usize,
     ) -> Self;
+    fn bitfield_union(&self, other: &Self) -> Self;
     fn evaluate(&self, x: &F, y: &F) -> F;
     fn partially_evaluate_at_x(&self, x: &F) -> UnivariatePolynomial<F>;
     fn partially_evaluate_at_y(&self, y: &F) -> UnivariatePolynomial<F>;
@@ -207,6 +209,51 @@ impl<F: FftField> BivariatePolynomialTrait<F> for BivariatePolynomial<F> {
             evaluations.push(sum);
         }
         UnivariatePolynomial { evaluations, lagrange_basis: self.lagrange_basis_x.clone() }
+    }
+
+    // /// Compute r(x) = \sum_{j\inH_y} f(X, j)
+    // ///
+    // /// Evaluates the polynomial at all roots of unity in the domain and sums the results.
+    // pub fn sum_partial_evaluations_in_domain(&self) -> UnivariatePolynomial<F> {
+    //     // XXX This could be precomputed and stored somewhere (e.g. on the poly itself)
+    //     let domain = GeneralEvaluationDomain::<F>::new(self.degree).unwrap();
+
+    //     // This can probably be sped up...
+    //     let mut r_poly = UnivariatePolynomial::new(vec![F::zero(); self.degree]);
+    //     for w_i in domain.elements() {
+    //         r_poly = r_poly + self.partially_evaluate_at_y(&w_i);
+    //     }
+
+    //     r_poly
+    // }
+
+    /// Computes the bitfield union of two bivariate polynomials.
+    ///
+    /// The coefficients of the resulting polynomial are the bitwise OR of the coefficients
+    /// of the two input polynomials.
+    fn bitfield_union(&self, other: &Self) -> Self {
+        assert_eq!(self.degree_x, other.degree_x, "Polynomials must have the same degree in x direction");
+        assert_eq!(self.degree_y, other.degree_y, "Polynomials must have the same degree in y direction");
+
+        let evaluations: Vec<Vec<F>> = self.evaluations.iter()
+            .zip(&other.evaluations)
+            .map(|(row_a, row_b)| {
+                row_a.iter()
+                    .zip(row_b)
+                    .map(|(a, b)| {
+                        *a + *b - *a * *b // Since a, b are either 0 or 1, this is equivalent to a | b
+                    })
+                    .collect()
+            })
+            .collect();
+
+        Self {
+            evaluations,
+            lagrange_basis_x: self.lagrange_basis_x.clone(),
+            lagrange_basis_y: self.lagrange_basis_y.clone(),
+            degree_x: self.degree_x,
+            degree_y: self.degree_y,
+        }
     }
 }
 

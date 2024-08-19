@@ -5,6 +5,7 @@ use ark_ec::pairing::Pairing;
 use ark_ec::VariableBaseMSM;
 use transcript::IOPTranscript;
 
+use crate::polynomial::bivariate_poly::BivariatePolynomialTrait;
 use crate::signature_aggregation::bivariate_sumcheck::{bivariate_sumcheck, SumcheckProof};
 use crate::{polynomial::bivariate_poly::BivariatePolynomial};
 
