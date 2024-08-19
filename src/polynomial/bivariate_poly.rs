@@ -6,6 +6,7 @@ use itertools::Itertools;
 use rand::RngCore;
 use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
 use crate::polynomial::lagrange_basis::{LagrangeBasis, LagrangeTraits};
+use crate::polynomial::univariate_poly::UnivariatePolynomialTrait;
 use crate::polynomial::univariate_poly::UnivariatePolynomial;
 use crate::utils::{compute_powers, is_power_of_two};
 
@@ -54,6 +55,7 @@ pub trait BivariatePolynomialTrait<F: FftField> {
                           degree_y: usize,
     ) -> Self;
     fn bitfield_union(&self, other: &Self) -> Self;
+    fn sum_partial_evaluations_in_domain(&self) -> UnivariatePolynomial<F>;
     fn evaluate(&self, x: &F, y: &F) -> F;
     fn partially_evaluate_at_x(&self, x: &F) -> UnivariatePolynomial<F>;
     fn partially_evaluate_at_y(&self, y: &F) -> UnivariatePolynomial<F>;
@@ -211,21 +213,18 @@ impl<F: FftField> BivariatePolynomialTrait<F> for BivariatePolynomial<F> {
         UnivariatePolynomial { evaluations, lagrange_basis: self.lagrange_basis_x.clone() }
     }
 
-    // /// Compute r(x) = \sum_{j\inH_y} f(X, j)
-    // ///
-    // /// Evaluates the polynomial at all roots of unity in the domain and sums the results.
-    // pub fn sum_partial_evaluations_in_domain(&self) -> UnivariatePolynomial<F> {
-    //     // XXX This could be precomputed and stored somewhere (e.g. on the poly itself)
-    //     let domain = GeneralEvaluationDomain::<F>::new(self.degree).unwrap();
+    /// Compute r(x) = \sum_{j\inH_y} f(X, j)
+    ///
+    /// Evaluates the polynomial at all roots of unity in the domain and sums the results.
+    fn sum_partial_evaluations_in_domain(&self) -> UnivariatePolynomial<F> {
+        // This can probably be sped up...
+        let mut r_poly = UnivariatePolynomial::new(vec![F::zero(); self.degree_x], self.lagrange_basis_x.domain.clone());
+        for j in self.lagrange_basis_y.domain.elements() {
+            r_poly = r_poly + self.partially_evaluate_at_y(&j);
+        }
 
-    //     // This can probably be sped up...
-    //     let mut r_poly = UnivariatePolynomial::new(vec![F::zero(); self.degree]);
-    //     for w_i in domain.elements() {
-    //         r_poly = r_poly + self.partially_evaluate_at_y(&w_i);
-    //     }
-
-    //     r_poly
-    // }
+        r_poly
+    }
 
     /// Computes the bitfield union of two bivariate polynomials.
     ///

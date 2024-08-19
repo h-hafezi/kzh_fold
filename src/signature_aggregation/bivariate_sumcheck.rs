@@ -13,8 +13,7 @@ pub struct SumcheckProof<E: Pairing> {
 
 #[allow(unused_variables)]  // XXX remove
 pub fn bivariate_sumcheck<E: Pairing>(transcript: &mut IOPTranscript<E::ScalarField>, f_poly: &BivariatePolynomial<E::ScalarField>) -> SumcheckProof<E> {
-    // let r_poly = f_poly.sum_partial_evaluations_in_domain();
-    let r_poly = f_poly.clone();
+    let r_poly = f_poly.sum_partial_evaluations_in_domain();
 
     // XXX Do more stuff..
     // XXX If you need to compute a quotient poly use arkworks' divide_by_vanishing_poly()
