@@ -7,43 +7,18 @@ use crate::polynomial::lagrange_basis::{LagrangeBasis, LagrangeTraits};
 use crate::polynomial::univariate_poly::UnivariatePolynomial;
 use crate::utils::{compute_powers, is_power_of_two};
 
-
-/// A bivariate polynomial can be represented in two different forms:
+/// We represent a bivariate polynomial in **Lagrange Basis Form**:
 ///
-/// 1. **Coefficient Form**:
+/// In the Lagrange basis, the polynomial is represented using the evaluation points and
+/// corresponding Lagrange basis polynomials:
 ///
-///    f(X, Y) = sum_{i=0}^{d-1} sum_{j=0}^{d-1} f_{i,j} * X^i * Y^j
+/// f(X, Y) = L_{0,0}(w_0, w_0)f(w_0, w_0) + L_{0,1}(w_0, w_1)f(w_0, w_1) + L_{0,2}(w_0, w_2)f(w_0, w_2) + f(w_0, w_3) +
+///           L_{1,0}(w_1, w_0)f(w_1, w_0) + L_{1,1}(w_1, w_1)f(w_1, w_1) + L_{1,2}(w_1, w_2)f(w_1, w_2) + f(w_1, w_3) +
+///           L_{2,0}(w_2, w_0)f(w_2, w_0) + L_{2,1}(w_2, w_1)f(w_2, w_1) + L_{2,2}(w_2, w_2)f(w_2, w_2) + f(w_2, w_3) +
+///           L_{3,0}(w_3, w_0)f(w_3, w_0) + L_{3,1}(w_3, w_1)f(w_3, w_1) + L_{3,2}(w_3, w_2)f(w_3, w_2) + f(w_3, w_3)
 ///
-///    The coefficients of the bivariate polynomial are stored in a flat vector and logically
-///    organized in a matrix of dimensions `d x d`. The matrix representation
-///    allows us to associate the coefficients with the powers of X and Y.
-///
-///    For example, given a polynomial with 16 coefficients and degree `d = 4`:
-///
-///    f(X, Y) = f_{0,0} + f_{0,1}Y + f_{0,2}Y^2 + f_{0,3}Y^3 +
-///              f_{1,0}X + f_{1,1}XY + f_{1,2}XY^2 + f_{1,3}XY^3 +
-///              f_{2,0}X^2 + f_{2,1}X^2Y + f_{2,2}X^2Y^2 + f_{2,3}X^2Y^3 +
-///              f_{3,0}X^3 + f_{3,1}X^3Y + f_{3,2}X^3Y^2 + f_{3,3}X^3Y^3
-///
-///    The coefficients are stored in a vector as:
-///    [f_{0,0}, f_{0,1}, f_{0,2}, f_{0,3}, f_{1,0}, f_{1,1}, f_{1,2}, f_{1,3},
-///     f_{2,0}, f_{2,1}, f_{2,2}, f_{2,3}, f_{3,0}, f_{3,1}, f_{3,2}, f_{3,3}]
-///
-///    Each row in the matrix corresponds to increasing powers of Y, and within each row,
-///    the columns correspond to increasing powers of X.
-///
-/// 2. **Lagrange Basis Form**:
-///
-///    In the Lagrange basis, the polynomial is represented using the evaluation points and
-///    corresponding Lagrange basis polynomials:
-///
-///    f(X, Y) = L_{0,0}(w_0, w_0)f(w_0, w_0) + L_{0,1}(w_0, w_1)f(w_0, w_1) + L_{0,2}(w_0, w_2)f(w_0, w_2) + f(w_0, w_3) +
-///              L_{1,0}(w_1, w_0)f(w_1, w_0) + L_{1,1}(w_1, w_1)f(w_1, w_1) + L_{1,2}(w_1, w_2)f(w_1, w_2) + f(w_1, w_3) +
-///              L_{2,0}(w_2, w_0)f(w_2, w_0) + L_{2,1}(w_2, w_1)f(w_2, w_1) + L_{2,2}(w_2, w_2)f(w_2, w_2) + f(w_2, w_3) +
-///              L_{3,0}(w_3, w_0)f(w_3, w_0) + L_{3,1}(w_3, w_1)f(w_3, w_1) + L_{3,2}(w_3, w_2)f(w_3, w_2) + f(w_3, w_3)
-///
-///    Here, L_{i,j}(w_i, w_j) are the Lagrange basis polynomials evaluated at the points w_i and w_j, and f(w_i, w_j)
-///    are the evaluations of the polynomial at those points. This form is particularly useful for polynomial interpolation.
+/// Here, L_{i,j}(w_i, w_j) are the Lagrange basis polynomials evaluated at the points w_i and w_j, and f(w_i, w_j)
+/// are the evaluations of the polynomial at those points. This form is particularly useful for polynomial interpolation.
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BivariatePolynomial<F: FftField> {
