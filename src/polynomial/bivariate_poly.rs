@@ -1,3 +1,4 @@
+use rand::Rng;
 use std::fmt;
 use ark_ff::{Field, Zero, PrimeField, FftField};
 use itertools::Itertools;
@@ -40,6 +41,12 @@ pub trait BivariatePolynomialTrait<F: FftField> {
            degree_y: usize,
     ) -> Self;
     fn random<T: RngCore>(rng: &mut T,
+                          domain_x: GeneralEvaluationDomain<F>,
+                          domain_y: GeneralEvaluationDomain<F>,
+                          degree_x: usize,
+                          degree_y: usize,
+    ) -> Self;
+    fn random_binary<T: RngCore>(rng: &mut T,
                           domain_x: GeneralEvaluationDomain<F>,
                           domain_y: GeneralEvaluationDomain<F>,
                           degree_x: usize,
@@ -110,6 +117,39 @@ impl<F: FftField> BivariatePolynomialTrait<F> for BivariatePolynomial<F> {
             let mut row = Vec::with_capacity(degree_y);
             for _ in 0..degree_y {
                 row.push(F::rand(rng));
+            }
+            evaluations.push(row);
+        }
+
+        BivariatePolynomial {
+            evaluations,
+            lagrange_basis_x: LagrangeBasis { domain: domain_x },
+            lagrange_basis_y: LagrangeBasis { domain: domain_y },
+            degree_x,
+            degree_y,
+        }
+    }
+
+    /// Generates a random BivariatePolynomial with binary coefficients
+    /// XXX: Remove domain_x and domain_y as inputs
+    fn random_binary<T: RngCore>(
+        rng: &mut T,
+        domain_x: GeneralEvaluationDomain<F>,
+        domain_y: GeneralEvaluationDomain<F>,
+        degree_x: usize,
+        degree_y: usize,
+    ) -> Self {
+        assert!(is_power_of_two(degree_x), "degree_x (upper bound) must be a power of two");
+        assert!(is_power_of_two(degree_y), "degree_y (upper bound) must be a power of two");
+
+        let mut evaluations = Vec::with_capacity(degree_x);
+
+        for _ in 0..degree_x {
+            let mut row = Vec::with_capacity(degree_y);
+            for _ in 0..degree_y {
+                let random_bit = rng.gen_bool(0.5); // Generates a random boolean with equal probability
+                let coefficient = if random_bit { F::one() } else { F::zero() };
+                row.push(coefficient);
             }
             evaluations.push(row);
         }

@@ -49,19 +49,27 @@ impl<E: Pairing> Aggregator<E> {
 
 #[cfg(test)]
 pub mod test {
+    use crate::polynomial::bivariate_poly::BivariatePolynomialTrait;
+
     use super::*;
+    use ark_poly::{EvaluationDomain,GeneralEvaluationDomain};
     use ark_std::test_rng;
     use ark_std::UniformRand;
-    use ark_bn254::{Fr, G1Projective};
+    use crate::constant_for_curves::{E, ScalarField};
 
     #[test]
     fn test_aggregate() {
         let rng = &mut rand::thread_rng();
-        let mut _transcript = IOPTranscript::<Fr>::new(b"aggr");
+        let mut _transcript = IOPTranscript::<ScalarField>::new(b"aggr");
+
+        let degree_x = 16usize;
+        let degree_y = 4usize;
 
         // XXX Create two valid signature aggr data and aggregate
-        let _b_1 = BivariatePolynomial::<Fr>::random_binary(rng, 4);
-        let _b_2 = BivariatePolynomial::<Fr>::random_binary(rng, 4);
+        let domain_x = GeneralEvaluationDomain::<ScalarField>::new(degree_x).unwrap();
+        let domain_y = GeneralEvaluationDomain::<ScalarField>::new(degree_y).unwrap();
+        let _b_1 = BivariatePolynomial::random_binary(rng, domain_x, domain_y, degree_x, degree_y);
+        let _b_2 = BivariatePolynomial::random_binary(rng, domain_x, domain_y, degree_x, degree_y);
     }
 }
 
