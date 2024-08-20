@@ -1,6 +1,7 @@
 use ark_serialize::CanonicalSerialize;
 use rand::Rng;
 use std::fmt;
+use std::ops::Add;
 use ark_ff::{Field, Zero, PrimeField, FftField};
 use itertools::Itertools;
 use rand::RngCore;
@@ -23,9 +24,9 @@ use crate::utils::{compute_powers, is_power_of_two};
 /// are the evaluations of the polynomial at those points. This form is particularly useful for polynomial interpolation.
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize)]
 pub struct BivariatePolynomial<F: FftField> {
-    // evaluation[i][j] corresponds to f(w_i, w_j)
-    pub evaluations: Vec<Vec<F>>,
-    // the lagrange basis used
+    // Flattened vector to represent the evaluations, where the entry at index (i, j) is located at i * degree_y + j
+    pub evaluations: Vec<F>,
+    // The lagrange basis used
     pub lagrange_basis_x: LagrangeBasis<F>,
     pub lagrange_basis_y: LagrangeBasis<F>,
     // Degree of the polynomial in both X and Y
@@ -46,7 +47,7 @@ impl<F: FftField + fmt::Display> fmt::Display for BivariatePolynomial<F> {
                     write!(f, " + ")?;
                 }
                 write!(f, "f(w_{}, w_{})", i, j)?;
-                write!(f, " ({})", self.evaluations[i][j])?;
+                write!(f, " ({})", self.evaluations[i * self.degree_y + j])?;
                 first_term = false;
             }
             writeln!(f)?;
@@ -55,10 +56,9 @@ impl<F: FftField + fmt::Display> fmt::Display for BivariatePolynomial<F> {
     }
 }
 
-
 impl<F: FftField> BivariatePolynomial<F> {
     pub fn new(
-        evaluations: Vec<Vec<F>>,
+        evaluations: Vec<F>,
         domain_x: GeneralEvaluationDomain<F>,
         domain_y: GeneralEvaluationDomain<F>,
         degree_x: usize,
@@ -66,7 +66,8 @@ impl<F: FftField> BivariatePolynomial<F> {
     ) -> Self {
         assert!(is_power_of_two(degree_x), "degree_x (upper bound) must be a power of two");
         assert!(is_power_of_two(degree_y), "degree_y (upper bound) must be a power of two");
-        // return the instance
+        assert_eq!(evaluations.len(), degree_x * degree_y, "Evaluations length does not match the expected size");
+
         Self {
             evaluations,
             lagrange_basis_x: LagrangeBasis { domain: domain_x },
@@ -87,15 +88,7 @@ impl<F: FftField> BivariatePolynomial<F> {
         assert!(is_power_of_two(degree_x), "degree_x (upper bound) must be a power of two");
         assert!(is_power_of_two(degree_y), "degree_y (upper bound) must be a power of two");
 
-        let mut evaluations = Vec::with_capacity(degree_x);
-
-        for _ in 0..degree_x {
-            let mut row = Vec::with_capacity(degree_y);
-            for _ in 0..degree_y {
-                row.push(F::rand(rng));
-            }
-            evaluations.push(row);
-        }
+        let evaluations = (0..degree_x * degree_y).map(|_| F::rand(rng)).collect();
 
         BivariatePolynomial {
             evaluations,
@@ -118,17 +111,10 @@ impl<F: FftField> BivariatePolynomial<F> {
         assert!(is_power_of_two(degree_x), "degree_x (upper bound) must be a power of two");
         assert!(is_power_of_two(degree_y), "degree_y (upper bound) must be a power of two");
 
-        let mut evaluations = Vec::with_capacity(degree_x);
-
-        for _ in 0..degree_x {
-            let mut row = Vec::with_capacity(degree_y);
-            for _ in 0..degree_y {
-                let random_bit = rng.gen_bool(0.5); // Generates a random boolean with equal probability
-                let coefficient = if random_bit { F::one() } else { F::zero() };
-                row.push(coefficient);
-            }
-            evaluations.push(row);
-        }
+        let evaluations = (0..degree_x * degree_y).map(|_| {
+            let random_bit = rng.gen_bool(0.5); // Generates a random boolean with equal probability
+            if random_bit { F::one() } else { F::zero() }
+        }).collect();
 
         BivariatePolynomial {
             evaluations,
@@ -147,7 +133,7 @@ impl<F: FftField> BivariatePolynomial<F> {
         let mut sum = F::ZERO;
         for i in 0..self.degree_x {
             for j in 0..self.degree_y {
-                sum += l_x[i] * l_y[j] * self.evaluations[i][j];
+                sum += l_x[i] * l_y[j] * self.evaluations[i * self.degree_y + j];
             }
         }
         sum
@@ -158,13 +144,11 @@ impl<F: FftField> BivariatePolynomial<F> {
     ///           = sum_{i} L_i(x) * f(w_i, w_t))
     pub fn partially_evaluate_at_x(&self, x: &F) -> UnivariatePolynomial<F> {
         let l_x = self.lagrange_basis_x.evaluate(x);
-        let mut evaluations = vec![];
+        let mut evaluations = vec![F::ZERO; self.degree_y];
         for t in 0..self.degree_y {
-            let mut sum = F::ZERO;
             for i in 0..self.degree_x {
-                sum += l_x[i] * self.evaluations[i][t];
+                evaluations[t] += l_x[i] * self.evaluations[i * self.degree_y + t];
             }
-            evaluations.push(sum);
         }
         UnivariatePolynomial { evaluations, lagrange_basis: self.lagrange_basis_y.clone() }
     }
@@ -174,13 +158,11 @@ impl<F: FftField> BivariatePolynomial<F> {
     ///           = sum_{j} L_j(y) * f(w_t, w_j))
     pub fn partially_evaluate_at_y(&self, y: &F) -> UnivariatePolynomial<F> {
         let l_y = self.lagrange_basis_y.evaluate(y);
-        let mut evaluations = vec![];
+        let mut evaluations = vec![F::ZERO; self.degree_x];
         for t in 0..self.degree_x {
-            let mut sum = F::ZERO;
             for j in 0..self.degree_y {
-                sum += l_y[j] * self.evaluations[t][j];
+                evaluations[t] += l_y[j] * self.evaluations[t * self.degree_y + j];
             }
-            evaluations.push(sum);
         }
         UnivariatePolynomial { evaluations, lagrange_basis: self.lagrange_basis_x.clone() }
     }
@@ -206,15 +188,10 @@ impl<F: FftField> BivariatePolynomial<F> {
         assert_eq!(self.degree_x, other.degree_x, "Polynomials must have the same degree in x direction");
         assert_eq!(self.degree_y, other.degree_y, "Polynomials must have the same degree in y direction");
 
-        let evaluations: Vec<Vec<F>> = self.evaluations.iter()
+        let evaluations: Vec<F> = self.evaluations.iter()
             .zip(&other.evaluations)
-            .map(|(row_a, row_b)| {
-                row_a.iter()
-                    .zip(row_b)
-                    .map(|(a, b)| {
-                        *a + *b - *a * *b // Since a, b are either 0 or 1, this is equivalent to a | b
-                    })
-                    .collect()
+            .map(|(a, b)| {
+                *a + *b - *a * *b // Since a, b are either 0 or 1, this is equivalent to a | b
             })
             .collect();
 
@@ -226,6 +203,7 @@ impl<F: FftField> BivariatePolynomial<F> {
             degree_y: self.degree_y,
         }
     }
+
 }
 
 #[cfg(test)]

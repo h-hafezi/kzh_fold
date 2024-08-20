@@ -54,10 +54,7 @@ mod tests {
     use crate::constant_for_curves::{ScalarField, E};
 
     pub fn sum_bivariate_poly_over_domain(poly: &BivariatePolynomial<ScalarField>) -> ScalarField {
-        poly.evaluations.iter()
-            .flat_map(|row| row.iter())
-            .cloned()
-            .sum()
+        poly.evaluations.iter().cloned().sum()
     }
 
     #[test]

@@ -157,21 +157,25 @@ impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
     fn commit(&self, poly: &BivariatePolynomial<E::ScalarField>) -> Commitment<E> {
         Commitment {
             C: E::G1::sum((0..self.srs.degree_x).into_par_iter()
-                .map(|i| {
-                    E::G1::msm_unchecked(
-                        self.srs.matrix_H[i].as_slice(),
-                        &poly.evaluations[i],
-                    )
-                })
-                .collect::<Vec<_>>()
-                .iter()
+                          .map(|i| {
+                              let start = i * poly.degree_y;
+                              let end = start + poly.degree_y;
+                              E::G1::msm_unchecked(
+                                  self.srs.matrix_H[i].as_slice(),
+                                  &poly.evaluations[start..end], // Slice the flattened vector to get the row
+                              )
+                          })
+                          .collect::<Vec<_>>()
+                          .iter()
             ).into_affine(),
 
             aux: (0..self.srs.degree_x).into_par_iter()
                 .map(|i| {
+                    let start = i * poly.degree_y;
+                    let end = start + poly.degree_y;
                     E::G1::msm_unchecked(
                         self.srs.vec_H.as_slice(),
-                        &poly.evaluations[i],
+                        &poly.evaluations[start..end], // Slice the flattened vector to get the row
                     )
                 })
                 .collect::<Vec<_>>(),
