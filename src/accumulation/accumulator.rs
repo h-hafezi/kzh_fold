@@ -10,7 +10,7 @@ use rand::RngCore;
 
 use crate::gadgets::non_native::util::convert_field_one_to_field_two;
 use crate::hash::poseidon::{PoseidonHash, PoseidonHashTrait};
-use crate::polynomial::lagrange_basis::{LagrangeBasis, LagrangeTraits};
+use crate::polynomial::lagrange_basis::{LagrangeBasis};
 use crate::polynomial::univariate_poly::UnivariatePolynomial;
 use crate::polynomial_commitment::pcs::{OpeningProof, PolyCommitTrait, SRS};
 use crate::utils::{inner_product, is_power_of_two, power};

@@ -6,7 +6,7 @@ use ark_ff::{Field, Zero, PrimeField, FftField};
 use itertools::Itertools;
 use rand::RngCore;
 use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
-use crate::polynomial::lagrange_basis::{LagrangeBasis, LagrangeTraits};
+use crate::polynomial::lagrange_basis::{LagrangeBasis};
 use crate::polynomial::univariate_poly::UnivariatePolynomial;
 use crate::utils::{compute_powers, is_power_of_two};
 

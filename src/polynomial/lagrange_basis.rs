@@ -7,15 +7,9 @@ pub struct LagrangeBasis<F: FftField> {
     pub domain: GeneralEvaluationDomain<F>,
 }
 
-pub trait LagrangeTraits<F: FftField> {
-    fn evaluate(&self, z: &F) -> Vec<F>;
-
-    fn evaluate_vanishing_polynomial(&self, z: &F) -> F;
-}
-
-impl<F: FftField> LagrangeTraits<F> for LagrangeBasis<F> {
+impl<F: FftField> LagrangeBasis<F> {
     // TODO: optimize
-    fn evaluate(&self, z: &F) -> Vec<F> {
+    pub fn evaluate(&self, z: &F) -> Vec<F> {
         let mut evaluation_points = vec![];
         let eval = self.domain.evaluate_vanishing_polynomial(z.clone());
 
@@ -31,8 +25,14 @@ impl<F: FftField> LagrangeTraits<F> for LagrangeBasis<F> {
         evaluation_points
     }
 
-    fn evaluate_vanishing_polynomial(&self, z: &F) -> F {
+    pub fn evaluate_vanishing_polynomial(&self, z: &F) -> F {
         self.domain.evaluate_vanishing_polynomial(z.clone())
+    }
+
+    pub fn new(n: usize) -> Self {
+        Self {
+            domain: GeneralEvaluationDomain::<F>::new(n).unwrap()
+        }
     }
 }
 
@@ -41,13 +41,13 @@ mod tests {
     use ark_ff::Field;
     use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
     use crate::constant_for_curves::ScalarField;
-    use crate::polynomial::lagrange_basis::{LagrangeBasis, LagrangeTraits};
+    use crate::polynomial::lagrange_basis::{LagrangeBasis};
 
     type F = ScalarField;
 
     #[test]
     fn lagrange_test() {
-        let lagrange_basis = LagrangeBasis { domain: GeneralEvaluationDomain::<F>::new(10).unwrap() };
+        let lagrange_basis = LagrangeBasis::new(10);
         assert_eq!(lagrange_basis.evaluate(&F::from(2u8)).len(), 16);
     }
 }

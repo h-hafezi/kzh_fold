@@ -7,7 +7,7 @@ use ark_poly::{DenseUVPolynomial, Polynomial};
 use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
 use ark_serialize::CanonicalSerialize;
 
-use crate::polynomial::lagrange_basis::{LagrangeBasis, LagrangeTraits};
+use crate::polynomial::lagrange_basis::{LagrangeBasis};
 
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize)]
 pub struct UnivariatePolynomial<F: FftField> {
@@ -93,7 +93,7 @@ mod tests {
     #[test]
     pub fn test_add() {
         let poly_degree = 9usize;
-        let lagrange_basis = LagrangeBasis { domain: GeneralEvaluationDomain::<F>::new(poly_degree).unwrap() };
+        let lagrange_basis = LagrangeBasis::new(poly_degree);
         let poly1 = UnivariatePolynomial {
             evaluations: vec![F::ONE; poly_degree],
             lagrange_basis: lagrange_basis.clone(),
