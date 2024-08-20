@@ -76,25 +76,6 @@ pub struct BivariatePolynomial<F: FftField> {
     pub degree_y: usize,
 }
 
-pub trait BivariatePolynomialTrait<F: FftField> {
-    fn new(evaluations: Vec<Vec<F>>,
-           domain_x: GeneralEvaluationDomain<F>,
-           domain_y: GeneralEvaluationDomain<F>,
-           degree_x: usize,
-           degree_y: usize,
-    ) -> Self;
-    fn random<T: RngCore>(rng: &mut T,
-                          domain_x: GeneralEvaluationDomain<F>,
-                          domain_y: GeneralEvaluationDomain<F>,
-                          degree_x: usize,
-                          degree_y: usize,
-    ) -> Self;
-    fn evaluate(&self, x: &F, y: &F) -> F;
-    fn partially_evaluate_at_x(&self, x: &F) -> UnivariatePolynomial<F>;
-    fn partially_evaluate_at_y(&self, y: &F) -> UnivariatePolynomial<F>;
-}
-```
-
 - **Coefficient Form**: The bivariate polynomial \( f(X, Y) \) is represented as a sum of monomials with coefficients:
   \[
   f(X, Y) = \sum_{i=0}^{d-1} \sum_{j=0}^{d-1} f_{i,j} \cdot X^i \cdot Y^j

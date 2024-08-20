@@ -8,7 +8,7 @@ use rand::thread_rng;
 
 use sqrtn_pcs::accumulation::accumulator::{AccSRS, Accumulator, AccumulatorTrait};
 use sqrtn_pcs::constant_for_curves::{E, ScalarField};
-use sqrtn_pcs::polynomial::bivariate_poly::{BivariatePolynomial, BivariatePolynomialTrait};
+use sqrtn_pcs::polynomial::bivariate_poly::{BivariatePolynomial};
 use sqrtn_pcs::polynomial::lagrange_basis::LagrangeBasis;
 use sqrtn_pcs::polynomial_commitment::pcs::{PolyCommit, PolyCommitTrait, SRS};
 

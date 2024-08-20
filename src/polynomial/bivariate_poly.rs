@@ -6,7 +6,6 @@ use itertools::Itertools;
 use rand::RngCore;
 use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
 use crate::polynomial::lagrange_basis::{LagrangeBasis, LagrangeTraits};
-use crate::polynomial::univariate_poly::UnivariatePolynomialTrait;
 use crate::polynomial::univariate_poly::UnivariatePolynomial;
 use crate::utils::{compute_powers, is_power_of_two};
 
@@ -34,33 +33,6 @@ pub struct BivariatePolynomial<F: FftField> {
     pub degree_y: usize,
 }
 
-// XXX No reason to have this IMO
-pub trait BivariatePolynomialTrait<F: FftField> {
-    fn new(evaluations: Vec<Vec<F>>,
-           domain_x: GeneralEvaluationDomain<F>,
-           domain_y: GeneralEvaluationDomain<F>,
-           degree_x: usize,
-           degree_y: usize,
-    ) -> Self;
-    fn random<T: RngCore>(rng: &mut T,
-                          domain_x: GeneralEvaluationDomain<F>,
-                          domain_y: GeneralEvaluationDomain<F>,
-                          degree_x: usize,
-                          degree_y: usize,
-    ) -> Self;
-    fn random_binary<T: RngCore>(rng: &mut T,
-                          domain_x: GeneralEvaluationDomain<F>,
-                          domain_y: GeneralEvaluationDomain<F>,
-                          degree_x: usize,
-                          degree_y: usize,
-    ) -> Self;
-    fn bitfield_union(&self, other: &Self) -> Self;
-    fn sum_partial_evaluations_in_domain(&self) -> UnivariatePolynomial<F>;
-    fn evaluate(&self, x: &F, y: &F) -> F;
-    fn partially_evaluate_at_x(&self, x: &F) -> UnivariatePolynomial<F>;
-    fn partially_evaluate_at_y(&self, y: &F) -> UnivariatePolynomial<F>;
-}
-
 impl<F: FftField + fmt::Display> fmt::Display for BivariatePolynomial<F> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "f(X, Y) =")?;
@@ -84,8 +56,8 @@ impl<F: FftField + fmt::Display> fmt::Display for BivariatePolynomial<F> {
 }
 
 
-impl<F: FftField> BivariatePolynomialTrait<F> for BivariatePolynomial<F> {
-    fn new(
+impl<F: FftField> BivariatePolynomial<F> {
+    pub fn new(
         evaluations: Vec<Vec<F>>,
         domain_x: GeneralEvaluationDomain<F>,
         domain_y: GeneralEvaluationDomain<F>,
@@ -105,7 +77,7 @@ impl<F: FftField> BivariatePolynomialTrait<F> for BivariatePolynomial<F> {
     }
 
     /// Generates a random BivariatePolynomial
-    fn random<T: RngCore>(
+    pub fn random<T: RngCore>(
         rng: &mut T,
         domain_x: GeneralEvaluationDomain<F>,
         domain_y: GeneralEvaluationDomain<F>,
@@ -136,7 +108,7 @@ impl<F: FftField> BivariatePolynomialTrait<F> for BivariatePolynomial<F> {
 
     /// Generates a random BivariatePolynomial with binary coefficients
     /// XXX: Remove domain_x and domain_y as inputs
-    fn random_binary<T: RngCore>(
+    pub fn random_binary<T: RngCore>(
         rng: &mut T,
         domain_x: GeneralEvaluationDomain<F>,
         domain_y: GeneralEvaluationDomain<F>,
@@ -168,7 +140,7 @@ impl<F: FftField> BivariatePolynomialTrait<F> for BivariatePolynomial<F> {
     }
 
     /// evaluation requires O(n^2) additions
-    fn evaluate(&self, x: &F, y: &F) -> F {
+    pub fn evaluate(&self, x: &F, y: &F) -> F {
         let l_x = self.lagrange_basis_x.evaluate(x);
         let l_y = self.lagrange_basis_y.evaluate(y);
         // the final result
@@ -184,7 +156,7 @@ impl<F: FftField> BivariatePolynomialTrait<F> for BivariatePolynomial<F> {
     /// f(x, Y) = sum_{i} L_i(x) * sum_{j} (L_j(Y) * f(w_i, w_j)) ===>
     /// f(x, w_t) = sum_{i} L_i(x) * sum_{j} (L_j(w_t) * f(w_i, w_j))
     ///           = sum_{i} L_i(x) * f(w_i, w_t))
-    fn partially_evaluate_at_x(&self, x: &F) -> UnivariatePolynomial<F> {
+    pub fn partially_evaluate_at_x(&self, x: &F) -> UnivariatePolynomial<F> {
         let l_x = self.lagrange_basis_x.evaluate(x);
         let mut evaluations = vec![];
         for t in 0..self.degree_y {
@@ -200,7 +172,7 @@ impl<F: FftField> BivariatePolynomialTrait<F> for BivariatePolynomial<F> {
     /// f(X, y) = sum_{j} L_j(y) * sum_{i} (L_i(X) * f(w_i, w_j)) ===>
     /// f(w_t, y) = sum_{j} L_j(y) * sum_{i} (L_i(w_t) * f(w_i, w_j))
     ///           = sum_{j} L_j(y) * f(w_t, w_j))
-    fn partially_evaluate_at_y(&self, y: &F) -> UnivariatePolynomial<F> {
+    pub fn partially_evaluate_at_y(&self, y: &F) -> UnivariatePolynomial<F> {
         let l_y = self.lagrange_basis_y.evaluate(y);
         let mut evaluations = vec![];
         for t in 0..self.degree_x {
@@ -216,7 +188,7 @@ impl<F: FftField> BivariatePolynomialTrait<F> for BivariatePolynomial<F> {
     /// Compute r(x) = \sum_{j\inH_y} f(X, j)
     ///
     /// Evaluates the polynomial at all roots of unity in the domain and sums the results.
-    fn sum_partial_evaluations_in_domain(&self) -> UnivariatePolynomial<F> {
+    pub fn sum_partial_evaluations_in_domain(&self) -> UnivariatePolynomial<F> {
         // XXX This can probably be sped up...
         let mut r_poly = UnivariatePolynomial::new(vec![F::zero(); self.degree_x], self.lagrange_basis_x.domain.clone());
         for j in self.lagrange_basis_y.domain.elements() {
@@ -230,7 +202,7 @@ impl<F: FftField> BivariatePolynomialTrait<F> for BivariatePolynomial<F> {
     ///
     /// The coefficients of the resulting polynomial are the bitwise OR of the coefficients
     /// of the two input polynomials.
-    fn bitfield_union(&self, other: &Self) -> Self {
+    pub fn bitfield_union(&self, other: &Self) -> Self {
         assert_eq!(self.degree_x, other.degree_x, "Polynomials must have the same degree in x direction");
         assert_eq!(self.degree_y, other.degree_y, "Polynomials must have the same degree in y direction");
 
@@ -262,8 +234,8 @@ mod tests {
     use ark_std::UniformRand;
     use rand::thread_rng;
     use crate::constant_for_curves::ScalarField;
-    use crate::polynomial::bivariate_poly::{BivariatePolynomial, BivariatePolynomialTrait};
-    use crate::polynomial::univariate_poly::UnivariatePolynomialTrait;
+    use super::*;
+    use crate::polynomial::univariate_poly::UnivariatePolynomial;
 
     type F = ScalarField;
 

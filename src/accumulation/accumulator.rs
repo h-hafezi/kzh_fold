@@ -497,7 +497,7 @@ pub mod tests {
 
     use crate::accumulation::accumulator::{AccSRS, Accumulator, AccumulatorTrait};
     use crate::constant_for_curves::{E, ScalarField};
-    use crate::polynomial::bivariate_poly::{BivariatePolynomial, BivariatePolynomialTrait};
+    use crate::polynomial::bivariate_poly::{BivariatePolynomial};
     use crate::polynomial::lagrange_basis::LagrangeBasis;
     use crate::polynomial_commitment::pcs::{Commitment, OpeningProof, PolyCommit, PolyCommitTrait, SRS};
 

@@ -5,7 +5,6 @@ use ark_ec::pairing::Pairing;
 use ark_ec::VariableBaseMSM;
 use transcript::IOPTranscript;
 
-use crate::polynomial::bivariate_poly::BivariatePolynomialTrait;
 use crate::signature_aggregation::bivariate_sumcheck;
 use crate::signature_aggregation::bivariate_sumcheck::SumcheckProof;
 use crate::{polynomial::bivariate_poly::BivariatePolynomial};
@@ -51,8 +50,6 @@ impl<E: Pairing> Aggregator<E> {
 
 #[cfg(test)]
 pub mod test {
-    use crate::polynomial::bivariate_poly::BivariatePolynomialTrait;
-
     use super::*;
     use ark_poly::{EvaluationDomain,GeneralEvaluationDomain};
     use ark_std::test_rng;
