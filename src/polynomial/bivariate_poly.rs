@@ -56,6 +56,56 @@ impl<F: FftField + fmt::Display> fmt::Display for BivariatePolynomial<F> {
     }
 }
 
+impl<F: FftField> Add for BivariatePolynomial<F> {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        // Determine the maximum degree in x and y directions
+        let new_degree_x = usize::max(self.degree_x, other.degree_x);
+        let new_degree_y = usize::max(self.degree_y, other.degree_y);
+
+        // Select the Lagrange basis for the larger polynomial in each direction
+        let lagrange_basis_x = if self.degree_x >= other.degree_x {
+            self.lagrange_basis_x
+        } else {
+            other.lagrange_basis_x
+        };
+
+        let lagrange_basis_y = if self.degree_y >= other.degree_y {
+            self.lagrange_basis_y
+        } else {
+            other.lagrange_basis_y
+        };
+
+        // Initialize the resulting evaluations vector with zeros
+        let mut evaluations = vec![F::zero(); new_degree_x * new_degree_y];
+
+        // Perform element-wise addition in a single loop
+        for i in 0..new_degree_x {
+            for j in 0..new_degree_y {
+                let idx_self = i * self.degree_y + j;
+                let idx_other = i * other.degree_y + j;
+                let idx_result = i * new_degree_y + j;
+
+                if i < self.degree_x && j < self.degree_y {
+                    evaluations[idx_result] += self.evaluations[idx_self];
+                }
+                if i < other.degree_x && j < other.degree_y {
+                    evaluations[idx_result] += other.evaluations[idx_other];
+                }
+            }
+        }
+
+        BivariatePolynomial {
+            evaluations,
+            lagrange_basis_x,
+            lagrange_basis_y,
+            degree_x: new_degree_x,
+            degree_y: new_degree_y,
+        }
+    }
+}
+
 impl<F: FftField> BivariatePolynomial<F> {
     pub fn new(
         evaluations: Vec<F>,
@@ -257,4 +307,5 @@ mod tests {
         let r_xy_direct = r.evaluate(&x, &y);
         assert_eq!(r_xy_direct, r_xy_indirect);
     }
+
 }
