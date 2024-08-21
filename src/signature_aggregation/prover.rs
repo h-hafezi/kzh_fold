@@ -35,12 +35,26 @@ where
 }
 
 pub struct SignatureAggrData<E: Pairing> {
-    pk: E::G1Affine,
-    sig: E::G2Affine,
-    bitfield_commitment: Commitment<E>,
+    // XXX comment this out for now. we will figure out the BLS stuff later.
+    //pk: E::G1Affine,
+    //sig: E::G2Affine,
     bitfield_poly: BivariatePolynomial<E::ScalarField>,
-    sumcheck_proof: SumcheckProof<E>,
+    bitfield_commitment: Commitment<E>,
+    sumcheck_proof: Option<SumcheckProof<E>>,
     // Also need SNARK proof for IVC verifier
+}
+
+impl<E: Pairing> SignatureAggrData<E> {
+    pub fn new(bitfield_poly: BivariatePolynomial<E::ScalarField>, _sumcheck_proof: Option<SumcheckProof<E>>, srs: &SRS<E>) -> Self {
+        // XXX this PolyCommit is not very ergonomic
+        let poly_commit = PolyCommit { srs: srs.pcs_srs.clone() }; // XXX no clone
+        let bitfield_commitment = poly_commit.commit(&bitfield_poly);
+        SignatureAggrData {
+            bitfield_poly,
+            bitfield_commitment,
+            sumcheck_proof: None
+        }
+    }
 }
 
 /// This struct represents an aggregator on the network that receives data from two parties and needs to aggregate them
@@ -53,12 +67,13 @@ pub struct Aggregator<E: Pairing> {
 
 impl<E: Pairing> Aggregator<E> {
     #[allow(unused_variables)] // XXX remove
-    pub fn aggregate(&self, transcript: &mut IOPTranscript<E::ScalarField>) -> () { // SignatureAggrData<E> {
-        let pk = self.A_1.pk + self.A_2.pk;
-        let sk = self.A_1.sig + self.A_2.sig;
+    pub fn aggregate(&self, transcript: &mut IOPTranscript<E::ScalarField>) -> SignatureAggrData<E> {
+        // let pk = self.A_1.pk + self.A_2.pk;
+        // let sk = self.A_1.sig + self.A_2.sig;
 
         let c_poly = self.A_1.bitfield_poly.bitfield_union(&self.A_2.bitfield_poly);
-        // let C_commitment = CoeffFormPCS::commit(&c_poly, &self.srs);
+        let poly_commit = PolyCommit { srs: self.srs.pcs_srs.clone() }; // XXX no clone
+        let C_commitment = poly_commit.commit(&c_poly);
 
         // Now aggregate all three polys into one
         // XXX
@@ -68,8 +83,11 @@ impl<E: Pairing> Aggregator<E> {
         let f_poly = c_poly.clone();
         let (sumcheck_proof, (alpha, beta)) = bivariate_sumcheck::prove::<E>(&f_poly, transcript);
 
-        
-
+        SignatureAggrData {
+            bitfield_poly: c_poly,
+            bitfield_commitment: C_commitment,
+            sumcheck_proof: Some(sumcheck_proof),
+        }
     }
 }
 
@@ -84,18 +102,28 @@ pub mod test {
     #[test]
     fn test_aggregate() {
         let rng = &mut rand::thread_rng();
-        let mut _transcript = IOPTranscript::<ScalarField>::new(b"aggr");
+        let mut transcript = IOPTranscript::<ScalarField>::new(b"aggr");
 
         let degree_x = 16usize;
         let degree_y = 4usize;
+        let domain_x = GeneralEvaluationDomain::<ScalarField>::new(degree_x).unwrap();
+        let domain_y = GeneralEvaluationDomain::<ScalarField>::new(degree_y).unwrap();
 
         let srs = SRS::<E>::new(degree_x, degree_y, rng);
 
-        // XXX Create two valid signature aggr data and aggregate
-        let domain_x = GeneralEvaluationDomain::<ScalarField>::new(degree_x).unwrap();
-        let domain_y = GeneralEvaluationDomain::<ScalarField>::new(degree_y).unwrap();
-        let _b_1 = BivariatePolynomial::random_binary(rng, domain_x, domain_y, degree_x, degree_y);
-        let _b_2 = BivariatePolynomial::random_binary(rng, domain_x, domain_y, degree_x, degree_y);
+        let b_1 = BivariatePolynomial::random_binary(rng, domain_x, domain_y, degree_x, degree_y);
+        let sig_aggr_data_1 = SignatureAggrData::new(b_1, None, &srs);
+
+        let b_2 = BivariatePolynomial::random_binary(rng, domain_x, domain_y, degree_x, degree_y);
+        let sig_aggr_data_2 = SignatureAggrData::new(b_2, None, &srs);
+
+        let aggregator = Aggregator {
+            srs,
+            A_1: sig_aggr_data_1,
+            A_2: sig_aggr_data_2,
+        };
+
+        aggregator.aggregate(&mut transcript);
     }
 }
 
