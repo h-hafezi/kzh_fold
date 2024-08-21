@@ -9,7 +9,7 @@ pub struct SumcheckProof<E: Pairing> {
     // more more more
 }
 
-pub fn prove<E: Pairing>(f_poly: &BivariatePolynomial<E::ScalarField>, transcript: &mut IOPTranscript<E::ScalarField>) -> SumcheckProof<E>  {
+pub fn prove<E: Pairing>(f_poly: &BivariatePolynomial<E::ScalarField>, transcript: &mut IOPTranscript<E::ScalarField>) -> (SumcheckProof<E>, (E::ScalarField, E::ScalarField))  {
     let r_poly = f_poly.sum_partial_evaluations_in_domain();
 
     // Squeeze alpha challenge
@@ -19,12 +19,14 @@ pub fn prove<E: Pairing>(f_poly: &BivariatePolynomial<E::ScalarField>, transcrip
     let s_poly = f_poly.partially_evaluate_at_x(&alpha);
 
     transcript.append_serializable_element(b"s_poly", &s_poly).unwrap();
-    let _beta = transcript.get_and_append_challenge(b"beta").unwrap();
+    let beta = transcript.get_and_append_challenge(b"beta").unwrap();
 
-    SumcheckProof {
+    let proof = SumcheckProof {
         r_poly,
         s_poly
-    }
+    };
+
+    (proof, (alpha, beta))
 }
 
 #[allow(unused_variables)]  // XXX remove
@@ -71,7 +73,7 @@ mod tests {
         let f_poly = BivariatePolynomial::random(&mut rng, domain_x, domain_y, degree_x, degree_y);
         let sumcheck_result = sum_bivariate_poly_over_domain(&f_poly);
 
-        let proof: SumcheckProof<E> = prove(&f_poly, &mut transcript_prover);
+        let (proof, (_,_)) = prove::<E>(&f_poly, &mut transcript_prover);
 
         verify(proof, sumcheck_result, &mut transcript_verifier);
     }
