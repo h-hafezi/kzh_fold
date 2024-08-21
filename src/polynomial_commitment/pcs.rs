@@ -182,6 +182,7 @@ impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
         }
     }
 
+    /// Create opening proof for f(b,c)
     fn open(&self, poly: &BivariatePolynomial<E::ScalarField>, com: Commitment<E>, b: &E::ScalarField) -> OpeningProof<E> {
         OpeningProof {
             vec_D: {

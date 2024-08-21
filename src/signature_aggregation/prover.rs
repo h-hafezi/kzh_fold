@@ -6,7 +6,7 @@ use ark_ec::pairing::Pairing;
 use ark_ec::VariableBaseMSM;
 use transcript::IOPTranscript;
 
-use crate::accumulation::accumulator::{get_srs};
+use crate::accumulation::accumulator::{get_srs, Accumulator};
 use crate::{accumulation, polynomial_commitment};
 use crate::signature_aggregation::bivariate_sumcheck;
 use crate::signature_aggregation::bivariate_sumcheck::SumcheckProof;
@@ -65,14 +65,19 @@ pub struct Aggregator<E: Pairing> {
     A_2: SignatureAggrData<E>,
 }
 
-impl<E: Pairing> Aggregator<E> {
+impl<E: Pairing> Aggregator<E>
+where
+    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
+    <E as Pairing>::ScalarField: Absorb,
+{
     #[allow(unused_variables)] // XXX remove
     pub fn aggregate(&self, transcript: &mut IOPTranscript<E::ScalarField>) -> SignatureAggrData<E> {
+        let poly_commit = PolyCommit { srs: self.srs.pcs_srs.clone() }; // XXX no clone
+
         // let pk = self.A_1.pk + self.A_2.pk;
         // let sk = self.A_1.sig + self.A_2.sig;
 
         let c_poly = self.A_1.bitfield_poly.bitfield_union(&self.A_2.bitfield_poly);
-        let poly_commit = PolyCommit { srs: self.srs.pcs_srs.clone() }; // XXX no clone
         let C_commitment = poly_commit.commit(&c_poly);
 
         // Now aggregate all three polys into one
@@ -82,6 +87,25 @@ impl<E: Pairing> Aggregator<E> {
 
         let f_poly = c_poly.clone();
         let (sumcheck_proof, (alpha, beta)) = bivariate_sumcheck::prove::<E>(&f_poly, transcript);
+
+        // Now the verifier will need b_1(alpha, beta), b_2(alpha, beta), and c(alpha, beta) to compute the sumcheck
+        // Compute b_1(alpha, beta)
+        let y_1 = self.A_1.bitfield_poly.evaluate(&alpha, &beta);
+        let y_1_proof = poly_commit.open(&self.A_1.bitfield_poly, self.A_1.bitfield_commitment.clone(), &alpha); // XXX needless clone
+        // XXX bad name for function
+        let y_1_acc_instance = Accumulator::new_accumulator_instance_from_proof(
+            &self.srs.acc_srs,
+            &self.A_1.bitfield_commitment.C,
+            &alpha,
+            &beta,
+            &y_1
+        );
+        let y_1_acc_witness = Accumulator::new_accumulator_witness_from_proof(
+            &self.srs.acc_srs,
+            y_1_proof,
+            &alpha,
+            &beta,
+        );
 
         SignatureAggrData {
             bitfield_poly: c_poly,
