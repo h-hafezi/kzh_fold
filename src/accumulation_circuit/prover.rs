@@ -5,7 +5,7 @@ use ark_ec::short_weierstrass::{Affine, Projective, SWCurveConfig};
 use ark_ff::Field;
 use ark_ff::PrimeField;
 
-use crate::accumulation::accumulator::{AccInstance, AccSRS, Accumulator, AccumulatorTrait};
+use crate::accumulation::accumulator::{AccInstance, AccSRS, Accumulator};
 use crate::accumulation_circuit::affine_to_projective;
 use crate::gadgets::non_native::util::convert_field_one_to_field_two;
 use crate::gadgets::r1cs::{R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness};
@@ -283,9 +283,11 @@ where
 pub mod tests {
     use ark_ec::CurveConfig;
     use ark_ff::Field;
+    use rand::thread_rng;
 
-    use crate::accumulation::accumulator::{Accumulator, AccumulatorTrait};
-    use crate::accumulation::accumulator::tests::{get_satisfying_accumulator, get_srs};
+    use crate::accumulation::accumulator::{Accumulator};
+    use crate::accumulation::accumulator::tests::{get_satisfying_accumulator};
+    use crate::accumulation::accumulator::{get_srs};
     use crate::accumulation_circuit::prover::{AccumulatorVerifierCircuitProver, AccumulatorVerifierCircuitProverTrait};
     use crate::constant_for_curves::{BaseField, E, G1, G2, ScalarField};
     use crate::gadgets::non_native::util::convert_field_one_to_field_two;
@@ -304,7 +306,7 @@ pub mod tests {
         let m = 16;
 
         // get a random srs
-        let srs = get_srs(n, m);
+        let srs = get_srs(n, m, &mut thread_rng());
 
         // build an instance of AccInstanceCircuit
         let current_accumulator = get_satisfying_accumulator(&srs);

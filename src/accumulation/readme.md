@@ -13,7 +13,6 @@ Key components include:
 - **`AccInstance`**: Represents a single instance of the accumulator, containing a relaxed polynomial opening proof.
 - **`AccWitness`**: A relaxed polynomial opening.
 - **`Accumulator`**: A structure combining both an `AccInstance` and an `AccWitness`.
-- **`AccumulatorTrait`**: A trait defining the core functions for interacting with accumulators.
 
 ### Structs
 
@@ -73,39 +72,9 @@ pub struct Accumulator<E: Pairing> {
 }
 ```
 
-### Traits
+### Methods
 
-#### AccumulatorTrait
-
-```rust
-pub trait AccumulatorTrait<E: Pairing>
-where
-    <E as Pairing>::ScalarField: Absorb,
-    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
-{
-    fn setup<T: RngCore>(degree_x: usize, degree_y: usize, lagrange_basis_x: LagrangeBasis<E::ScalarField>, lagrange_basis_y: LagrangeBasis<E::ScalarField>, pc_srs: SRS<E>, rng: &mut T) -> AccSRS<E>;
-
-    fn new_accumulator(instance: &AccInstance<E>, witness: &AccWitness<E>) -> Accumulator<E>;
-
-    fn compute_randomness(instance_1: &AccInstance<E>, instance_2: &AccInstance<E>, Q: E::G1Affine) -> E::ScalarField;
-
-    fn new_accumulator_instance_from_proof(srs: &AccSRS<E>, C: &E::G1Affine, b: &E::ScalarField, c: &E::ScalarField, y: &E::ScalarField) -> AccInstance<E>;
-
-    fn new_accumulator_witness_from_proof(srs: &AccSRS<E>, proof: OpeningProof<E>, b: &E::ScalarField, c: &E::ScalarField) -> AccWitness<E>;
-
-    fn prove(srs: &AccSRS<E>, acc_1: &Accumulator<E>, acc_2: &Accumulator<E>) -> (AccInstance<E>, AccWitness<E>, E::G1Affine);
-
-    fn verify(instance_1: &AccInstance<E>, instance_2: &AccInstance<E>, Q: E::G1Affine) -> AccInstance<E>;
-
-    fn decide(srs: &AccSRS<E>, acc: &Accumulator<E>) -> bool;
-
-    fn helper_function_decide(srs: &AccSRS<E>, acc: &Accumulator<E>) -> E::G1Affine;
-
-    fn helper_function_Q(srs: &AccSRS<E>, acc_1: &Accumulator<E>, acc_2: &Accumulator<E>) -> E::G1Affine;
-}
-```
-
-The `AccumulatorTrait` outlines the essential methods for working with accumulators:
+Here are the methods for working with accumulators:
 
 - `setup`: Generates the `AccSRS` using the provided parameters.
 - `new_accumulator`: Constructs a new `Accumulator` from an `AccInstance` and its corresponding `AccWitness`.

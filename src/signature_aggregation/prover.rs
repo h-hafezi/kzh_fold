@@ -1,17 +1,18 @@
+use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::AffineRepr;
-use ark_ff::UniformRand;
+use ark_ff::{PrimeField, UniformRand};
 use rand::RngCore;
 use ark_ec::pairing::Pairing;
 use ark_ec::VariableBaseMSM;
 use transcript::IOPTranscript;
 
-use crate::accumulation::accumulator::get_new_acc_srs;
+use crate::accumulation::accumulator::{get_srs};
 use crate::{accumulation, polynomial_commitment};
 use crate::signature_aggregation::bivariate_sumcheck;
 use crate::signature_aggregation::bivariate_sumcheck::SumcheckProof;
 use crate::{polynomial::bivariate_poly::BivariatePolynomial};
 
-use crate::polynomial_commitment::pcs::{Commitment, OpeningProof, PolyCommit};
+use crate::polynomial_commitment::pcs::{Commitment, OpeningProof, PolyCommit, PolyCommitTrait};
 use crate::polynomial_commitment::pcs;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -20,11 +21,15 @@ pub struct SRS<E: Pairing> {
     pub acc_srs: accumulation::accumulator::AccSRS<E>,
 }
 
-impl<E: Pairing> SRS<E> {
+impl<E: Pairing> SRS<E>
+where
+    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
+    <E as Pairing>::ScalarField: Absorb,
+{
     fn new<T: RngCore>(degree_x: usize, degree_y: usize, rng: &mut T) -> Self {
         SRS {
-            acc_srs: get_new_acc_srs(degree_x, degree_y),
-            pcs_srs: PolyCommit::setup(degree_x, degree_y, rng)
+            pcs_srs: PolyCommit::setup(degree_x, degree_y, rng),
+            acc_srs: get_srs(degree_x, degree_y, rng),
         }
     }
 }
@@ -84,7 +89,7 @@ pub mod test {
         let degree_x = 16usize;
         let degree_y = 4usize;
 
-        let srs = SRS::new(degree_x, degree_y, rng);
+        let srs = SRS::<E>::new(degree_x, degree_y, rng);
 
         // XXX Create two valid signature aggr data and aggregate
         let domain_x = GeneralEvaluationDomain::<ScalarField>::new(degree_x).unwrap();
