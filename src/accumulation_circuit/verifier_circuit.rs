@@ -451,7 +451,6 @@ mod tests {
     use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
 
     use crate::accumulation_circuit::instance_circuit::AccumulatorInstanceVar;
-    use crate::accumulation_circuit::prover::AccumulatorVerifierCircuitProverTrait;
     use crate::accumulation_circuit::prover::tests::get_random_prover;
     use crate::accumulation_circuit::verifier_circuit::AccumulatorVerifierVar;
     use crate::constant_for_curves::{BaseField, ScalarField};
