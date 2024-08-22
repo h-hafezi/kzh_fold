@@ -15,6 +15,7 @@ use crate::{polynomial::bivariate_poly::BivariatePolynomial};
 use crate::polynomial_commitment::pcs::{Commitment, OpeningProof, PolyCommit, PolyCommitTrait};
 use crate::polynomial_commitment::pcs;
 
+// XXX move to mod.rs or somewhere neutral
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SRS<E: Pairing> {
     pub pcs_srs: polynomial_commitment::pcs::SRS<E>,
@@ -141,11 +142,11 @@ where
         );
 
         // Here we need to accumulate y_1 acc, y_2 acc, and y_3 acc into one.
-        // TODO Hossein let's just do y_1 with y_2 for now. but we will need a tree for later.
+        // TODO Hossein: let's just do y_1 with y_2 for now. but we will need a tree for later.
         let _acc_prime = Accumulator::prove(&self.srs.acc_srs, &y_1_accumulator, &y_2_accumulator);
 
-        // Now we want an IVC proof of the accumulation
-        // let ivc_proof = prove_accumulation(&acc_prime, &y_1_accumulator, &y_2_accumulator, &self.srs.acc_srs);
+        // TODO Hossein: Now we want an IVC proof of the accumulation
+        // let ivc_proof = accumulation_circuit::prove_accumulation(&acc_prime, &y_1_accumulator, &y_2_accumulator, &self.srs.acc_srs);
 
         SignatureAggrData {
             bitfield_poly: c_poly,
@@ -163,6 +164,7 @@ pub mod test {
     use ark_std::test_rng;
     use ark_std::UniformRand;
     use crate::constant_for_curves::{E, ScalarField};
+    use crate::signature_aggregation::verifier::Verifier;
 
     #[test]
     fn test_aggregate() {
@@ -183,12 +185,21 @@ pub mod test {
         let sig_aggr_data_2 = SignatureAggrData::new(b_2, None, &srs);
 
         let aggregator = Aggregator {
-            srs,
+            srs: srs.clone(),
             A_1: sig_aggr_data_1,
             A_2: sig_aggr_data_2,
         };
 
-        aggregator.aggregate(&mut transcript);
+        let agg_data = aggregator.aggregate(&mut transcript);
+
+
+        // Now let's do verification
+        let verifier = Verifier {
+            srs: srs,
+            A: agg_data
+        };
+
+        assert_eq!(true, verifier.verify())
     }
 }
 
