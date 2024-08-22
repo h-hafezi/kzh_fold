@@ -35,13 +35,13 @@ where
 }
 
 pub struct SignatureAggrData<E: Pairing> {
-    // XXX comment this out for now. we will figure out the BLS stuff later.
+    // TODO comment this out for now. we will figure out the BLS stuff later.
     //pk: E::G1Affine,
     //sig: E::G2Affine,
     bitfield_poly: BivariatePolynomial<E::ScalarField>,
     bitfield_commitment: Commitment<E>,
     sumcheck_proof: Option<SumcheckProof<E>>,
-    // Also need SNARK proof for IVC verifier
+    // ivc_proof: IVCProof<E>
 }
 
 impl<E: Pairing> SignatureAggrData<E> {
@@ -99,7 +99,6 @@ where
         }
     }
 
-    #[allow(unused_variables)] // XXX remove
     pub fn aggregate(&self, transcript: &mut IOPTranscript<E::ScalarField>) -> SignatureAggrData<E> {
         let poly_commit = PolyCommit { srs: self.srs.pcs_srs.clone() }; // XXX no clone. bad ergonomics
         // let pk = self.A_1.pk + self.A_2.pk;
@@ -109,7 +108,7 @@ where
         let C_commitment = poly_commit.commit(&c_poly);
 
         // Now aggregate all three polys into one
-        // XXX TODO
+        // TODO George
         // let f_poly = b_1 + b_2 - b_1*b_2 - c;
         // for now let's pretend it's c_poly
 
@@ -134,21 +133,25 @@ where
             &alpha,
             &beta,
         );
-        let y_3_accumulator = self.get_accumulator_from_evaluation(
+        let _y_3_accumulator = self.get_accumulator_from_evaluation(
             &self.A_2.bitfield_poly,
             &self.A_2.bitfield_commitment,
             &alpha,
             &beta,
         );
 
-        // Hossein: Here we need to accumulate y_1 acc, y_2 acc, and y_3 acc into one.
-        let acc_prime = Accumulator::prove(&self.srs.acc_srs, &y_1_accumulator, &y_2_accumulator);
-        // let running_acc =  accumulate(y_1
+        // Here we need to accumulate y_1 acc, y_2 acc, and y_3 acc into one.
+        // TODO Hossein let's just do y_1 with y_2 for now. but we will need a tree for later.
+        let _acc_prime = Accumulator::prove(&self.srs.acc_srs, &y_1_accumulator, &y_2_accumulator);
+
+        // Now we want an IVC proof of the accumulation
+        // let ivc_proof = prove_accumulation(&acc_prime, &y_1_accumulator, &y_2_accumulator, &self.srs.acc_srs);
 
         SignatureAggrData {
             bitfield_poly: c_poly,
             bitfield_commitment: C_commitment,
             sumcheck_proof: Some(sumcheck_proof),
+            // ivc_proof: ivc_proof
         }
     }
 }

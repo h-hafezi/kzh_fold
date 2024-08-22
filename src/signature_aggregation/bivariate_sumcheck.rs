@@ -29,17 +29,19 @@ pub fn prove<E: Pairing>(f_poly: &BivariatePolynomial<E::ScalarField>, transcrip
     (proof, (alpha, beta))
 }
 
-#[allow(unused_variables)]  // XXX remove
 pub fn verify<E: Pairing>(proof: SumcheckProof<E>, sumcheck_result: E::ScalarField, transcript: &mut IOPTranscript<E::ScalarField>) -> bool {
     // Squeeze alpha challenge
     transcript.append_serializable_element(b"r_poly", &proof.r_poly).unwrap();
-    let alpha = transcript.get_and_append_challenge(b"alpha").unwrap();
+    let _alpha = transcript.get_and_append_challenge(b"alpha").unwrap();
 
     // Squeeze beta challenge
     transcript.append_serializable_element(b"s_poly", &proof.s_poly).unwrap();
-    let beta = transcript.get_and_append_challenge(b"beta").unwrap();
+    let _beta = transcript.get_and_append_challenge(b"beta").unwrap();
 
     assert_eq!(sumcheck_result, proof.r_poly.sum_evaluations_in_domain());
+
+    // TODO need to handle evaluation of f(alpha, beta).
+    // we will need a different sumcheck API. reduce/verify like in gemini
 
     true
 }
