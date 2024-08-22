@@ -432,9 +432,9 @@ where
             ]
         ).unwrap();
 
-        self.final_cycle_fold_instance_var.X.enforce_equal(&final_instance.X).expect("TODO: panic message");
-        self.final_cycle_fold_instance_var.commitment_E.enforce_equal(&final_instance.commitment_E).expect("TODO: panic message");
-        self.final_cycle_fold_instance_var.commitment_W.enforce_equal(&final_instance.commitment_W).expect("TODO: panic message");
+        self.final_cycle_fold_instance_var.X.enforce_equal(&final_instance.X).expect("XXX: panic message");
+        self.final_cycle_fold_instance_var.commitment_E.enforce_equal(&final_instance.commitment_E).expect("XXX: panic message");
+        self.final_cycle_fold_instance_var.commitment_W.enforce_equal(&final_instance.commitment_W).expect("XXX: panic message");
     }
 }
 

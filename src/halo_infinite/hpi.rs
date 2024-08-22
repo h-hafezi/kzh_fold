@@ -62,7 +62,7 @@ pub fn prove<E: Pairing>(
         let Y_L = E::G1::msm_unchecked(G_R, x_L);
         let Y_R = E::G1::msm_unchecked(G_L, x_R);
 
-        transcript.append_serializable_element(b"vec_Y", &[Y_L, Y_R]).unwrap(); // TODO: Need to add the statement to the FS
+        transcript.append_serializable_element(b"vec_Y", &[Y_L, Y_R]).unwrap(); // XXX: Need to add the statement to the FS
         let alpha: E::ScalarField = transcript.get_and_append_challenge(b"gamma").unwrap();
 
         vec_Y_L.push(Y_L);
@@ -88,7 +88,7 @@ pub fn prove<E: Pairing>(
 
 /// Get a bitstring to derive the verification scalars using binary decomposition.
 ///
-/// TODO: This can be done more elegantly
+/// XXX: This can be done more elegantly
 pub fn get_verification_scalars_bitstring(n: usize, logn: usize) -> Vec<Vec<usize>> {
     let mut bitstring: Vec<Vec<usize>> = Vec::new();
     for _i in 0..n {

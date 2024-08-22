@@ -8,7 +8,7 @@ pub struct LagrangeBasis<F: FftField> {
 }
 
 impl<F: FftField> LagrangeBasis<F> {
-    // TODO: optimize
+    // XXX: optimize
     pub fn evaluate(&self, z: &F) -> Vec<F> {
         let mut evaluation_points = vec![];
         let eval = self.domain.evaluate_vanishing_polynomial(z.clone());

@@ -42,6 +42,7 @@ pub struct SignatureAggrData<E: Pairing> {
     bitfield_poly: BivariatePolynomial<E::ScalarField>,
     bitfield_commitment: Commitment<E>,
     sumcheck_proof: Option<SumcheckProof<E>>,
+    // TODO Hossein: For now, instead of a proof, let's just put the R1CS circuit here
     // ivc_proof: IVCProof<E>
 }
 
@@ -191,7 +192,9 @@ pub mod test {
         };
 
         let agg_data = aggregator.aggregate(&mut transcript);
+        // TODO Hossein: Print the constraint count of the R1CS circuit
 
+        // TODO Hossein: Check that the witness satisfies the witness and examine the witness for 1s and 0s
 
         // Now let's do verification
         let verifier = Verifier {
