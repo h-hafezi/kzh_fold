@@ -6,7 +6,7 @@ use ark_ec::pairing::Pairing;
 use ark_ec::VariableBaseMSM;
 use transcript::IOPTranscript;
 
-use crate::accumulation::accumulator::{get_srs, Accumulator};
+use crate::accumulation::accumulator::{get_srs, AccInstance, AccWitness, Accumulator};
 use crate::{accumulation, polynomial_commitment};
 use crate::signature_aggregation::bivariate_sumcheck;
 use crate::signature_aggregation::bivariate_sumcheck::SumcheckProof;
@@ -70,10 +70,35 @@ where
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
     <E as Pairing>::ScalarField: Absorb,
 {
+    fn get_accumulator_instance_and_witness_from_evaluation(&self,
+                                                            bitfield_poly: &BivariatePolynomial<E::ScalarField>,
+                                                            bitfield_commitment: &Commitment<E>,
+                                                            alpha: &E::ScalarField,
+                                                            beta: &E::ScalarField) -> (AccInstance<E>, AccWitness<E>) {
+        let poly_commit = PolyCommit { srs: self.srs.pcs_srs.clone() }; // XXX no clone. bad ergonomics
+
+        let y = bitfield_poly.evaluate(alpha, beta);
+        let opening_proof = poly_commit.open(bitfield_poly, bitfield_commitment.clone(), alpha); // XXX needless clone
+        // XXX bad name for function
+        let acc_instance = Accumulator::new_accumulator_instance_from_proof(
+            &self.srs.acc_srs,
+            &bitfield_commitment.C,
+            alpha,
+            beta,
+            &y
+        );
+        let acc_witness = Accumulator::new_accumulator_witness_from_proof(
+            &self.srs.acc_srs,
+            opening_proof,
+            alpha,
+            beta,
+        );
+        (acc_instance, acc_witness)
+    }
+
     #[allow(unused_variables)] // XXX remove
     pub fn aggregate(&self, transcript: &mut IOPTranscript<E::ScalarField>) -> SignatureAggrData<E> {
-        let poly_commit = PolyCommit { srs: self.srs.pcs_srs.clone() }; // XXX no clone
-
+        let poly_commit = PolyCommit { srs: self.srs.pcs_srs.clone() }; // XXX no clone. bad ergonomics
         // let pk = self.A_1.pk + self.A_2.pk;
         // let sk = self.A_1.sig + self.A_2.sig;
 
@@ -88,24 +113,33 @@ where
         let f_poly = c_poly.clone();
         let (sumcheck_proof, (alpha, beta)) = bivariate_sumcheck::prove::<E>(&f_poly, transcript);
 
-        // Now the verifier will need b_1(alpha, beta), b_2(alpha, beta), and c(alpha, beta) to compute the sumcheck
-        // Compute b_1(alpha, beta)
-        let y_1 = self.A_1.bitfield_poly.evaluate(&alpha, &beta);
-        let y_1_proof = poly_commit.open(&self.A_1.bitfield_poly, self.A_1.bitfield_commitment.clone(), &alpha); // XXX needless clone
-        // XXX bad name for function
-        let y_1_acc_instance = Accumulator::new_accumulator_instance_from_proof(
-            &self.srs.acc_srs,
-            &self.A_1.bitfield_commitment.C,
-            &alpha,
-            &beta,
-            &y_1
-        );
-        let y_1_acc_witness = Accumulator::new_accumulator_witness_from_proof(
-            &self.srs.acc_srs,
-            y_1_proof,
+        // Now the verifier will need:
+        // y_1 = b_1(alpha, beta)
+        // y_2 = b_2(alpha, beta), and
+        // y_3 = c(alpha, beta)
+        // to verify the sumcheck
+        // Compute the evaluations and its accumulations
+        let (y_1_acc_instance, y_1_acc_witness) = self.get_accumulator_instance_and_witness_from_evaluation(
+            &self.A_1.bitfield_poly,
+            &self.A_1.bitfield_commitment,
             &alpha,
             &beta,
         );
+        let (y_2_acc_instance, y_2_acc_witness) = self.get_accumulator_instance_and_witness_from_evaluation(
+            &self.A_2.bitfield_poly,
+            &self.A_2.bitfield_commitment,
+            &alpha,
+            &beta,
+        );
+        let (y_3_acc_instance, y_3_acc_witness) = self.get_accumulator_instance_and_witness_from_evaluation(
+            &self.A_2.bitfield_poly,
+            &self.A_2.bitfield_commitment,
+            &alpha,
+            &beta,
+        );
+
+        // Here we need to accumulate y_1 acc, y_2 acc, and y_3 acc into one.
+        // let running_acc =  accumulate(y_1
 
         SignatureAggrData {
             bitfield_poly: c_poly,
