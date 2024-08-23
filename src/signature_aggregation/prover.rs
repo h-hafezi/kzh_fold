@@ -70,11 +70,11 @@ where
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
     <E as Pairing>::ScalarField: Absorb,
 {
-    fn get_accumulator_instance_and_witness_from_evaluation(&self,
-                                                            bitfield_poly: &BivariatePolynomial<E::ScalarField>,
-                                                            bitfield_commitment: &Commitment<E>,
-                                                            alpha: &E::ScalarField,
-                                                            beta: &E::ScalarField) -> (AccInstance<E>, AccWitness<E>) {
+    fn get_accumulator_from_evaluation(&self,
+                                       bitfield_poly: &BivariatePolynomial<E::ScalarField>,
+                                       bitfield_commitment: &Commitment<E>,
+                                       alpha: &E::ScalarField,
+                                       beta: &E::ScalarField) -> Accumulator<E> {
         let poly_commit = PolyCommit { srs: self.srs.pcs_srs.clone() }; // XXX no clone. bad ergonomics
 
         let y = bitfield_poly.evaluate(alpha, beta);
@@ -93,7 +93,10 @@ where
             alpha,
             beta,
         );
-        (acc_instance, acc_witness)
+        Accumulator {
+            witness: acc_witness,
+            instance: acc_instance,
+        }
     }
 
     #[allow(unused_variables)] // XXX remove
@@ -106,7 +109,7 @@ where
         let C_commitment = poly_commit.commit(&c_poly);
 
         // Now aggregate all three polys into one
-        // XXX
+        // XXX TODO
         // let f_poly = b_1 + b_2 - b_1*b_2 - c;
         // for now let's pretend it's c_poly
 
@@ -119,26 +122,27 @@ where
         // y_3 = c(alpha, beta)
         // to verify the sumcheck
         // Compute the evaluations and its accumulations
-        let (y_1_acc_instance, y_1_acc_witness) = self.get_accumulator_instance_and_witness_from_evaluation(
+        let y_1_accumulator = self.get_accumulator_from_evaluation(
             &self.A_1.bitfield_poly,
             &self.A_1.bitfield_commitment,
             &alpha,
             &beta,
         );
-        let (y_2_acc_instance, y_2_acc_witness) = self.get_accumulator_instance_and_witness_from_evaluation(
+        let y_2_accumulator = self.get_accumulator_from_evaluation(
             &self.A_2.bitfield_poly,
             &self.A_2.bitfield_commitment,
             &alpha,
             &beta,
         );
-        let (y_3_acc_instance, y_3_acc_witness) = self.get_accumulator_instance_and_witness_from_evaluation(
+        let y_3_accumulator = self.get_accumulator_from_evaluation(
             &self.A_2.bitfield_poly,
             &self.A_2.bitfield_commitment,
             &alpha,
             &beta,
         );
 
-        // Here we need to accumulate y_1 acc, y_2 acc, and y_3 acc into one.
+        // Hossein: Here we need to accumulate y_1 acc, y_2 acc, and y_3 acc into one.
+        let acc_prime = Accumulator::prove(&self.srs.acc_srs, &y_1_accumulator, &y_2_accumulator);
         // let running_acc =  accumulate(y_1
 
         SignatureAggrData {

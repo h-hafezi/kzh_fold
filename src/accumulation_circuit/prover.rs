@@ -183,11 +183,11 @@ where
 
     fn compute_proof_Q(&self) -> Projective<G1> {
         // since acc_instance takes (1- beta) then it should be first in the function argument
-        affine_to_projective(Accumulator::prove(&self.srs, &self.current_accumulator, &self.running_accumulator).2)
+        affine_to_projective(Accumulator::prove(&self.srs, &self.current_accumulator, &self.running_accumulator).1)
     }
 
     fn compute_result_accumulator_instance(&self) -> AccInstance<E> {
-        Accumulator::prove(&self.srs, &self.current_accumulator, &self.running_accumulator).0
+        Accumulator::prove(&self.srs, &self.current_accumulator, &self.running_accumulator).0.instance
     }
 
     fn compute_cycle_fold_proofs_and_final_instance(&self) -> (
@@ -359,7 +359,7 @@ pub mod tests {
         assert_eq!(secondary_circuit.flag, false);
         assert_eq!(secondary_circuit.g1, prover.running_accumulator.instance.C);
         assert_eq!(secondary_circuit.g2, prover.current_accumulator.instance.C);
-        assert_eq!(secondary_circuit.g_out, new_acc_instance.C);
+        assert_eq!(secondary_circuit.g_out, new_acc_instance.instance.C);
     }
 
     #[test]
@@ -375,7 +375,7 @@ pub mod tests {
         assert_eq!(secondary_circuit.flag, false);
         assert_eq!(secondary_circuit.g1, prover.running_accumulator.instance.T);
         assert_eq!(secondary_circuit.g2, prover.current_accumulator.instance.T);
-        assert_eq!(secondary_circuit.g_out, new_acc_instance.T);
+        assert_eq!(secondary_circuit.g_out, new_acc_instance.instance.T);
     }
 
 

@@ -209,7 +209,7 @@ where
         };
     }
 
-    pub fn prove(srs: &AccSRS<E>, acc_1: &Accumulator<E>, acc_2: &Accumulator<E>) -> (AccInstance<E>, AccWitness<E>, E::G1Affine)
+    pub fn prove(srs: &AccSRS<E>, acc_1: &Accumulator<E>, acc_2: &Accumulator<E>) -> (Accumulator<E>, E::G1Affine)
     where
         <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb,
     {
@@ -274,7 +274,11 @@ where
                     .collect()
             },
         };
-        return (new_instance, new_witness, Q);
+        let acc_prime = Accumulator {
+            witness: new_witness,
+            instance: new_instance,
+        };
+        (acc_prime, Q)
     }
 
     pub fn verify(instance_1: &AccInstance<E>, instance_2: &AccInstance<E>, Q: E::G1Affine) -> AccInstance<E> {
@@ -544,12 +548,9 @@ pub mod tests {
         assert!(Accumulator::decide(&srs, &acc_1));
         assert!(Accumulator::decide(&srs, &acc_2));
 
-        let (acc_instance, acc_witness, _Q) = Accumulator::prove(&srs, &acc_1, &acc_2);
+        let (accumulator, _Q) = Accumulator::prove(&srs, &acc_1, &acc_2);
 
-        return Accumulator {
-            witness: acc_witness,
-            instance: acc_instance,
-        };
+        accumulator
     }
 
 
@@ -639,17 +640,14 @@ pub mod tests {
         let beta = ScalarField::rand(&mut thread_rng());
 
         // accumulate proof
-        let (instance, witness, Q) = Accumulator::prove(&srs, &acc_1, &acc_2);
+        let (accumulator, Q) = Accumulator::prove(&srs, &acc_1, &acc_2);
 
         // accumulate verifier
         let instance_prime = Accumulator::verify(&acc_1.instance, &acc_2.instance, Q);
 
-        // define accumulators
-        let acc = Accumulator::new_accumulator(&instance, &witness);
-
         // deciding the accumulator
-        assert!(Accumulator::decide(&srs, &acc));
+        assert!(Accumulator::decide(&srs, &accumulator));
 
-        assert_eq!(instance, instance_prime);
+        assert_eq!(accumulator.instance, instance_prime);
     }
 }
