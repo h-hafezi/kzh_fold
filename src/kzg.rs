@@ -1,5 +1,7 @@
 //! Borrowed from ArkWork in order to benchmark and compare to our PCS
 
+use rayon::iter::IntoParallelRefIterator;
+use rayon::iter::ParallelIterator;
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::marker::PhantomData;
