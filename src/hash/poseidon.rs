@@ -86,7 +86,7 @@ pub trait PoseidonHashVarTrait<F: Absorb + PrimeField> {
 impl<F: Absorb + PrimeField> PoseidonHashVarTrait<F> for PoseidonHashVar<F> {
     fn new(cs: ConstraintSystemRef<F>) -> Self {
         let hash = PoseidonHash::new();
-        // TODO: later don't clone
+        // XXX: later don't clone
         let poseidon_params = CRHParametersVar::<F>::new_witness(cs.clone(), || Ok(hash.poseidon_params.clone())).unwrap();
         let sponge = PoseidonSpongeVar::new(cs, &hash.poseidon_params);
         PoseidonHashVar {

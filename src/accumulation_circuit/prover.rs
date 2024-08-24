@@ -5,7 +5,7 @@ use ark_ec::short_weierstrass::{Affine, Projective, SWCurveConfig};
 use ark_ff::Field;
 use ark_ff::PrimeField;
 
-use crate::accumulation::accumulator::{AccInstance, AccSRS, Accumulator, AccumulatorTrait};
+use crate::accumulation::accumulator::{AccInstance, AccSRS, Accumulator};
 use crate::accumulation_circuit::affine_to_projective;
 use crate::gadgets::non_native::util::convert_field_one_to_field_two;
 use crate::gadgets::r1cs::{R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness};
@@ -67,37 +67,7 @@ where
     }
 }
 
-
-pub trait AccumulatorVerifierCircuitProverTrait<G1, G2, C2, E>
-where
-    G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField> + Clone,
-    G1::BaseField: PrimeField,
-    G1::ScalarField: PrimeField,
-    G2: SWCurveConfig,
-    G2::BaseField: PrimeField,
-    C2: CommitmentScheme<Projective<G2>>,
-    E: Pairing<G1Affine=Affine<G1>, ScalarField=G1::ScalarField>,
-    G2::BaseField: Absorb,
-    G2::ScalarField: Absorb,
-{
-    fn is_satisfied(&self);
-
-    fn compute_auxiliary_input_C(&self) -> (R1CSInstance<G2, C2>, R1CSWitness<G2>);
-
-    fn compute_auxiliary_input_T(&self) -> (R1CSInstance<G2, C2>, R1CSWitness<G2>);
-
-    fn compute_auxiliary_input_E_1(&self) -> (R1CSInstance<G2, C2>, R1CSWitness<G2>);
-
-    fn compute_auxiliary_input_E_2(&self) -> (R1CSInstance<G2, C2>, R1CSWitness<G2>);
-
-    fn compute_proof_Q(&self) -> Projective<G1>;
-
-    fn compute_result_accumulator_instance(&self) -> AccInstance<E>;
-
-    fn compute_cycle_fold_proofs_and_final_instance(&self) -> (C2::Commitment, C2::Commitment, C2::Commitment, C2::Commitment, RelaxedR1CSInstance<G2, C2>);
-}
-
-impl<G1, G2, C2, E> AccumulatorVerifierCircuitProverTrait<G1, G2, C2, E> for AccumulatorVerifierCircuitProver<G1, G2, C2, E>
+impl<G1, G2, C2, E> AccumulatorVerifierCircuitProver<G1, G2, C2, E>
 where
     G1: SWCurveConfig + Clone,
     G1::BaseField: PrimeField,
@@ -110,7 +80,7 @@ where
     G2::BaseField: Absorb,
     G2::ScalarField: Absorb,
 {
-    fn is_satisfied(&self)
+    pub fn is_satisfied(&self)
     where
         <G2 as CurveConfig>::ScalarField: Absorb,
     {
@@ -123,7 +93,7 @@ where
         ).expect("panic!");
     }
 
-    fn compute_auxiliary_input_C(&self) -> (R1CSInstance<G2, C2>, R1CSWitness<G2>) {
+    pub fn compute_auxiliary_input_C(&self) -> (R1CSInstance<G2, C2>, R1CSWitness<G2>) {
         let g1 = affine_to_projective(self.running_accumulator.instance.C.clone());
         let g2 = affine_to_projective(self.current_accumulator.instance.C.clone());
         // C'' = beta * acc_running.instance.C + (1 - beta) * acc_instance.instance.C
@@ -137,7 +107,7 @@ where
         }, &self.commitment_pp).unwrap()
     }
 
-    fn compute_auxiliary_input_T(&self) -> (R1CSInstance<G2, C2>, R1CSWitness<G2>) {
+    pub fn compute_auxiliary_input_T(&self) -> (R1CSInstance<G2, C2>, R1CSWitness<G2>) {
         let g1 = affine_to_projective(self.running_accumulator.instance.T.clone());
         let g2 = affine_to_projective(self.current_accumulator.instance.T.clone());
         // T'' = beta * acc_running.instance.T + (1 - beta) * acc_instance.instance.T
@@ -151,7 +121,7 @@ where
         }, &self.commitment_pp).unwrap()
     }
 
-    fn compute_auxiliary_input_E_1(&self) -> (R1CSInstance<G2, C2>, R1CSWitness<G2>) {
+    pub fn compute_auxiliary_input_E_1(&self) -> (R1CSInstance<G2, C2>, R1CSWitness<G2>) {
         let g1 = affine_to_projective(self.running_accumulator.instance.E.clone());
         let g2 = affine_to_projective(self.current_accumulator.instance.E.clone());
         // E_temp = beta * acc_running.instance.E + (1 - beta) * acc_instance.instance.E
@@ -165,7 +135,7 @@ where
         }, &self.commitment_pp).unwrap()
     }
 
-    fn compute_auxiliary_input_E_2(&self) -> (R1CSInstance<G2, C2>, R1CSWitness<G2>) {
+    pub fn compute_auxiliary_input_E_2(&self) -> (R1CSInstance<G2, C2>, R1CSWitness<G2>) {
         let e1 = affine_to_projective(self.running_accumulator.instance.E.clone());
         let e2 = affine_to_projective(self.current_accumulator.instance.E.clone());
         // E_temp = beta * e1 + (1 - beta) * e2
@@ -181,16 +151,16 @@ where
         }, &self.commitment_pp).unwrap()
     }
 
-    fn compute_proof_Q(&self) -> Projective<G1> {
+    pub fn compute_proof_Q(&self) -> Projective<G1> {
         // since acc_instance takes (1- beta) then it should be first in the function argument
-        affine_to_projective(Accumulator::prove(&self.srs, &self.current_accumulator, &self.running_accumulator).2)
+        affine_to_projective(Accumulator::prove(&self.srs, &self.current_accumulator, &self.running_accumulator).1)
     }
 
-    fn compute_result_accumulator_instance(&self) -> AccInstance<E> {
-        Accumulator::prove(&self.srs, &self.current_accumulator, &self.running_accumulator).0
+    pub fn compute_result_accumulator_instance(&self) -> AccInstance<E> {
+        Accumulator::prove(&self.srs, &self.current_accumulator, &self.running_accumulator).0.instance
     }
 
-    fn compute_cycle_fold_proofs_and_final_instance(&self) -> (
+    pub fn compute_cycle_fold_proofs_and_final_instance(&self) -> (
         C2::Commitment,
         C2::Commitment,
         C2::Commitment,
@@ -283,10 +253,12 @@ where
 pub mod tests {
     use ark_ec::CurveConfig;
     use ark_ff::Field;
+    use rand::thread_rng;
 
-    use crate::accumulation::accumulator::{Accumulator, AccumulatorTrait};
-    use crate::accumulation::accumulator::tests::{get_satisfying_accumulator, get_srs};
-    use crate::accumulation_circuit::prover::{AccumulatorVerifierCircuitProver, AccumulatorVerifierCircuitProverTrait};
+    use crate::accumulation::accumulator::{Accumulator};
+    use crate::accumulation::accumulator::tests::{get_satisfying_accumulator};
+    use crate::accumulation::accumulator::{get_srs};
+    use crate::accumulation_circuit::prover::{AccumulatorVerifierCircuitProver};
     use crate::constant_for_curves::{BaseField, E, G1, G2, ScalarField};
     use crate::gadgets::non_native::util::convert_field_one_to_field_two;
     use crate::gadgets::r1cs::r1cs::RelaxedR1CSInstance;
@@ -304,7 +276,7 @@ pub mod tests {
         let m = 128;
 
         // get a random srs
-        let srs = get_srs(n, m);
+        let srs = get_srs(n, m, &mut thread_rng());
 
         // build an instance of AccInstanceCircuit
         let current_accumulator = get_satisfying_accumulator(&srs);
@@ -357,7 +329,7 @@ pub mod tests {
         assert_eq!(secondary_circuit.flag, false);
         assert_eq!(secondary_circuit.g1, prover.running_accumulator.instance.C);
         assert_eq!(secondary_circuit.g2, prover.current_accumulator.instance.C);
-        assert_eq!(secondary_circuit.g_out, new_acc_instance.C);
+        assert_eq!(secondary_circuit.g_out, new_acc_instance.instance.C);
     }
 
     #[test]
@@ -373,7 +345,7 @@ pub mod tests {
         assert_eq!(secondary_circuit.flag, false);
         assert_eq!(secondary_circuit.g1, prover.running_accumulator.instance.T);
         assert_eq!(secondary_circuit.g2, prover.current_accumulator.instance.T);
-        assert_eq!(secondary_circuit.g_out, new_acc_instance.T);
+        assert_eq!(secondary_circuit.g_out, new_acc_instance.instance.T);
     }
 
 

@@ -13,9 +13,7 @@ use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
 
 use crate::{polynomial::bivariate_poly::BivariatePolynomial, polynomial::univariate_poly::UnivariatePolynomial};
-use crate::polynomial::bivariate_poly::BivariatePolynomialTrait;
-use crate::polynomial::lagrange_basis::{LagrangeBasis, LagrangeTraits};
-use crate::polynomial::univariate_poly::UnivariatePolynomialTrait;
+use crate::polynomial::lagrange_basis::{LagrangeBasis};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SRS<E: Pairing> {
@@ -159,27 +157,32 @@ impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
     fn commit(&self, poly: &BivariatePolynomial<E::ScalarField>) -> Commitment<E> {
         Commitment {
             C: E::G1::sum((0..self.srs.degree_x).into_par_iter()
-                .map(|i| {
-                    E::G1::msm_unchecked(
-                        self.srs.matrix_H[i].as_slice(),
-                        &poly.evaluations[i],
-                    )
-                })
-                .collect::<Vec<_>>()
-                .iter()
+                          .map(|i| {
+                              let start = i * poly.degree_y;
+                              let end = start + poly.degree_y;
+                              E::G1::msm_unchecked(
+                                  self.srs.matrix_H[i].as_slice(),
+                                  &poly.evaluations[start..end], // Slice the flattened vector to get the row
+                              )
+                          })
+                          .collect::<Vec<_>>()
+                          .iter()
             ).into_affine(),
 
             aux: (0..self.srs.degree_x).into_par_iter()
                 .map(|i| {
+                    let start = i * poly.degree_y;
+                    let end = start + poly.degree_y;
                     E::G1::msm_unchecked(
                         self.srs.vec_H.as_slice(),
-                        &poly.evaluations[i],
+                        &poly.evaluations[start..end], // Slice the flattened vector to get the row
                     )
                 })
                 .collect::<Vec<_>>(),
         }
     }
 
+    /// Create opening proof for f(b,c)
     fn open(&self, poly: &BivariatePolynomial<E::ScalarField>, com: Commitment<E>, b: &E::ScalarField) -> OpeningProof<E> {
         OpeningProof {
             vec_D: {

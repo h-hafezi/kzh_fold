@@ -46,6 +46,23 @@ ark-bn254 = { git = "https://github.com/arkworks-rs/curves/", rev = "8c0256a" }
 ark-grumpkin = { git = "https://github.com/arkworks-rs/curves/", rev = "8c0256a" }
 ark-bls12-381 = { git = "https://github.com/arkworks-rs/curves/", rev = "3fded1f" }
 
+
+[features]
+# default = [ "parallel", "print-trace" ]
+default = ["parallel"]
+# extensive sanity checks that are useful for debugging
+extensive_sanity_checks = [ ]
+
+parallel = [ 
+    "ark-std/parallel", 
+    "ark-ff/parallel",  
+    "ark-poly/parallel", 
+    ]
+print-trace = [ 
+    "ark-std/print-trace",
+    ] 
+
+
 [[bench]]
 harness = false
 name = "bench_pcs"

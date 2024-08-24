@@ -4,15 +4,15 @@ use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::{AffineRepr, CurveGroup, VariableBaseMSM};
 use ark_ec::pairing::Pairing;
 use ark_ff::{AdditiveGroup, FftField, Field, PrimeField, Zero};
-use ark_poly::EvaluationDomain;
+use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
 use ark_std::UniformRand;
-use rand::RngCore;
+use rand::{Rng, RngCore};
 
 use crate::gadgets::non_native::util::convert_field_one_to_field_two;
 use crate::hash::poseidon::{PoseidonHash, PoseidonHashTrait};
-use crate::polynomial::lagrange_basis::{LagrangeBasis, LagrangeTraits};
+use crate::polynomial::lagrange_basis::{LagrangeBasis};
 use crate::polynomial::univariate_poly::UnivariatePolynomial;
-use crate::polynomial_commitment::pcs::{OpeningProof, PolyCommitTrait, SRS};
+use crate::polynomial_commitment::pcs::{OpeningProof, PolyCommit, PolyCommitTrait, SRS};
 use crate::utils::{inner_product, is_power_of_two, power};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -96,49 +96,12 @@ pub struct Accumulator<E: Pairing> {
     pub instance: AccInstance<E>,
 }
 
-pub trait AccumulatorTrait<E: Pairing>
+impl<E: Pairing> Accumulator<E>
 where
     <E as Pairing>::ScalarField: Absorb,
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
 {
-    fn setup<T: RngCore>(degree_x: usize,
-                         degree_y: usize,
-                         lagrange_basis_x: LagrangeBasis<E::ScalarField>,
-                         lagrange_basis_y: LagrangeBasis<E::ScalarField>,
-                         pc_srs: SRS<E>,
-                         rng: &mut T,
-    ) -> AccSRS<E>;
-
-    fn new_accumulator(instance: &AccInstance<E>, witness: &AccWitness<E>) -> Accumulator<E>;
-
-    fn compute_randomness(instance_1: &AccInstance<E>, instance_2: &AccInstance<E>, Q: E::G1Affine) -> E::ScalarField;
-
-    fn new_accumulator_instance_from_proof(srs: &AccSRS<E>, C: &E::G1Affine, b: &E::ScalarField, c: &E::ScalarField, y: &E::ScalarField) -> AccInstance<E>;
-
-    fn new_accumulator_witness_from_proof(srs: &AccSRS<E>, proof: OpeningProof<E>, b: &E::ScalarField, c: &E::ScalarField) -> AccWitness<E>;
-
-    fn prove(srs: &AccSRS<E>, acc_1: &Accumulator<E>, acc_2: &Accumulator<E>) -> (AccInstance<E>, AccWitness<E>, E::G1Affine);
-
-    fn verify(instance_1: &AccInstance<E>, instance_2: &AccInstance<E>, Q: E::G1Affine) -> AccInstance<E>;
-
-    fn decide(srs: &AccSRS<E>, acc: &Accumulator<E>) -> bool;
-
-    /// Compute e_i <- b_i * (b - w_i) - z_b : ∀i ∈ [0, n]
-    /// Check that e'_j <- c_j * (c - w_j) - z_c : ∀j ∈ [0, m]
-    /// Compute e'' <- ⟨f*, c⟩ - y
-    /// Compute E_G <- ⟨f*, (H_1, ..., H_m)⟩ - ⟨b, D⟩
-    /// Outputs V(b, c, y, z_b, z_c, f*, b, c, D) = ⟨e' || e'' || K⟩ + E_G
-    fn helper_function_decide(srs: &AccSRS<E>, acc: &Accumulator<E>) -> E::G1Affine;
-
-    fn helper_function_Q(srs: &AccSRS<E>, acc_1: &Accumulator<E>, acc_2: &Accumulator<E>) -> E::G1Affine;
-}
-
-impl<E: Pairing> AccumulatorTrait<E> for Accumulator<E>
-where
-    <E as Pairing>::ScalarField: Absorb,
-    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
-{
-    fn setup<T: RngCore>(degree_x: usize,
+    pub fn setup<T: RngCore>(degree_x: usize,
                          degree_y: usize,
                          lagrange_basis_x: LagrangeBasis<E::ScalarField>,
                          lagrange_basis_y: LagrangeBasis<E::ScalarField>,
@@ -173,14 +136,14 @@ where
         };
     }
 
-    fn new_accumulator(instance: &AccInstance<E>, witness: &AccWitness<E>) -> Accumulator<E> {
+    pub fn new_accumulator(instance: &AccInstance<E>, witness: &AccWitness<E>) -> Accumulator<E> {
         Accumulator {
             witness: witness.clone(),
             instance: instance.clone(),
         }
     }
 
-    fn compute_randomness(instance_1: &AccInstance<E>, instance_2: &AccInstance<E>, Q: E::G1Affine) -> E::ScalarField {
+    pub fn compute_randomness(instance_1: &AccInstance<E>, instance_2: &AccInstance<E>, Q: E::G1Affine) -> E::ScalarField {
         let mut sponge = Vec::new();
         sponge.extend(instance_1.to_sponge_field_elements());
         sponge.extend(instance_2.to_sponge_field_elements());
@@ -203,7 +166,7 @@ where
         hash_object.output()
     }
 
-    fn new_accumulator_instance_from_proof(srs: &AccSRS<E>, C: &E::G1Affine, b: &E::ScalarField, c: &E::ScalarField, y: &E::ScalarField) -> AccInstance<E> {
+    pub fn new_accumulator_instance_from_proof(srs: &AccSRS<E>, C: &E::G1Affine, b: &E::ScalarField, c: &E::ScalarField, y: &E::ScalarField) -> AccInstance<E> {
         let vec_b = srs.lagrange_basis_x.evaluate(b);
         let vec_c = srs.lagrange_basis_y.evaluate(c);
 
@@ -229,7 +192,7 @@ where
         };
     }
 
-    fn new_accumulator_witness_from_proof(srs: &AccSRS<E>, proof: OpeningProof<E>, b: &E::ScalarField, c: &E::ScalarField) -> AccWitness<E> {
+    pub fn new_accumulator_witness_from_proof(srs: &AccSRS<E>, proof: OpeningProof<E>, b: &E::ScalarField, c: &E::ScalarField) -> AccWitness<E> {
         let vec_b = srs.lagrange_basis_x.evaluate(b);
         let vec_c = srs.lagrange_basis_y.evaluate(c);
 
@@ -246,7 +209,7 @@ where
         };
     }
 
-    fn prove(srs: &AccSRS<E>, acc_1: &Accumulator<E>, acc_2: &Accumulator<E>) -> (AccInstance<E>, AccWitness<E>, E::G1Affine)
+    pub fn prove(srs: &AccSRS<E>, acc_1: &Accumulator<E>, acc_2: &Accumulator<E>) -> (Accumulator<E>, E::G1Affine)
     where
         <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb,
     {
@@ -311,10 +274,14 @@ where
                     .collect()
             },
         };
-        return (new_instance, new_witness, Q);
+        let acc_prime = Accumulator {
+            witness: new_witness,
+            instance: new_instance,
+        };
+        (acc_prime, Q)
     }
 
-    fn verify(instance_1: &AccInstance<E>, instance_2: &AccInstance<E>, Q: E::G1Affine) -> AccInstance<E> {
+    pub fn verify(instance_1: &AccInstance<E>, instance_2: &AccInstance<E>, Q: E::G1Affine) -> AccInstance<E> {
         let beta = Accumulator::compute_randomness(instance_1, instance_2, Q);
         let one_minus_beta: E::ScalarField = E::ScalarField::ONE - beta;
 
@@ -357,7 +324,7 @@ where
         }
     }
 
-    fn decide(srs: &AccSRS<E>, acc: &Accumulator<E>) -> bool {
+    pub fn decide(srs: &AccSRS<E>, acc: &Accumulator<E>) -> bool {
         let instance = &acc.instance;
         let witness = &acc.witness;
 
@@ -379,7 +346,7 @@ where
         return (verify_rhs == verify_lhs.into()) && (ip_lhs == ip_rhs.into()) && (pairing_lhs == pairing_rhs);
     }
 
-    fn helper_function_decide(srs: &AccSRS<E>, acc: &Accumulator<E>) -> E::G1Affine {
+    pub fn helper_function_decide(srs: &AccSRS<E>, acc: &Accumulator<E>) -> E::G1Affine {
         let instance = &acc.instance;
         let witness = &acc.witness;
 
@@ -423,7 +390,7 @@ where
         res.add(srs.k_prime.mul(e_prime)).into()
     }
 
-    fn helper_function_Q(srs: &AccSRS<E>, acc_1: &Accumulator<E>, acc_2: &Accumulator<E>) -> E::G1Affine {
+    pub fn helper_function_Q(srs: &AccSRS<E>, acc_1: &Accumulator<E>, acc_2: &Accumulator<E>) -> E::G1Affine {
         // unwrap the instances/witnesses
         let instance_1 = &acc_1.instance;
         let instance_2 = &acc_2.instance;
@@ -487,6 +454,31 @@ where
     }
 }
 
+pub fn get_srs<E, T: Rng>(degree_x: usize, degree_y: usize, rng: &mut T) -> AccSRS<E>
+where
+    E: Pairing,
+    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
+    <E as Pairing>::ScalarField: Absorb,
+{
+    let domain_x = GeneralEvaluationDomain::<E::ScalarField>::new(degree_x).unwrap();
+    let domain_y = GeneralEvaluationDomain::<E::ScalarField>::new(degree_y).unwrap();
+
+    // define the srs
+    let pc_srs: SRS<E> = PolyCommit::setup(degree_x, degree_y, rng);
+
+    // set accumulator srs
+    let lagrange_x = LagrangeBasis { domain: domain_x.clone() };
+    let lagrange_y = LagrangeBasis { domain: domain_y.clone() };
+    Accumulator::setup(
+        degree_x,
+        degree_y,
+        lagrange_x,
+        lagrange_y,
+        pc_srs,
+        rng,
+    )
+}
+
 #[cfg(test)]
 pub mod tests {
     use ark_ec::AffineRepr;
@@ -495,31 +487,12 @@ pub mod tests {
     use ark_std::UniformRand;
     use rand::thread_rng;
 
-    use crate::accumulation::accumulator::{AccSRS, Accumulator, AccumulatorTrait};
+    use super::*;
     use crate::constant_for_curves::{E, ScalarField};
-    use crate::polynomial::bivariate_poly::{BivariatePolynomial, BivariatePolynomialTrait};
+    use crate::polynomial::bivariate_poly::{BivariatePolynomial};
     use crate::polynomial::lagrange_basis::LagrangeBasis;
     use crate::polynomial_commitment::pcs::{Commitment, OpeningProof, PolyCommit, PolyCommitTrait, SRS};
 
-    pub fn get_srs(degree_x: usize, degree_y: usize) -> AccSRS<E> {
-        let domain_x = GeneralEvaluationDomain::<ScalarField>::new(degree_x).unwrap();
-        let domain_y = GeneralEvaluationDomain::<ScalarField>::new(degree_y).unwrap();
-
-        // define the srs
-        let pc_srs: SRS<E> = PolyCommit::setup(degree_x, degree_y, &mut thread_rng());
-
-        // set accumulator srs
-        let lagrange_x = LagrangeBasis { domain: domain_x.clone() };
-        let lagrange_y = LagrangeBasis { domain: domain_y.clone() };
-        Accumulator::setup(
-            degree_x,
-            degree_y,
-            lagrange_x,
-            lagrange_y,
-            pc_srs,
-            &mut thread_rng(),
-        )
-    }
 
     pub fn get_satisfying_accumulator(srs: &AccSRS<E>) -> Accumulator<E>
     {
@@ -575,12 +548,9 @@ pub mod tests {
         assert!(Accumulator::decide(&srs, &acc_1));
         assert!(Accumulator::decide(&srs, &acc_2));
 
-        let (acc_instance, acc_witness, _Q) = Accumulator::prove(&srs, &acc_1, &acc_2);
+        let (accumulator, _Q) = Accumulator::prove(&srs, &acc_1, &acc_2);
 
-        return Accumulator {
-            witness: acc_witness,
-            instance: acc_instance,
-        };
+        accumulator
     }
 
 
@@ -659,7 +629,7 @@ pub mod tests {
     fn general_accumulation_test() {
         let degree_x = 16;
         let degree_y = 16;
-        let srs = get_srs(degree_x, degree_y);
+        let srs = get_srs(degree_x, degree_y, &mut thread_rng());
         let acc_1 = get_satisfying_accumulator(&srs);
         let acc_2 = get_satisfying_accumulator(&srs);
 
@@ -670,17 +640,14 @@ pub mod tests {
         let beta = ScalarField::rand(&mut thread_rng());
 
         // accumulate proof
-        let (instance, witness, Q) = Accumulator::prove(&srs, &acc_1, &acc_2);
+        let (accumulator, Q) = Accumulator::prove(&srs, &acc_1, &acc_2);
 
         // accumulate verifier
         let instance_prime = Accumulator::verify(&acc_1.instance, &acc_2.instance, Q);
 
-        // define accumulators
-        let acc = Accumulator::new_accumulator(&instance, &witness);
-
         // deciding the accumulator
-        assert!(Accumulator::decide(&srs, &acc));
+        assert!(Accumulator::decide(&srs, &accumulator));
 
-        assert_eq!(instance, instance_prime);
+        assert_eq!(accumulator.instance, instance_prime);
     }
 }

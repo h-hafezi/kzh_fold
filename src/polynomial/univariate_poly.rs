@@ -7,17 +7,12 @@ use ark_poly::{DenseUVPolynomial, Polynomial};
 use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
 use ark_serialize::CanonicalSerialize;
 
-use crate::polynomial::lagrange_basis::{LagrangeBasis, LagrangeTraits};
+use crate::polynomial::lagrange_basis::{LagrangeBasis};
 
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize)]
 pub struct UnivariatePolynomial<F: FftField> {
     pub evaluations: Vec<F>,
     pub lagrange_basis: LagrangeBasis<F>,
-}
-
-pub trait UnivariatePolynomialTrait<F: FftField> {
-    fn evaluate(&self, z: &F) -> F;
-    fn new(evaluations: Vec<F>, domain: GeneralEvaluationDomain<F>) -> Self;
 }
 
 impl<F: FftField> Display for UnivariatePolynomial<F> {
@@ -26,10 +21,10 @@ impl<F: FftField> Display for UnivariatePolynomial<F> {
     }
 }
 
-impl<F: FftField> UnivariatePolynomialTrait<F> for UnivariatePolynomial<F> {
+impl<F: FftField> UnivariatePolynomial<F> {
     /// Evaluate the polynomial at p(z) = L_1(z) * p(w_1) + ... + L_n(z) * p(w_n)
     /// Where L_i(z) = Z_w(z) / z - w_i
-    fn evaluate(&self, z: &F) -> F {
+    pub fn evaluate(&self, z: &F) -> F {
         // the evaluation points p(w_i)
         let w_i = &self.evaluations;
         // the lagrange basis L_i(z)
@@ -40,8 +35,12 @@ impl<F: FftField> UnivariatePolynomialTrait<F> for UnivariatePolynomial<F> {
             .sum()
     }
 
+    pub fn sum_evaluations_in_domain(&self) -> F {
+        self.evaluations.iter().cloned().sum()
+    }
+
     #[inline]
-    fn new(evaluations: Vec<F>, domain: GeneralEvaluationDomain<F>) -> Self {
+    pub fn new(evaluations: Vec<F>, domain: GeneralEvaluationDomain<F>) -> Self {
         Self {
             evaluations,
             lagrange_basis: LagrangeBasis { domain },
@@ -87,14 +86,14 @@ mod tests {
     use rand::thread_rng;
     use crate::constant_for_curves::ScalarField;
     use crate::polynomial::lagrange_basis::LagrangeBasis;
-    use crate::polynomial::univariate_poly::{UnivariatePolynomial, UnivariatePolynomialTrait};
+    use super::*;
 
     type F = ScalarField;
 
     #[test]
     pub fn test_add() {
         let poly_degree = 9usize;
-        let lagrange_basis = LagrangeBasis { domain: GeneralEvaluationDomain::<F>::new(poly_degree).unwrap() };
+        let lagrange_basis = LagrangeBasis::new(poly_degree);
         let poly1 = UnivariatePolynomial {
             evaluations: vec![F::ONE; poly_degree],
             lagrange_basis: lagrange_basis.clone(),
