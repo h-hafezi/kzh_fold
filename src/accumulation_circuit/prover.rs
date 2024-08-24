@@ -300,8 +300,8 @@ pub mod tests {
 
     pub fn get_random_prover() -> AccumulatorVerifierCircuitProver<G1, G2, C2, E> {
         // specifying degrees of polynomials
-        let n = 16;
-        let m = 16;
+        let n = 128;
+        let m = 128;
 
         // get a random srs
         let srs = get_srs(n, m);

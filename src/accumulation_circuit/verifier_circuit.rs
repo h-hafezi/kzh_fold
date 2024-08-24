@@ -23,12 +23,12 @@ use rand::thread_rng;
 
 use crate::accumulation::accumulator::AccInstance;
 use crate::accumulation_circuit::instance_circuit::AccumulatorInstanceVar;
+use crate::commitment::CommitmentScheme;
 use crate::constant_for_curves::{BaseField, ScalarField};
 use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
 use crate::gadgets::non_native::util::{convert_field_one_to_field_two, non_native_to_fpvar};
 use crate::gadgets::r1cs::{R1CSInstance, RelaxedR1CSInstance};
 use crate::hash::poseidon::{PoseidonHashVar, PoseidonHashVarTrait};
-use crate::commitment::CommitmentScheme;
 use crate::nova::cycle_fold::coprocessor::{SecondaryCircuit as SecondaryCircuit, synthesize};
 use crate::nova::cycle_fold::coprocessor_constraints::{R1CSInstanceVar, RelaxedR1CSInstanceVar};
 
@@ -285,7 +285,10 @@ where
     C2: CommitmentScheme<Projective<G2>>,
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField>,
 {
-    pub fn accumulate(&self) where <G2 as CurveConfig>::BaseField: ark_crypto_primitives::sponge::Absorb {
+    pub fn accumulate(&self)
+    where
+        <G2 as CurveConfig>::BaseField: ark_crypto_primitives::sponge::Absorb,
+    {
         // checking beta and non_native beta are consistent
         let beta_bits = self.beta_var_non_native.to_bits_le().unwrap();
         let beta_ = Boolean::le_bits_to_fp_var(beta_bits.as_slice()).unwrap();
@@ -299,7 +302,7 @@ where
         sponge.extend(self.Q_var.to_sponge_field_elements().unwrap());
         hash_object.update_sponge(sponge);
         hash_object.output().enforce_equal(&self.beta_var).expect("error while enforcing equality");
-        
+
 
         // Non-native scalar multiplication: linear combination of C
         let (flag,
@@ -442,13 +445,17 @@ where
 #[cfg(test)]
 mod tests {
     use std::fmt::Debug;
-
+    use std::fs::File;
+    use std::io::BufWriter;
+    use std::io::Write;
+    use ark_ff::PrimeField;
     use ark_r1cs_std::alloc::{AllocationMode, AllocVar};
     use ark_r1cs_std::fields::fp::FpVar;
     use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
     use ark_r1cs_std::groups::curves::short_weierstrass::ProjectiveVar;
     use ark_relations::ns;
     use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
+    use num_bigint::BigUint;
 
     use crate::accumulation_circuit::instance_circuit::AccumulatorInstanceVar;
     use crate::accumulation_circuit::prover::AccumulatorVerifierCircuitProverTrait;
@@ -614,7 +621,18 @@ mod tests {
         println!("number of constraint for initialisation: {}", cs.num_constraints());
         verifier.accumulate();
         println!("number of constraint for initialisation: {}", cs.num_constraints());
-        assert!(cs.is_satisfied().unwrap())
+        assert!(cs.is_satisfied().unwrap());
+
+        // write the witness into a file
+        let cs_borrow = cs.borrow().unwrap();
+        let witness = cs_borrow.witness_assignment.clone();
+        let pub_io = cs_borrow.instance_assignment.clone();
+        let file = File::create("witness.txt").unwrap();
+        let mut writer = BufWriter::new(file);
+        for scalar in witness.iter() {
+            let big_int = scalar.into_bigint();
+            writeln!(writer, "{}", big_int.to_string()).expect("TODO: panic message");
+        }
     }
 }
 
