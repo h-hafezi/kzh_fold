@@ -41,7 +41,7 @@ mod tests {
     use ark_ff::Field;
     use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
     use crate::constant_for_curves::ScalarField;
-    use crate::polynomial::lagrange_basis::{LagrangeBasis};
+    use crate::polynomial::bivariate_polynomial::lagrange_basis::LagrangeBasis;
 
     type F = ScalarField;
 

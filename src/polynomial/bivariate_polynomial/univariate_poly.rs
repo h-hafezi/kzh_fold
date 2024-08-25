@@ -6,8 +6,7 @@ use ark_ff::{FftField, Field, PrimeField};
 use ark_poly::{DenseUVPolynomial, Polynomial};
 use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
 use ark_serialize::CanonicalSerialize;
-
-use crate::polynomial::lagrange_basis::{LagrangeBasis};
+use crate::polynomial::bivariate_polynomial::lagrange_basis::LagrangeBasis;
 
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize)]
 pub struct UnivariatePolynomial<F: FftField> {
@@ -85,7 +84,6 @@ mod tests {
     use ark_std::UniformRand;
     use rand::thread_rng;
     use crate::constant_for_curves::ScalarField;
-    use crate::polynomial::lagrange_basis::LagrangeBasis;
     use super::*;
 
     type F = ScalarField;

@@ -11,7 +11,6 @@ use crate::{accumulation, polynomial_commitment};
 use crate::signature_aggregation::bivariate_sumcheck;
 use crate::signature_aggregation::bivariate_sumcheck::SumcheckProof;
 use crate::signature_aggregation::prover::{SRS, SignatureAggrData};
-use crate::{polynomial::bivariate_poly::BivariatePolynomial};
 
 use crate::polynomial_commitment::pcs::{Commitment, OpeningProof, PolyCommit, PolyCommitTrait};
 use crate::polynomial_commitment::pcs;

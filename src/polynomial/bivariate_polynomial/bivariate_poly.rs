@@ -6,8 +6,8 @@ use ark_ff::{Field, Zero, PrimeField, FftField};
 use itertools::Itertools;
 use rand::RngCore;
 use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
-use crate::polynomial::lagrange_basis::{LagrangeBasis};
-use crate::polynomial::univariate_poly::UnivariatePolynomial;
+use crate::polynomial::bivariate_polynomial::lagrange_basis::LagrangeBasis;
+use crate::polynomial::bivariate_polynomial::univariate_poly::UnivariatePolynomial;
 use crate::utils::{compute_powers, is_power_of_two};
 
 /// We represent a bivariate polynomial in **Lagrange Basis Form**:
@@ -263,7 +263,6 @@ mod tests {
     use rand::thread_rng;
     use crate::constant_for_curves::ScalarField;
     use super::*;
-    use crate::polynomial::univariate_poly::UnivariatePolynomial;
 
     type F = ScalarField;
 

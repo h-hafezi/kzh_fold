@@ -1,7 +1,7 @@
 use ark_ec::pairing::Pairing;
 use transcript::IOPTranscript;
-
-use crate::polynomial::{bivariate_poly::{BivariatePolynomial}, univariate_poly::{UnivariatePolynomial}};
+use crate::polynomial::bivariate_polynomial::bivariate_poly::BivariatePolynomial;
+use crate::polynomial::bivariate_polynomial::univariate_poly::UnivariatePolynomial;
 
 pub struct SumcheckProof<E: Pairing> {
     r_poly: UnivariatePolynomial<E::ScalarField>, // first round polynomial

@@ -1,5 +1,2 @@
-pub mod bivariate_poly;
-
-pub mod univariate_poly;
-
-pub mod lagrange_basis;
+pub mod bivariate_polynomial;
+mod multilinear_polynomial;

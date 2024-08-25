@@ -8,9 +8,9 @@ use transcript::IOPTranscript;
 
 use crate::accumulation::accumulator::{get_srs, AccInstance, AccWitness, Accumulator};
 use crate::{accumulation, polynomial_commitment};
+use crate::polynomial::bivariate_polynomial::bivariate_poly::BivariatePolynomial;
 use crate::signature_aggregation::bivariate_sumcheck;
 use crate::signature_aggregation::bivariate_sumcheck::SumcheckProof;
-use crate::{polynomial::bivariate_poly::BivariatePolynomial};
 
 use crate::polynomial_commitment::pcs::{Commitment, OpeningProof, PolyCommit, PolyCommitTrait};
 use crate::polynomial_commitment::pcs;
@@ -198,7 +198,7 @@ pub mod test {
 
         // Now let's do verification
         let verifier = Verifier {
-            srs: srs,
+            srs,
             A: agg_data
         };
 
