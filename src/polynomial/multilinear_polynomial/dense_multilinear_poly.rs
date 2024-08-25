@@ -12,6 +12,7 @@ use ark_ff::{Field, PrimeField};
 use ark_serialize::*;
 use ark_std::Zero;
 use itertools::Itertools;
+use rand::{Rng, RngCore};
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
 
@@ -20,7 +21,7 @@ use crate::polynomial::multilinear_polynomial::eq_poly::EqPolynomial;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MultilinearPolynomial<F: PrimeField> {
-    num_variables: usize,
+    pub num_variables: usize,
 
     /// `evaluation_over_boolean_hypercube` represents the evaluation of the multilinear polynomial
     /// over all possible combinations of boolean values for its variables. Specifically, this field
@@ -45,7 +46,7 @@ pub struct MultilinearPolynomial<F: PrimeField> {
     /// - `x1 = 0, x2 = 1, x3 = 1` (decimal index 6): `f(0, 1, 1) = 12`
     /// - `x1 = 1, x2 = 1, x3 = 1` (decimal index 7): `f(1, 1, 1) = 18`
     ///
-    evaluation_over_boolean_hypercube: Vec<F>,
+    pub evaluation_over_boolean_hypercube: Vec<F>,
 }
 
 impl<F: PrimeField> MultilinearPolynomial<F> {
@@ -112,11 +113,25 @@ impl<F: PrimeField> MultilinearPolynomial<F> {
         // Return the new MultilinearPolynomial with the remaining variables
         MultilinearPolynomial::new(remaining_vars_len, new_evaluations)
     }
+
+    pub fn rand<T: RngCore>(num_variables: usize, rng: &mut T) -> MultilinearPolynomial<F> {
+        MultilinearPolynomial {
+            num_variables,
+            evaluation_over_boolean_hypercube: {
+                let size = 1 << num_variables;
+                let mut vector = Vec::with_capacity(size);
+                for _ in 0..size {
+                    vector.push(F::rand(rng));
+                }
+                vector
+            },
+        }
+    }
 }
 
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use ark_ff::{AdditiveGroup, Field};
 
     use crate::constant_for_curves::ScalarField;
@@ -126,7 +141,7 @@ mod tests {
     type F = ScalarField;
 
     // Helper function to create the polynomial used in the tests
-    fn setup_polynomial() -> MultilinearPolynomial<F> {
+    pub fn setup_polynomial() -> MultilinearPolynomial<F> {
         // Define the number of variables
         let num_variables = 3;
 
@@ -175,17 +190,5 @@ mod tests {
             p.evaluate(&[F::from(3), F::from(6)]),
             poly.evaluate(&[F::from(5), F::from(3), F::from(6)])
         );
-    }
-
-    #[test]
-    #[should_panic(expected = "Vector contains non-boolean values.")]
-    fn test_boolean_vector_to_decimal() {
-        assert_eq!(boolean_vector_to_decimal(&vec![F::ONE, F::ZERO, F::ZERO]), 1);
-        assert_eq!(boolean_vector_to_decimal(&vec![F::ZERO, F::ZERO, F::ZERO]), 0);
-        assert_eq!(boolean_vector_to_decimal(&vec![F::ONE, F::ONE, F::ONE]), 7);
-        assert_eq!(boolean_vector_to_decimal(&vec![F::ZERO, F::ONE, F::ZERO]), 2);
-        // Should panic
-        boolean_vector_to_decimal(&vec![F::ONE, F::ONE + F::ONE, F::ZERO]);
-
     }
 }

@@ -1,2 +1,2 @@
 pub mod bivariate_polynomial;
-mod multilinear_polynomial;
+pub(crate) mod multilinear_polynomial;

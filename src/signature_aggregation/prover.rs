@@ -12,13 +12,13 @@ use crate::polynomial::bivariate_polynomial::bivariate_poly::BivariatePolynomial
 use crate::signature_aggregation::bivariate_sumcheck;
 use crate::signature_aggregation::bivariate_sumcheck::SumcheckProof;
 
-use crate::polynomial_commitment::pcs::{Commitment, OpeningProof, PolyCommit, PolyCommitTrait};
-use crate::polynomial_commitment::pcs;
+use crate::polynomial_commitment::bivariate_pcs::{Commitment, OpeningProof, PolyCommit, PolyCommitTrait};
+use crate::polynomial_commitment::bivariate_pcs;
 
 // XXX move to mod.rs or somewhere neutral
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SRS<E: Pairing> {
-    pub pcs_srs: polynomial_commitment::pcs::SRS<E>,
+    pub pcs_srs: polynomial_commitment::bivariate_pcs::SRS<E>,
     pub acc_srs: accumulation::accumulator::AccSRS<E>,
 }
 

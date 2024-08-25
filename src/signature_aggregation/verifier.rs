@@ -12,8 +12,8 @@ use crate::signature_aggregation::bivariate_sumcheck;
 use crate::signature_aggregation::bivariate_sumcheck::SumcheckProof;
 use crate::signature_aggregation::prover::{SRS, SignatureAggrData};
 
-use crate::polynomial_commitment::pcs::{Commitment, OpeningProof, PolyCommit, PolyCommitTrait};
-use crate::polynomial_commitment::pcs;
+use crate::polynomial_commitment::bivariate_pcs::{Commitment, OpeningProof, PolyCommit, PolyCommitTrait};
+use crate::polynomial_commitment::bivariate_pcs;
 
 /// This struct represents a network node that just received an aggregate signature. The verifier needs to verify the
 /// aggregate signature (and later aggregate it with more signatures herself).

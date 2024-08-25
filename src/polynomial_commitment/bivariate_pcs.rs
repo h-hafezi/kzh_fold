@@ -206,7 +206,6 @@ impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
     ) -> bool {
         // first condition
         let pairing_rhs = E::multi_pairing(proof.vec_D.clone(), &self.srs.vec_V);
-        // TODO: optimize further (do one pairing less) by taking its inverse and moving it to the multi_pairing
         let pairing_lhs = E::pairing(&C.C, &self.srs.V_prime);
         // second condition
         let msm_lhs = E::G1::msm_unchecked(&self.srs.vec_H, &proof.f_star_poly.evaluations);

@@ -12,7 +12,7 @@ use crate::gadgets::non_native::util::convert_field_one_to_field_two;
 use crate::hash::poseidon::{PoseidonHash, PoseidonHashTrait};
 use crate::polynomial::bivariate_polynomial::lagrange_basis::LagrangeBasis;
 use crate::polynomial::bivariate_polynomial::univariate_poly::UnivariatePolynomial;
-use crate::polynomial_commitment::pcs::{OpeningProof, PolyCommit, PolyCommitTrait, SRS};
+use crate::polynomial_commitment::bivariate_pcs::{OpeningProof, PolyCommit, PolyCommitTrait, SRS};
 use crate::utils::{inner_product, is_power_of_two, power};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -490,7 +490,7 @@ pub mod tests {
     use super::*;
     use crate::constant_for_curves::{E, ScalarField};
     use crate::polynomial::bivariate_polynomial::bivariate_poly::BivariatePolynomial;
-    use crate::polynomial_commitment::pcs::{Commitment, OpeningProof, PolyCommit, PolyCommitTrait, SRS};
+    use crate::polynomial_commitment::bivariate_pcs::{Commitment, OpeningProof, PolyCommit, PolyCommitTrait, SRS};
 
 
     pub fn get_satisfying_accumulator(srs: &AccSRS<E>) -> Accumulator<E>
