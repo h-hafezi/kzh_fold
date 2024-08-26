@@ -10,7 +10,7 @@ use rand::{Rng, RngCore};
 
 use crate::gadgets::non_native::util::convert_field_one_to_field_two;
 use crate::hash::poseidon::{PoseidonHash, PoseidonHashTrait};
-use crate::polynomial::bivariate_polynomial::lagrange_basis::LagrangeBasis;
+use crate::polynomial::bivariate_polynomial::lagrange_basis::{Evaluatable, LagrangeBasis};
 use crate::polynomial::bivariate_polynomial::univariate_poly::UnivariatePolynomial;
 use crate::polynomial_commitment::bivariate_pcs::{OpeningProof, PolyCommit, PolyCommitTrait, SRS};
 use crate::utils::{inner_product, is_power_of_two, power};
@@ -82,7 +82,7 @@ where
 pub struct AccWitness<E: Pairing> {
     // size of degree_x
     pub vec_D: Vec<E::G1Affine>,
-    pub f_star_poly: UnivariatePolynomial<E::ScalarField>,
+    pub f_star_poly: UnivariatePolynomial<E::ScalarField, E>,
     // size of degree_x
     pub vec_b: Vec<E::ScalarField>,
     // size of degree_y
@@ -167,8 +167,8 @@ where
     }
 
     pub fn new_accumulator_instance_from_proof(srs: &AccSRS<E>, C: &E::G1Affine, b: &E::ScalarField, c: &E::ScalarField, y: &E::ScalarField) -> AccInstance<E> {
-        let vec_b = srs.lagrange_basis_x.evaluate(b);
-        let vec_c = srs.lagrange_basis_y.evaluate(c);
+        let vec_b = <LagrangeBasis<<E as Pairing>::ScalarField> as Evaluatable<E>>::evaluate(&srs.lagrange_basis_x, *b);
+        let vec_c = <LagrangeBasis<<E as Pairing>::ScalarField> as Evaluatable<E>>::evaluate(&srs.lagrange_basis_y, *c);
 
         // asserting the sizes are correct
         assert_eq!(vec_b.len(), srs.degree_x, "invalid size");
@@ -193,8 +193,8 @@ where
     }
 
     pub fn new_accumulator_witness_from_proof(srs: &AccSRS<E>, proof: OpeningProof<E>, b: &E::ScalarField, c: &E::ScalarField) -> AccWitness<E> {
-        let vec_b = srs.lagrange_basis_x.evaluate(b);
-        let vec_c = srs.lagrange_basis_y.evaluate(c);
+        let vec_b = <LagrangeBasis<<E as Pairing>::ScalarField> as Evaluatable<E>>::evaluate(&srs.lagrange_basis_x, *b);
+        let vec_c = <LagrangeBasis<<E as Pairing>::ScalarField> as Evaluatable<E>>::evaluate(&srs.lagrange_basis_y, *c);
 
         // asserting the sizes are correct
         assert_eq!(vec_b.len(), srs.degree_x, "invalid size");
@@ -254,6 +254,7 @@ where
                         .collect()
                 },
                 lagrange_basis: witness_1.f_star_poly.lagrange_basis.clone(),
+                phantom: Default::default(),
             },
             vec_b: {
                 witness_1.vec_b.iter()
@@ -415,6 +416,7 @@ where
                             .collect()
                     },
                     lagrange_basis: witness_1.f_star_poly.lagrange_basis.clone(),
+                    phantom: Default::default(),
                 },
                 vec_b: {
                     witness_2.vec_b.iter().zip(witness_1.vec_b.iter())
@@ -587,7 +589,7 @@ pub mod tests {
         let open = poly_commit.open(&polynomial, com.clone(), &b);
 
         // assert correctness of pcs
-        assert!(poly_commit.verify(LagrangeBasis { domain: domain_x.clone() }, &com, &open, &b, &c, &y));
+        assert!(poly_commit.verify(&LagrangeBasis { domain: domain_x.clone() }, &com, &open, &b, &c, &y));
 
         // return
         return (srs, b, c, y, com, open, LagrangeBasis { domain: domain_x.clone() }, LagrangeBasis { domain: domain_y.clone() });

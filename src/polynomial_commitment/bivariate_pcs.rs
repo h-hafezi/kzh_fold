@@ -12,7 +12,7 @@ use rand::RngCore;
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
 use crate::polynomial::bivariate_polynomial::bivariate_poly::BivariatePolynomial;
-use crate::polynomial::bivariate_polynomial::lagrange_basis::LagrangeBasis;
+use crate::polynomial::bivariate_polynomial::lagrange_basis::{Evaluatable, LagrangeBasis};
 use crate::polynomial::bivariate_polynomial::univariate_poly::UnivariatePolynomial;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -64,7 +64,7 @@ pub struct Commitment<E: Pairing> {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OpeningProof<E: Pairing> {
     pub vec_D: Vec<E::G1Affine>,
-    pub f_star_poly: UnivariatePolynomial<E::ScalarField>,
+    pub f_star_poly: UnivariatePolynomial<E::ScalarField, E>,
 }
 
 // Define the new struct that encapsulates the functionality of polynomial commitment
@@ -75,16 +75,16 @@ pub struct PolyCommit<E: Pairing> {
 pub trait PolyCommitTrait<E: Pairing> {
     fn setup<T: RngCore>(n: usize, m: usize, rng: &mut T) -> SRS<E>;
 
-    fn commit(&self, poly: &BivariatePolynomial<E::ScalarField>) -> Commitment<E>;
+    fn commit(&self, poly: &BivariatePolynomial<E::ScalarField, E>) -> Commitment<E>;
 
     fn open(&self,
-            poly: &BivariatePolynomial<E::ScalarField>,
+            poly: &BivariatePolynomial<E::ScalarField, E>,
             com: Commitment<E>,
             b: &E::ScalarField,
     ) -> OpeningProof<E>;
 
     fn verify(&self,
-              lagrange_x: LagrangeBasis<E::ScalarField>,
+              lagrange_x: &dyn Evaluatable<E>,
               C: &Commitment<E>,
               proof: &OpeningProof<E>,
               b: &E::ScalarField,
@@ -154,7 +154,7 @@ impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
         };
     }
 
-    fn commit(&self, poly: &BivariatePolynomial<E::ScalarField>) -> Commitment<E> {
+    fn commit(&self, poly: &BivariatePolynomial<E::ScalarField, E>) -> Commitment<E> {
         Commitment {
             C: E::G1::sum((0..self.srs.degree_x).into_par_iter()
                           .map(|i| {
@@ -183,7 +183,7 @@ impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
     }
 
     /// Create opening proof for f(b,c)
-    fn open(&self, poly: &BivariatePolynomial<E::ScalarField>, com: Commitment<E>, b: &E::ScalarField) -> OpeningProof<E> {
+    fn open(&self, poly: &BivariatePolynomial<E::ScalarField, E>, com: Commitment<E>, b: &E::ScalarField) -> OpeningProof<E> {
         OpeningProof {
             vec_D: {
                 let mut vec = Vec::new();
@@ -197,7 +197,7 @@ impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
     }
 
     fn verify(&self,
-              lagrange_x: LagrangeBasis<E::ScalarField>,
+              lagrange_x: &dyn Evaluatable<E>,
               C: &Commitment<E>,
               proof: &OpeningProof<E>,
               b: &E::ScalarField,
@@ -209,7 +209,7 @@ impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
         let pairing_lhs = E::pairing(&C.C, &self.srs.V_prime);
         // second condition
         let msm_lhs = E::G1::msm_unchecked(&self.srs.vec_H, &proof.f_star_poly.evaluations);
-        let l_b = lagrange_x.evaluate(b);
+        let l_b = lagrange_x.evaluate(*b);
         let msm_rhs = E::G1::msm_unchecked(proof.vec_D.as_slice(), &l_b);
         // third condition
         let y_expected = proof.f_star_poly.evaluate(c);
@@ -272,7 +272,7 @@ pub mod test {
         // open the commitment
         let open = poly_commit.open(&polynomial, com.clone(), &b);
         // verify the proof
-        let verify = poly_commit.verify(LagrangeBasis { domain: domain_x }, &com, &open, &b, &c, &y);
+        let verify = poly_commit.verify(&LagrangeBasis { domain: domain_x }, &com, &open, &b, &c, &y);
         assert!(verify);
     }
 }

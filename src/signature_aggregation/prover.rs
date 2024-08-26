@@ -39,7 +39,7 @@ pub struct SignatureAggrData<E: Pairing> {
     // TODO comment this out for now. we will figure out the BLS stuff later.
     //pk: E::G1Affine,
     //sig: E::G2Affine,
-    bitfield_poly: BivariatePolynomial<E::ScalarField>,
+    bitfield_poly: BivariatePolynomial<E::ScalarField, E>,
     bitfield_commitment: Commitment<E>,
     sumcheck_proof: Option<SumcheckProof<E>>,
     // TODO Hossein: For now, instead of a proof, let's just put the R1CS circuit here
@@ -47,7 +47,7 @@ pub struct SignatureAggrData<E: Pairing> {
 }
 
 impl<E: Pairing> SignatureAggrData<E> {
-    pub fn new(bitfield_poly: BivariatePolynomial<E::ScalarField>, _sumcheck_proof: Option<SumcheckProof<E>>, srs: &SRS<E>) -> Self {
+    pub fn new(bitfield_poly: BivariatePolynomial<E::ScalarField, E>, _sumcheck_proof: Option<SumcheckProof<E>>, srs: &SRS<E>) -> Self {
         // XXX this PolyCommit is not very ergonomic
         let poly_commit = PolyCommit { srs: srs.pcs_srs.clone() }; // XXX no clone
         let bitfield_commitment = poly_commit.commit(&bitfield_poly);
@@ -73,7 +73,7 @@ where
     <E as Pairing>::ScalarField: Absorb,
 {
     fn get_accumulator_from_evaluation(&self,
-                                       bitfield_poly: &BivariatePolynomial<E::ScalarField>,
+                                       bitfield_poly: &BivariatePolynomial<E::ScalarField, E>,
                                        bitfield_commitment: &Commitment<E>,
                                        alpha: &E::ScalarField,
                                        beta: &E::ScalarField) -> Accumulator<E> {

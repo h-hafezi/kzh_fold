@@ -4,12 +4,12 @@ use crate::polynomial::bivariate_polynomial::bivariate_poly::BivariatePolynomial
 use crate::polynomial::bivariate_polynomial::univariate_poly::UnivariatePolynomial;
 
 pub struct SumcheckProof<E: Pairing> {
-    r_poly: UnivariatePolynomial<E::ScalarField>, // first round polynomial
-    s_poly: UnivariatePolynomial<E::ScalarField>, // second round polynomial
+    r_poly: UnivariatePolynomial<E::ScalarField, E>, // first round polynomial
+    s_poly: UnivariatePolynomial<E::ScalarField, E>, // second round polynomial
     // more more more
 }
 
-pub fn prove<E: Pairing>(f_poly: &BivariatePolynomial<E::ScalarField>, transcript: &mut IOPTranscript<E::ScalarField>) -> (SumcheckProof<E>, (E::ScalarField, E::ScalarField))  {
+pub fn prove<E: Pairing>(f_poly: &BivariatePolynomial<E::ScalarField, E>, transcript: &mut IOPTranscript<E::ScalarField>) -> (SumcheckProof<E>, (E::ScalarField, E::ScalarField))  {
     let r_poly = f_poly.sum_partial_evaluations_in_domain();
 
     // Squeeze alpha challenge
@@ -57,7 +57,7 @@ mod tests {
 
     use crate::constant_for_curves::{ScalarField, E};
 
-    pub fn sum_bivariate_poly_over_domain(poly: &BivariatePolynomial<ScalarField>) -> ScalarField {
+    pub fn sum_bivariate_poly_over_domain(poly: &BivariatePolynomial<ScalarField, E>) -> ScalarField {
         poly.evaluations.iter().cloned().sum()
     }
 
