@@ -14,7 +14,7 @@ use rayon::iter::ParallelIterator;
 
 use crate::polynomial::bivariate_polynomial::bivariate_poly::BivariatePolynomial;
 use crate::polynomial::bivariate_polynomial::univariate_poly::UnivariatePolynomial;
-use crate::polynomial::traits::{Evaluable, OneDimensionalPolynomial, TwoDimensionalPolynomial};
+use crate::polynomial::traits::{Evaluable, FromPartialEvaluation, OneDimensionalPolynomial, TwoDimensionalPolynomial};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SRS<E: Pairing> {
@@ -79,12 +79,13 @@ where
     U: OneDimensionalPolynomial<
         E,
         Input=<E as Pairing>::ScalarField,
-    >,
+    > + FromPartialEvaluation<E, B::PartialEvalType>,
     B: TwoDimensionalPolynomial<
         E,
         Input=<E as Pairing>::ScalarField,
-        PartialEvalType=UnivariatePolynomial<E::ScalarField, E>
+        PartialEvalType=U
     >,
+
 {
     fn setup<T: RngCore>(n: usize, m: usize, rng: &mut T) -> SRS<E>;
 
@@ -111,11 +112,11 @@ where
     U: OneDimensionalPolynomial<
         E,
         Input=<E as Pairing>::ScalarField,
-    >,
+    > + FromPartialEvaluation<E, B::PartialEvalType>,
     B: TwoDimensionalPolynomial<
         E,
         Input=<E as Pairing>::ScalarField,
-        PartialEvalType=UnivariatePolynomial<E::ScalarField, E>
+        PartialEvalType=U
     >,
 {
     fn setup<T: RngCore>(degree_x: usize, degree_y: usize, rng: &mut T) -> SRS<E> {
@@ -211,7 +212,7 @@ where
                 }
                 vec
             },
-            f_star_poly: U::from_univariate_polynomial(poly.partial_evaluation(b)),
+            f_star_poly: U::from_partial_evaluation(poly.partial_evaluation(b)),
         }
     }
 

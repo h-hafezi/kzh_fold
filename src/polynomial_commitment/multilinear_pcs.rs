@@ -8,10 +8,10 @@ use ark_std::UniformRand;
 use rand::RngCore;
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
-use crate::polynomial::bivariate_polynomial::univariate_poly::UnivariatePolynomial;
+
 use crate::polynomial::multilinear_polynomial::dense_multilinear_poly::MultilinearPolynomial;
 use crate::polynomial::multilinear_polynomial::math::Math;
-use crate::polynomial::traits::{Evaluable, OneDimensionalPolynomial, TwoDimensionalPolynomial};
+use crate::polynomial::traits::{Evaluable, FromPartialEvaluation, OneDimensionalPolynomial, TwoDimensionalPolynomial};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SRS<E: Pairing> {
@@ -46,11 +46,11 @@ where
     U: OneDimensionalPolynomial<
         E,
         Input=Vec<<E as Pairing>::ScalarField>,
-    >,
+    > + FromPartialEvaluation<E, B::PartialEvalType>,
     B: TwoDimensionalPolynomial<
         E,
         Input=Vec<<E as Pairing>::ScalarField>,
-        PartialEvalType=MultilinearPolynomial<E::ScalarField, E>
+        PartialEvalType=U
     >,
 {
     fn setup<T: RngCore>(n: usize, m: usize, rng: &mut T) -> SRS<E>;
@@ -78,11 +78,11 @@ where
     U: OneDimensionalPolynomial<
         E,
         Input=Vec<<E as Pairing>::ScalarField>,
-    >,
+    > + FromPartialEvaluation<E, B::PartialEvalType>,
     B: TwoDimensionalPolynomial<
         E,
         Input=Vec<<E as Pairing>::ScalarField>,
-        PartialEvalType=MultilinearPolynomial<E::ScalarField, E>
+        PartialEvalType=U
     >,
 {
     fn setup<T: RngCore>(n: usize, m: usize, rng: &mut T) -> SRS<E> {
@@ -177,7 +177,7 @@ where
                 }
                 vec
             },
-            f_star_poly: U::from_multilinear_polynomial(poly.partial_evaluation(b)),
+            f_star_poly: U::from_partial_evaluation(poly.partial_evaluation(b)),
         }
     }
 

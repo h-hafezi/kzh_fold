@@ -28,9 +28,24 @@ pub trait TwoDimensionalPolynomial<E: Pairing> {
     type PartialEvalType: OneDimensionalPolynomial<E>;
 
     fn partial_evaluation(&self, input: &Self::Input) -> Self::PartialEvalType;
-    fn partial_evaluations_over_boolean_domain(&self,i:usize) -> Vec<E::ScalarField>;
+    fn partial_evaluations_over_boolean_domain(&self, i: usize) -> Vec<E::ScalarField>;
     fn from_bivariate_multilinear_polynomial(multi_poly: BivariateMultiLinearPolynomial<E::ScalarField, E>) -> Self;
     fn from_bivariate_polynomial(bivariate_poly: BivariatePolynomial<E::ScalarField, E>) -> Self;
 }
 
 
+pub trait FromPartialEvaluation<E: Pairing, P> {
+    fn from_partial_evaluation(evaluation: P) -> Self;
+}
+
+impl<E: Pairing> FromPartialEvaluation<E, UnivariatePolynomial<E::ScalarField, E>> for UnivariatePolynomial<E::ScalarField, E> {
+    fn from_partial_evaluation(evaluation: UnivariatePolynomial<E::ScalarField, E>) -> Self {
+        evaluation
+    }
+}
+
+impl<E: Pairing> FromPartialEvaluation<E, MultilinearPolynomial<E::ScalarField, E>> for MultilinearPolynomial<E::ScalarField, E> {
+    fn from_partial_evaluation(evaluation: MultilinearPolynomial<E::ScalarField, E>) -> Self {
+        evaluation
+    }
+}
