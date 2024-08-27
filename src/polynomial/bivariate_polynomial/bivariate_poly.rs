@@ -1,16 +1,20 @@
-use ark_serialize::CanonicalSerialize;
-use rand::Rng;
 use std::fmt;
 use std::marker::PhantomData;
 use std::ops::Add;
+
 use ark_ec::pairing::Pairing;
-use ark_ff::{Field, Zero, PrimeField, FftField};
-use itertools::Itertools;
-use rand::RngCore;
+use ark_ff::{AdditiveGroup, FftField, Field, PrimeField, Zero};
 use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
-use crate::polynomial::bivariate_polynomial::lagrange_basis::{Evaluatable, LagrangeBasis};
+use ark_serialize::CanonicalSerialize;
+use itertools::Itertools;
+use rand::Rng;
+use rand::RngCore;
+
+use crate::polynomial::bivariate_polynomial::lagrange_basis::LagrangeBasis;
 use crate::polynomial::bivariate_polynomial::univariate_poly::UnivariatePolynomial;
-use crate::utils::{compute_powers, is_power_of_two};
+use crate::polynomial::multilinear_polynomial::bivariate_multilinear::BivariateMultiLinearPolynomial;
+use crate::polynomial::traits::{Evaluable, OneDimensionalPolynomial, TwoDimensionalPolynomial};
+use crate::utils::is_power_of_two;
 
 /// We represent a bivariate polynomial in **Lagrange Basis Form**:
 ///
@@ -28,16 +32,57 @@ use crate::utils::{compute_powers, is_power_of_two};
 pub struct BivariatePolynomial<F: FftField, E: Pairing> {
     // Flattened vector to represent the evaluations, where the entry at index (i, j) is located at i * degree_y + j
     pub evaluations: Vec<F>,
+
     // The lagrange basis used
     pub lagrange_basis_x: LagrangeBasis<F>,
     pub lagrange_basis_y: LagrangeBasis<F>,
+
     // Degree of the polynomial in both X and Y
     pub degree_x: usize,
     pub degree_y: usize,
 
-    pub phantom: PhantomData<E>,
+    phantom_data: PhantomData<fn() -> E>,
 }
 
+
+impl<E: Pairing> TwoDimensionalPolynomial<E> for BivariatePolynomial<E::ScalarField, E> {
+    type Input = E::ScalarField;
+    type PartialEvalType = UnivariatePolynomial<E::ScalarField, E>;
+
+    /// f(x, Y) = sum_{i} L_i(x) * sum_{j} (L_j(Y) * f(w_i, w_j)) ===>
+    /// f(x, w_t) = sum_{i} L_i(x) * sum_{j} (L_j(w_t) * f(w_i, w_j))
+    ///           = sum_{i} L_i(x) * f(w_i, w_t))
+    /// Partial evaluation at x
+    fn partial_evaluation(&self, input: &Self::Input) -> Self::PartialEvalType {
+        let l_x = <LagrangeBasis<E::ScalarField> as Evaluable<E>>::evaluate(&self.lagrange_basis_x, input);
+        let mut evaluations = vec![E::ScalarField::ZERO; self.degree_y];
+        for t in 0..self.degree_y {
+            for i in 0..self.degree_x {
+                evaluations[t] += l_x[i] * self.evaluations[i * self.degree_y + t];
+            }
+        }
+        // return the result
+        UnivariatePolynomial {
+            evaluations,
+            lagrange_basis: self.lagrange_basis_y.clone(),
+            phantom: Default::default(),
+        }
+    }
+
+    fn partial_evaluations_over_boolean_domain(&self, i: usize) -> Vec<E::ScalarField> {
+        self.evaluations[i * self.degree_y..i * self.degree_y + self.degree_y].to_vec()
+    }
+
+    fn from_bivariate_multilinear_polynomial(_multi_poly: BivariateMultiLinearPolynomial<E::ScalarField, E>) -> Self {
+        unreachable!()
+    }
+
+    fn from_bivariate_polynomial(bivariate_poly: BivariatePolynomial<E::ScalarField, E>) -> Self {
+        bivariate_poly
+    }
+}
+
+/// function to print the polynomial in multiple lines
 impl<F: FftField + fmt::Display, E: Pairing> fmt::Display for BivariatePolynomial<F, E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "f(X, Y) =")?;
@@ -60,7 +105,8 @@ impl<F: FftField + fmt::Display, E: Pairing> fmt::Display for BivariatePolynomia
     }
 }
 
-impl<F: FftField, E:Pairing> Add for BivariatePolynomial<F, E> {
+/// add function for the polynomial
+impl<F: FftField, E: Pairing> Add for BivariatePolynomial<F, E> {
     type Output = Self;
 
     fn add(self, other: Self) -> Self {
@@ -106,12 +152,13 @@ impl<F: FftField, E:Pairing> Add for BivariatePolynomial<F, E> {
             lagrange_basis_y,
             degree_x: new_degree_x,
             degree_y: new_degree_y,
-            phantom: PhantomData,
+            phantom_data: Default::default(),
         }
     }
 }
 
-impl<F: FftField, E: Pairing<ScalarField = F>> BivariatePolynomial<F, E> {
+impl<F: FftField, E: Pairing<ScalarField=F>> BivariatePolynomial<F, E> {
+    /// generate a new instance
     pub fn new(
         evaluations: Vec<F>,
         domain_x: GeneralEvaluationDomain<F>,
@@ -129,7 +176,7 @@ impl<F: FftField, E: Pairing<ScalarField = F>> BivariatePolynomial<F, E> {
             lagrange_basis_y: LagrangeBasis { domain: domain_y },
             degree_x,
             degree_y,
-            phantom: Default::default(),
+            phantom_data: Default::default(),
         }
     }
 
@@ -152,16 +199,13 @@ impl<F: FftField, E: Pairing<ScalarField = F>> BivariatePolynomial<F, E> {
             lagrange_basis_y: LagrangeBasis { domain: domain_y },
             degree_x,
             degree_y,
-            phantom: Default::default(),
+            phantom_data: Default::default(),
         }
     }
 
     /// Generates a random BivariatePolynomial with binary coefficients
-    /// XXX: Remove domain_x and domain_y as inputs
     pub fn random_binary<T: RngCore>(
         rng: &mut T,
-        domain_x: GeneralEvaluationDomain<F>,
-        domain_y: GeneralEvaluationDomain<F>,
         degree_x: usize,
         degree_y: usize,
     ) -> Self {
@@ -175,18 +219,18 @@ impl<F: FftField, E: Pairing<ScalarField = F>> BivariatePolynomial<F, E> {
 
         BivariatePolynomial {
             evaluations,
-            lagrange_basis_x: LagrangeBasis { domain: domain_x },
-            lagrange_basis_y: LagrangeBasis { domain: domain_y },
+            lagrange_basis_x: LagrangeBasis { domain: GeneralEvaluationDomain::<F>::new(degree_x).unwrap() },
+            lagrange_basis_y: LagrangeBasis { domain: GeneralEvaluationDomain::<F>::new(degree_y).unwrap() },
             degree_x,
             degree_y,
-            phantom: Default::default(),
+            phantom_data: Default::default(),
         }
     }
 
     /// evaluation requires O(n^2) additions
     pub fn evaluate(&self, x: &F, y: &F) -> F {
-        let l_x = <LagrangeBasis<F> as Evaluatable<E>>::evaluate(&self.lagrange_basis_x, *x);
-        let l_y = <LagrangeBasis<F> as Evaluatable<E>>::evaluate(&self.lagrange_basis_y, *y);
+        let l_x = <LagrangeBasis<F> as Evaluable<E>>::evaluate(&self.lagrange_basis_x, x);
+        let l_y = <LagrangeBasis<F> as Evaluable<E>>::evaluate(&self.lagrange_basis_y, y);
         // the final result
         let mut sum = F::ZERO;
         for i in 0..self.degree_x {
@@ -197,25 +241,11 @@ impl<F: FftField, E: Pairing<ScalarField = F>> BivariatePolynomial<F, E> {
         sum
     }
 
-    /// f(x, Y) = sum_{i} L_i(x) * sum_{j} (L_j(Y) * f(w_i, w_j)) ===>
-    /// f(x, w_t) = sum_{i} L_i(x) * sum_{j} (L_j(w_t) * f(w_i, w_j))
-    ///           = sum_{i} L_i(x) * f(w_i, w_t))
-    pub fn partially_evaluate_at_x(&self, x: &F) -> UnivariatePolynomial<F, E> {
-        let l_x = <LagrangeBasis<F> as Evaluatable<E>>::evaluate(&self.lagrange_basis_x, *x);
-        let mut evaluations = vec![F::ZERO; self.degree_y];
-        for t in 0..self.degree_y {
-            for i in 0..self.degree_x {
-                evaluations[t] += l_x[i] * self.evaluations[i * self.degree_y + t];
-            }
-        }
-        UnivariatePolynomial { evaluations, lagrange_basis: self.lagrange_basis_y.clone(), phantom: Default::default() }
-    }
-
     /// f(X, y) = sum_{j} L_j(y) * sum_{i} (L_i(X) * f(w_i, w_j)) ===>
     /// f(w_t, y) = sum_{j} L_j(y) * sum_{i} (L_i(w_t) * f(w_i, w_j))
     ///           = sum_{j} L_j(y) * f(w_t, w_j))
     pub fn partially_evaluate_at_y(&self, y: &F) -> UnivariatePolynomial<F, E> {
-        let l_y = <LagrangeBasis<F> as Evaluatable<E>>::evaluate(&self.lagrange_basis_y, *y);
+        let l_y = <LagrangeBasis<F> as Evaluable<E>>::evaluate(&self.lagrange_basis_y, y);
         let mut evaluations = vec![F::ZERO; self.degree_x];
         for t in 0..self.degree_x {
             for j in 0..self.degree_y {
@@ -225,12 +255,15 @@ impl<F: FftField, E: Pairing<ScalarField = F>> BivariatePolynomial<F, E> {
         UnivariatePolynomial { evaluations, lagrange_basis: self.lagrange_basis_x.clone(), phantom: Default::default() }
     }
 
-    /// Compute r(x) = \sum_{j\inH_y} f(X, j)
+    /// Compute r(x) = \sum_{j \in H_y} f(X, j)
     ///
     /// Evaluates the polynomial at all roots of unity in the domain and sums the results.
     pub fn sum_partial_evaluations_in_domain(&self) -> UnivariatePolynomial<F, E> {
         // XXX This can probably be sped up...
-        let mut r_poly = UnivariatePolynomial::new(vec![F::zero(); self.degree_x], self.lagrange_basis_x.domain.clone());
+        let mut r_poly = UnivariatePolynomial::new(
+            vec![F::zero(); self.degree_x],
+            self.lagrange_basis_x.domain.clone(),
+        );
         for j in self.lagrange_basis_y.domain.elements() {
             r_poly = r_poly + self.partially_evaluate_at_y(&j);
         }
@@ -259,10 +292,9 @@ impl<F: FftField, E: Pairing<ScalarField = F>> BivariatePolynomial<F, E> {
             lagrange_basis_y: self.lagrange_basis_y.clone(),
             degree_x: self.degree_x,
             degree_y: self.degree_y,
-            phantom: Default::default(),
+            phantom_data: Default::default(),
         }
     }
-
 }
 
 #[cfg(test)]
@@ -270,7 +302,10 @@ mod tests {
     use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
     use ark_std::UniformRand;
     use rand::thread_rng;
+
     use crate::constant_for_curves::{E, ScalarField};
+    use crate::polynomial::traits::OneDimensionalPolynomial;
+
     use super::*;
 
     type F = ScalarField;
@@ -294,7 +329,7 @@ mod tests {
         let r: BivariatePolynomial<F, E> = BivariatePolynomial::random(&mut thread_rng(), domain_x, domain_y, degree_x, degree_y);
         let x = F::rand(&mut thread_rng());
         let y = F::rand(&mut thread_rng());
-        let r_x = r.partially_evaluate_at_x(&x);
+        let r_x = r.partial_evaluation(&x);
         let r_xy_indirect = r_x.evaluate(&y);
         let r_xy_direct = r.evaluate(&x, &y);
         assert_eq!(r_xy_direct, r_xy_indirect);
@@ -315,5 +350,4 @@ mod tests {
         let r_xy_direct = r.evaluate(&x, &y);
         assert_eq!(r_xy_direct, r_xy_indirect);
     }
-
 }

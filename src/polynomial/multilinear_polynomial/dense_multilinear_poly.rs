@@ -5,8 +5,11 @@
 #![allow(clippy::too_many_arguments)]
 use core::ops::Index;
 use std::fmt::Debug;
+use std::marker::PhantomData;
 
+use ark_crypto_primitives::crh::sha256::digest::typenum::private::PrivateIntegerAdd;
 use ark_ec::CurveGroup;
+use ark_ec::pairing::Pairing;
 use ark_ec::VariableBaseMSM;
 use ark_ff::{Field, PrimeField};
 use ark_serialize::*;
@@ -16,11 +19,13 @@ use rand::{Rng, RngCore};
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
 
+use crate::polynomial::bivariate_polynomial::univariate_poly::UnivariatePolynomial;
 use crate::polynomial::multilinear_polynomial::{boolean_vector_to_decimal, compute_dot_product};
 use crate::polynomial::multilinear_polynomial::eq_poly::EqPolynomial;
+use crate::polynomial::traits::{Evaluable, OneDimensionalPolynomial};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MultilinearPolynomial<F: PrimeField> {
+pub struct MultilinearPolynomial<F: PrimeField, E: Pairing> {
     pub num_variables: usize,
 
     /// `evaluation_over_boolean_hypercube` represents the evaluation of the multilinear polynomial
@@ -47,29 +52,53 @@ pub struct MultilinearPolynomial<F: PrimeField> {
     /// - `x1 = 1, x2 = 1, x3 = 1` (decimal index 7): `f(1, 1, 1) = 18`
     ///
     pub evaluation_over_boolean_hypercube: Vec<F>,
+
+    pub phantom: PhantomData<E>,
 }
 
-impl<F: PrimeField> MultilinearPolynomial<F> {
+impl<E: Pairing> OneDimensionalPolynomial<E> for MultilinearPolynomial<E::ScalarField, E> {
+    type Input = Vec<E::ScalarField>;
+
+    /// input[i] will represent value of x_i in the polynomial
+    fn evaluate(&self, input: &Self::Input) -> E::ScalarField {
+        // input must have a value for each variable
+        assert_eq!(input.len(), self.get_num_vars(), "wrong vector lengths");
+
+        // get eq polynomial evaluations
+        let temp = EqPolynomial::<E::ScalarField>::new(vec![]);
+        let eq_evals: Vec<E::ScalarField> = <EqPolynomial<<E as Pairing>::ScalarField> as Evaluable<E>>::evaluate(&temp, input);
+        assert_eq!(eq_evals.len(), self.evaluation_over_boolean_hypercube.len(), "wrong vector lengths");
+
+        // get the dot product and output it
+        compute_dot_product(&self.evaluation_over_boolean_hypercube, &eq_evals)
+    }
+
+    fn evaluations_over_boolean_domain(&self) -> Vec<E::ScalarField> {
+        self.evaluation_over_boolean_hypercube.clone()
+    }
+
+    fn from_multilinear_polynomial(multi_poly: MultilinearPolynomial<E::ScalarField, E>) -> Self {
+        multi_poly
+    }
+
+    fn from_univariate_polynomial(uni_poly: UnivariatePolynomial<E::ScalarField, E>) -> Self {
+        unreachable!()
+    }
+}
+
+impl<F: PrimeField, E: Pairing> MultilinearPolynomial<F, E> {
     pub fn new(num_variables: usize, evaluation_over_boolean_hypercube: Vec<F>) -> Self {
         // Ensure length is 2^num_variables
         assert_eq!(evaluation_over_boolean_hypercube.len(), 1 << num_variables);
         MultilinearPolynomial {
             num_variables,
             evaluation_over_boolean_hypercube,
+            phantom: Default::default(),
         }
     }
 
     pub fn get_num_vars(&self) -> usize {
         self.num_variables
-    }
-
-    /// r[i] will represent value of x_i in the polynomial
-    pub fn evaluate(&self, r: &[F]) -> F {
-        // r must have a value for each variable
-        assert_eq!(r.len(), self.get_num_vars());
-        let chis = EqPolynomial::evals(r);
-        assert_eq!(chis.len(), self.evaluation_over_boolean_hypercube.len());
-        compute_dot_product(&self.evaluation_over_boolean_hypercube, &chis)
     }
 
     pub fn evaluate_binary(&self, r: &[F]) -> F {
@@ -79,10 +108,10 @@ impl<F: PrimeField> MultilinearPolynomial<F> {
     }
 }
 
-impl<F: PrimeField> MultilinearPolynomial<F> {
+impl<F: PrimeField, E: Pairing<ScalarField=F>> MultilinearPolynomial<F, E> {
     /// Perform partial evaluation by fixing the first `fixed_vars.len()` variables to `fixed_vars`.
     /// Returns a new MultilinearPolynomial in the remaining variables.
-    pub fn partial_evaluation(&self, fixed_vars: &[F]) -> MultilinearPolynomial<F> {
+    pub fn partial_evaluation(&self, fixed_vars: &[F]) -> MultilinearPolynomial<F, E> {
         let fixed_vars_len = fixed_vars.len();
         let remaining_vars_len = self.num_variables - fixed_vars_len;
         assert!(remaining_vars_len > 0);
@@ -107,14 +136,14 @@ impl<F: PrimeField> MultilinearPolynomial<F> {
             full_assignment.extend_from_slice(&remaining_vars_assignment);
 
             // Evaluate the polynomial at this full assignment
-            new_evaluations[i] = self.evaluate(&full_assignment);
+            new_evaluations[i] = <MultilinearPolynomial<F, E> as OneDimensionalPolynomial<E>>::evaluate(self, &full_assignment);
         }
 
         // Return the new MultilinearPolynomial with the remaining variables
         MultilinearPolynomial::new(remaining_vars_len, new_evaluations)
     }
 
-    pub fn rand<T: RngCore>(num_variables: usize, rng: &mut T) -> MultilinearPolynomial<F> {
+    pub fn rand<T: RngCore>(num_variables: usize, rng: &mut T) -> MultilinearPolynomial<F, E> {
         MultilinearPolynomial {
             num_variables,
             evaluation_over_boolean_hypercube: {
@@ -125,6 +154,7 @@ impl<F: PrimeField> MultilinearPolynomial<F> {
                 }
                 vector
             },
+            phantom: Default::default(),
         }
     }
 }
@@ -134,14 +164,14 @@ impl<F: PrimeField> MultilinearPolynomial<F> {
 pub(crate) mod tests {
     use ark_ff::{AdditiveGroup, Field};
 
-    use crate::constant_for_curves::ScalarField;
+    use crate::constant_for_curves::{E, ScalarField};
 
     use super::*;
 
     type F = ScalarField;
 
     // Helper function to create the polynomial used in the tests
-    pub fn setup_polynomial() -> MultilinearPolynomial<F> {
+    pub fn setup_polynomial() -> MultilinearPolynomial<F, E> {
         // Define the number of variables
         let num_variables = 3;
 
@@ -171,8 +201,8 @@ pub(crate) mod tests {
         ];
 
         for (r, eval) in test_cases {
-            assert_eq!(poly.evaluate_binary(r.as_slice()), eval);
-            assert_eq!(poly.evaluate(r.as_slice()), eval);
+            assert_eq!(poly.evaluate_binary(&r), eval);
+            assert_eq!(poly.evaluate(&r), eval);
         }
 
         // Test the evaluate function with a non-binary input
@@ -187,8 +217,8 @@ pub(crate) mod tests {
 
         let p = poly.partial_evaluation(&[F::from(5)]);
         assert_eq!(
-            p.evaluate(&[F::from(3), F::from(6)]),
-            poly.evaluate(&[F::from(5), F::from(3), F::from(6)])
+            p.evaluate(&vec![F::from(3), F::from(6)]),
+            poly.evaluate(&vec![F::from(5), F::from(3), F::from(6)])
         );
     }
 }

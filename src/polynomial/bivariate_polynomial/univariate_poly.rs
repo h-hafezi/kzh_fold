@@ -8,8 +8,10 @@ use ark_ff::{FftField, Field, PrimeField};
 use ark_poly::{DenseUVPolynomial, Polynomial};
 use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
 use ark_serialize::CanonicalSerialize;
-
-use crate::polynomial::bivariate_polynomial::lagrange_basis::{Evaluatable, LagrangeBasis};
+use crate::polynomial::bivariate_polynomial::lagrange_basis::LagrangeBasis;
+use crate::polynomial::multilinear_polynomial::dense_multilinear_poly::MultilinearPolynomial;
+use crate::polynomial::multilinear_polynomial::eq_poly::EqPolynomial;
+use crate::polynomial::traits::{Evaluable, OneDimensionalPolynomial};
 
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize)]
 pub struct UnivariatePolynomial<F: FftField, E: Pairing> {
@@ -18,6 +20,36 @@ pub struct UnivariatePolynomial<F: FftField, E: Pairing> {
     pub phantom: PhantomData<E>,
 }
 
+impl<E: Pairing> OneDimensionalPolynomial<E> for UnivariatePolynomial<E::ScalarField, E> {
+    type Input = E::ScalarField;
+
+    /// Evaluate the polynomial at p(z) = L_1(z) * p(w_1) + ... + L_n(z) * p(w_n)
+    /// Where L_i(z) = Z_w(z) / z - w_i
+    fn evaluate(&self, point: &Self::Input) -> E::ScalarField {
+        // the evaluation points p(w_i)
+        let w_i = &self.evaluations;
+        // the lagrange basis L_i(z)
+        let l_i = <LagrangeBasis<E::ScalarField> as Evaluable<E>>::evaluate(&self.lagrange_basis, point);
+        w_i.iter()
+            .zip(l_i.iter())
+            .map(|(&a, &b)| a * b)
+            .sum()
+    }
+
+    fn evaluations_over_boolean_domain(&self) -> Vec<E::ScalarField> {
+        self.evaluations.clone()
+    }
+
+    fn from_multilinear_polynomial(multi_poly: MultilinearPolynomial<E::ScalarField, E>) -> Self {
+        unreachable!()
+    }
+
+    fn from_univariate_polynomial(uni_poly: UnivariatePolynomial<E::ScalarField, E>) -> Self {
+        uni_poly
+    }
+}
+
+/// print the univariate polynomial (its evaluation points)
 impl<F: FftField, E: Pairing> Display for UnivariatePolynomial<F, E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "UnivariatePolynomial {{ evaluations: {:?} }}", self.evaluations)
@@ -25,18 +57,6 @@ impl<F: FftField, E: Pairing> Display for UnivariatePolynomial<F, E> {
 }
 
 impl<F: FftField, E: Pairing<ScalarField=F>> UnivariatePolynomial<F, E> {
-    /// Evaluate the polynomial at p(z) = L_1(z) * p(w_1) + ... + L_n(z) * p(w_n)
-    /// Where L_i(z) = Z_w(z) / z - w_i
-    pub fn evaluate(&self, z: &F) -> F {
-        // the evaluation points p(w_i)
-        let w_i = &self.evaluations;
-        // the lagrange basis L_i(z)
-        let l_i = <LagrangeBasis<F> as Evaluatable<E>>::evaluate(&self.lagrange_basis, *z);
-        w_i.iter()
-            .zip(l_i.iter())
-            .map(|(&a, &b)| a * b)
-            .sum()
-    }
 
     pub fn sum_evaluations_in_domain(&self) -> F {
         self.evaluations.iter().cloned().sum()
@@ -98,12 +118,12 @@ mod tests {
     pub fn test_add() {
         let poly_degree = 9usize;
         let lagrange_basis = LagrangeBasis::new(poly_degree);
-        let poly1: UnivariatePolynomial<ark_ff::Fp<MontBackend<ark_bn254::FrConfig, 4>, 4>, E> = UnivariatePolynomial {
+        let poly1: UnivariatePolynomial<F, E> = UnivariatePolynomial {
             evaluations: vec![F::ONE; poly_degree],
             lagrange_basis: lagrange_basis.clone(),
             phantom: Default::default(),
         };
-        let poly2: UnivariatePolynomial<ark_ff::Fp<MontBackend<ark_bn254::FrConfig, 4>, 4>, E> = UnivariatePolynomial {
+        let poly2: UnivariatePolynomial<F, E> = UnivariatePolynomial {
             evaluations: vec![F::ONE; poly_degree],
             lagrange_basis: lagrange_basis.clone(),
             phantom: Default::default(),
@@ -124,7 +144,7 @@ mod tests {
             let eval = poly.evaluate(&w_i);
             evaluations.push(eval);
         }
-        let univariate: UnivariatePolynomial<ark_ff::Fp<MontBackend<ark_bn254::FrConfig, 4>, 4>, E> = UnivariatePolynomial::new(evaluations, domain);
+        let univariate: UnivariatePolynomial<ScalarField, E> = UnivariatePolynomial::new(evaluations, domain);
         // assert equality of evaluation of both polynomials at a random point
         assert_eq!(univariate.evaluate(&z), poly.evaluate(&z));
     }

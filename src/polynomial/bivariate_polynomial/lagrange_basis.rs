@@ -3,22 +3,22 @@ use ark_ff::{FftField, One, PrimeField};
 use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
 use ark_serialize::CanonicalSerialize;
 
+use crate::polynomial::traits::Evaluable;
+
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize)]
 pub struct LagrangeBasis<F: FftField> {
     pub domain: GeneralEvaluationDomain<F>,
 }
 
-pub trait Evaluatable<E: Pairing> {
-    fn evaluate(&self, input: E::ScalarField) -> Vec<E::ScalarField>;
-}
+impl<E: Pairing> Evaluable<E> for LagrangeBasis<E::ScalarField> {
+    type Input = E::ScalarField;
 
-impl<E: Pairing> Evaluatable<E> for LagrangeBasis<E::ScalarField> {
-    fn evaluate(&self, z: E::ScalarField) -> Vec<E::ScalarField> {
+    fn evaluate(&self, z: &Self::Input) -> Vec<E::ScalarField> {
         let mut evaluation_points = vec![];
         let eval = self.domain.evaluate_vanishing_polynomial(z.clone());
 
         for w_i in self.domain.elements() {
-            if z == w_i {
+            if *z == w_i {
                 // If z is one of the roots of unity, L_i(z) = 1 if z = w_i, otherwise 0
                 evaluation_points.push(E::ScalarField::one());
             } else {
@@ -45,18 +45,21 @@ impl<F: FftField> LagrangeBasis<F> {
 
 #[cfg(test)]
 mod tests {
-    use ark_ff::MontBackend;
     use ark_poly::EvaluationDomain;
 
     use crate::constant_for_curves::{E, ScalarField};
-    use crate::polynomial::bivariate_polynomial::lagrange_basis::{Evaluatable, LagrangeBasis};
+    use crate::polynomial::bivariate_polynomial::lagrange_basis::{Evaluable, LagrangeBasis};
 
     type F = ScalarField;
 
     #[test]
     fn lagrange_test() {
         let lagrange_basis: LagrangeBasis<F> = LagrangeBasis::new(10);
-        assert_eq!(<LagrangeBasis<ark_ff::Fp<MontBackend<ark_bn254::FrConfig, 4>, 4>> as Evaluatable<E>>::evaluate(&lagrange_basis, F::from(2u8)).len(), 16);
+        assert_eq!(<LagrangeBasis<F> as Evaluable<E>>::evaluate(
+            &lagrange_basis,
+            &F::from(2u8)).len(),
+            16,
+        );
     }
 }
 

@@ -1,8 +1,8 @@
 /// A sqrt(n) polynomial commitment scheme
 use std::{mem, ops::Mul};
 use std::iter::Sum;
+use std::marker::PhantomData;
 use std::ops::AddAssign;
-use std::time::Instant;
 
 use ark_ec::{AffineRepr, CurveGroup};
 use ark_ec::pairing::Pairing;
@@ -11,9 +11,10 @@ use ark_ff::{AdditiveGroup, PrimeField, UniformRand};
 use rand::RngCore;
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
+
 use crate::polynomial::bivariate_polynomial::bivariate_poly::BivariatePolynomial;
-use crate::polynomial::bivariate_polynomial::lagrange_basis::{Evaluatable, LagrangeBasis};
 use crate::polynomial::bivariate_polynomial::univariate_poly::UnivariatePolynomial;
+use crate::polynomial::traits::{Evaluable, OneDimensionalPolynomial, TwoDimensionalPolynomial};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SRS<E: Pairing> {
@@ -62,38 +63,61 @@ pub struct Commitment<E: Pairing> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct OpeningProof<E: Pairing> {
+pub struct OpeningProof<E: Pairing, U: OneDimensionalPolynomial<E>> {
     pub vec_D: Vec<E::G1Affine>,
-    pub f_star_poly: UnivariatePolynomial<E::ScalarField, E>,
+    pub f_star_poly: U,
 }
 
 // Define the new struct that encapsulates the functionality of polynomial commitment
-pub struct PolyCommit<E: Pairing> {
+pub struct PolyCommit<E: Pairing, U: OneDimensionalPolynomial<E>, B: TwoDimensionalPolynomial<E>> {
     pub srs: SRS<E>,
+    phantom_data: PhantomData<fn() -> (U, B)>,
 }
 
-pub trait PolyCommitTrait<E: Pairing> {
+pub trait PolyCommitTrait<E: Pairing, U, B>
+where
+    U: OneDimensionalPolynomial<
+        E,
+        Input=<E as Pairing>::ScalarField,
+    >,
+    B: TwoDimensionalPolynomial<
+        E,
+        Input=<E as Pairing>::ScalarField,
+        PartialEvalType=UnivariatePolynomial<E::ScalarField, E>
+    >,
+{
     fn setup<T: RngCore>(n: usize, m: usize, rng: &mut T) -> SRS<E>;
 
-    fn commit(&self, poly: &BivariatePolynomial<E::ScalarField, E>) -> Commitment<E>;
+    fn commit(&self, poly: &B) -> Commitment<E>;
 
     fn open(&self,
-            poly: &BivariatePolynomial<E::ScalarField, E>,
+            poly: &B,
             com: Commitment<E>,
-            b: &E::ScalarField,
-    ) -> OpeningProof<E>;
+            b: &U::Input,
+    ) -> OpeningProof<E, U>;
 
     fn verify(&self,
-              lagrange_x: &dyn Evaluatable<E>,
+              lagrange_x: &dyn Evaluable<E, Input=U::Input>,
               C: &Commitment<E>,
-              proof: &OpeningProof<E>,
-              b: &E::ScalarField,
-              c: &E::ScalarField,
+              proof: &OpeningProof<E, U>,
+              b: &U::Input,
+              c: &U::Input,
               y: &E::ScalarField,
     ) -> bool;
 }
 
-impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
+impl<E: Pairing, U, B> PolyCommitTrait<E, U, B> for PolyCommit<E, U, B>
+where
+    U: OneDimensionalPolynomial<
+        E,
+        Input=<E as Pairing>::ScalarField,
+    >,
+    B: TwoDimensionalPolynomial<
+        E,
+        Input=<E as Pairing>::ScalarField,
+        PartialEvalType=UnivariatePolynomial<E::ScalarField, E>
+    >,
+{
     fn setup<T: RngCore>(degree_x: usize, degree_y: usize, rng: &mut T) -> SRS<E> {
         // sample G_0, G_1, ..., G_m generators from group one
         let G1_generator_vec = {
@@ -154,28 +178,23 @@ impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
         };
     }
 
-    fn commit(&self, poly: &BivariatePolynomial<E::ScalarField, E>) -> Commitment<E> {
+    fn commit(&self, poly: &B) -> Commitment<E> {
         Commitment {
-            C: E::G1::sum((0..self.srs.degree_x).into_par_iter()
-                          .map(|i| {
-                              let start = i * poly.degree_y;
-                              let end = start + poly.degree_y;
-                              E::G1::msm_unchecked(
-                                  self.srs.matrix_H[i].as_slice(),
-                                  &poly.evaluations[start..end], // Slice the flattened vector to get the row
-                              )
-                          })
-                          .collect::<Vec<_>>()
-                          .iter()
-            ).into_affine(),
-
-            aux: (0..self.srs.degree_x).into_par_iter()
+            C: E::G1::sum((0..self.srs.degree_x)
                 .map(|i| {
-                    let start = i * poly.degree_y;
-                    let end = start + poly.degree_y;
+                    E::G1::msm_unchecked(
+                        self.srs.matrix_H[i].as_slice(),
+                        poly.partial_evaluations_over_boolean_domain(i).as_slice(),
+                    )
+                })
+                .collect::<Vec<_>>()
+                .iter()
+            ).into_affine(),
+            aux: (0..self.srs.degree_x)
+                .map(|i| {
                     E::G1::msm_unchecked(
                         self.srs.vec_H.as_slice(),
-                        &poly.evaluations[start..end], // Slice the flattened vector to get the row
+                        poly.partial_evaluations_over_boolean_domain(i).as_slice(),
                     )
                 })
                 .collect::<Vec<_>>(),
@@ -183,7 +202,7 @@ impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
     }
 
     /// Create opening proof for f(b,c)
-    fn open(&self, poly: &BivariatePolynomial<E::ScalarField, E>, com: Commitment<E>, b: &E::ScalarField) -> OpeningProof<E> {
+    fn open(&self, poly: &B, com: Commitment<E>, b: &U::Input) -> OpeningProof<E, U> {
         OpeningProof {
             vec_D: {
                 let mut vec = Vec::new();
@@ -192,29 +211,29 @@ impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
                 }
                 vec
             },
-            f_star_poly: poly.partially_evaluate_at_x(b),
+            f_star_poly: U::from_univariate_polynomial(poly.partial_evaluation(b)),
         }
     }
 
     fn verify(&self,
-              lagrange_x: &dyn Evaluatable<E>,
+              lagrange_x: &dyn Evaluable<E, Input=U::Input>,
               C: &Commitment<E>,
-              proof: &OpeningProof<E>,
-              b: &E::ScalarField,
-              c: &E::ScalarField,
+              proof: &OpeningProof<E, U>,
+              b: &U::Input,
+              c: &U::Input,
               y: &E::ScalarField,
     ) -> bool {
         // first condition
         let pairing_rhs = E::multi_pairing(proof.vec_D.clone(), &self.srs.vec_V);
         let pairing_lhs = E::pairing(&C.C, &self.srs.V_prime);
         // second condition
-        let msm_lhs = E::G1::msm_unchecked(&self.srs.vec_H, &proof.f_star_poly.evaluations);
-        let l_b = lagrange_x.evaluate(*b);
+        let msm_lhs = E::G1::msm_unchecked(&self.srs.vec_H, &proof.f_star_poly.evaluations_over_boolean_domain().as_slice());
+        let l_b = lagrange_x.evaluate(b);
         let msm_rhs = E::G1::msm_unchecked(proof.vec_D.as_slice(), &l_b);
         // third condition
         let y_expected = proof.f_star_poly.evaluate(c);
         // checking all three conditions
-        return (pairing_lhs == pairing_rhs) && (msm_lhs == msm_rhs) && (y_expected == *y);
+        return (pairing_lhs == pairing_rhs) & &(msm_lhs == msm_rhs) && (y_expected == *y);
     }
 }
 
@@ -226,14 +245,21 @@ pub mod test {
     use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
     use ark_std::UniformRand;
     use rand::thread_rng;
+
     use crate::constant_for_curves::{E, ScalarField};
+    use crate::polynomial::bivariate_polynomial::lagrange_basis::LagrangeBasis;
+
     use super::*;
 
     #[test]
     fn test_setup() {
         let degree_y = 4usize;
         let degree_x = 4usize;
-        let srs: SRS<E> = PolyCommit::setup(degree_x, degree_y, &mut thread_rng());
+        let srs: SRS<E> = PolyCommit::<
+            E,
+            UnivariatePolynomial<<E as Pairing>::ScalarField, E>,
+            BivariatePolynomial<<E as Pairing>::ScalarField, E>
+        >::setup(degree_x, degree_y, &mut thread_rng());
         // asserting the sizes
         assert_eq!(srs.degree_y, degree_y);
         assert_eq!(srs.degree_x, degree_x);
@@ -258,9 +284,17 @@ pub mod test {
         let degree_y = 16usize;
         let domain_x = GeneralEvaluationDomain::<ScalarField>::new(degree_x).unwrap();
         let domain_y = GeneralEvaluationDomain::<ScalarField>::new(degree_y).unwrap();
-        let srs: SRS<E> = PolyCommit::setup(degree_x, degree_y, &mut thread_rng());
+        let srs: SRS<E> = PolyCommit::<
+            E,
+            UnivariatePolynomial<<E as Pairing>::ScalarField, E>,
+            BivariatePolynomial<<E as Pairing>::ScalarField, E>
+        >::setup(degree_x, degree_y, &mut thread_rng());
         // define the polynomial commitment
-        let poly_commit = PolyCommit { srs };
+        let poly_commit: PolyCommit<
+            E,
+            UnivariatePolynomial<<E as Pairing>::ScalarField, E>,
+            BivariatePolynomial<<E as Pairing>::ScalarField, E>,
+        > = PolyCommit { srs, phantom_data: Default::default() };
         // random bivariate polynomial
         let polynomial = BivariatePolynomial::random(&mut thread_rng(), domain_x, domain_y, degree_x, degree_y);
         // random points and evaluation

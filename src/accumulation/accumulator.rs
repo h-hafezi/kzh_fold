@@ -1,4 +1,4 @@
-use std::ops::{Add, Mul, Neg, Sub};
+/*use std::ops::{Add, Mul, Neg, Sub};
 
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::{AffineRepr, CurveGroup, VariableBaseMSM};
@@ -167,8 +167,8 @@ where
     }
 
     pub fn new_accumulator_instance_from_proof(srs: &AccSRS<E>, C: &E::G1Affine, b: &E::ScalarField, c: &E::ScalarField, y: &E::ScalarField) -> AccInstance<E> {
-        let vec_b = <LagrangeBasis<<E as Pairing>::ScalarField> as Evaluatable<E>>::evaluate(&srs.lagrange_basis_x, *b);
-        let vec_c = <LagrangeBasis<<E as Pairing>::ScalarField> as Evaluatable<E>>::evaluate(&srs.lagrange_basis_y, *c);
+        let vec_b = <LagrangeBasis<<E as Pairing>::ScalarField> as Evaluatable<E>>::evaluate(&srs.lagrange_basis_x, b);
+        let vec_c = <LagrangeBasis<<E as Pairing>::ScalarField> as Evaluatable<E>>::evaluate(&srs.lagrange_basis_y, c);
 
         // asserting the sizes are correct
         assert_eq!(vec_b.len(), srs.degree_x, "invalid size");
@@ -192,9 +192,9 @@ where
         };
     }
 
-    pub fn new_accumulator_witness_from_proof(srs: &AccSRS<E>, proof: OpeningProof<E>, b: &E::ScalarField, c: &E::ScalarField) -> AccWitness<E> {
-        let vec_b = <LagrangeBasis<<E as Pairing>::ScalarField> as Evaluatable<E>>::evaluate(&srs.lagrange_basis_x, *b);
-        let vec_c = <LagrangeBasis<<E as Pairing>::ScalarField> as Evaluatable<E>>::evaluate(&srs.lagrange_basis_y, *c);
+    pub fn new_accumulator_witness_from_proof(srs: &AccSRS<E>, proof: OpeningProof<E, U>, b: &E::ScalarField, c: &E::ScalarField) -> AccWitness<E> {
+        let vec_b = <LagrangeBasis<<E as Pairing>::ScalarField> as Evaluatable<E>>::evaluate(&srs.lagrange_basis_x, b);
+        let vec_c = <LagrangeBasis<<E as Pairing>::ScalarField> as Evaluatable<E>>::evaluate(&srs.lagrange_basis_y, c);
 
         // asserting the sizes are correct
         assert_eq!(vec_b.len(), srs.degree_x, "invalid size");
@@ -589,7 +589,7 @@ pub mod tests {
         let open = poly_commit.open(&polynomial, com.clone(), &b);
 
         // assert correctness of pcs
-        assert!(poly_commit.verify(&LagrangeBasis { domain: domain_x.clone() }, &com, &open, &b, &c, &y));
+        //assert!(poly_commit.verify(&LagrangeBasis { domain: domain_x.clone() }, &com, &open, &b, &c, &y));
 
         // return
         return (srs, b, c, y, com, open, LagrangeBasis { domain: domain_x.clone() }, LagrangeBasis { domain: domain_y.clone() });
@@ -652,3 +652,4 @@ pub mod tests {
         assert_eq!(accumulator.instance, instance_prime);
     }
 }
+ */

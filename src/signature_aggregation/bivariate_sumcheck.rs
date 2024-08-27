@@ -2,6 +2,7 @@ use ark_ec::pairing::Pairing;
 use transcript::IOPTranscript;
 use crate::polynomial::bivariate_polynomial::bivariate_poly::BivariatePolynomial;
 use crate::polynomial::bivariate_polynomial::univariate_poly::UnivariatePolynomial;
+use crate::polynomial::traits::TwoDimensionalPolynomial;
 
 pub struct SumcheckProof<E: Pairing> {
     r_poly: UnivariatePolynomial<E::ScalarField, E>, // first round polynomial
@@ -16,7 +17,8 @@ pub fn prove<E: Pairing>(f_poly: &BivariatePolynomial<E::ScalarField, E>, transc
     transcript.append_serializable_element(b"r_poly", &r_poly).unwrap();
     let alpha = transcript.get_and_append_challenge(b"alpha").unwrap();
 
-    let s_poly = f_poly.partially_evaluate_at_x(&alpha);
+
+    let s_poly = f_poly.partial_evaluation(&alpha);
 
     transcript.append_serializable_element(b"s_poly", &s_poly).unwrap();
     let beta = transcript.get_and_append_challenge(b"beta").unwrap();
