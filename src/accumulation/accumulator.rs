@@ -1,4 +1,4 @@
-use std::ops::Add;
+use std::ops::{Add, Mul, Sub};
 
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::{AffineRepr, CurveGroup, VariableBaseMSM};
@@ -9,22 +9,22 @@ use ark_std::UniformRand;
 use rand::RngCore;
 
 use crate::accumulation::{convert_affine_to_scalars, generate_random_elements};
+use crate::accumulation::eq_tree::EqTree;
 use crate::hash::poseidon::{PoseidonHash, PoseidonHashTrait};
 use crate::pcs::multilinear_pcs::{OpeningProof, SRS};
-use crate::polynomial::multilinear_polynomial::math::Math;
-use crate::polynomial::multilinear_polynomial::multilinear_poly::{into_multilinear_polynomial, MultilinearPolynomial};
+use crate::polynomial::multilinear_polynomial::multilinear_poly::MultilinearPolynomial;
 use crate::polynomial::traits::OneDimensionalPolynomial;
-use crate::utils::is_power_of_two;
+use crate::utils::{inner_product, is_power_of_two};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AccSRS<E: Pairing> {
     pub degree_x: usize,
     pub degree_y: usize,
 
-    // vector of size 2 * degree_x
+    // vector of size 2 * degree_x - 1
     pub k_x: Vec<E::G1Affine>,
 
-    // vector of size 2 * degree_y
+    // vector of size 2 * degree_y - 1
     pub k_y: Vec<E::G1Affine>,
 
     pub k_prime: E::G1Affine,
@@ -43,7 +43,7 @@ pub struct AccInstance<E: Pairing> {
     // vector of length log2(degree_y)
     pub y: Vec<E::ScalarField>,
 
-    pub t: E::ScalarField,
+    pub z: E::ScalarField,
 }
 
 impl<E: Pairing> AccInstance<E>
@@ -64,7 +64,7 @@ where
         dest.extend(vec![c_x, c_y, t_x, t_y, e_x, e_y]);
 
         // Extend with other scalar fields
-        dest.extend(vec![self.t]);
+        dest.extend(vec![self.z]);
         dest.extend(self.x.clone());
         dest.extend(self.y.clone());
 
@@ -79,13 +79,10 @@ pub struct AccWitness<E: Pairing> {
 
     pub f_star_poly: MultilinearPolynomial<E::ScalarField, E>,
 
-    // size of 2 * degree_x
-    pub expanded_x: Vec<E::ScalarField>,
+    pub tree_x: EqTree<E::ScalarField>,
 
-    // size of 2 * degree_y
-    pub expanded_y: Vec<E::ScalarField>,
+    pub tree_y: EqTree<E::ScalarField>,
 }
-
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Accumulator<E: Pairing> {
@@ -112,8 +109,8 @@ where
             degree_x,
             degree_y,
             pc_srs,
-            k_x: generate_random_elements::<E, T>(2 * degree_x, rng),
-            k_y: generate_random_elements::<E, T>(2 * degree_y, rng),
+            k_x: generate_random_elements::<E, T>(2 * degree_x - 1, rng),
+            k_y: generate_random_elements::<E, T>(2 * degree_y - 1, rng),
             k_prime: E::G1Affine::rand(rng),
         }
     }
@@ -139,21 +136,35 @@ where
         hash_object.output()
     }
 
-    pub fn new_accumulator_instance_from_proof(srs: &AccSRS<E>, C: &E::G1Affine, x: &Vec<E::ScalarField>, y: &Vec<E::ScalarField>, t: &E::ScalarField) -> AccInstance<E> {
+    pub fn new_accumulator_instance_from_proof(srs: &AccSRS<E>, C: &E::G1Affine, x: &Vec<E::ScalarField>, y: &Vec<E::ScalarField>, z: &E::ScalarField) -> AccInstance<E> {
         // asserting the sizes are correct
         assert_eq!(1 << x.len(), srs.degree_x, "invalid size of vector x");
         assert_eq!(1 << y.len(), srs.degree_y, "invalid size of vector y");
-        unreachable!()
 
+        let T = E::G1::msm_unchecked(srs.k_x.as_slice(), x.as_slice()).add(E::G1::msm_unchecked(srs.k_y.as_slice(), y.as_slice()));
+
+        AccInstance {
+            C: *C,
+            T: T.into(),
+            E: E::G1Affine::zero(),
+            x: x.clone(),
+            y: y.clone(),
+            z: z.clone(),
+        }
     }
-
 
     pub fn new_accumulator_witness_from_proof<U: OneDimensionalPolynomial<E>>(srs: &AccSRS<E>, proof: OpeningProof<E, U>, x: &Vec<E::ScalarField>, y: &Vec<E::ScalarField>) -> AccWitness<E> {
         // asserting the sizes are correct
         assert_eq!(1 << x.len(), srs.degree_x, "invalid size of vector x");
         assert_eq!(1 << y.len(), srs.degree_y, "invalid size of vector y");
         assert_eq!(proof.vec_D.len(), srs.degree_x, "invalid proof size");
-        unreachable!()
+
+        AccWitness {
+            vec_D: proof.vec_D,
+            f_star_poly:
+            tree_x: EqTree::new(x.as_slice()),
+            tree_y: EqTree::new(y.as_slice()),
+        }
     }
 
     pub fn decide(srs: &AccSRS<E>, acc: &Accumulator<E>) -> bool {
@@ -161,5 +172,34 @@ where
         let witness = &acc.witness;
 
         true
+    }
+
+    pub fn helper_function_decide(srs: &AccSRS<E>, acc: &Accumulator<E>) -> E::G1Affine {
+        let instance = &acc.instance;
+        let witness = &acc.witness;
+
+        let y_0 = acc.witness.tree_y.get_leaves().to_vec();
+        let e_prime: E::ScalarField = witness.f_star_poly.evaluate(&y_0)- instance.z;
+
+        let E_G: E::G1 = {
+            let lhs = E::G1::msm_unchecked(
+                srs.pc_srs.vec_H.as_slice(),
+                witness.f_star_poly.evaluation_over_boolean_hypercube.as_slice()
+            );
+            let rhs = {
+                let x_0 = acc.witness.tree_x.get_leaves().to_vec();
+                E::G1::msm_unchecked(witness.vec_D.as_slice(), x_0.as_slice())
+            };
+            lhs.sub(rhs)
+        };
+
+        let error_tree_x = acc.witness.tree_x.difference(acc.instance.x.as_slice());
+        let error_tree_y = acc.witness.tree_y.difference(acc.instance.y.as_slice());
+
+        let mut res: E::G1 = E_G.clone();
+        res = res.add(E::G1::msm_unchecked(srs.k_x.as_slice(), error_tree_x.nodes.as_slice()));
+        res = res.add(E::G1::msm_unchecked(srs.k_y.as_slice(), error_tree_y.nodes.as_slice()));
+        res.add(srs.k_prime.mul(e_prime)).into()
+
     }
 }

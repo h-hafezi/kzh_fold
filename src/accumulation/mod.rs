@@ -10,6 +10,7 @@ use crate::gadgets::non_native::util::convert_field_one_to_field_two;
 use crate::polynomial::multilinear_polynomial::math::Math;
 
 pub mod accumulator;
+mod eq_tree;
 
 fn convert_affine_to_scalars<E: Pairing>(point: E::G1Affine) -> (E::ScalarField, E::ScalarField)
 where
