@@ -19,7 +19,6 @@ use rayon::prelude::*;
 use crate::polynomial::multilinear_polynomial::{boolean_vector_to_decimal, compute_dot_product};
 use crate::polynomial::multilinear_polynomial::eq_poly::EqPolynomial;
 use crate::polynomial::multilinear_polynomial::math::Math;
-use crate::polynomial::traits::{Evaluable, OneDimensionalPolynomial};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MultilinearPolynomial<F: PrimeField, E: Pairing> {
@@ -53,39 +52,24 @@ pub struct MultilinearPolynomial<F: PrimeField, E: Pairing> {
     pub phantom: PhantomData<E>,
 }
 
-// TODO: write test for it
-pub fn into_multilinear_polynomial<U: OneDimensionalPolynomial<E>, E: Pairing>(poly: &U) -> MultilinearPolynomial<E::ScalarField, E> {
-    MultilinearPolynomial {
-        num_variables: poly.evaluations_over_boolean_domain().len().log_2(),
-        evaluation_over_boolean_hypercube: poly.evaluations_over_boolean_domain(),
-        phantom: PhantomData,
-    }
-}
-
-
-impl<E: Pairing> OneDimensionalPolynomial<E> for MultilinearPolynomial<E::ScalarField, E> {
-    type Input = Vec<E::ScalarField>;
+impl<E: Pairing> MultilinearPolynomial<E::ScalarField, E> {
 
     /// input[i] will represent value of x_i in the polynomial
-    fn evaluate(&self, input: &Self::Input) -> E::ScalarField {
+    pub(crate) fn evaluate(&self, input: &Vec<E::ScalarField>) -> E::ScalarField {
         // input must have a value for each variable
         assert_eq!(input.len(), self.get_num_vars(), "wrong vector lengths");
 
         // get eq polynomial evaluations
         let temp = EqPolynomial::<E::ScalarField>::new(vec![]);
-        let eq_evals: Vec<E::ScalarField> = <EqPolynomial<<E as Pairing>::ScalarField> as Evaluable<E>>::evaluate(&temp, input);
+        let eq_evals: Vec<E::ScalarField> = <EqPolynomial<<E as Pairing>::ScalarField>>::evaluate(&temp, input);
         assert_eq!(eq_evals.len(), self.evaluation_over_boolean_hypercube.len(), "wrong vector lengths");
 
         // get the dot product and output it
         compute_dot_product(&self.evaluation_over_boolean_hypercube, &eq_evals)
     }
 
-    fn evaluations_over_boolean_domain(&self) -> Vec<E::ScalarField> {
+    pub(crate) fn evaluations_over_boolean_domain(&self) -> Vec<E::ScalarField> {
         self.evaluation_over_boolean_hypercube.clone()
-    }
-
-    fn from_multilinear_polynomial(multi_poly: MultilinearPolynomial<E::ScalarField, E>) -> Self {
-        multi_poly
     }
 }
 
@@ -139,7 +123,7 @@ impl<F: PrimeField, E: Pairing<ScalarField=F>> MultilinearPolynomial<F, E> {
             full_assignment.extend_from_slice(&remaining_vars_assignment);
 
             // Evaluate the polynomial at this full assignment
-            new_evaluations[i] = <MultilinearPolynomial<F, E> as OneDimensionalPolynomial<E>>::evaluate(self, &full_assignment);
+            new_evaluations[i] = <MultilinearPolynomial<F, E>>::evaluate(self, &full_assignment);
         }
 
         // Return the new MultilinearPolynomial with the remaining variables

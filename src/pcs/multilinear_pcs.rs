@@ -8,10 +8,10 @@ use ark_std::UniformRand;
 use rand::RngCore;
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
-
+use crate::polynomial::multilinear_polynomial::bivariate_multilinear::BivariateMultiLinearPolynomial;
+use crate::polynomial::multilinear_polynomial::eq_poly::EqPolynomial;
 use crate::polynomial::multilinear_polynomial::multilinear_poly::MultilinearPolynomial;
 use crate::polynomial::multilinear_polynomial::math::Math;
-use crate::polynomial::traits::{Evaluable, FromPartialEvaluation, OneDimensionalPolynomial, TwoDimensionalPolynomial};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SRS<E: Pairing> {
@@ -30,61 +30,37 @@ pub struct Commitment<E: Pairing> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct OpeningProof<E: Pairing, U: OneDimensionalPolynomial<E>> {
+pub struct OpeningProof<E: Pairing> {
     pub vec_D: Vec<E::G1Affine>,
-    pub f_star_poly: U,
+    pub f_star_poly: MultilinearPolynomial<E::ScalarField, E>,
 }
 
 // Define the new struct that encapsulates the functionality of polynomial commitment
-pub struct PolyCommit<E: Pairing, U: OneDimensionalPolynomial<E>, B: TwoDimensionalPolynomial<E>> {
+pub struct PolyCommit<E: Pairing> {
     pub srs: SRS<E>,
-    pub(crate) phantom_data: PhantomData<fn() -> (U, B)>,
 }
 
-pub trait PolyCommitTrait<E: Pairing, U, B>
-where
-    U: OneDimensionalPolynomial<
-        E,
-        Input=Vec<<E as Pairing>::ScalarField>,
-    > + FromPartialEvaluation<E, B::PartialEvalType>,
-    B: TwoDimensionalPolynomial<
-        E,
-        Input=Vec<<E as Pairing>::ScalarField>,
-        PartialEvalType=U
-    >,
-{
+pub trait PolyCommitTrait<E: Pairing> {
     fn setup<T: RngCore>(n: usize, m: usize, rng: &mut T) -> SRS<E>;
 
-    fn commit(&self, poly: &B) -> Commitment<E>;
+    fn commit(&self, poly: &BivariateMultiLinearPolynomial<E::ScalarField, E>) -> Commitment<E>;
 
     fn open(&self,
-            poly: &B,
+            poly: &BivariateMultiLinearPolynomial<E::ScalarField, E>,
             com: Commitment<E>,
-            b: &U::Input,
-    ) -> OpeningProof<E, U>;
+            b: &Vec<E::ScalarField>,
+    ) -> OpeningProof<E>;
 
     fn verify(&self,
-              lagrange_x: &dyn Evaluable<E, Input=U::Input>,
               C: &Commitment<E>,
-              proof: &OpeningProof<E, U>,
-              b: &U::Input,
-              c: &U::Input,
+              proof: &OpeningProof<E>,
+              b: &Vec<E::ScalarField>,
+              c: &Vec<E::ScalarField>,
               y: &E::ScalarField,
     ) -> bool;
 }
 
-impl<E: Pairing, U, B> PolyCommitTrait<E, U, B> for PolyCommit<E, U, B>
-where
-    U: OneDimensionalPolynomial<
-        E,
-        Input=Vec<<E as Pairing>::ScalarField>,
-    > + FromPartialEvaluation<E, B::PartialEvalType>,
-    B: TwoDimensionalPolynomial<
-        E,
-        Input=Vec<<E as Pairing>::ScalarField>,
-        PartialEvalType=U
-    >,
-{
+impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
     fn setup<T: RngCore>(n: usize, m: usize, rng: &mut T) -> SRS<E> {
         // sample G_0, G_1, ..., G_m generators from group one
         let G1_generator_vec = {
@@ -145,7 +121,7 @@ where
         };
     }
 
-    fn commit(&self, poly: &B) -> Commitment<E> {
+    fn commit(&self, poly: &BivariateMultiLinearPolynomial<E::ScalarField, E>) -> Commitment<E> {
         Commitment {
             C: E::G1::sum((0..self.srs.n)
                 .map(|i| {
@@ -168,7 +144,7 @@ where
         }
     }
 
-    fn open(&self, poly: &B, com: Commitment<E>, b: &U::Input) -> OpeningProof<E, U> {
+    fn open(&self, poly: &BivariateMultiLinearPolynomial<E::ScalarField, E>, com: Commitment<E>, b: &Vec<E::ScalarField>) -> OpeningProof<E> {
         OpeningProof {
             vec_D: {
                 let mut vec = Vec::new();
@@ -177,16 +153,15 @@ where
                 }
                 vec
             },
-            f_star_poly: U::from_partial_evaluation(poly.partial_evaluation(b)),
+            f_star_poly: poly.partial_evaluation(b),
         }
     }
 
     fn verify(&self,
-              lagrange_x: &dyn Evaluable<E, Input=U::Input>,
               C: &Commitment<E>,
-              proof: &OpeningProof<E, U>,
-              b: &U::Input,
-              c: &U::Input,
+              proof: &OpeningProof<E>,
+              b: &Vec<E::ScalarField>,
+              c: &Vec<E::ScalarField>,
               y: &E::ScalarField,
     ) -> bool {
         // first condition
@@ -198,7 +173,7 @@ where
             .f_star_poly
             .evaluations_over_boolean_domain().as_slice(),
         );
-        let l_b = lagrange_x.evaluate(b);
+        let l_b = EqPolynomial::new(vec![]).evaluate(b);
         let msm_rhs = E::G1::msm_unchecked(proof.vec_D.as_slice(), &l_b);
 
         // third condition
@@ -220,18 +195,13 @@ pub mod test {
     use crate::polynomial::multilinear_polynomial::bivariate_multilinear::BivariateMultiLinearPolynomial;
     use crate::polynomial::multilinear_polynomial::multilinear_poly::MultilinearPolynomial;
     use crate::polynomial::multilinear_polynomial::eq_poly::EqPolynomial;
-    use crate::polynomial::traits::OneDimensionalPolynomial;
     use crate::pcs::multilinear_pcs::{PolyCommit, PolyCommitTrait, SRS};
 
     #[test]
     fn test_setup() {
         let m = 4usize;
         let n = 4usize;
-        let srs: SRS<E> = PolyCommit::<
-            E,
-            MultilinearPolynomial<<E as Pairing>::ScalarField, E>,
-            BivariateMultiLinearPolynomial<<E as Pairing>::ScalarField, E>
-        >::setup(n, m, &mut thread_rng());
+        let srs: SRS<E> = PolyCommit::<E>::setup(n, m, &mut thread_rng());
 
         // asserting the sizes
         assert_eq!(srs.m, m);
@@ -255,18 +225,10 @@ pub mod test {
     fn test_end_to_end() {
         let n = 4usize;
         let m = 16usize;
-        let srs: SRS<E> = PolyCommit::<
-            E,
-            MultilinearPolynomial<<E as Pairing>::ScalarField, E>,
-            BivariateMultiLinearPolynomial<<E as Pairing>::ScalarField, E>
-        >::setup(n, m, &mut thread_rng());
+        let srs: SRS<E> = PolyCommit::<E>::setup(n, m, &mut thread_rng());
 
         // define the polynomial commitment
-        let poly_commit: PolyCommit<
-            E,
-            MultilinearPolynomial<<E as Pairing>::ScalarField, E>,
-            BivariateMultiLinearPolynomial<<E as Pairing>::ScalarField, E>
-        > = PolyCommit { srs, phantom_data: Default::default() };
+        let poly_commit: PolyCommit<E> = PolyCommit { srs };
 
         // random bivariate polynomial
         let polynomial = BivariateMultiLinearPolynomial::from_multilinear_to_bivariate_multilinear(
@@ -298,7 +260,7 @@ pub mod test {
         let open = poly_commit.open(&polynomial, com.clone(), &b);
 
         // verify the proof
-        assert!(poly_commit.verify(&EqPolynomial::new(vec![]), &com, &open, &b, &c, &y));
+        assert!(poly_commit.verify( &com, &open, &b, &c, &y));
     }
 }
 

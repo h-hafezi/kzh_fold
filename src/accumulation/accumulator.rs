@@ -13,7 +13,6 @@ use crate::accumulation::eq_tree::EqTree;
 use crate::hash::poseidon::{PoseidonHash, PoseidonHashTrait};
 use crate::pcs::multilinear_pcs::{OpeningProof, SRS};
 use crate::polynomial::multilinear_polynomial::multilinear_poly::MultilinearPolynomial;
-use crate::polynomial::traits::OneDimensionalPolynomial;
 use crate::utils::{inner_product, is_power_of_two};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -153,7 +152,7 @@ where
         }
     }
 
-    pub fn new_accumulator_witness_from_proof<U: OneDimensionalPolynomial<E>>(srs: &AccSRS<E>, proof: OpeningProof<E, U>, x: &Vec<E::ScalarField>, y: &Vec<E::ScalarField>) -> AccWitness<E> {
+    pub fn new_accumulator_witness_from_proof(srs: &AccSRS<E>, proof: OpeningProof<E>, x: &Vec<E::ScalarField>, y: &Vec<E::ScalarField>) -> AccWitness<E> {
         // asserting the sizes are correct
         assert_eq!(1 << x.len(), srs.degree_x, "invalid size of vector x");
         assert_eq!(1 << y.len(), srs.degree_y, "invalid size of vector y");
@@ -161,7 +160,7 @@ where
 
         AccWitness {
             vec_D: proof.vec_D,
-            f_star_poly:
+            f_star_poly: proof.f_star_poly,
             tree_x: EqTree::new(x.as_slice()),
             tree_y: EqTree::new(y.as_slice()),
         }

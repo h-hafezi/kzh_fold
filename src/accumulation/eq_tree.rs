@@ -1,6 +1,5 @@
 use ark_ff::PrimeField;
 
-use crate::polynomial::traits::Evaluable;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EqTree<F: PrimeField> {

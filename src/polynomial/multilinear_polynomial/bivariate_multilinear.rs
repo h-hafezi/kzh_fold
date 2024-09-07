@@ -4,7 +4,6 @@ use ark_ff::PrimeField;
 use crate::polynomial::multilinear_polynomial::decimal_to_boolean_vector;
 use crate::polynomial::multilinear_polynomial::multilinear_poly::MultilinearPolynomial;
 use crate::polynomial::multilinear_polynomial::math::Math;
-use crate::polynomial::traits::{Evaluable, TwoDimensionalPolynomial};
 
 pub struct BivariateMultiLinearPolynomial<F: PrimeField, E: Pairing> {
     pub poly: MultilinearPolynomial<F, E>,
@@ -28,15 +27,12 @@ impl<F: PrimeField, E: Pairing<ScalarField=F>> BivariateMultiLinearPolynomial<F,
     }
 }
 
-impl<E: Pairing> TwoDimensionalPolynomial<E> for BivariateMultiLinearPolynomial<E::ScalarField, E> {
-    type Input = Vec<E::ScalarField>;
-    type PartialEvalType = MultilinearPolynomial<E::ScalarField, E>;
-
-    fn partial_evaluation(&self, input: &Self::Input) -> Self::PartialEvalType {
+impl<E: Pairing> BivariateMultiLinearPolynomial<E::ScalarField, E> {
+    pub(crate) fn partial_evaluation(&self, input: &Vec<E::ScalarField>) -> MultilinearPolynomial<E::ScalarField, E> {
         self.poly.partial_evaluation(input)
     }
 
-    fn partial_evaluations_over_boolean_domain(&self, i: usize) -> Vec<E::ScalarField> {
+    pub(crate) fn partial_evaluations_over_boolean_domain(&self, i: usize) -> Vec<E::ScalarField> {
         self.partial_multilinear[i].evaluation_over_boolean_hypercube.clone()
     }
 

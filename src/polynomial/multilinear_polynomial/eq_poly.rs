@@ -1,8 +1,7 @@
 use ark_ec::pairing::Pairing;
-use ark_ff::{Field, One, Zero};
+use ark_ff::{Field, One, PrimeField, Zero};
 
 use crate::polynomial::multilinear_polynomial::math::Math;
-use crate::polynomial::traits::Evaluable;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EqPolynomial<F: Field + Copy> {
@@ -29,17 +28,15 @@ impl<F: Field + Copy> EqPolynomial<F> {
 }
 
 
-impl<E: Pairing> Evaluable<E> for EqPolynomial<E::ScalarField> {
-    type Input = Vec<E::ScalarField>;
-
-    fn evaluate(&self, r: &Self::Input) -> Vec<E::ScalarField> {
+impl<F: PrimeField>  EqPolynomial<F> {
+    pub(crate) fn evaluate(&self, r: &Vec<F>) -> Vec<F> {
         let n = r.len();
-        let mut dp = vec![vec![E::ScalarField::zero(); 1 << n]; n + 1];
-        dp[0][0] = E::ScalarField::one();
+        let mut dp = vec![vec![F::zero(); 1 << n]; n + 1];
+        dp[0][0] = F::one();
 
         for i in 0..n {
             for j in 0..(1 << i) {
-                dp[i + 1][j] = dp[i][j] * (E::ScalarField::one() - r[i]);
+                dp[i + 1][j] = dp[i][j] * (F::one() - r[i]);
                 dp[i + 1][j + (1 << i)] = dp[i][j] * r[i];
             }
         }
@@ -78,7 +75,7 @@ mod tests {
         // test for range evaluation
         let r = vec![F::ONE, F::ZERO, F::ONE];
         let eq_poly = EqPolynomial::<F>::new(vec![F::ONE]);
-        let results: Vec<F> = <EqPolynomial<F> as Evaluable<E>>::evaluate(&eq_poly, &r);
+        let results: Vec<F> = <EqPolynomial<F>>::evaluate(&eq_poly, &r);
         assert_eq!(results.len(), 8);
         assert_eq!(results, vec![F::ZERO, F::ZERO, F::ZERO, F::ZERO,
                                  F::ZERO, F::ONE, F::ZERO, F::ZERO]);
