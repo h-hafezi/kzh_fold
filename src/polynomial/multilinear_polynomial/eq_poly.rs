@@ -29,7 +29,7 @@ impl<F: Field + Copy> EqPolynomial<F> {
 
 
 impl<F: PrimeField>  EqPolynomial<F> {
-    pub(crate) fn evaluate(&self, r: &Vec<F>) -> Vec<F> {
+    pub(crate) fn evaluate(r: &Vec<F>) -> Vec<F> {
         let n = r.len();
         let mut dp = vec![vec![F::zero(); 1 << n]; n + 1];
         dp[0][0] = F::one();
@@ -74,8 +74,7 @@ mod tests {
 
         // test for range evaluation
         let r = vec![F::ONE, F::ZERO, F::ONE];
-        let eq_poly = EqPolynomial::<F>::new(vec![F::ONE]);
-        let results: Vec<F> = <EqPolynomial<F>>::evaluate(&eq_poly, &r);
+        let results: Vec<F> = <EqPolynomial<F>>::evaluate(&r);
         assert_eq!(results.len(), 8);
         assert_eq!(results, vec![F::ZERO, F::ZERO, F::ZERO, F::ZERO,
                                  F::ZERO, F::ONE, F::ZERO, F::ZERO]);

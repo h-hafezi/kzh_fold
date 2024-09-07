@@ -173,7 +173,7 @@ impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
             .f_star_poly
             .evaluations_over_boolean_domain().as_slice(),
         );
-        let l_b = EqPolynomial::new(vec![]).evaluate(b);
+        let l_b = EqPolynomial::evaluate(b);
         let msm_rhs = E::G1::msm_unchecked(proof.vec_D.as_slice(), &l_b);
 
         // third condition
@@ -210,6 +210,7 @@ pub mod test {
         assert_eq!(srs.vec_V.len(), n);
         assert_eq!(srs.matrix_H.len(), n);
         assert_eq!(srs.matrix_H[0].len(), m);
+
         // checking pairing equalities
         // e(H[j, i], V[i]) = e(G_i^{tau_j}, V^{tau_i}) = e(H[i, i], V[j])
         for i in 0..min(m, n) {
@@ -263,4 +264,3 @@ pub mod test {
         assert!(poly_commit.verify( &com, &open, &b, &c, &y));
     }
 }
-

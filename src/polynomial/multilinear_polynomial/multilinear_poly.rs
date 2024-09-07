@@ -13,6 +13,7 @@ use ark_std::Zero;
 use itertools::Itertools;
 use num::One;
 use rand::{Rng, RngCore};
+
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
 
@@ -60,8 +61,7 @@ impl<E: Pairing> MultilinearPolynomial<E::ScalarField, E> {
         assert_eq!(input.len(), self.get_num_vars(), "wrong vector lengths");
 
         // get eq polynomial evaluations
-        let temp = EqPolynomial::<E::ScalarField>::new(vec![]);
-        let eq_evals: Vec<E::ScalarField> = <EqPolynomial<<E as Pairing>::ScalarField>>::evaluate(&temp, input);
+        let eq_evals: Vec<E::ScalarField> = <EqPolynomial<<E as Pairing>::ScalarField>>::evaluate(input);
         assert_eq!(eq_evals.len(), self.evaluation_over_boolean_hypercube.len(), "wrong vector lengths");
 
         // get the dot product and output it

@@ -1,6 +1,5 @@
 use ark_ff::PrimeField;
 
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EqTree<F: PrimeField> {
     // vector of length 2 * 2^depth - 1
@@ -23,8 +22,8 @@ impl<F: PrimeField> EqTree<F> {
             for j in 0..(1 << i) {
                 let node_idx = (1 << i) + j - 1;
                 let val = nodes[node_idx];
-                nodes[2 * node_idx + 1] = val * (F::ONE - x[i]);
-                nodes[2 * node_idx + 2] = val * x[i];
+                nodes[2 * node_idx + 2] = val * (F::ONE - x[i]);
+                nodes[2 * node_idx + 1] = val * x[i];
             }
         }
 
@@ -46,8 +45,8 @@ impl<F: PrimeField> EqTree<F> {
                 let node_idx = (1 << i) + j - 1;
                 println!("{}", node_idx);
                 let val = self.nodes[node_idx];
-                nodes[2 * node_idx + 1] = self.nodes[2 * node_idx + 1] - val * (F::ONE - x[i]);
-                nodes[2 * node_idx + 2] = self.nodes[2 * node_idx + 2] - val * x[i];
+                nodes[2 * node_idx + 2] = self.nodes[2 * node_idx + 2] - val * (F::ONE - x[i]);
+                nodes[2 * node_idx + 1] = self.nodes[2 * node_idx + 1] - val * x[i];
             }
         }
 
@@ -98,7 +97,7 @@ mod tests {
     use ark_ff::{AdditiveGroup, Field};
 
     use crate::constant_for_curves::ScalarField;
-
+    use crate::polynomial::multilinear_polynomial::eq_poly::EqPolynomial;
     use super::*;
 
     type F = ScalarField;
@@ -110,5 +109,13 @@ mod tests {
         tree.print_tree();
         let dif = tree.difference(x.as_slice());
         dif.is_zero();
+    }
+
+    #[test]
+    fn test_tree2() {
+        let x = vec![F::ONE, F::ZERO];
+        let tree = EqTree::new(x.as_slice());
+        let results: Vec<F> = EqPolynomial::evaluate(&x);
+        assert_eq!(tree.get_leaves().to_vec(), results);
     }
 }

@@ -35,9 +35,5 @@ impl<E: Pairing> BivariateMultiLinearPolynomial<E::ScalarField, E> {
     pub(crate) fn partial_evaluations_over_boolean_domain(&self, i: usize) -> Vec<E::ScalarField> {
         self.partial_multilinear[i].evaluation_over_boolean_hypercube.clone()
     }
-
-    fn from_bivariate_multilinear_polynomial(multi_poly: BivariateMultiLinearPolynomial<E::ScalarField, E>) -> Self {
-        multi_poly
-    }
 }
 

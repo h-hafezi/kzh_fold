@@ -3,7 +3,7 @@ use std::ops::{Add, Mul, Sub};
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::{AffineRepr, CurveGroup, VariableBaseMSM};
 use ark_ec::pairing::Pairing;
-use ark_ff::PrimeField;
+use ark_ff::{AdditiveGroup, PrimeField, Zero};
 use ark_poly::EvaluationDomain;
 use ark_std::UniformRand;
 use rand::RngCore;
@@ -76,6 +76,7 @@ pub struct AccWitness<E: Pairing> {
     // size of degree_x
     pub vec_D: Vec<E::G1Affine>,
 
+    // MLP of degree_y
     pub f_star_poly: MultilinearPolynomial<E::ScalarField, E>,
 
     pub tree_x: EqTree<E::ScalarField>,
@@ -135,12 +136,25 @@ where
         hash_object.output()
     }
 
-    pub fn new_accumulator_instance_from_proof(srs: &AccSRS<E>, C: &E::G1Affine, x: &Vec<E::ScalarField>, y: &Vec<E::ScalarField>, z: &E::ScalarField) -> AccInstance<E> {
+    pub fn new_accumulator_instance_from_proof(
+        srs: &AccSRS<E>,
+        C: &E::G1Affine,
+        x: &Vec<E::ScalarField>,
+        y: &Vec<E::ScalarField>,
+        z: &E::ScalarField,
+    ) -> AccInstance<E> {
         // asserting the sizes are correct
         assert_eq!(1 << x.len(), srs.degree_x, "invalid size of vector x");
         assert_eq!(1 << y.len(), srs.degree_y, "invalid size of vector y");
 
-        let T = E::G1::msm_unchecked(srs.k_x.as_slice(), x.as_slice()).add(E::G1::msm_unchecked(srs.k_y.as_slice(), y.as_slice()));
+        let tree_x = EqTree::new(x.as_slice());
+        let tree_y = EqTree::new(y.as_slice());
+        let mut T: E::G1 = E::G1::ZERO;
+        T = T.add(E::G1::msm_unchecked(srs.k_x.as_slice(), tree_x.nodes.as_slice()));
+        T = T.add(E::G1::msm_unchecked(srs.k_y.as_slice(), tree_y.nodes.as_slice()));
+        assert_eq!(srs.k_x.len(), tree_x.nodes.len(), "invalid size of vector x");
+        assert_eq!(srs.k_y.len(), tree_y.nodes.len(), "invalid size of vector y");
+
 
         AccInstance {
             C: *C,
@@ -170,25 +184,44 @@ where
         let instance = &acc.instance;
         let witness = &acc.witness;
 
-        true
+        // first condition
+        let pairing_lhs = E::multi_pairing(&witness.vec_D, &srs.pc_srs.vec_V);
+        let pairing_rhs = E::pairing(instance.C, srs.pc_srs.V_prime);
+
+        // second condition
+        let ip_rhs = instance.T;
+        let ip_lhs = {
+            let res = E::G1::msm_unchecked(srs.k_x.as_slice(), witness.tree_x.nodes.as_slice());
+            res.add(E::G1::msm_unchecked(srs.k_y.as_slice(), witness.tree_y.nodes.as_slice()))
+        };
+
+        // third condition
+        let verify_lhs = Self::helper_function_decide(srs, acc);
+        let verify_rhs = instance.E;
+
+        println!("{} {}", verify_rhs == verify_lhs.into(), verify_rhs.is_zero());
+        println!("{}", ip_lhs == ip_rhs.into());
+        println!("{}", pairing_lhs == pairing_rhs);
+
+        return (verify_rhs == verify_lhs.into()) && (ip_lhs == ip_rhs.into()) && (pairing_lhs == pairing_rhs);
     }
 
     pub fn helper_function_decide(srs: &AccSRS<E>, acc: &Accumulator<E>) -> E::G1Affine {
         let instance = &acc.instance;
         let witness = &acc.witness;
 
-        let y_0 = acc.witness.tree_y.get_leaves().to_vec();
-        let e_prime: E::ScalarField = witness.f_star_poly.evaluate(&y_0)- instance.z;
+        let e_prime: E::ScalarField = witness.f_star_poly.evaluate(&acc.instance.y) - instance.z;
 
-        let E_G: E::G1 = {
+        // todo: this should be zero for a fresh instance/witness but isn't!
+        let E_G = {
             let lhs = E::G1::msm_unchecked(
                 srs.pc_srs.vec_H.as_slice(),
-                witness.f_star_poly.evaluation_over_boolean_hypercube.as_slice()
+                witness.f_star_poly.evaluation_over_boolean_hypercube.as_slice(),
             );
-            let rhs = {
-                let x_0 = acc.witness.tree_x.get_leaves().to_vec();
-                E::G1::msm_unchecked(witness.vec_D.as_slice(), x_0.as_slice())
-            };
+            let rhs = E::G1::msm_unchecked(
+                witness.vec_D.as_slice(),
+                acc.witness.tree_x.get_leaves()
+            );
             lhs.sub(rhs)
         };
 
@@ -199,6 +232,66 @@ where
         res = res.add(E::G1::msm_unchecked(srs.k_x.as_slice(), error_tree_x.nodes.as_slice()));
         res = res.add(E::G1::msm_unchecked(srs.k_y.as_slice(), error_tree_y.nodes.as_slice()));
         res.add(srs.k_prime.mul(e_prime)).into()
+    }
+}
 
+pub mod test {
+    use ark_ec::pairing::Pairing;
+    use ark_std::UniformRand;
+    use rand::thread_rng;
+
+    use crate::accumulation::accumulator::Accumulator;
+    use crate::constant_for_curves::{E, ScalarField};
+    use crate::pcs::multilinear_pcs::{PolyCommit, PolyCommitTrait, SRS};
+    use crate::polynomial::multilinear_polynomial::bivariate_multilinear::BivariateMultiLinearPolynomial;
+    use crate::polynomial::multilinear_polynomial::multilinear_poly::MultilinearPolynomial;
+
+    #[test]
+    fn test_end_to_end() {
+        let n = 4usize;
+        let m = 16usize;
+        let srs_pcs: SRS<E> = PolyCommit::<E>::setup(n, m, &mut thread_rng());
+
+        // define the polynomial commitment
+        let poly_commit: PolyCommit<E> = PolyCommit { srs: srs_pcs.clone() };
+
+        // random bivariate polynomial
+        let polynomial = BivariateMultiLinearPolynomial::from_multilinear_to_bivariate_multilinear(
+            MultilinearPolynomial::rand(2 + 4, &mut thread_rng()),
+            n,
+        );
+
+        // random points and evaluation
+        let x = vec![
+            ScalarField::rand(&mut thread_rng()), ScalarField::rand(&mut thread_rng()),
+        ];
+        let y = vec![
+            ScalarField::rand(&mut thread_rng()), ScalarField::rand(&mut thread_rng()),
+            ScalarField::rand(&mut thread_rng()), ScalarField::rand(&mut thread_rng()),
+        ];
+        let concat = {
+            let mut res = vec![];
+            res.extend(x.clone());
+            res.extend(y.clone());
+            res
+        };
+
+        let z = polynomial.poly.evaluate(&concat);
+
+        // commit to the polynomial
+        let com = poly_commit.commit(&polynomial);
+
+        // open the commitment
+        let open = poly_commit.open(&polynomial, com.clone(), &x);
+
+        // verify the proof
+        assert!(poly_commit.verify(&com, &open, &x, &y, &z));
+
+        let srs = Accumulator::setup(n, m, srs_pcs.clone(), &mut thread_rng());
+        let instance = Accumulator::new_accumulator_instance_from_proof(&srs, &com.C, &x, &y, &z);
+        let witness = Accumulator::new_accumulator_witness_from_proof(&srs, open, &x, &y);
+
+        let acc = Accumulator::new_accumulator(&instance, &witness);
+        assert!(Accumulator::decide(&srs, &acc));
     }
 }
