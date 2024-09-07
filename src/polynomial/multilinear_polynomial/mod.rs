@@ -2,7 +2,7 @@ use ark_ff::{Field, PrimeField};
 
 use crate::polynomial::multilinear_polynomial::math::Math;
 
-pub mod dense_multilinear_poly;
+pub mod multilinear_poly;
 
 pub mod eq_poly;
 

@@ -9,7 +9,7 @@ pub mod signature_aggregation;
 pub mod kzg;
 pub mod hash;
 pub mod polynomial;
-pub mod polynomial_commitment;
+pub mod pcs;
 pub mod nova;
 pub mod gadgets;
 pub mod accumulation_circuit;

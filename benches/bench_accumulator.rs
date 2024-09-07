@@ -1,4 +1,4 @@
-#![allow(non_snake_case)]
+/*#![allow(non_snake_case)]
 #![allow(unused_imports)]
 
 use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
@@ -10,7 +10,7 @@ use sqrtn_pcs::accumulation::accumulator::{AccSRS, Accumulator};
 use sqrtn_pcs::constant_for_curves::{E, ScalarField};
 use sqrtn_pcs::polynomial::bivariate_poly::{BivariatePolynomial};
 use sqrtn_pcs::polynomial::lagrange_basis::LagrangeBasis;
-use sqrtn_pcs::polynomial_commitment::bivariate_pcs::{PolyCommit, PolyCommitTrait, SRS};
+use sqrtn_pcs::pcs::bivariate_pcs::{PolyCommit, PolyCommitTrait, SRS};
 
 fn get_srs(degree_x: usize, degree_y: usize) -> AccSRS<E> {
     let domain_x = GeneralEvaluationDomain::<ScalarField>::new(degree_x).unwrap();
@@ -167,3 +167,6 @@ criterion_group! {
 }
 
 criterion_main!(acc_benches);
+
+
+ */

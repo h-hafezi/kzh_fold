@@ -1,7 +1,3 @@
-// Hossein
-// Stolen from: https://github.com/nexus-xyz/nexus-zkvm/blob/main/spartan/src/dense_mlpoly.rs
-// The bound_* functions will come useful when you want to partially evaluate something
-
 #![allow(clippy::too_many_arguments)]
 use core::ops::Index;
 use std::fmt::Debug;
@@ -15,13 +11,14 @@ use ark_ff::{Field, PrimeField};
 use ark_serialize::*;
 use ark_std::Zero;
 use itertools::Itertools;
+use num::One;
 use rand::{Rng, RngCore};
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
 
-use crate::polynomial::bivariate_polynomial::univariate_poly::UnivariatePolynomial;
 use crate::polynomial::multilinear_polynomial::{boolean_vector_to_decimal, compute_dot_product};
 use crate::polynomial::multilinear_polynomial::eq_poly::EqPolynomial;
+use crate::polynomial::multilinear_polynomial::math::Math;
 use crate::polynomial::traits::{Evaluable, OneDimensionalPolynomial};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -56,6 +53,16 @@ pub struct MultilinearPolynomial<F: PrimeField, E: Pairing> {
     pub phantom: PhantomData<E>,
 }
 
+// TODO: write test for it
+pub fn into_multilinear_polynomial<U: OneDimensionalPolynomial<E>, E: Pairing>(poly: &U) -> MultilinearPolynomial<E::ScalarField, E> {
+    MultilinearPolynomial {
+        num_variables: poly.evaluations_over_boolean_domain().len().log_2(),
+        evaluation_over_boolean_hypercube: poly.evaluations_over_boolean_domain(),
+        phantom: PhantomData,
+    }
+}
+
+
 impl<E: Pairing> OneDimensionalPolynomial<E> for MultilinearPolynomial<E::ScalarField, E> {
     type Input = Vec<E::ScalarField>;
 
@@ -79,10 +86,6 @@ impl<E: Pairing> OneDimensionalPolynomial<E> for MultilinearPolynomial<E::Scalar
 
     fn from_multilinear_polynomial(multi_poly: MultilinearPolynomial<E::ScalarField, E>) -> Self {
         multi_poly
-    }
-
-    fn from_univariate_polynomial(uni_poly: UnivariatePolynomial<E::ScalarField, E>) -> Self {
-        unreachable!()
     }
 }
 
@@ -206,8 +209,11 @@ pub(crate) mod tests {
         }
 
         // Test the evaluate function with a non-binary input
-        let input = vec![F::from(3), F::from(4), F::from(5)]; // Example input
-        let expected = F::from(128); // Expected result based on the polynomial f(x1, x2, x3) = 10 + x1 + 2 * x2x3 + 5 * x1x3
+        let input = vec![F::from(3), F::from(4), F::from(5)];
+
+        // Expected result based on the polynomial f(x1, x2, x3) = 10 + x1 + 2 * x2x3 + 5 * x1x3
+        let expected = F::from(128);
+
         assert_eq!(poly.evaluate(&input), expected);
     }
 

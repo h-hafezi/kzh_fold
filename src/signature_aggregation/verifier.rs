@@ -7,13 +7,13 @@ use ark_ec::VariableBaseMSM;
 use transcript::IOPTranscript;
 
 use crate::accumulation::accumulator::{get_srs, AccInstance, AccWitness, Accumulator};
-use crate::{accumulation, polynomial_commitment};
+use crate::{accumulation, pcs};
 use crate::signature_aggregation::bivariate_sumcheck;
 use crate::signature_aggregation::bivariate_sumcheck::SumcheckProof;
 use crate::signature_aggregation::prover::{SRS, SignatureAggrData};
 
-use crate::polynomial_commitment::bivariate_pcs::{Commitment, OpeningProof, PolyCommit, PolyCommitTrait};
-use crate::polynomial_commitment::bivariate_pcs;
+use crate::pcs::bivariate_pcs::{Commitment, OpeningProof, PolyCommit, PolyCommitTrait};
+use crate::pcs::bivariate_pcs;
 
 /// This struct represents a network node that just received an aggregate signature. The verifier needs to verify the
 /// aggregate signature (and later aggregate it with more signatures herself).

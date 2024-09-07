@@ -42,5 +42,9 @@ mod tests {
     #[test]
     fn test() {
         println!("{:?}", 11.get_bits(8));
+        assert_eq!(2000f64.log2().floor() as usize, 10);
+        assert_eq!(10f64.log2().floor() as usize, 3);
+        assert_eq!(1024f64.log2().floor() as usize, 10);
+        assert_eq!(0f64.log2().floor() as usize, 0);
     }
 }

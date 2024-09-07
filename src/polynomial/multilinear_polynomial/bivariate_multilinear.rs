@@ -1,9 +1,8 @@
 use ark_ec::pairing::Pairing;
 use ark_ff::PrimeField;
 
-use crate::polynomial::bivariate_polynomial::bivariate_poly::BivariatePolynomial;
 use crate::polynomial::multilinear_polynomial::decimal_to_boolean_vector;
-use crate::polynomial::multilinear_polynomial::dense_multilinear_poly::MultilinearPolynomial;
+use crate::polynomial::multilinear_polynomial::multilinear_poly::MultilinearPolynomial;
 use crate::polynomial::multilinear_polynomial::math::Math;
 use crate::polynomial::traits::{Evaluable, TwoDimensionalPolynomial};
 
@@ -43,10 +42,6 @@ impl<E: Pairing> TwoDimensionalPolynomial<E> for BivariateMultiLinearPolynomial<
 
     fn from_bivariate_multilinear_polynomial(multi_poly: BivariateMultiLinearPolynomial<E::ScalarField, E>) -> Self {
         multi_poly
-    }
-
-    fn from_bivariate_polynomial(_bivariate_poly: BivariatePolynomial<E::ScalarField, E>) -> Self {
-        unreachable!()
     }
 }
 

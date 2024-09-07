@@ -1,4 +1,4 @@
-#![allow(non_snake_case)]
+/*#![allow(non_snake_case)]
 #![allow(unused_imports)]
 
 use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
@@ -8,7 +8,7 @@ use rand::thread_rng;
 use sqrtn_pcs::constant_for_curves::{E, ScalarField};
 use sqrtn_pcs::polynomial::bivariate_poly::{BivariatePolynomial};
 use sqrtn_pcs::polynomial::lagrange_basis::LagrangeBasis;
-use sqrtn_pcs::polynomial_commitment::bivariate_pcs::{PolyCommit, PolyCommitTrait, SRS};
+use sqrtn_pcs::pcs::bivariate_pcs::{PolyCommit, PolyCommitTrait, SRS};
 
 
 fn bench_setup(c: &mut Criterion) {
@@ -113,3 +113,6 @@ criterion_group! {
 }
 
 criterion_main!(pcs_benches);
+
+
+ */

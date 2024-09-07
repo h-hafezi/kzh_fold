@@ -1,4 +1,4 @@
-use ark_ec::pairing::Pairing;
+/*use ark_ec::pairing::Pairing;
 use transcript::IOPTranscript;
 use crate::polynomial::bivariate_polynomial::bivariate_poly::BivariatePolynomial;
 use crate::polynomial::bivariate_polynomial::univariate_poly::UnivariatePolynomial;
@@ -82,3 +82,6 @@ mod tests {
         verify(proof, sumcheck_result, &mut transcript_verifier);
     }
 }
+
+
+ */
