@@ -1,9 +1,9 @@
-use std::ops::{Add, Mul, Sub};
+use std::ops::{Add, Mul, Neg, Sub};
 
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::{AffineRepr, CurveGroup, VariableBaseMSM};
 use ark_ec::pairing::Pairing;
-use ark_ff::{AdditiveGroup, PrimeField, Zero};
+use ark_ff::{AdditiveGroup, Field, PrimeField, Zero};
 use ark_poly::EvaluationDomain;
 use ark_std::UniformRand;
 use rand::RngCore;
@@ -13,7 +13,6 @@ use crate::accumulation::eq_tree::EqTree;
 use crate::hash::poseidon::{PoseidonHash, PoseidonHashTrait};
 use crate::pcs::multilinear_pcs::{OpeningProof, SRS};
 use crate::polynomial::multilinear_polynomial::multilinear_poly::MultilinearPolynomial;
-use crate::utils::{inner_product, is_power_of_two};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AccSRS<E: Pairing> {
@@ -169,6 +168,172 @@ where
         }
     }
 
+    pub fn prove(srs: &AccSRS<E>, acc_1: &Accumulator<E>, acc_2: &Accumulator<E>) -> (AccInstance<E>, AccWitness<E>, E::G1Affine)
+    where
+        <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb,
+    {
+        // unwrap the instances and witnesses
+        let instance_1 = &acc_1.instance;
+        let instance_2 = &acc_2.instance;
+        let witness_1 = &acc_1.witness;
+        let witness_2 = &acc_2.witness;
+
+        // compute the quotient variable Q
+        let Q: E::G1Affine = Self::helper_function_Q(srs, acc_1, acc_2);
+
+        let beta = Accumulator::compute_randomness(instance_1, instance_2, Q);
+
+        let one_minus_beta: E::ScalarField = E::ScalarField::ONE - beta;
+
+        // get the accumulated new_instance
+        let new_instance = Self::verify(instance_1, instance_2, Q);
+
+        // get the accumulated witness
+        let new_witness = AccWitness {
+            vec_D: witness_1.vec_D.iter().zip(witness_2.vec_D.iter())
+                .map(|(&d_1, &d_2)| d_1.mul(one_minus_beta).add(d_2.mul(beta)).into_affine())
+                .collect(),
+            f_star_poly: MultilinearPolynomial {
+                num_variables: witness_1.f_star_poly.num_variables,
+                evaluation_over_boolean_hypercube: witness_1.f_star_poly.evaluations_over_boolean_domain().iter()
+                    .zip(witness_2.f_star_poly.evaluations_over_boolean_domain().iter())
+                    .map(
+                        |(&a, &b)|
+                        a * (one_minus_beta) + (b * beta)
+                    )
+                    .collect(),
+                phantom: Default::default(),
+            },
+            tree_x: EqTree {
+                nodes: witness_1.tree_x.nodes.iter()
+                    .zip(witness_2.tree_x.nodes.iter())
+                    .map(
+                        |(&a, &b)|
+                        a * (one_minus_beta) + (b * beta)
+                    )
+                    .collect(),
+                depth: witness_1.tree_x.depth,
+            },
+            tree_y: EqTree {
+                nodes: witness_1.tree_y.nodes.iter()
+                    .zip(witness_2.tree_y.nodes.iter())
+                    .map(
+                        |(&a, &b)|
+                        a * (one_minus_beta) + (b * beta)
+                    )
+                    .collect(),
+                depth: witness_1.tree_y.depth,
+            },
+        };
+        return (new_instance, new_witness, Q);
+    }
+
+    pub fn verify(instance_1: &AccInstance<E>, instance_2: &AccInstance<E>, Q: E::G1Affine) -> AccInstance<E> {
+        let beta = Accumulator::compute_randomness(instance_1, instance_2, Q);
+        let one_minus_beta: E::ScalarField = E::ScalarField::ONE - beta;
+
+        let new_error_term: E::G1Affine = {
+            let mut res = instance_1.E.mul(one_minus_beta);
+            res = res.add(instance_2.E.mul(beta));
+            res.add(Q.mul(one_minus_beta * beta)).into()
+        };
+
+        AccInstance {
+            C: {
+                let res = instance_1.C.mul(one_minus_beta);
+                res.add(instance_2.C.mul(beta)).into()
+            },
+            T: {
+                let res = instance_1.T.mul(one_minus_beta);
+                res.add(instance_2.T.mul(beta)).into()
+            },
+            x: instance_1.x.iter()
+                .zip(instance_2.x.iter())
+                .map(|(&e1, &e2)| e1 * one_minus_beta + e1 * beta)
+                .collect(),
+            y: instance_1.y.iter()
+                .zip(instance_2.y.iter())
+                .map(|(&e1, &e2)| e1 * one_minus_beta + e1 * beta)
+                .collect(),
+            z: instance_1.z * one_minus_beta + instance_2.z * beta,
+            E: new_error_term,
+        }
+    }
+
+    pub fn helper_function_Q(srs: &AccSRS<E>, acc_1: &Accumulator<E>, acc_2: &Accumulator<E>) -> E::G1Affine {
+        // unwrap the instances/witnesses
+        let instance_1 = &acc_1.instance;
+        let instance_2 = &acc_2.instance;
+        let witness_1 = &acc_1.witness;
+        let witness_2 = &acc_2.witness;
+
+        assert_eq!(witness_1.f_star_poly.num_variables, witness_2.f_star_poly.num_variables);
+        assert_eq!(witness_1.tree_x.depth, witness_2.tree_x.depth);
+        assert_eq!(witness_1.tree_y.depth, witness_2.tree_y.depth);
+        assert_eq!(witness_1.vec_D.len(), witness_2.vec_D.len());
+
+        // value of 2 in the field
+        let two = E::ScalarField::from(2u128);
+
+        // build the accumulator from linear combination to run helper_function_V on it
+        let temp_acc = Accumulator {
+            witness: AccWitness {
+                vec_D: witness_2.vec_D.iter()
+                    .zip(witness_1.vec_D.iter())
+                    .map(|(&d2, &d1)| d2.mul(two).sub(d1).into_affine())
+                    .collect(),
+                f_star_poly: MultilinearPolynomial {
+                    num_variables: witness_1.f_star_poly.num_variables,
+                    evaluation_over_boolean_hypercube: witness_2.f_star_poly.evaluation_over_boolean_hypercube.iter()
+                        .zip(witness_1.f_star_poly.evaluation_over_boolean_hypercube.iter())
+                        .map(|(&e2, &e1)| e2 * two - e1)
+                        .collect(),
+                    phantom: Default::default(),
+                },
+                tree_x: EqTree {
+                    nodes: witness_2.tree_x.nodes.iter()
+                        .zip(witness_1.tree_x.nodes.iter())
+                        .map(|(&w2, &w1)| w2 * two - w1)
+                        .collect(),
+                    depth: witness_1.tree_x.depth,
+                },
+                tree_y: EqTree {
+                    nodes: witness_2.tree_y.nodes.iter()
+                        .zip(witness_1.tree_y.nodes.iter())
+                        .map(|(&w2, &w1)| w2 * two - w1)
+                        .collect(),
+                    depth: witness_1.tree_y.depth,
+                },
+            },
+            instance: AccInstance {
+                // not used by helper function
+                C: E::G1Affine::zero(),
+                T: E::G1Affine::zero(),
+                E: E::G1Affine::zero(),
+                // used by the helper function
+                x: instance_2.x.iter()
+                    .zip(instance_1.x.iter())
+                    .map(|(&e2, &e1)| e2 * two - e1)
+                    .collect(),
+                y: instance_2.y.iter()
+                    .zip(instance_1.y.iter())
+                    .map(|(&e2, &e1)| e2 * two - e1)
+                    .collect(),
+                z: two * instance_2.z - instance_1.z,
+            },
+        };
+
+        // -1/2 in the scalar field
+        let one_over_two: E::ScalarField = two.neg().inverse().unwrap();
+
+
+        let mut res = Self::helper_function_decide(&srs, &temp_acc);
+        res = res.add(instance_1.E).into();
+        res = res.sub(instance_2.E).into();
+        res = res.sub(instance_2.E).into();
+        res.mul(one_over_two).into()
+    }
+
     pub fn decide(srs: &AccSRS<E>, acc: &Accumulator<E>) -> bool {
         let instance = &acc.instance;
         let witness = &acc.witness;
@@ -188,6 +353,10 @@ where
         let verify_lhs = Self::helper_function_decide(srs, acc);
         let verify_rhs = instance.E;
 
+        println!("{}", verify_rhs == verify_lhs.into());
+        println!("{}", ip_lhs == ip_rhs.into());
+        println!("{}", pairing_lhs == pairing_rhs);
+
         return (verify_rhs == verify_lhs.into()) && (ip_lhs == ip_rhs.into()) && (pairing_lhs == pairing_rhs);
     }
 
@@ -204,7 +373,7 @@ where
             );
             let rhs = E::G1::msm_unchecked(
                 witness.vec_D.as_slice(),
-                acc.witness.tree_x.get_leaves()
+                acc.witness.tree_x.get_leaves(),
             );
             lhs.sub(rhs)
         };
@@ -224,59 +393,108 @@ pub mod test {
     use ark_std::UniformRand;
     use rand::thread_rng;
 
-    use crate::accumulation::accumulator::Accumulator;
+    use crate::accumulation::accumulator::{AccSRS, Accumulator};
     use crate::constant_for_curves::{E, ScalarField};
     use crate::pcs::multilinear_pcs::{PolyCommit, PolyCommitTrait, SRS};
     use crate::polynomial::multilinear_polynomial::bivariate_multilinear::BivariateMultiLinearPolynomial;
+    use crate::polynomial::multilinear_polynomial::math::Math;
     use crate::polynomial::multilinear_polynomial::multilinear_poly::MultilinearPolynomial;
-    use crate::utils::inner_product;
+
+    pub fn get_satisfying_accumulator(srs: &AccSRS<E>) -> Accumulator<E> {
+        // define the polynomial commitment
+        let poly_commit: PolyCommit<E> = PolyCommit { srs: srs.pc_srs.clone() };
+
+        // random bivariate polynomial
+        let polynomial1 = BivariateMultiLinearPolynomial::from_multilinear_to_bivariate_multilinear(
+            MultilinearPolynomial::rand(srs.pc_srs.degree_x.log_2() + srs.pc_srs.degree_y.log_2(), &mut thread_rng()),
+            srs.pc_srs.degree_x,
+        );
+        let polynomial2 = BivariateMultiLinearPolynomial::from_multilinear_to_bivariate_multilinear(
+            MultilinearPolynomial::rand(srs.pc_srs.degree_x.log_2() + srs.pc_srs.degree_y.log_2(), &mut thread_rng()),
+            srs.pc_srs.degree_x,
+        );
+
+        // random points and evaluation
+        let x1 = {
+            let mut res = Vec::with_capacity(srs.pc_srs.degree_x.log_2());
+            for _ in 0..srs.pc_srs.degree_x.log_2() {
+                res.push(ScalarField::rand(&mut thread_rng()));
+            }
+            res
+        };
+        let x2 = {
+            let mut res = Vec::with_capacity(srs.pc_srs.degree_x.log_2());
+            for _ in 0..srs.pc_srs.degree_x.log_2() {
+                res.push(ScalarField::rand(&mut thread_rng()));
+            }
+            res
+        };
+        let y1 = {
+            let mut res = Vec::with_capacity(srs.pc_srs.degree_y.log_2());
+            for _ in 0..srs.pc_srs.degree_y.log_2() {
+                res.push(ScalarField::rand(&mut thread_rng()));
+            }
+            res
+        };
+        let y2 = {
+            let mut res = Vec::with_capacity(srs.pc_srs.degree_y.log_2());
+            for _ in 0..srs.pc_srs.degree_y.log_2() {
+                res.push(ScalarField::rand(&mut thread_rng()));
+            }
+            res
+        };
+
+        let whole_input_1 = {
+            let mut res = vec![];
+            res.extend(x1.clone());
+            res.extend(y1.clone());
+            res
+        };
+        let whole_input_2 = {
+            let mut res = vec![];
+            res.extend(x2.clone());
+            res.extend(y2.clone());
+            res
+        };
+
+        let z1 = polynomial1.poly.evaluate(&whole_input_1);
+        let z2 = polynomial2.poly.evaluate(&whole_input_2);
+
+        // commit to the polynomial
+        let com1 = poly_commit.commit(&polynomial1);
+        let com2 = poly_commit.commit(&polynomial2);
+
+        // open the commitment
+        let open1 = poly_commit.open(&polynomial1, com1.clone(), &x1);
+        let open2 = poly_commit.open(&polynomial2, com2.clone(), &x2);
+
+        // verify the proof
+        assert!(poly_commit.verify(&com1, &open1, &x1, &y1, &z1));
+        assert!(poly_commit.verify(&com2, &open2, &x2, &y2, &z2));
+
+        let instance1 = Accumulator::new_accumulator_instance_from_proof(&srs, &com1.C, &x1, &y1, &z1);
+        let witness1 = Accumulator::new_accumulator_witness_from_proof(&srs, open1, &x1, &y1);
+        let instance2 = Accumulator::new_accumulator_instance_from_proof(&srs, &com2.C, &x2, &y2, &z2);
+        let witness2 = Accumulator::new_accumulator_witness_from_proof(&srs, open2, &x2, &y2);
+
+        let acc1 = Accumulator::new_accumulator(&instance1, &witness1);
+        let acc2 = Accumulator::new_accumulator(&instance2, &witness2);
+
+        let (new_instance, new_witness, Q) = Accumulator::prove(&srs, &acc1, &acc2);
+
+        let new_acc = Accumulator::new_accumulator(&new_instance, &new_witness);
+        assert!(Accumulator::decide(&srs, &new_acc));
+
+        new_acc
+    }
 
     #[test]
     fn test_end_to_end() {
         let degree_x = 4usize;
         let degree_y = 16usize;
         let srs_pcs: SRS<E> = PolyCommit::<E>::setup(degree_x, degree_y, &mut thread_rng());
-
-        // define the polynomial commitment
-        let poly_commit: PolyCommit<E> = PolyCommit { srs: srs_pcs.clone() };
-
-        // random bivariate polynomial
-        let polynomial = BivariateMultiLinearPolynomial::from_multilinear_to_bivariate_multilinear(
-            MultilinearPolynomial::rand(2 + 4, &mut thread_rng()),
-            degree_x,
-        );
-
-        // random points and evaluation
-        let x = vec![
-            ScalarField::rand(&mut thread_rng()), ScalarField::rand(&mut thread_rng()),
-        ];
-        let y = vec![
-            ScalarField::rand(&mut thread_rng()), ScalarField::rand(&mut thread_rng()),
-            ScalarField::rand(&mut thread_rng()), ScalarField::rand(&mut thread_rng()),
-        ];
-        let concat = {
-            let mut res = vec![];
-            res.extend(x.clone());
-            res.extend(y.clone());
-            res
-        };
-
-        let z = polynomial.poly.evaluate(&concat);
-
-        // commit to the polynomial
-        let com = poly_commit.commit(&polynomial);
-
-        // open the commitment
-        let open = poly_commit.open(&polynomial, com.clone(), &x);
-
-        // verify the proof
-        assert!(poly_commit.verify(&com, &open, &x, &y, &z));
-
         let srs = Accumulator::setup(srs_pcs.clone(), &mut thread_rng());
-        let instance = Accumulator::new_accumulator_instance_from_proof(&srs, &com.C, &x, &y, &z);
-        let witness = Accumulator::new_accumulator_witness_from_proof(&srs, open, &x, &y);
 
-        let acc = Accumulator::new_accumulator(&instance, &witness);
-        assert!(Accumulator::decide(&srs, &acc));
+        get_satisfying_accumulator(&srs);
     }
 }
