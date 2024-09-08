@@ -15,8 +15,8 @@ use crate::polynomial::multilinear_polynomial::math::Math;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SRS<E: Pairing> {
-    pub n: usize,
-    pub m: usize,
+    pub degree_x: usize,
+    pub degree_y: usize,
     pub matrix_H: Vec<Vec<E::G1Affine>>,
     pub vec_H: Vec<E::G1Affine>,
     pub vec_V: Vec<E::G2>,
@@ -48,24 +48,24 @@ pub trait PolyCommitTrait<E: Pairing> {
     fn open(&self,
             poly: &BivariateMultiLinearPolynomial<E::ScalarField, E>,
             com: Commitment<E>,
-            b: &Vec<E::ScalarField>,
+            x: &Vec<E::ScalarField>,
     ) -> OpeningProof<E>;
 
     fn verify(&self,
               C: &Commitment<E>,
               proof: &OpeningProof<E>,
-              b: &Vec<E::ScalarField>,
-              c: &Vec<E::ScalarField>,
-              y: &E::ScalarField,
+              x: &Vec<E::ScalarField>,
+              y: &Vec<E::ScalarField>,
+              z: &E::ScalarField,
     ) -> bool;
 }
 
 impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
-    fn setup<T: RngCore>(n: usize, m: usize, rng: &mut T) -> SRS<E> {
+    fn setup<T: RngCore>(degree_x: usize, degree_y: usize, rng: &mut T) -> SRS<E> {
         // sample G_0, G_1, ..., G_m generators from group one
         let G1_generator_vec = {
             let mut elements = Vec::new();
-            for _ in 0..m {
+            for _ in 0..degree_y {
                 elements.push(E::G1Affine::rand(rng));
             }
             elements
@@ -75,17 +75,17 @@ impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
         // sample trapdoors tau_0, tau_1, ..., tau_n, alpha
         let tau = {
             let mut elements = Vec::new();
-            for _ in 0..n {
+            for _ in 0..degree_x {
                 elements.push(E::ScalarField::rand(rng));
             }
             elements
         };
         let alpha = E::ScalarField::rand(rng);
         // generate matrix_H
-        let matrix_H: Vec<Vec<_>> = (0..n).into_par_iter()
+        let matrix_H: Vec<Vec<_>> = (0..degree_x).into_par_iter()
             .map(|i| {
                 let mut row = Vec::new();
-                for j in 0..m {
+                for j in 0..degree_y {
                     let g = G1_generator_vec[j].mul(tau[i]);
                     row.push(g.into());
                 }
@@ -95,7 +95,7 @@ impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
         // generate vec_H
         let vec_H = {
             let mut vec_h = Vec::new();
-            for j in 0..m {
+            for j in 0..degree_y {
                 vec_h.push(G1_generator_vec[j].mul(alpha).into());
             }
             vec_h
@@ -103,7 +103,7 @@ impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
         // generate vec_V
         let vec_V = {
             let mut vec_h = Vec::new();
-            for j in 0..n {
+            for j in 0..degree_x {
                 vec_h.push(G2_generator.mul(tau[j]));
             }
             vec_h
@@ -112,8 +112,8 @@ impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
         let V_prime = G2_generator.mul(alpha);
         // return the output
         return SRS {
-            n,
-            m,
+            degree_x,
+            degree_y,
             matrix_H,
             vec_H,
             vec_V,
@@ -123,7 +123,7 @@ impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
 
     fn commit(&self, poly: &BivariateMultiLinearPolynomial<E::ScalarField, E>) -> Commitment<E> {
         Commitment {
-            C: E::G1::sum((0..self.srs.n)
+            C: E::G1::sum((0..self.srs.degree_x)
                 .map(|i| {
                     E::G1::msm_unchecked(
                         self.srs.matrix_H[i].as_slice(),
@@ -133,7 +133,7 @@ impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
                 .collect::<Vec<_>>()
                 .iter()
             ).into_affine(),
-            aux: (0..self.srs.n)
+            aux: (0..self.srs.degree_x)
                 .map(|i| {
                     E::G1::msm_unchecked(
                         self.srs.vec_H.as_slice(),
@@ -144,7 +144,7 @@ impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
         }
     }
 
-    fn open(&self, poly: &BivariateMultiLinearPolynomial<E::ScalarField, E>, com: Commitment<E>, b: &Vec<E::ScalarField>) -> OpeningProof<E> {
+    fn open(&self, poly: &BivariateMultiLinearPolynomial<E::ScalarField, E>, com: Commitment<E>, x: &Vec<E::ScalarField>) -> OpeningProof<E> {
         OpeningProof {
             vec_D: {
                 let mut vec = Vec::new();
@@ -153,16 +153,16 @@ impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
                 }
                 vec
             },
-            f_star_poly: poly.partial_evaluation(b),
+            f_star_poly: poly.partial_evaluation(x),
         }
     }
 
     fn verify(&self,
               C: &Commitment<E>,
               proof: &OpeningProof<E>,
-              b: &Vec<E::ScalarField>,
-              c: &Vec<E::ScalarField>,
-              y: &E::ScalarField,
+              x: &Vec<E::ScalarField>,
+              y: &Vec<E::ScalarField>,
+              z: &E::ScalarField,
     ) -> bool {
         // first condition
         let pairing_rhs = E::multi_pairing(proof.vec_D.clone(), &self.srs.vec_V);
@@ -173,13 +173,13 @@ impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
             .f_star_poly
             .evaluations_over_boolean_domain().as_slice(),
         );
-        let l_b = EqPolynomial::evaluate(b);
+        let l_b = EqPolynomial::evaluate(x);
         let msm_rhs = E::G1::msm_unchecked(proof.vec_D.as_slice(), &l_b);
 
         // third condition
-        let y_expected = proof.f_star_poly.evaluate(c);
+        let y_expected = proof.f_star_poly.evaluate(y);
         // checking all three conditions
-        return (pairing_lhs == pairing_rhs) && (msm_lhs == msm_rhs) && (y_expected == *y);
+        return (pairing_lhs == pairing_rhs) && (msm_lhs == msm_rhs) && (y_expected == *z);
     }
 }
 
@@ -199,22 +199,22 @@ pub mod test {
 
     #[test]
     fn test_setup() {
-        let m = 4usize;
-        let n = 4usize;
-        let srs: SRS<E> = PolyCommit::<E>::setup(n, m, &mut thread_rng());
+        let degree_y = 4usize;
+        let degree_x = 4usize;
+        let srs: SRS<E> = PolyCommit::<E>::setup(degree_x, degree_y, &mut thread_rng());
 
         // asserting the sizes
-        assert_eq!(srs.m, m);
-        assert_eq!(srs.n, n);
-        assert_eq!(srs.vec_H.len(), m);
-        assert_eq!(srs.vec_V.len(), n);
-        assert_eq!(srs.matrix_H.len(), n);
-        assert_eq!(srs.matrix_H[0].len(), m);
+        assert_eq!(srs.degree_y, degree_y);
+        assert_eq!(srs.degree_x, degree_x);
+        assert_eq!(srs.vec_H.len(), degree_y);
+        assert_eq!(srs.vec_V.len(), degree_x);
+        assert_eq!(srs.matrix_H.len(), degree_x);
+        assert_eq!(srs.matrix_H[0].len(), degree_y);
 
         // checking pairing equalities
         // e(H[j, i], V[i]) = e(G_i^{tau_j}, V^{tau_i}) = e(H[i, i], V[j])
-        for i in 0..min(m, n) {
-            for j in 0..min(m, n) {
+        for i in 0..min(degree_y, degree_x) {
+            for j in 0..min(degree_y, degree_x) {
                 let p1 = E::pairing(srs.matrix_H[j][i], srs.vec_V[i]);
                 let p2 = E::pairing(srs.matrix_H[i][i], srs.vec_V[j]);
                 assert_eq!(p1, p2);
@@ -224,9 +224,9 @@ pub mod test {
 
     #[test]
     fn test_end_to_end() {
-        let n = 4usize;
-        let m = 16usize;
-        let srs: SRS<E> = PolyCommit::<E>::setup(n, m, &mut thread_rng());
+        let degree_x = 4usize;
+        let degree_y = 16usize;
+        let srs: SRS<E> = PolyCommit::<E>::setup(degree_x, degree_y, &mut thread_rng());
 
         // define the polynomial commitment
         let poly_commit: PolyCommit<E> = PolyCommit { srs };
@@ -234,33 +234,33 @@ pub mod test {
         // random bivariate polynomial
         let polynomial = BivariateMultiLinearPolynomial::from_multilinear_to_bivariate_multilinear(
             MultilinearPolynomial::rand(2 + 4, &mut thread_rng()),
-            n,
+            degree_x,
         );
 
         // random points and evaluation
-        let b = vec![
+        let x = vec![
             ScalarField::rand(&mut thread_rng()), ScalarField::rand(&mut thread_rng()),
         ];
-        let c = vec![
+        let y = vec![
             ScalarField::rand(&mut thread_rng()), ScalarField::rand(&mut thread_rng()),
             ScalarField::rand(&mut thread_rng()), ScalarField::rand(&mut thread_rng()),
         ];
         let concat = {
             let mut res = vec![];
-            res.extend(b.clone());
-            res.extend(c.clone());
+            res.extend(x.clone());
+            res.extend(y.clone());
             res
         };
 
-        let y = polynomial.poly.evaluate(&concat);
+        let z = polynomial.poly.evaluate(&concat);
 
         // commit to the polynomial
         let com = poly_commit.commit(&polynomial);
 
         // open the commitment
-        let open = poly_commit.open(&polynomial, com.clone(), &b);
+        let open = poly_commit.open(&polynomial, com.clone(), &x);
 
         // verify the proof
-        assert!(poly_commit.verify( &com, &open, &b, &c, &y));
+        assert!(poly_commit.verify(&com, &open, &x, &y, &z));
     }
 }

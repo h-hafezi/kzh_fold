@@ -4,6 +4,7 @@ use ark_ff::PrimeField;
 use crate::polynomial::multilinear_polynomial::decimal_to_boolean_vector;
 use crate::polynomial::multilinear_polynomial::multilinear_poly::MultilinearPolynomial;
 use crate::polynomial::multilinear_polynomial::math::Math;
+use crate::utils::is_power_of_two;
 
 pub struct BivariateMultiLinearPolynomial<F: PrimeField, E: Pairing> {
     pub poly: MultilinearPolynomial<F, E>,
@@ -13,6 +14,7 @@ pub struct BivariateMultiLinearPolynomial<F: PrimeField, E: Pairing> {
 impl<F: PrimeField, E: Pairing<ScalarField=F>> BivariateMultiLinearPolynomial<F, E> {
     // this would output a bivariate multilinear polynomial consisting of n partial evaluations
     pub fn from_multilinear_to_bivariate_multilinear(poly: MultilinearPolynomial<F, E>, n: usize) -> BivariateMultiLinearPolynomial<F, E> {
+        assert!(is_power_of_two(n), "n must be a power of two");
         BivariateMultiLinearPolynomial {
             poly: poly.clone(),
             partial_multilinear: {

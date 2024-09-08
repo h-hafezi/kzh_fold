@@ -8,7 +8,6 @@ pub struct EqTree<F: PrimeField> {
 }
 
 impl<F: PrimeField> EqTree<F> {
-
     /// generates the eq tree given a vector of length depth
     pub fn new(x: &[F]) -> Self {
         let depth = x.len();
@@ -22,8 +21,10 @@ impl<F: PrimeField> EqTree<F> {
             for j in 0..(1 << i) {
                 let node_idx = (1 << i) + j - 1;
                 let val = nodes[node_idx];
-                nodes[2 * node_idx + 2] = val * (F::ONE - x[i]);
-                nodes[2 * node_idx + 1] = val * x[i];
+                let left_index = (2 * (1 << i) - 1) + j;
+                let right_index = left_index + (1 << i);
+                nodes[left_index] = val * (F::ONE - x[i]);
+                nodes[right_index] = val * x[i];
             }
         }
 
@@ -43,10 +44,11 @@ impl<F: PrimeField> EqTree<F> {
         for i in 0..depth {
             for j in 0..(1 << i) {
                 let node_idx = (1 << i) + j - 1;
-                println!("{}", node_idx);
                 let val = self.nodes[node_idx];
-                nodes[2 * node_idx + 2] = self.nodes[2 * node_idx + 2] - val * (F::ONE - x[i]);
-                nodes[2 * node_idx + 1] = self.nodes[2 * node_idx + 1] - val * x[i];
+                let left_index = (2 * (1 << i) - 1) + j;
+                let right_index = left_index + (1 << i);
+                nodes[left_index] = self.nodes[left_index] - val * (F::ONE - x[i]);
+                nodes[right_index] = self.nodes[right_index] - val * x[i];
             }
         }
 
@@ -95,9 +97,12 @@ impl<F: PrimeField> EqTree<F> {
 #[cfg(test)]
 mod tests {
     use ark_ff::{AdditiveGroup, Field};
+    use ark_std::UniformRand;
+    use rand::thread_rng;
 
     use crate::constant_for_curves::ScalarField;
     use crate::polynomial::multilinear_polynomial::eq_poly::EqPolynomial;
+
     use super::*;
 
     type F = ScalarField;
@@ -113,7 +118,12 @@ mod tests {
 
     #[test]
     fn test_tree2() {
-        let x = vec![F::ONE, F::ZERO];
+        let x = vec![
+            F::rand(&mut thread_rng()),
+            F::rand(&mut thread_rng()),
+            F::rand(&mut thread_rng()),
+            F::rand(&mut thread_rng()),
+        ];
         let tree = EqTree::new(x.as_slice());
         let results: Vec<F> = EqPolynomial::evaluate(&x);
         assert_eq!(tree.get_leaves().to_vec(), results);

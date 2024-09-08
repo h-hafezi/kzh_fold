@@ -17,9 +17,6 @@ use crate::utils::{inner_product, is_power_of_two};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AccSRS<E: Pairing> {
-    pub degree_x: usize,
-    pub degree_y: usize,
-
     // vector of size 2 * degree_x - 1
     pub k_x: Vec<E::G1Affine>,
 
@@ -95,22 +92,12 @@ where
     <E as Pairing>::ScalarField: Absorb,
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
 {
-    pub fn setup<T: RngCore>(degree_x: usize,
-                             degree_y: usize,
-                             pc_srs: SRS<E>,
-                             rng: &mut T,
-    ) -> AccSRS<E> {
-        // asserting the degree_x and degree_y are a power of two
-        assert!(is_power_of_two(degree_x), "degree_x (upper bound) must be a power of two");
-        assert!(is_power_of_two(degree_y), "degree_y (upper bound) must be a power of two");
-
+    pub fn setup<T: RngCore>(pc_srs: SRS<E>, rng: &mut T) -> AccSRS<E> {
         // return the result
         AccSRS {
-            degree_x,
-            degree_y,
-            pc_srs,
-            k_x: generate_random_elements::<E, T>(2 * degree_x - 1, rng),
-            k_y: generate_random_elements::<E, T>(2 * degree_y - 1, rng),
+            pc_srs: pc_srs.clone(),
+            k_x: generate_random_elements::<E, T>(2 * pc_srs.degree_x - 1, rng),
+            k_y: generate_random_elements::<E, T>(2 * pc_srs.degree_y - 1, rng),
             k_prime: E::G1Affine::rand(rng),
         }
     }
@@ -144,14 +131,16 @@ where
         z: &E::ScalarField,
     ) -> AccInstance<E> {
         // asserting the sizes are correct
-        assert_eq!(1 << x.len(), srs.degree_x, "invalid size of vector x");
-        assert_eq!(1 << y.len(), srs.degree_y, "invalid size of vector y");
+        assert_eq!(1 << x.len(), srs.pc_srs.degree_x, "invalid size of vector x");
+        assert_eq!(1 << y.len(), srs.pc_srs.degree_y, "invalid size of vector y");
 
         let tree_x = EqTree::new(x.as_slice());
         let tree_y = EqTree::new(y.as_slice());
+
         let mut T: E::G1 = E::G1::ZERO;
         T = T.add(E::G1::msm_unchecked(srs.k_x.as_slice(), tree_x.nodes.as_slice()));
         T = T.add(E::G1::msm_unchecked(srs.k_y.as_slice(), tree_y.nodes.as_slice()));
+
         assert_eq!(srs.k_x.len(), tree_x.nodes.len(), "invalid size of vector x");
         assert_eq!(srs.k_y.len(), tree_y.nodes.len(), "invalid size of vector y");
 
@@ -168,9 +157,9 @@ where
 
     pub fn new_accumulator_witness_from_proof(srs: &AccSRS<E>, proof: OpeningProof<E>, x: &Vec<E::ScalarField>, y: &Vec<E::ScalarField>) -> AccWitness<E> {
         // asserting the sizes are correct
-        assert_eq!(1 << x.len(), srs.degree_x, "invalid size of vector x");
-        assert_eq!(1 << y.len(), srs.degree_y, "invalid size of vector y");
-        assert_eq!(proof.vec_D.len(), srs.degree_x, "invalid proof size");
+        assert_eq!(1 << x.len(), srs.pc_srs.degree_x, "invalid size of vector x");
+        assert_eq!(1 << y.len(), srs.pc_srs.degree_y, "invalid size of vector y");
+        assert_eq!(proof.vec_D.len(), srs.pc_srs.degree_x, "invalid proof size");
 
         AccWitness {
             vec_D: proof.vec_D,
@@ -199,10 +188,6 @@ where
         let verify_lhs = Self::helper_function_decide(srs, acc);
         let verify_rhs = instance.E;
 
-        println!("{} {}", verify_rhs == verify_lhs.into(), verify_rhs.is_zero());
-        println!("{}", ip_lhs == ip_rhs.into());
-        println!("{}", pairing_lhs == pairing_rhs);
-
         return (verify_rhs == verify_lhs.into()) && (ip_lhs == ip_rhs.into()) && (pairing_lhs == pairing_rhs);
     }
 
@@ -212,7 +197,6 @@ where
 
         let e_prime: E::ScalarField = witness.f_star_poly.evaluate(&acc.instance.y) - instance.z;
 
-        // todo: this should be zero for a fresh instance/witness but isn't!
         let E_G = {
             let lhs = E::G1::msm_unchecked(
                 srs.pc_srs.vec_H.as_slice(),
@@ -245,12 +229,13 @@ pub mod test {
     use crate::pcs::multilinear_pcs::{PolyCommit, PolyCommitTrait, SRS};
     use crate::polynomial::multilinear_polynomial::bivariate_multilinear::BivariateMultiLinearPolynomial;
     use crate::polynomial::multilinear_polynomial::multilinear_poly::MultilinearPolynomial;
+    use crate::utils::inner_product;
 
     #[test]
     fn test_end_to_end() {
-        let n = 4usize;
-        let m = 16usize;
-        let srs_pcs: SRS<E> = PolyCommit::<E>::setup(n, m, &mut thread_rng());
+        let degree_x = 4usize;
+        let degree_y = 16usize;
+        let srs_pcs: SRS<E> = PolyCommit::<E>::setup(degree_x, degree_y, &mut thread_rng());
 
         // define the polynomial commitment
         let poly_commit: PolyCommit<E> = PolyCommit { srs: srs_pcs.clone() };
@@ -258,7 +243,7 @@ pub mod test {
         // random bivariate polynomial
         let polynomial = BivariateMultiLinearPolynomial::from_multilinear_to_bivariate_multilinear(
             MultilinearPolynomial::rand(2 + 4, &mut thread_rng()),
-            n,
+            degree_x,
         );
 
         // random points and evaluation
@@ -287,7 +272,7 @@ pub mod test {
         // verify the proof
         assert!(poly_commit.verify(&com, &open, &x, &y, &z));
 
-        let srs = Accumulator::setup(n, m, srs_pcs.clone(), &mut thread_rng());
+        let srs = Accumulator::setup(srs_pcs.clone(), &mut thread_rng());
         let instance = Accumulator::new_accumulator_instance_from_proof(&srs, &com.C, &x, &y, &z);
         let witness = Accumulator::new_accumulator_witness_from_proof(&srs, open, &x, &y);
 

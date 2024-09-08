@@ -40,7 +40,6 @@ impl<F: PrimeField>  EqPolynomial<F> {
                 dp[i + 1][j + (1 << i)] = dp[i][j] * r[i];
             }
         }
-
         dp[n].clone()
     }
 }
