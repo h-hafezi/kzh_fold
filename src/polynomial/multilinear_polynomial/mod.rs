@@ -9,7 +9,7 @@ pub mod eq_poly;
 pub mod math;
 pub mod bivariate_multilinear;
 
-fn compute_dot_product<F: PrimeField>(a: &[F], b: &[F]) -> F {
+pub fn compute_dot_product<F: PrimeField>(a: &[F], b: &[F]) -> F {
     assert_eq!(a.len(), b.len());
     (0..a.len()).map(|i| a[i] * b[i]).sum()
 }

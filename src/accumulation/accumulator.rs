@@ -7,7 +7,7 @@ use ark_ff::{AdditiveGroup, Field, PrimeField, Zero};
 use ark_poly::EvaluationDomain;
 use ark_std::UniformRand;
 use rand::RngCore;
-
+use crate::polynomial::multilinear_polynomial::{compute_dot_product};
 use crate::accumulation::{convert_affine_to_scalars, generate_random_elements};
 use crate::accumulation::eq_tree::EqTree;
 use crate::hash::poseidon::{PoseidonHash, PoseidonHashTrait};
@@ -364,8 +364,10 @@ where
         let instance = &acc.instance;
         let witness = &acc.witness;
 
-        let e_prime: E::ScalarField = witness.f_star_poly.evaluate(&acc.instance.y) - instance.z;
-
+        let e_prime: E::ScalarField = compute_dot_product(
+            &witness.f_star_poly.evaluation_over_boolean_hypercube,
+            &acc.witness.tree_y.get_leaves()
+        ) - instance.z;
         let E_G = {
             let lhs = E::G1::msm_unchecked(
                 srs.pc_srs.vec_H.as_slice(),
@@ -390,6 +392,7 @@ where
 
 pub mod test {
     use ark_ec::pairing::Pairing;
+    use ark_ff::AdditiveGroup;
     use ark_std::UniformRand;
     use rand::thread_rng;
 
@@ -479,6 +482,8 @@ pub mod test {
 
         let acc1 = Accumulator::new_accumulator(&instance1, &witness1);
         let acc2 = Accumulator::new_accumulator(&instance2, &witness2);
+        assert!(Accumulator::decide(&srs, &acc1));
+        assert!(Accumulator::decide(&srs, &acc2));
 
         let (new_instance, new_witness, Q) = Accumulator::prove(&srs, &acc1, &acc2);
 
