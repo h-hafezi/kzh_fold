@@ -249,11 +249,11 @@ where
             },
             x: instance_1.x.iter()
                 .zip(instance_2.x.iter())
-                .map(|(&e1, &e2)| e1 * one_minus_beta + e1 * beta)
+                .map(|(&e1, &e2)| e1 * one_minus_beta + e2 * beta)
                 .collect(),
             y: instance_1.y.iter()
                 .zip(instance_2.y.iter())
-                .map(|(&e1, &e2)| e1 * one_minus_beta + e1 * beta)
+                .map(|(&e1, &e2)| e1 * one_minus_beta + e2 * beta)
                 .collect(),
             z: instance_1.z * one_minus_beta + instance_2.z * beta,
             E: new_error_term,
