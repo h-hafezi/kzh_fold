@@ -1,4 +1,4 @@
-/*use std::borrow::Borrow;
+use std::borrow::Borrow;
 use std::fmt::Debug;
 
 use ark_crypto_primitives::sponge::constraints::AbsorbGadget;
@@ -35,11 +35,9 @@ where
     pub T_var: NonNativeAffineVar<G1>,
     pub E_var: NonNativeAffineVar<G1>,
     // the field elements G1::ScalarField
-    pub b_var: FpVar<G1::ScalarField>,
-    pub c_var: FpVar<G1::ScalarField>,
-    pub y_var: FpVar<G1::ScalarField>,
-    pub z_b_var: FpVar<G1::ScalarField>,
-    pub z_c_var: FpVar<G1::ScalarField>,
+    pub x_var: Vec<FpVar<G1::ScalarField>>,
+    pub y_var: Vec<FpVar<G1::ScalarField>>,
+    pub z_var: FpVar<G1::ScalarField>,
 }
 
 
@@ -50,13 +48,16 @@ where
     <G1 as CurveConfig>::BaseField: PrimeField,
 {
     pub(crate) fn cs(&self) -> ConstraintSystemRef<G1::ScalarField> {
+        // assert the vectors have non-zero length
+        assert_ne!(self.x_var.len(), 0, "vector x with length zero");
+        assert_ne!(self.y_var.len(), 0, "vector y with length zero");
+
+        // return the constraint system
         self.C_var.cs().or(self.T_var.cs())
             .or(self.E_var.cs())
-            .or(self.b_var.cs())
-            .or(self.c_var.cs())
-            .or(self.y_var.cs())
-            .or(self.z_b_var.cs())
-            .or(self.z_c_var.cs())
+            .or(self.x_var[0].cs())
+            .or(self.y_var[0].cs())
+            .or(self.z_var.cs())
     }
 
     pub(crate) fn value<E>(&self) -> Result<AccInstance<E>, SynthesisError>
@@ -67,11 +68,15 @@ where
             C: self.C_var.value().unwrap().into(),
             T: self.T_var.value().unwrap().into(),
             E: self.E_var.value().unwrap().into(),
-            b: self.b_var.value().unwrap(),
-            c: self.c_var.value().unwrap(),
-            y: self.y_var.value().unwrap(),
-            z_b: self.z_b_var.value().unwrap(),
-            z_c: self.z_c_var.value().unwrap(),
+            x: self.x_var.clone()
+                .into_iter()
+                .map(|element| element.value().unwrap())
+                .collect(),
+            y: self.y_var.clone()
+                .into_iter()
+                .map(|element| element.value().unwrap())
+                .collect(),
+            z: self.z_var.value().unwrap(),
         })
     }
 }
@@ -113,33 +118,33 @@ where
             mode,
         ).unwrap();
 
-        let b_var = FpVar::new_variable(
-            ns!(cs, "b"),
-            || circuit.map(|e| e.b),
-            mode,
-        ).unwrap();
+        let x_var = {
+            let mut res = Vec::new();
+            for i in 0..circuit.unwrap().x.len() {
+                res.push(FpVar::new_variable(
+                    ns!(cs, "x"),
+                    || circuit.map(|e| e.x[i]),
+                    mode,
+                ).unwrap());
+            }
+            res
+        };
 
-        let c_var = FpVar::new_variable(
-            ns!(cs, "c"),
-            || circuit.map(|e| e.c),
-            mode,
-        ).unwrap();
+        let y_var = {
+            let mut res = Vec::new();
+            for i in 0..circuit.unwrap().y.len() {
+                res.push(FpVar::new_variable(
+                    ns!(cs, "y"),
+                    || circuit.map(|e| e.y[i]),
+                    mode,
+                ).unwrap());
+            }
+            res
+        };
 
-        let y_var = FpVar::new_variable(
-            ns!(cs, "y"),
-            || circuit.map(|e| e.y),
-            mode,
-        ).unwrap();
-
-        let z_b_var = FpVar::new_variable(
+        let z_var = FpVar::new_variable(
             ns!(cs, "z_b"),
-            || circuit.map(|e| e.z_b),
-            mode,
-        ).unwrap();
-
-        let z_c_var = FpVar::new_variable(
-            ns!(cs, "z_c"),
-            || circuit.map(|e| e.z_c),
+            || circuit.map(|e| e.z),
             mode,
         ).unwrap();
 
@@ -147,11 +152,9 @@ where
             C_var,
             T_var,
             E_var,
-            b_var,
-            c_var,
+            x_var,
             y_var,
-            z_b_var,
-            z_c_var,
+            z_var,
         })
     }
 }
@@ -166,6 +169,7 @@ where
         unreachable!()
     }
 
+    // todo: remember this might cause some problem later
     fn to_sponge_field_elements(&self) -> Result<Vec<FpVar<G1::ScalarField>>, SynthesisError> {
         // Call to_sponge_field_elements on each NonNativeAffineVar
         let mut fpvar_vec = Vec::new();
@@ -175,11 +179,9 @@ where
         fpvar_vec.extend(self.E_var.to_sponge_field_elements()?);
 
         // Extend the vector with the other FpVar fields
-        fpvar_vec.push(self.b_var.clone());
-        fpvar_vec.push(self.c_var.clone());
-        fpvar_vec.push(self.y_var.clone());
-        fpvar_vec.push(self.z_b_var.clone());
-        fpvar_vec.push(self.z_c_var.clone());
+        fpvar_vec.extend(self.x_var.clone());
+        fpvar_vec.extend(self.y_var.clone());
+        fpvar_vec.push(self.z_var.clone());
 
         // Return the concatenated vector
         Ok(fpvar_vec)
@@ -203,44 +205,48 @@ pub mod tests {
 
     use crate::accumulation::accumulator::AccInstance;
     use crate::accumulation_circuit::instance_circuit::AccumulatorInstanceVar;
-    use crate::constant_for_curves::{E, G1Affine, ScalarField};
+    use crate::constant_for_curves::{E, ScalarField};
 
-    #[test]
-    fn initialisation_test() {
-        // build an instance of AccInstanceCircuit
-        let instance = AccInstance::<E> {
+    fn get_random_acc_instance() -> AccInstance<E> {
+        AccInstance::<E> {
             C: <E as Pairing>::G1Affine::rand(&mut thread_rng()),
             T: <E as Pairing>::G1Affine::rand(&mut thread_rng()),
             E: <E as Pairing>::G1Affine::rand(&mut thread_rng()),
-            b: ScalarField::rand(&mut thread_rng()),
-            c: ScalarField::rand(&mut thread_rng()),
-            y: ScalarField::rand(&mut thread_rng()),
-            z_b: ScalarField::rand(&mut thread_rng()),
-            z_c: ScalarField::rand(&mut thread_rng()),
-        };
+            x: vec![ScalarField::rand(&mut thread_rng()),
+                    ScalarField::rand(&mut thread_rng()),
+            ],
+            y: vec![ScalarField::rand(&mut thread_rng()),
+                    ScalarField::rand(&mut thread_rng()),
+                    ScalarField::rand(&mut thread_rng()),
+                    ScalarField::rand(&mut thread_rng()),
+            ],
+            z: ScalarField::rand(&mut thread_rng()),
+        }
+    }
+    #[test]
+    fn initialisation_test() {
+        // build an instance of AccInstanceCircuit
+        let instance = get_random_acc_instance();
 
         // a constraint system
         let cs = ConstraintSystem::<ScalarField>::new_ref();
 
         // make a circuit_var
-        let circuit_var = AccumulatorInstanceVar::new_variable(cs, || Ok(instance.clone()), AllocationMode::Constant).unwrap();
+        let circuit_var = AccumulatorInstanceVar::new_variable(
+            cs,
+            || Ok(instance.clone()),
+            AllocationMode::Constant,
+        ).unwrap();
+
         // get its value and assert its equal to the original instance
         let c = circuit_var.value().unwrap();
-        assert_eq!(c, instance, "the value function doesn't work well");
+
+        assert_eq!(c, instance, "the value function doesn't work");
     }
 
     #[test]
     fn absorb_test() {
-        let instance: AccInstance<E> = AccInstance {
-            C: G1Affine::rand(&mut thread_rng()),
-            T: G1Affine::rand(&mut thread_rng()),
-            E: G1Affine::zero(),
-            b: ScalarField::rand(&mut thread_rng()),
-            c: ScalarField::rand(&mut thread_rng()),
-            y: ScalarField::rand(&mut thread_rng()),
-            z_b: ScalarField::rand(&mut thread_rng()),
-            z_c: ScalarField::rand(&mut thread_rng()),
-        };
+        let instance = get_random_acc_instance();
 
         // a constraint system
         let cs = ConstraintSystem::<ScalarField>::new_ref();
@@ -255,10 +261,8 @@ pub mod tests {
         let sponge = instance.to_sponge_field_elements();
         let sponge_var = instance_var.to_sponge_field_elements().unwrap();
 
-        for (x, x_var) in zip(sponge, sponge_var) {
+        for (x, x_var) in zip(instance.to_sponge_field_elements(), instance_var.to_sponge_field_elements().unwrap()) {
             assert_eq!(x, x_var.value().unwrap());
         }
     }
 }
-
- */

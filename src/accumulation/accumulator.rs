@@ -8,8 +8,9 @@ use ark_poly::EvaluationDomain;
 use ark_std::UniformRand;
 use rand::RngCore;
 
-use crate::accumulation::{convert_affine_to_scalars, generate_random_elements};
 use crate::accumulation::eq_tree::EqTree;
+use crate::accumulation::generate_random_elements;
+use crate::gadgets::non_native::util::convert_affine_to_scalars;
 use crate::hash::poseidon::{PoseidonHash, PoseidonHashTrait};
 use crate::pcs::multilinear_pcs::{OpeningProof, SRS};
 use crate::polynomial::multilinear_polynomial::compute_dot_product;
@@ -60,9 +61,9 @@ where
         dest.extend(vec![c_x, c_y, t_x, t_y, e_x, e_y]);
 
         // Extend with other scalar fields
-        dest.extend(vec![self.z]);
         dest.extend(self.x.clone());
         dest.extend(self.y.clone());
+        dest.push(self.z);
 
         dest
     }

@@ -109,9 +109,23 @@ where
 
         let affine = g.into_affine();
 
-        let x = NonNativeFieldVar::new_variable(cs.clone(), || Ok(affine.x), mode)?;
-        let y = NonNativeFieldVar::new_variable(cs.clone(), || Ok(affine.y), mode)?;
-        let infinity = Boolean::new_variable(cs.clone(), || Ok(affine.infinity), mode)?;
+        let x = NonNativeFieldVar::new_variable(
+            cs.clone(),
+            || Ok(affine.x),
+            mode,
+        ).unwrap();
+
+        let y = NonNativeFieldVar::new_variable(
+            cs.clone(),
+            || Ok(affine.y),
+            mode,
+        ).unwrap();
+
+        let infinity = Boolean::new_variable(
+            cs.clone(),
+            || Ok(affine.infinity),
+            mode
+        ).unwrap();
 
         Ok(Self { x, y, infinity })
     }
@@ -206,7 +220,13 @@ mod tests {
         ).unwrap();
         println!("{}", cs.num_constraints());
         let _ = Q_var.to_sponge_field_elements().unwrap();
-        println!("{}", cs.num_constraints());
+        println!("constraint count for NonNativeAffineVar into native field: {}", cs.num_constraints());
     }
+
+    #[test]
+    fn to_sponge_field_test() {
+
+    }
+
 }
 
