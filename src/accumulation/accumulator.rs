@@ -7,11 +7,12 @@ use ark_ff::{AdditiveGroup, Field, PrimeField, Zero};
 use ark_poly::EvaluationDomain;
 use ark_std::UniformRand;
 use rand::RngCore;
-use crate::polynomial::multilinear_polynomial::{compute_dot_product};
+
 use crate::accumulation::{convert_affine_to_scalars, generate_random_elements};
 use crate::accumulation::eq_tree::EqTree;
 use crate::hash::poseidon::{PoseidonHash, PoseidonHashTrait};
 use crate::pcs::multilinear_pcs::{OpeningProof, SRS};
+use crate::polynomial::multilinear_polynomial::compute_dot_product;
 use crate::polynomial::multilinear_polynomial::multilinear_poly::MultilinearPolynomial;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -352,11 +353,7 @@ where
         let verify_lhs = Self::helper_function_decide(srs, acc);
         let verify_rhs = instance.E;
 
-        // println!("{}", pairing_lhs == pairing_rhs);
-        // println!("{}", ip_lhs == ip_rhs.into());
-        // println!("{}", verify_rhs == verify_lhs.into());
-
-        return (verify_rhs == verify_lhs.into()) && (ip_lhs == ip_rhs.into()) && (pairing_lhs == pairing_rhs);
+        (verify_rhs == verify_lhs.into()) && (ip_lhs == ip_rhs.into()) && (pairing_lhs == pairing_rhs)
     }
 
     pub fn helper_function_decide(srs: &AccSRS<E>, acc: &Accumulator<E>) -> E::G1Affine {
@@ -365,7 +362,7 @@ where
 
         let e_prime: E::ScalarField = compute_dot_product(
             &witness.f_star_poly.evaluation_over_boolean_hypercube,
-            &acc.witness.tree_y.get_leaves()
+            &acc.witness.tree_y.get_leaves(),
         ) - instance.z;
         let E_G = {
             let lhs = E::G1::msm_unchecked(
@@ -391,7 +388,6 @@ where
 
 pub mod test {
     use ark_ec::pairing::Pairing;
-    use ark_ff::AdditiveGroup;
     use ark_std::UniformRand;
     use rand::thread_rng;
 
@@ -484,6 +480,10 @@ pub mod test {
         let srs_pcs: SRS<E> = PolyCommit::<E>::setup(degree_x, degree_y, &mut thread_rng());
         let srs = Accumulator::setup(srs_pcs.clone(), &mut thread_rng());
 
-        get_satisfying_accumulator(&srs);
+        let acc1 = get_satisfying_accumulator(&srs);
+        let acc2 = get_satisfying_accumulator(&srs);
+
+        let (instance, witness, Q) = Accumulator::prove(&srs, &acc1, &acc2);
+        assert!(Accumulator::decide(&srs, &Accumulator { witness, instance }));
     }
 }
