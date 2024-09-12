@@ -323,15 +323,14 @@ where
             },
         };
 
-        // -1/2 in the scalar field
-        let one_over_two: E::ScalarField = two.neg().inverse().unwrap();
-
-
         let mut res = Self::helper_function_decide(&srs, &temp_acc);
         res = res.add(instance_1.E).into();
         res = res.sub(instance_2.E).into();
         res = res.sub(instance_2.E).into();
-        res.mul(one_over_two).into()
+
+        // -1/2 in the scalar field
+        let minus_one_over_two: E::ScalarField = two.neg().inverse().unwrap();
+        res.mul(minus_one_over_two).into()
     }
 
     pub fn decide(srs: &AccSRS<E>, acc: &Accumulator<E>) -> bool {
@@ -353,9 +352,9 @@ where
         let verify_lhs = Self::helper_function_decide(srs, acc);
         let verify_rhs = instance.E;
 
-        println!("{}", verify_rhs == verify_lhs.into());
-        println!("{}", ip_lhs == ip_rhs.into());
-        println!("{}", pairing_lhs == pairing_rhs);
+        // println!("{}", pairing_lhs == pairing_rhs);
+        // println!("{}", ip_lhs == ip_rhs.into());
+        // println!("{}", verify_rhs == verify_lhs.into());
 
         return (verify_rhs == verify_lhs.into()) && (ip_lhs == ip_rhs.into()) && (pairing_lhs == pairing_rhs);
     }
@@ -418,34 +417,19 @@ pub mod test {
         );
 
         // random points and evaluation
-        let x1 = {
-            let mut res = Vec::with_capacity(srs.pc_srs.degree_x.log_2());
-            for _ in 0..srs.pc_srs.degree_x.log_2() {
-                res.push(ScalarField::rand(&mut thread_rng()));
-            }
-            res
-        };
-        let x2 = {
-            let mut res = Vec::with_capacity(srs.pc_srs.degree_x.log_2());
-            for _ in 0..srs.pc_srs.degree_x.log_2() {
-                res.push(ScalarField::rand(&mut thread_rng()));
-            }
-            res
-        };
-        let y1 = {
-            let mut res = Vec::with_capacity(srs.pc_srs.degree_y.log_2());
-            for _ in 0..srs.pc_srs.degree_y.log_2() {
-                res.push(ScalarField::rand(&mut thread_rng()));
-            }
-            res
-        };
-        let y2 = {
-            let mut res = Vec::with_capacity(srs.pc_srs.degree_y.log_2());
-            for _ in 0..srs.pc_srs.degree_y.log_2() {
-                res.push(ScalarField::rand(&mut thread_rng()));
-            }
-            res
-        };
+        let mut x1: Vec<ScalarField> = Vec::new();
+        let mut x2: Vec<ScalarField> = Vec::new();
+        for i in 0..srs.pc_srs.degree_x.log_2() {
+            x1.push(ScalarField::rand(&mut thread_rng()));
+            x2.push(ScalarField::rand(&mut thread_rng()));
+        }
+        // random points and evaluation
+        let mut y1: Vec<ScalarField> = Vec::new();
+        let mut y2: Vec<ScalarField> = Vec::new();
+        for i in 0..srs.pc_srs.degree_y.log_2() {
+            y1.push(ScalarField::rand(&mut thread_rng()));
+            y2.push(ScalarField::rand(&mut thread_rng()));
+        }
 
         let whole_input_1 = {
             let mut res = vec![];
@@ -494,7 +478,7 @@ pub mod test {
     }
 
     #[test]
-    fn test_end_to_end() {
+    fn test_accumulator_end_to_end() {
         let degree_x = 4usize;
         let degree_y = 16usize;
         let srs_pcs: SRS<E> = PolyCommit::<E>::setup(degree_x, degree_y, &mut thread_rng());
