@@ -125,7 +125,7 @@ mod tests {
             F::rand(&mut thread_rng()),
         ];
         let tree = EqTree::new(x.as_slice());
-        let results: Vec<F> = EqPolynomial::evaluate(&x);
+        let results: Vec<F> = EqPolynomial::get_all_evaluations_over_hypercube(&x);
         assert_eq!(tree.get_leaves().to_vec(), results);
     }
 }

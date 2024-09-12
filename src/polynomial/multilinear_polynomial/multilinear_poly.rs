@@ -61,7 +61,7 @@ impl<E: Pairing> MultilinearPolynomial<E::ScalarField, E> {
         assert_eq!(input.len(), self.get_num_vars(), "wrong vector lengths");
 
         // get eq polynomial evaluations
-        let eq_evals: Vec<E::ScalarField> = <EqPolynomial<<E as Pairing>::ScalarField>>::evaluate(input);
+        let eq_evals: Vec<E::ScalarField> = <EqPolynomial<<E as Pairing>::ScalarField>>::get_all_evaluations_over_hypercube(input);
         assert_eq!(eq_evals.len(), self.evaluation_over_boolean_hypercube.len(), "wrong vector lengths");
 
         // get the dot product and output it

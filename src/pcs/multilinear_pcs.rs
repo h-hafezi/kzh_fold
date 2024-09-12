@@ -173,7 +173,7 @@ impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
             .f_star_poly
             .evaluations_over_boolean_domain().as_slice(),
         );
-        let l_b = EqPolynomial::evaluate(x);
+        let l_b = EqPolynomial::get_all_evaluations_over_hypercube(x);
         let msm_rhs = E::G1::msm_unchecked(proof.vec_D.as_slice(), &l_b);
 
         // third condition
