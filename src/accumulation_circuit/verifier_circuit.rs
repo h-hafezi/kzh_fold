@@ -1,4 +1,4 @@
-/*use std::borrow::Borrow;
+use std::borrow::Borrow;
 use std::marker::PhantomData;
 use std::ops::Add;
 
@@ -381,51 +381,24 @@ where
 
         let beta_minus_one = FpVar::<G1::ScalarField>::one() - &self.beta_var;
 
-        // Native field operation: linear combination of b
-        let b_var = &self.beta_var * &self.running_accumulator_instance_var.b_var + &beta_minus_one * &self.current_accumulator_instance_var.b_var;
-        // check out the result b_var is consistent with result_acc
-        b_var.enforce_equal(&self.final_accumulator_instance_var.b_var).expect("error while enforcing equality");
+        // Native field operation: linear combination of x
+        for i in 0..self.running_accumulator_instance_var.x_var.len() {
+            let x_var = &self.beta_var * &self.running_accumulator_instance_var.x_var[i] + &beta_minus_one * &self.current_accumulator_instance_var.x_var[i];
+            // check out the result b_var is consistent with result_acc
+            x_var.enforce_equal(&self.final_accumulator_instance_var.x_var[i]).expect("error while enforcing equality");
+        }
 
-
-        // Native field operation: linear combination of c
-        let c_var = &self.beta_var * &self.running_accumulator_instance_var.c_var + &beta_minus_one * &self.current_accumulator_instance_var.c_var;
-        // check out the result c_var is consistent with result_acc
-        c_var.enforce_equal(&self.final_accumulator_instance_var.c_var).expect("error while enforcing equality");
-
-
-        // Native field operation: linear combination of y
-        let y_var = &self.beta_var * &self.running_accumulator_instance_var.y_var + &beta_minus_one * &self.current_accumulator_instance_var.y_var;
-        // check out the result y_var is consistent with result_acc
-        y_var.enforce_equal(&self.final_accumulator_instance_var.y_var).expect("error while enforcing equality");
-
-
-        // Native field operation: linear combination of z_b
-        let z_b_var = &self.beta_var * &self.running_accumulator_instance_var.z_b_var + &beta_minus_one * &self.current_accumulator_instance_var.z_b_var;
-        // check out the result z_b_var is consistent with result_acc
-        z_b_var.enforce_equal(&self.final_accumulator_instance_var.z_b_var).expect("error while enforcing equality");
-
+        // Native field operation: linear combination of x
+        for i in 0..self.running_accumulator_instance_var.y_var.len() {
+            let y_var = &self.beta_var * &self.running_accumulator_instance_var.y_var[i] + &beta_minus_one * &self.current_accumulator_instance_var.y_var[i];
+            // check out the result b_var is consistent with result_acc
+            y_var.enforce_equal(&self.final_accumulator_instance_var.y_var[i]).expect("error while enforcing equality");
+        }
 
         // Native field operation: linear combination of z_c
-        let z_c_var = &self.beta_var * &self.running_accumulator_instance_var.z_c_var + &beta_minus_one * &self.current_accumulator_instance_var.z_c_var;
+        let z_var = &self.beta_var * &self.running_accumulator_instance_var.z_var + &beta_minus_one * &self.current_accumulator_instance_var.z_var;
         // check out the result z_c_var is consistent with result_acc
-        z_c_var.enforce_equal(&self.final_accumulator_instance_var.z_c_var).expect("error while enforcing equality");
-
-
-        // Native field operation: equality assertion that z_b = b^n-1 for the first instance
-        let n = BigInteger64::from(self.n);
-        let z_b_ = self.current_accumulator_instance_var.b_var.pow_by_constant(n.as_ref()).expect("error while enforcing equality");
-
-
-        // Native field operation: equality assertion that z_c = c^m-1 for the first instance
-        let m = BigInteger64::from(self.m);
-        let z_c_ = self.current_accumulator_instance_var.c_var.pow_by_constant(m.as_ref()).expect("error while enforcing equality");
-
-
-        // Conditional check: if instance.E_var == 0, then enforce z_b_ == instance.z_b_var and z_c_ == instance.z_c_var
-        let is_E_zero = &self.current_accumulator_instance_var.E_var.infinity.clone();
-        z_b_.conditional_enforce_equal(&self.current_accumulator_instance_var.z_b_var, is_E_zero).expect("error while enforcing z_b equality under condition");
-        z_c_.conditional_enforce_equal(&self.current_accumulator_instance_var.z_c_var, is_E_zero).expect("error while enforcing z_c equality under condition");
-
+        z_var.enforce_equal(&self.final_accumulator_instance_var.z_var).expect("error while enforcing equality");
 
         let final_instance = self.running_cycle_fold_instance_var.fold(
             &[((&self.auxiliary_input_C_var, None), &self.com_C_var, &self.beta_var_non_native, &beta_bits),
@@ -634,4 +607,3 @@ mod tests {
         }
     }
 }
- */
