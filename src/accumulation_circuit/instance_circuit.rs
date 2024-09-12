@@ -143,7 +143,7 @@ where
         };
 
         let z_var = FpVar::new_variable(
-            ns!(cs, "z_b"),
+            ns!(cs, "z"),
             || circuit.map(|e| e.z),
             mode,
         ).unwrap();
