@@ -264,7 +264,6 @@ pub mod tests {
     use rand::thread_rng;
 
     use crate::accumulation::accumulator::Accumulator;
-    use crate::accumulation::accumulator::test::get_satisfying_accumulator;
     use crate::accumulation_circuit::prover::AccumulatorVerifierCircuitProver;
     use crate::commitment::CommitmentScheme;
     use crate::constant_for_curves::{BaseField, E, G1, G2, ScalarField};
@@ -290,8 +289,8 @@ pub mod tests {
         };
 
         // build an instance of AccInstanceCircuit
-        let current_accumulator = get_satisfying_accumulator(&srs);
-        let running_accumulator = get_satisfying_accumulator(&srs);
+        let current_accumulator = Accumulator::random_satisfying_accumulator(&srs, &mut thread_rng());
+        let running_accumulator = Accumulator::random_satisfying_accumulator(&srs, &mut thread_rng());
 
         // compute Q
         let Q = Accumulator::helper_function_Q(&srs, &current_accumulator, &running_accumulator);
@@ -400,5 +399,4 @@ pub mod tests {
         let _ = p.compute_cycle_fold_proofs_and_final_instance();
     }
 }
-
 

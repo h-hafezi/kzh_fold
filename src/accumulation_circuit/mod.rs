@@ -5,7 +5,7 @@ use ark_ff::{One, Zero};
 pub mod instance_circuit;
 
 pub mod verifier_circuit;
-mod prover;
+pub mod prover;
 
 pub fn affine_to_projective<P: SWCurveConfig>(a: Affine<P>) -> Projective<P> {
     if a.is_zero() {

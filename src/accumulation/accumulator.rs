@@ -6,14 +6,16 @@ use ark_ec::pairing::Pairing;
 use ark_ff::{AdditiveGroup, Field, PrimeField, Zero};
 use ark_poly::EvaluationDomain;
 use ark_std::UniformRand;
-use rand::RngCore;
+use rand::{Rng, RngCore};
 
 use crate::accumulation::eq_tree::EqTree;
 use crate::accumulation::generate_random_elements;
 use crate::gadgets::non_native::util::convert_affine_to_scalars;
 use crate::hash::poseidon::{PoseidonHash, PoseidonHashTrait};
-use crate::pcs::multilinear_pcs::{OpeningProof, SRS};
+use crate::pcs::multilinear_pcs::{OpeningProof, PolyCommit, PolyCommitTrait, SRS};
+use crate::polynomial::multilinear_polynomial::bivariate_multilinear::BivariateMultiLinearPolynomial;
 use crate::polynomial::multilinear_polynomial::compute_dot_product;
+use crate::polynomial::multilinear_polynomial::math::Math;
 use crate::polynomial::multilinear_polynomial::multilinear_poly::MultilinearPolynomial;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -387,45 +389,38 @@ where
     }
 }
 
-pub mod test {
-    use ark_ec::pairing::Pairing;
-    use ark_std::UniformRand;
-    use rand::thread_rng;
-
-    use crate::accumulation::accumulator::{AccSRS, Accumulator};
-    use crate::constant_for_curves::{E, ScalarField};
-    use crate::pcs::multilinear_pcs::{PolyCommit, PolyCommitTrait, SRS};
-    use crate::polynomial::multilinear_polynomial::bivariate_multilinear::BivariateMultiLinearPolynomial;
-    use crate::polynomial::multilinear_polynomial::math::Math;
-    use crate::polynomial::multilinear_polynomial::multilinear_poly::MultilinearPolynomial;
-
-    pub fn get_satisfying_accumulator(srs: &AccSRS<E>) -> Accumulator<E> {
-        // define the polynomial commitment
-        let poly_commit: PolyCommit<E> = PolyCommit { srs: srs.pc_srs.clone() };
+impl<E: Pairing> Accumulator<E> {
+    pub fn random_satisfying_accumulator<R: RngCore>(srs: &AccSRS<E>, rng: &mut R) -> Accumulator<E>
+    where
+        <E as Pairing>::ScalarField: Absorb,
+        <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb,
+        <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField
+    {
+        let poly_commit = PolyCommit { srs: srs.pc_srs.clone() };
 
         // random bivariate polynomial
         let polynomial1 = BivariateMultiLinearPolynomial::from_multilinear_to_bivariate_multilinear(
-            MultilinearPolynomial::rand(srs.pc_srs.degree_x.log_2() + srs.pc_srs.degree_y.log_2(), &mut thread_rng()),
+            MultilinearPolynomial::rand(srs.pc_srs.degree_x.log_2() + srs.pc_srs.degree_y.log_2(), rng),
             srs.pc_srs.degree_x,
         );
         let polynomial2 = BivariateMultiLinearPolynomial::from_multilinear_to_bivariate_multilinear(
-            MultilinearPolynomial::rand(srs.pc_srs.degree_x.log_2() + srs.pc_srs.degree_y.log_2(), &mut thread_rng()),
+            MultilinearPolynomial::rand(srs.pc_srs.degree_x.log_2() + srs.pc_srs.degree_y.log_2(), rng),
             srs.pc_srs.degree_x,
         );
 
         // random points and evaluation
-        let mut x1: Vec<ScalarField> = Vec::new();
-        let mut x2: Vec<ScalarField> = Vec::new();
+        let mut x1: Vec<E::ScalarField> = Vec::new();
+        let mut x2: Vec<E::ScalarField> = Vec::new();
         for _ in 0..srs.pc_srs.degree_x.log_2() {
-            x1.push(ScalarField::rand(&mut thread_rng()));
-            x2.push(ScalarField::rand(&mut thread_rng()));
+            x1.push(E::ScalarField::rand(rng));
+            x2.push(E::ScalarField::rand(rng));
         }
         // random points and evaluation
-        let mut y1: Vec<ScalarField> = Vec::new();
-        let mut y2: Vec<ScalarField> = Vec::new();
+        let mut y1: Vec<E::ScalarField> = Vec::new();
+        let mut y2: Vec<E::ScalarField> = Vec::new();
         for _ in 0..srs.pc_srs.degree_y.log_2() {
-            y1.push(ScalarField::rand(&mut thread_rng()));
-            y2.push(ScalarField::rand(&mut thread_rng()));
+            y1.push(E::ScalarField::rand(rng));
+            y2.push(E::ScalarField::rand(rng));
         }
 
         let whole_input_1 = {
@@ -473,6 +468,15 @@ pub mod test {
 
         new_acc
     }
+}
+
+pub mod test {
+    use ark_ec::pairing::Pairing;
+    use rand::thread_rng;
+
+    use crate::accumulation::accumulator::Accumulator;
+    use crate::constant_for_curves::E;
+    use crate::pcs::multilinear_pcs::{PolyCommit, PolyCommitTrait, SRS};
 
     #[test]
     fn test_accumulator_end_to_end() {
@@ -481,8 +485,8 @@ pub mod test {
         let srs_pcs: SRS<E> = PolyCommit::<E>::setup(degree_x, degree_y, &mut thread_rng());
         let srs = Accumulator::setup(srs_pcs.clone(), &mut thread_rng());
 
-        let acc1 = get_satisfying_accumulator(&srs);
-        let acc2 = get_satisfying_accumulator(&srs);
+        let acc1 = Accumulator::random_satisfying_accumulator(&srs, &mut thread_rng());
+        let acc2 = Accumulator::random_satisfying_accumulator(&srs, &mut thread_rng());
 
         let (instance, witness, Q) = Accumulator::prove(&srs, &acc1, &acc2);
         assert!(Accumulator::decide(&srs, &Accumulator { witness, instance }));

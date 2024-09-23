@@ -14,7 +14,7 @@ use crate::halo_infinite::errors::ProofError;
 
 /// Return the inner product of two field vectors
 pub fn inner_product<Fr: Field>(a: &[Fr], b: &[Fr]) -> Fr {
-    assert!(a.len() == b.len());
+    assert_eq!(a.len(), b.len());
     let mut c: Fr = Fr::zero();
     for i in 0..a.len() {
         c += a[i] * b[i];

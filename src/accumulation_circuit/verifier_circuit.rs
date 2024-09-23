@@ -1,4 +1,4 @@
-use std::borrow::Borrow;
+/*use std::borrow::Borrow;
 use std::marker::PhantomData;
 use std::ops::Add;
 
@@ -421,7 +421,12 @@ mod tests {
     use std::fs::File;
     use std::io::BufWriter;
     use std::io::Write;
+    use std::time::Instant;
+
+    use ark_bn254::G1Projective;
+    use ark_ec::short_weierstrass::{Affine, Projective};
     use ark_ff::PrimeField;
+    use ark_grumpkin::GrumpkinConfig;
     use ark_r1cs_std::alloc::{AllocationMode, AllocVar};
     use ark_r1cs_std::fields::fp::FpVar;
     use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
@@ -429,15 +434,20 @@ mod tests {
     use ark_relations::ns;
     use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
     use num_bigint::BigUint;
+    use rand::thread_rng;
 
+    use crate::accumulation::accumulator::Accumulator;
     use crate::accumulation_circuit::instance_circuit::AccumulatorInstanceVar;
-    use crate::accumulation_circuit::prover::tests::get_random_prover;
+    use crate::accumulation_circuit::prover::AccumulatorVerifierCircuitProver;
     use crate::accumulation_circuit::verifier_circuit::AccumulatorVerifierVar;
-    use crate::constant_for_curves::{BaseField, ScalarField};
+    use crate::commitment::CommitmentScheme;
+    use crate::constant_for_curves::{BaseField, E, G1, G1Affine, ScalarField};
     use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
     use crate::gadgets::non_native::util::convert_field_one_to_field_two;
     use crate::hash::pederson::PedersenCommitment;
     use crate::nova::cycle_fold::coprocessor_constraints::{R1CSInstanceVar, RelaxedR1CSInstanceVar};
+    use crate::pcs::multilinear_pcs::{PolyCommit, SRS};
+    use crate::pcs::multilinear_pcs::PolyCommitTrait;
 
     type GrumpkinCurveGroup = ark_grumpkin::Projective;
     type C2 = PedersenCommitment<GrumpkinCurveGroup>;
@@ -466,13 +476,22 @@ mod tests {
         // a constraint system
         let cs = ConstraintSystem::<ScalarField>::new_ref();
 
-        // get a random initialized prover
-        let prover = get_random_prover();
+        // specifying degrees of polynomials
+        let n = 4;
+        let m = 4;
+
+        // get a random srs
+        let srs = {
+            let srs_pcs: SRS<E> = PolyCommit::<E>::setup(n, m, &mut thread_rng());
+            Accumulator::setup(srs_pcs.clone(), &mut thread_rng())
+        };
+
+        // get the prover
+        let prover = AccumulatorVerifierCircuitProver::rand(srs, &mut thread_rng());
 
         // the randomness in different formats
         let beta_scalar = prover.beta.clone();
         let (_, beta_var, beta_var_non_native) = randomness_different_formats(cs.clone(), beta_scalar);
-
 
         // initialise accumulator variables
         let current_accumulator_instance_var = AccumulatorInstanceVar::new_variable(
@@ -495,7 +514,7 @@ mod tests {
 
 
         // initialise auxiliary input variables
-        let auxiliary_input_C_var = R1CSInstanceVar::new_variable(
+        let auxiliary_input_C_var: R1CSInstanceVar<GrumpkinConfig, C2> = R1CSInstanceVar::new_variable(
             ns!(cs, "auxiliary input C var"),
             || Ok(prover.compute_auxiliary_input_C().0),
             AllocationMode::Witness,
@@ -599,6 +618,15 @@ mod tests {
         let cs_borrow = cs.borrow().unwrap();
         let witness = cs_borrow.witness_assignment.clone();
         let pub_io = cs_borrow.instance_assignment.clone();
+
+        // pp which is Pederson's pp
+        let pp: Vec<Affine<G1>> = PedersenCommitment::<Projective<G1>>::setup(witness.len(), b"test", &());
+        for i in 0..10 {
+            let now = Instant::now();
+            let c: Projective<G1> = PedersenCommitment::commit(&pp, witness.as_slice());
+            println!("{:?}", now.elapsed());
+        }
+
         let file = File::create("witness.txt").unwrap();
         let mut writer = BufWriter::new(file);
         for scalar in witness.iter() {
@@ -607,3 +635,6 @@ mod tests {
         }
     }
 }
+
+
+ */
