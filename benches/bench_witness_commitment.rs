@@ -27,25 +27,6 @@ use sqrtn_pcs::pcs::multilinear_pcs::{PolyCommit, PolyCommitTrait, SRS};
 
 type C2 = PedersenCommitment<Projective<G2>>;
 
-pub fn randomness_different_formats(cs: ConstraintSystemRef<ScalarField>, beta: ScalarField) -> (
-    BaseField,
-    FpVar<ScalarField>,
-    NonNativeFieldVar<BaseField, ScalarField>
-) {
-    let beta_base = convert_field_one_to_field_two::<ScalarField, BaseField>(beta);
-    let beta_var = FpVar::new_variable(
-        ns!(cs, "beta var"),
-        || Ok(beta.clone()),
-        AllocationMode::Witness,
-    ).unwrap();
-    let beta_var_non_native = NonNativeFieldVar::new_variable(
-        ns!(cs, "beta var non-native"),
-        || Ok(beta_base.clone()),
-        AllocationMode::Witness,
-    ).unwrap();
-    (beta_base, beta_var, beta_var_non_native)
-}
-
 fn setup_benchmark() -> Vec<ScalarField> {
     // specifying degrees of polynomials
     let (n, m) = (4, 4);
