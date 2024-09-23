@@ -63,9 +63,9 @@ print-trace = [
     ] 
 
 
-[[bench]]
-harness = false
-name = "bench_pcs"
+#[[bench]]
+#harness = false
+#name = "bench_pcs"
 
 [[bench]]
 harness = false
@@ -73,4 +73,8 @@ name = "bench_kzg"
 
 [[bench]]
 harness = false
-name = "bench_accumulator"
+name = "bench_halo_infinite"
+
+#[[bench]]
+#harness = false
+#name = "bench_accumulator"

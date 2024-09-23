@@ -52,7 +52,7 @@ pub fn prove<E: Pairing>(
     vec_omega: &Vec<E::ScalarField>,
     entire_domain: &GeneralEvaluationDomain<E::ScalarField>,
     transcript: &mut IOPTranscript<E::ScalarField>,
-    ck: &KZGPowers<'_, E>,
+    ck: &KZGPowers<E>,
 ) -> PrivateAggregationProof<E> {
     let z_poly = vanishing_polynomial::<E>(&vec_omega);
 
@@ -137,7 +137,7 @@ pub fn prove<E: Pairing>(
 /// Prove that f_i(w_i) = 0
 /// Simplification over paper: omega_i is a single element
 pub fn verify<E: Pairing>(
-    proof: PrivateAggregationProof<E>,
+    proof: &PrivateAggregationProof<E>,
     vec_f_commitments: &Vec<KZGCommitment<E>>,
     vec_omega: &Vec<E::ScalarField>,
     entire_domain: &GeneralEvaluationDomain<E::ScalarField>,
@@ -204,8 +204,7 @@ pub fn verify<E: Pairing>(
     true
 }
 
-#[cfg(test)]
-mod tests {
+pub mod tests {
     use crate::kzg::{trim};
 
     use super::*;
@@ -215,6 +214,44 @@ mod tests {
     use rand::{rngs::StdRng, thread_rng, SeedableRng};
 
     type E = Bn254;
+
+    pub fn prepare_polynomials_and_srs(
+        N: usize,
+        d: usize,
+        rng: &mut StdRng,
+    ) -> (
+        Vec<DensePolynomial<Fr>>,
+        Vec<KZGCommitment<E>>,
+        Vec<Fr>,
+        GeneralEvaluationDomain<Fr>,
+        KZGPowers<E>,
+        KZGVerifierKey<E>,
+    ) {
+        let mut vec_f: Vec<DensePolynomial<Fr>> = vec![];
+        let mut vec_f_commitments: Vec<KZGCommitment<E>> = vec![];
+        let mut vec_omega = vec![];
+
+        let params = KZG10::<E, DensePolynomial<<E as Pairing>::ScalarField>>::setup(2 * d, false, rng).expect("Setup failed");
+        let (ck, vk) = trim(&params, 2 * d);
+
+        let domain = GeneralEvaluationDomain::<Fr>::new(d).unwrap();
+        for i in 0..N {
+            vec_omega.push(domain.element(i));
+        }
+
+        for i in 0..N {
+            let p_poly = DensePolynomial::rand(d, rng);
+            let p_poly_at_w_i = p_poly.evaluate(&vec_omega[i]);
+            let f_poly = p_poly.sub(&DensePolynomial::from_coefficients_slice(&[p_poly_at_w_i]));
+            assert_eq!(Fr::zero(), f_poly.evaluate(&vec_omega[i]));
+            vec_f.push(f_poly.clone());
+
+            let (f_commitment, _) = KZG10::<E, DensePolynomial<<E as Pairing>::ScalarField>>::commit(&ck, &f_poly, None, None).expect("f commitment failed");
+            vec_f_commitments.push(f_commitment);
+        }
+
+        (vec_f, vec_f_commitments, vec_omega, domain, ck, vk)
+    }
 
     #[test]
     pub fn test_private_aggregation_end_to_end() {
@@ -226,38 +263,10 @@ mod tests {
         let mut transcript_prover = IOPTranscript::<Fr>::new(b"pa");
         let mut transcript_verifier = IOPTranscript::<Fr>::new(b"pa");
 
-        let mut vec_f : Vec<DensePolynomial<Fr>> = vec![];
-        let mut vec_f_commitments : Vec<KZGCommitment<E>> = vec![];
-        let mut vec_omega = vec![];
-
-        // XXX too many powers of tau but it's ok
-        let params = KZG10::<Bn254, DensePolynomial<<E as Pairing>::ScalarField>>::setup(2*d, false, &mut rng).expect("Setup failed");
-        let (ck, vk) = trim(&params, 2*d);
-
-        // we want to prove that N polynomials evaluate to t_i at w_i
-        // so p_i(w_i) = t_i
-        // So essentially: f(w_i) = p_i(w_i) - t_i = 0
-        // where f_i(x) = p_i(x) - t_i
-
-        let domain = GeneralEvaluationDomain::<Fr>::new(d).unwrap();
-        for i in 0..N {
-            vec_omega.push(domain.element(i));
-        }
-
-        for i in 0..N {
-            let p_poly = DensePolynomial::rand(d, &mut rng);
-            let p_poly_at_w_i = p_poly.evaluate(&vec_omega[i]);
-            let f_poly = p_poly.sub(&DensePolynomial::from_coefficients_slice(&[p_poly_at_w_i]));
-            // Check that f_i(w_i) == 0
-            assert_eq!(Fr::zero(), f_poly.evaluate(&vec_omega[i]));
-            vec_f.push(f_poly.clone());
-
-            let (f_commitment, _) = KZG10::<E,DensePolynomial<<E as Pairing>::ScalarField>>::commit(&ck, &f_poly, None, None).expect("f commitment failed");
-            vec_f_commitments.push(f_commitment);
-        }
+        let (vec_f, vec_f_commitments, vec_omega, domain, ck, vk) = prepare_polynomials_and_srs(N, d, &mut rng);
 
         let proof = prove::<Bn254>(&vec_f, &vec_omega, &domain, &mut transcript_prover, &ck);
-        let is_valid = verify::<Bn254>(proof, &vec_f_commitments, &vec_omega, &domain, &mut transcript_verifier, &vk);
+        let is_valid = verify::<Bn254>(&proof, &vec_f_commitments, &vec_omega, &domain, &mut transcript_verifier, &vk);
         assert!(is_valid);
     }
 }
