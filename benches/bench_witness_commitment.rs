@@ -59,7 +59,7 @@ fn setup_benchmark() -> Vec<ScalarField> {
     // a constraint system
     let cs = ConstraintSystem::<ScalarField>::new_ref();
 
-    let verifier = AccumulatorVerifierVar::rand(&srs, cs.clone());
+    let verifier: AccumulatorVerifierVar<G1, G2, C2> = AccumulatorVerifierVar::rand(&srs, cs.clone());
 
     println!("number of constraint for initialisation: {}", cs.num_constraints());
     verifier.accumulate();
