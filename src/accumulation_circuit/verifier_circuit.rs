@@ -1,7 +1,9 @@
+use crate::commitment;
 use std::borrow::Borrow;
 use std::marker::PhantomData;
 use std::ops::Add;
 
+use ark_crypto_primitives::sponge::Absorb;
 use ark_crypto_primitives::sponge::constraints::AbsorbGadget;
 use ark_ec::CurveConfig;
 use ark_ec::pairing::Pairing;
@@ -17,14 +19,15 @@ use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
 use ark_r1cs_std::groups::curves::short_weierstrass::ProjectiveVar;
 use ark_r1cs_std::groups::CurveVar;
 use ark_relations::ns;
-use ark_relations::r1cs::{Namespace, SynthesisError};
+use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 use ark_std::UniformRand;
 use rand::thread_rng;
 
 use crate::accumulation::accumulator::{AccInstance, AccSRS};
 use crate::accumulation_circuit::instance_circuit::AccumulatorInstanceVar;
+use crate::accumulation_circuit::prover::AccumulatorVerifierCircuitProver;
+use crate::accumulation_circuit::randomness_different_formats;
 use crate::commitment::CommitmentScheme;
-use crate::constant_for_curves::{BaseField, ScalarField};
 use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
 use crate::gadgets::non_native::util::{convert_field_one_to_field_two, non_native_to_fpvar};
 use crate::gadgets::r1cs::{R1CSInstance, RelaxedR1CSInstance};
@@ -287,7 +290,7 @@ where
 {
     pub fn accumulate(&self)
     where
-        <G2 as CurveConfig>::BaseField: ark_crypto_primitives::sponge::Absorb,
+        <G2 as CurveConfig>::BaseField: Absorb,
     {
         // checking beta and non_native beta are consistent
         let beta_bits = self.beta_var_non_native.to_bits_le().unwrap();
@@ -414,69 +417,29 @@ where
     }
 }
 
-
-#[cfg(test)]
-mod tests {
-    use std::fmt::Debug;
-    use std::fs::File;
-    use std::io::BufWriter;
-    use std::io::Write;
-    use std::time::Instant;
-
-    use ark_bn254::G1Projective;
-    use ark_ec::short_weierstrass::{Affine, Projective};
-    use ark_ff::PrimeField;
-    use ark_grumpkin::GrumpkinConfig;
-    use ark_r1cs_std::alloc::{AllocationMode, AllocVar};
-    use ark_r1cs_std::fields::fp::FpVar;
-    use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
-    use ark_r1cs_std::groups::curves::short_weierstrass::ProjectiveVar;
-    use ark_relations::ns;
-    use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
-    use num_bigint::BigUint;
-    use rand::thread_rng;
-
-    use crate::accumulation::accumulator::{AccSRS, Accumulator};
-    use crate::accumulation_circuit::instance_circuit::AccumulatorInstanceVar;
-    use crate::accumulation_circuit::prover::AccumulatorVerifierCircuitProver;
-    use crate::accumulation_circuit::verifier_circuit::AccumulatorVerifierVar;
-    use crate::commitment::CommitmentScheme;
-    use crate::constant_for_curves::{BaseField, E, G1, G2, G1Affine, ScalarField};
-    use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
-    use crate::gadgets::non_native::util::convert_field_one_to_field_two;
-    use crate::hash::pederson::PedersenCommitment;
-    use crate::nova::cycle_fold::coprocessor_constraints::{R1CSInstanceVar, RelaxedR1CSInstanceVar};
-    use crate::pcs::multilinear_pcs::{PolyCommit, SRS};
-    use crate::pcs::multilinear_pcs::PolyCommitTrait;
-
-    type C2 = PedersenCommitment<Projective<G2>>;
-
-    pub fn randomness_different_formats(cs: ConstraintSystemRef<ScalarField>, beta: ScalarField) -> (
-        BaseField,
-        FpVar<ScalarField>,
-        NonNativeFieldVar<BaseField, ScalarField>
-    ) {
-        let beta_base = convert_field_one_to_field_two::<ScalarField, BaseField>(beta);
-        let beta_var = FpVar::new_variable(
-            ns!(cs, "beta var"),
-            || Ok(beta.clone()),
-            AllocationMode::Witness,
-        ).unwrap();
-        let beta_var_non_native = NonNativeFieldVar::new_variable(
-            ns!(cs, "beta var non-native"),
-            || Ok(beta_base.clone()),
-            AllocationMode::Witness,
-        ).unwrap();
-        (beta_base, beta_var, beta_var_non_native)
-    }
-
-    pub fn get_random_verifier_var(srs: &AccSRS<E>, cs: ConstraintSystemRef<ScalarField>) -> AccumulatorVerifierVar<G1, G2, C2> {
+impl<G1, G2, C2> AccumulatorVerifierVar<G1, G2, C2>
+where
+    G1: SWCurveConfig + Clone,
+    G1::BaseField: PrimeField,
+    G1::ScalarField: PrimeField,
+    G2: SWCurveConfig,
+    G2::BaseField: PrimeField,
+    C2: CommitmentScheme<Projective<G2>, PP = Vec<Affine<G2>>>,
+    G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField>,
+    ProjectiveVar<G2, FpVar<<G2 as CurveConfig>::BaseField>>: AllocVar<<C2 as CommitmentScheme<Projective<G2>>>::Commitment, <G2 as CurveConfig>::BaseField>
+{
+    pub fn rand<E: Pairing>(srs: &AccSRS<E>, cs: ConstraintSystemRef<G1::ScalarField>) -> AccumulatorVerifierVar<G1, G2, C2>
+    where
+        E: Pairing<G1Affine=Affine<G1>, ScalarField=<G1 as CurveConfig>::ScalarField, BaseField=<G1 as CurveConfig>::BaseField>,
+        <G2 as CurveConfig>::BaseField: Absorb,
+        <G2 as CurveConfig>::ScalarField: Absorb
+    {
         // get the prover
         let prover = AccumulatorVerifierCircuitProver::rand(&srs);
 
         // the randomness in different formats
         let beta_scalar = prover.beta.clone();
-        let (_, beta_var, beta_var_non_native) = randomness_different_formats(cs.clone(), beta_scalar);
+        let (_, beta_var, beta_var_non_native) = randomness_different_formats::<E>(cs.clone(), beta_scalar);
 
         // initialise accumulator variables
         let current_accumulator_instance_var = AccumulatorInstanceVar::new_variable(
@@ -499,7 +462,7 @@ mod tests {
 
 
         // initialise auxiliary input variables
-        let auxiliary_input_C_var: R1CSInstanceVar<GrumpkinConfig, C2> = R1CSInstanceVar::new_variable(
+        let auxiliary_input_C_var = R1CSInstanceVar::new_variable(
             ns!(cs, "auxiliary input C var"),
             || Ok(prover.compute_auxiliary_input_C().0),
             AllocationMode::Witness,
@@ -596,6 +559,31 @@ mod tests {
 
         verifier
     }
+}
+
+
+#[cfg(test)]
+pub mod tests {
+    use std::fmt::Debug;
+    use std::fs::File;
+    use std::io::BufWriter;
+    use std::io::Write;
+
+    use ark_ec::short_weierstrass::Projective;
+    use ark_ff::PrimeField;
+    use ark_relations::r1cs::ConstraintSystem;
+    use rand::thread_rng;
+
+    use crate::accumulation::accumulator::Accumulator;
+    use crate::accumulation_circuit::verifier_circuit::AccumulatorVerifierVar;
+    use crate::commitment::CommitmentScheme;
+    use crate::constant_for_curves::{E, G1, G2, ScalarField};
+    use crate::hash::pederson::PedersenCommitment;
+    use crate::pcs::multilinear_pcs::{PolyCommit, SRS};
+    use crate::pcs::multilinear_pcs::PolyCommitTrait;
+
+    type C2 = PedersenCommitment<Projective<G2>>;
+
     #[test]
     fn initialisation_test() {
         // specifying degrees of polynomials
@@ -611,7 +599,7 @@ mod tests {
         // a constraint system
         let cs = ConstraintSystem::<ScalarField>::new_ref();
 
-        let verifier = get_random_verifier_var(&srs, cs.clone());
+        let verifier = AccumulatorVerifierVar::<G1, G2, C2>::rand(&srs, cs.clone());
 
         println!("number of constraint for initialisation: {}", cs.num_constraints());
         verifier.accumulate();
