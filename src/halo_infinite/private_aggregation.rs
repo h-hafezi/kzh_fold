@@ -41,8 +41,8 @@ where
 
 pub struct PrivateAggregationProof<E: Pairing> {
     q_commitment: KZGCommitment<E>,
-    proof_g_at_r: KZGProof<E>,
-    g_commitment: KZGCommitment<E>, // XXX remove
+    proof_g_at_r: Option<KZGProof<E>>,
+    g_commitment: Option<KZGCommitment<E>>, // XXX remove (just for testing)
 }
 
 /// Prove that f_i(w_i) = 0
@@ -103,7 +103,7 @@ pub fn prove<E: Pairing>(
     transcript.append_serializable_element(b"q_comm", &q_commitment.0).unwrap();
     let r: E::ScalarField = transcript.get_and_append_challenge(b"r").unwrap();
 
-    // Step 6: Compute g(x) [NOT NEEDED]
+    // Step 6: Compute g(x)
     let mut g_x  = DensePolynomial::from_coefficients_vec(vec![E::ScalarField::zero()]);
     for (rho_i, f_i, z_i) in izip!(vec_rho, vec_f, vec_z_i) {
         let z_i_r = z_i.evaluate(&r);
@@ -121,15 +121,16 @@ pub fn prove<E: Pairing>(
     );
     g_x = g_x.sub(&q_x_times_z_r);
 
-    assert_eq!(g_x.evaluate(&r), E::ScalarField::zero());
+    // Step 7: Compute commitment and proof (NOT NEEDED for private aggregation!)
+    // assert_eq!(g_x.evaluate(&r), E::ScalarField::zero());
 
-    let (g_commitment, g_blinder) = KZG10::<E,DensePolynomial<<E as Pairing>::ScalarField>>::commit(&ck, &g_x, None, None).expect("g commitment failed");
-    let proof_g_at_r = KZG10::<E,DensePolynomial<<E as Pairing>::ScalarField>>::open(&ck, &g_x, r, &g_blinder).expect("Proof generation failed");
+    // let (g_commitment, g_blinder) = KZG10::<E,DensePolynomial<<E as Pairing>::ScalarField>>::commit(&ck, &g_x, None, None).expect("g commitment failed");
+    // let proof_g_at_r = KZG10::<E,DensePolynomial<<E as Pairing>::ScalarField>>::open(&ck, &g_x, r, &g_blinder).expect("Proof generation failed");
 
     PrivateAggregationProof {
         q_commitment,
-        proof_g_at_r,
-        g_commitment,
+        proof_g_at_r: None,
+        g_commitment: None,
     }
 }
 
@@ -188,14 +189,17 @@ pub fn verify<E: Pairing>(
     let z_r_C_q = proof.q_commitment.0.mul(z_at_r);
     let C_g: E::G1Affine = C_prime.sub(z_r_C_q).into_affine();
 
-    // TODO: bug! why need to negate? forgot something.
-    let tmp_negated: E::G1Affine = E::G1Affine::zero().sub(C_g).into();
-    let C_g_commitment: KZGCommitment<E> = KZGCommitment(tmp_negated.into());
-    assert_eq!(C_g_commitment.0, proof.g_commitment.0);
+    // Final check: Check the KZG proof that g(r) == 0
+    // NOT NEEDED for accumulation verifier (only for decider)
 
-    let zero = E::ScalarField::zero();
-    let is_valid = KZG10::<E, DensePolynomial<<E as Pairing>::ScalarField>>::check(&vk, &C_g_commitment, r, zero, &proof.proof_g_at_r).expect("Verification failed");
-    assert!(is_valid);
+    // TODO: bug! why need to negate? forgot something.
+    // let tmp_negated: E::G1Affine = E::G1Affine::zero().sub(C_g).into();
+    // let C_g_commitment: KZGCommitment<E> = KZGCommitment(tmp_negated.into());
+    // assert_eq!(C_g_commitment, proof.g_commitment);
+
+    // let zero = E::ScalarField::zero();
+    // let is_valid = KZG10::<E, DensePolynomial<<E as Pairing>::ScalarField>>::check(&vk, &C_g_commitment, r, zero, &proof.proof_g_at_r).expect("Verification failed");
+    // assert!(is_valid);
 
     true
 }
@@ -213,7 +217,7 @@ mod tests {
     type E = Bn254;
 
     #[test]
-    pub fn test_prove() {
+    pub fn test_private_aggregation_end_to_end() {
         let mut rng = StdRng::seed_from_u64(0u64);
 
         let N = 2;
