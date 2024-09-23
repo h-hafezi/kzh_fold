@@ -45,11 +45,11 @@ pub struct KZGUniversalParams<E: Pairing> {
     Debug,
     PartialEq
 )]
-pub struct KZGPowers<'a, E: Pairing> {
+pub struct KZGPowers<E: Pairing> {
     /// Group elements of the form `β^i G`, for different values of `i`.
-    pub powers_of_g: Cow<'a, [E::G1Affine]>,
+    pub powers_of_g: Vec<E::G1Affine>,
     /// Group elements of the form `β^i γG`, for different values of `i`.
-    pub powers_of_gamma_g: Cow<'a, [E::G1Affine]>,
+    pub powers_of_gamma_g: Vec<E::G1Affine>,
 }
 
 #[derive(
@@ -601,22 +601,25 @@ fn convert_to_bigints<F: PrimeField>(p: &[F]) -> Vec<F::BigInt> {
 
 /// Specializes the public parameters for a given maximum degree `d` for polynomials
 /// `d` should be less that `pp.max_degree()`.
-pub(crate) fn trim<E: Pairing>(
+pub fn trim<E: Pairing>(
     pp: &KZGUniversalParams<E>,
     mut supported_degree: usize,
 ) -> (KZGPowers<E>, KZGVerifierKey<E>) {
     if supported_degree == 1 {
         supported_degree += 1;
     }
+
+    // Directly creating owned Vecs without using Cow
     let powers_of_g = pp.powers_of_g[..=supported_degree].to_vec();
     let powers_of_gamma_g = (0..=supported_degree)
         .map(|i| pp.powers_of_gamma_g[&i])
         .collect();
 
     let powers = KZGPowers {
-        powers_of_g: ark_std::borrow::Cow::Owned(powers_of_g),
-        powers_of_gamma_g: ark_std::borrow::Cow::Owned(powers_of_gamma_g),
+        powers_of_g,
+        powers_of_gamma_g,
     };
+
     let vk = KZGVerifierKey {
         g: pp.powers_of_g[0],
         gamma_g: pp.powers_of_gamma_g[&0],
@@ -625,8 +628,10 @@ pub(crate) fn trim<E: Pairing>(
         prepared_h: pp.prepared_h.clone(),
         prepared_beta_h: pp.prepared_beta_h.clone(),
     };
+
     (powers, vk)
 }
+
 
 #[cfg(test)]
 mod tests {

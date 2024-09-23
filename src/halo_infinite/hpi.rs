@@ -3,7 +3,7 @@
 
 use ark_ec::VariableBaseMSM;
 use ark_ec::pairing::Pairing;
-use ark_ff::{Field, One, batch_inversion};
+use ark_ff::{Field, One, batch_inversion, Zero};
 use ark_ec::CurveGroup;
 
 use std::ops::Mul;
@@ -26,8 +26,8 @@ pub struct HPIProof<E: Pairing> {
 //    B_c: E::G1Projective,
 //    B_d: E::G1Projective,
 
-    vec_Y_L: Vec<E::G1>,
-    vec_Y_R: Vec<E::G1>,
+    vec_Y_L: Vec<E::G1Affine>,
+    vec_Y_R: Vec<E::G1Affine>,
 
     x_final: E::ScalarField,
 }
@@ -45,8 +45,8 @@ pub fn prove<E: Pairing>(
     assert_eq!(vec_x.len(), n);
     assert!(n.is_power_of_two());
 
-    let mut vec_Y_L: Vec<E::G1> = Vec::with_capacity(lg_n);
-    let mut vec_Y_R: Vec<E::G1> = Vec::with_capacity(lg_n);
+    let mut vec_Y_L: Vec<E::G1Affine> = Vec::with_capacity(lg_n);
+    let mut vec_Y_R: Vec<E::G1Affine> = Vec::with_capacity(lg_n);
 
     // Create slices backed by their respective vectors.  This lets us reslice as we compress the lengths of the
     // vectors in the main loop below.
@@ -59,25 +59,27 @@ pub fn prove<E: Pairing>(
         let (x_L, x_R) = slice_x.split_at_mut(n);
         let (G_L, G_R) = slice_G.split_at_mut(n);
 
-        let Y_L = E::G1::msm_unchecked(G_R, x_L);
-        let Y_R = E::G1::msm_unchecked(G_L, x_R);
-
-        transcript.append_serializable_element(b"vec_Y", &[Y_L, Y_R]).unwrap(); // XXX: Need to add the statement to the FS
-        let alpha: E::ScalarField = transcript.get_and_append_challenge(b"gamma").unwrap();
-
+        let Y_L = E::G1::msm_unchecked(G_R, x_L).into_affine();
+        let Y_R = E::G1::msm_unchecked(G_L, x_R).into_affine();
         vec_Y_L.push(Y_L);
         vec_Y_R.push(Y_R);
 
+        transcript.append_serializable_element(b"vec_Y", &[Y_L, Y_R]).unwrap(); // XXX: Need to add the statement to the FS
+        let gamma: E::ScalarField = transcript.get_and_append_challenge(b"gamma").unwrap();
+        let gamma_inv = gamma.inverse().expect("gamma must have an inverse");
+
         // Fold input vectors and basis
         for i in 0..n {
-            x_L[i] += alpha * x_R[i];
-            G_L[i] = (G_R[i] + G_L[i].mul(alpha)).into_affine();
+            x_L[i] = x_L[i] + gamma_inv * x_R[i];
+            G_L[i] = (G_L[i] + G_R[i].mul(gamma)).into_affine();
         }
 
         // Save the rescaled vector for splitting in the next loop
         slice_x = x_L;
         slice_G = G_L;
     }
+
+    assert_eq!(slice_x.len(), 1);
 
     HPIProof {
         vec_Y_L,
@@ -122,7 +124,7 @@ fn verification_scalars<E: Pairing>(
     proof: &HPIProof<E>,
     n: usize,
     transcript: &mut IOPTranscript<E::ScalarField>,
-) -> Result<(Vec<E::ScalarField>, Vec<E::ScalarField>, Vec<E::ScalarField>, Vec<E::ScalarField>), ProofError> {
+) -> Result<(Vec<E::ScalarField>, Vec<E::ScalarField>, Vec<E::ScalarField>), ProofError> {
     let lg_n = proof.vec_Y_L.len();
     if lg_n >= 32 {
         return Err(ProofError::VerificationError);
@@ -137,13 +139,13 @@ fn verification_scalars<E: Pairing>(
     let mut challenges: Vec<E::ScalarField> = Vec::with_capacity(lg_n);
     for i in 0..proof.vec_Y_L.len() {
         transcript.append_serializable_element(
-            b"ipa_loop",
+            b"vec_Y",
             &[
                 proof.vec_Y_L[i],
                 proof.vec_Y_R[i],
             ]
         ).unwrap();
-        challenges.push(transcript.get_and_append_challenge(b"ipa_gamma").unwrap());
+        challenges.push(transcript.get_and_append_challenge(b"gamma").unwrap());
     }
 
     // 2. Compute 1/gamma_k, ..., 1/gamma_1
@@ -159,11 +161,7 @@ fn verification_scalars<E: Pairing>(
         }
     }
 
-    // 4. Also compute 1/s vector
-    let mut vec_inv_s = vec_s.clone();
-    batch_inversion(&mut vec_inv_s);
-
-    Ok((challenges, challenges_inv, vec_s, vec_inv_s))
+    Ok((challenges, challenges_inv, vec_s))
 }
 
 pub fn verify<E: Pairing>(
@@ -173,14 +171,18 @@ pub fn verify<E: Pairing>(
 
     transcript: &mut IOPTranscript<E::ScalarField>
 ) -> Result<(), ProofError> {
-    let n = crs_G_vec.len();
+    let mut n = crs_G_vec.len();
     assert!(n.is_power_of_two());
 
     // Step 2
-    let (vec_alpha, vec_alpha_inv, vec_u, vec_inv_u) =
-        verification_scalars(proof, n, transcript)?;
+    let (vec_gamma, vec_gamma_inv, vec_s,) = verification_scalars(proof, n, transcript)?;
 
-    // let C_a = self.B_c + C.mul(alpha) + H.mul(alpha * alpha * z);    
+    // TODO can be turned into one MSM
+    let C_prime = E::G1::msm(&proof.vec_Y_L, &vec_gamma).unwrap() + C + E::G1::msm(&proof.vec_Y_R, &vec_gamma_inv).unwrap();
+
+    let expected_C = E::G1::msm(&crs_G_vec, &vec_s).unwrap().mul(proof.x_final);
+
+    assert!((C_prime - expected_C).is_zero());
 
     Ok(())
 }
@@ -217,6 +219,7 @@ mod tests {
         let n = 128;
 
         let mut transcript_prover = IOPTranscript::<Fr>::new(b"ipa");
+        let mut transcript_verifier = IOPTranscript::<Fr>::new(b"ipa");
 
         let crs_G_vec: Vec<G1Affine> =
             iter::repeat_with(|| G1Projective::rand(&mut rng).into_affine())
@@ -233,8 +236,10 @@ mod tests {
             &mut transcript_prover,
         );
 
+        let is_valid = verify(&proof,
+                              crs_G_vec.clone(),
+                              X.into_affine(),
+                              &mut transcript_verifier,
+        ).unwrap();
     }
 }
-
-
-
