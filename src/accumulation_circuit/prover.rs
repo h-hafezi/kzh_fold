@@ -4,14 +4,15 @@ use ark_ec::pairing::Pairing;
 use ark_ec::short_weierstrass::{Affine, Projective, SWCurveConfig};
 use ark_ff::Field;
 use ark_ff::PrimeField;
-
+use rand::thread_rng;
 use crate::accumulation::accumulator::{AccInstance, AccSRS, Accumulator};
 use crate::accumulation_circuit::affine_to_projective;
 use crate::commitment::CommitmentScheme;
 use crate::gadgets::non_native::util::convert_field_one_to_field_two;
 use crate::gadgets::r1cs::{R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness};
 use crate::gadgets::r1cs::r1cs::commit_T;
-use crate::nova::cycle_fold::coprocessor::{SecondaryCircuit, synthesize};
+use crate::hash::pederson::PedersenCommitment;
+use crate::nova::cycle_fold::coprocessor::{SecondaryCircuit, setup_shape, synthesize};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AccumulatorVerifierCircuitProver<G1, G2, C2, E>
@@ -21,7 +22,7 @@ where
     G1::ScalarField: PrimeField,
     G2: SWCurveConfig,
     G2::BaseField: PrimeField,
-    C2: CommitmentScheme<Projective<G2>>,
+    C2: CommitmentScheme<Projective<G2>, PP = Vec<Affine<G2>>>,
     E: Pairing<G1Affine=Affine<G1>, ScalarField=G1::ScalarField>,
 {
     /// the randomness used for taking linear combination, it should be input from Accumulator::compute_randomness()
@@ -53,7 +54,7 @@ where
     G1::ScalarField: PrimeField,
     G2: SWCurveConfig,
     G2::BaseField: PrimeField,
-    C2: CommitmentScheme<Projective<G2>>,
+    C2: CommitmentScheme<Projective<G2>, PP = Vec<Affine<G2>>>,
     E: Pairing<G1Affine=Affine<G1>, ScalarField=G1::ScalarField>,
 {
     #[inline(always)]
@@ -74,7 +75,7 @@ where
     G1::ScalarField: PrimeField,
     G2: SWCurveConfig,
     G2::BaseField: PrimeField,
-    C2: CommitmentScheme<Projective<G2>>,
+    C2: CommitmentScheme<Projective<G2>, PP = Vec<Affine<G2>>>,
     G1: SWCurveConfig<BaseField=<G2 as CurveConfig>::ScalarField, ScalarField=<G2 as CurveConfig>::BaseField>,
     E: Pairing<G1Affine=Affine<G1>, ScalarField=<G1 as CurveConfig>::ScalarField>,
     G2::BaseField: Absorb,
@@ -255,11 +256,45 @@ where
 
         (com_C, com_T, com_E_1, com_E_2, new_running_instance)
     }
+
+    pub fn rand(srs: &AccSRS<E>) -> AccumulatorVerifierCircuitProver<G1, G2, C2, E> {
+        // build an instance of AccInstanceCircuit
+        let current_accumulator = Accumulator::random_satisfying_accumulator(&srs, &mut thread_rng());
+        let running_accumulator = Accumulator::random_satisfying_accumulator(&srs, &mut thread_rng());
+
+        // compute Q
+        let Q = Accumulator::helper_function_Q(&srs, &current_accumulator, &running_accumulator);
+
+        // the shape of the R1CS instance
+        let shape = setup_shape::<G1, G2>().unwrap();
+
+        // public parameters of Pedersen
+        let commitment_pp: Vec<Affine<G2>> = PedersenCommitment::<Projective<G2>>::setup(shape.num_vars, b"test", &());
+
+        let cycle_fold_running_instance = RelaxedR1CSInstance::new(&shape);
+        let cycle_fold_running_witness = RelaxedR1CSWitness::zero(&shape);
+
+        let beta = Accumulator::compute_randomness(&current_accumulator.instance, &running_accumulator.instance, Q);
+
+        AccumulatorVerifierCircuitProver {
+            beta,
+            srs: srs.clone(),
+            current_accumulator,
+            running_accumulator,
+            shape,
+            commitment_pp,
+            running_cycle_fold_instance: cycle_fold_running_instance,
+            running_cycle_fold_witness: cycle_fold_running_witness,
+            n: srs.pc_srs.degree_x as u32,
+            m: srs.pc_srs.degree_y as u32,
+        }
+    }
 }
 
 #[cfg(test)]
 pub mod tests {
     use ark_ec::CurveConfig;
+    use ark_ec::short_weierstrass::Projective;
     use ark_ff::Field;
     use rand::thread_rng;
 
@@ -277,10 +312,11 @@ pub mod tests {
     type GrumpkinCurveGroup = ark_grumpkin::Projective;
     type C2 = PedersenCommitment<GrumpkinCurveGroup>;
 
-    pub fn get_random_prover() -> AccumulatorVerifierCircuitProver<G1, G2, C2, E> {
+
+    #[test]
+    pub fn random_instance_is_satisfying() {
         // specifying degrees of polynomials
-        let n = 4;
-        let m = 4;
+        let (n, m) = (4, 4);
 
         // get a random srs
         let srs = {
@@ -288,47 +324,23 @@ pub mod tests {
             Accumulator::setup(srs_pcs.clone(), &mut thread_rng())
         };
 
-        // build an instance of AccInstanceCircuit
-        let current_accumulator = Accumulator::random_satisfying_accumulator(&srs, &mut thread_rng());
-        let running_accumulator = Accumulator::random_satisfying_accumulator(&srs, &mut thread_rng());
-
-        // compute Q
-        let Q = Accumulator::helper_function_Q(&srs, &current_accumulator, &running_accumulator);
-
-        // the shape of the R1CS instance
-        let shape = setup_shape::<G1, G2>().unwrap();
-
-        // public parameters of Pedersen
-        let commitment_pp = PedersenCommitment::<GrumpkinCurveGroup>::setup(shape.num_vars, b"test", &());
-
-        let cycle_fold_running_instance = RelaxedR1CSInstance::new(&shape);
-        let cycle_fold_running_witness = RelaxedR1CSWitness::zero(&shape);
-
-        let beta = Accumulator::compute_randomness(&current_accumulator.instance, &running_accumulator.instance, Q);
-
-        AccumulatorVerifierCircuitProver {
-            beta,
-            srs,
-            current_accumulator,
-            running_accumulator,
-            shape,
-            commitment_pp,
-            running_cycle_fold_instance: cycle_fold_running_instance,
-            running_cycle_fold_witness: cycle_fold_running_witness,
-            n: n as u32,
-            m: m as u32,
-        }
-    }
-
-    #[test]
-    pub fn random_instance_is_satisfying() {
-        let p = get_random_prover();
-        p.is_satisfied();
+        let prover: AccumulatorVerifierCircuitProver<G1, G2, C2, E> = AccumulatorVerifierCircuitProver::rand(&srs);
+        prover.is_satisfied();
     }
 
     #[test]
     pub fn auxiliary_input_C_correctness() {
-        let prover = get_random_prover();
+        // specifying degrees of polynomials
+        let (n, m) = (4, 4);
+
+        // get a random srs
+        let srs = {
+            let srs_pcs: SRS<E> = PolyCommit::<E>::setup(n, m, &mut thread_rng());
+            Accumulator::setup(srs_pcs.clone(), &mut thread_rng())
+        };
+
+        let prover: AccumulatorVerifierCircuitProver<G1, G2, C2, E> = AccumulatorVerifierCircuitProver::rand(&srs);
+
         let (r1cs_instance, _) = prover.compute_auxiliary_input_C();
         let secondary_circuit = r1cs_instance.parse_secondary_io().unwrap();
 
@@ -344,7 +356,17 @@ pub mod tests {
 
     #[test]
     pub fn auxiliary_input_T_correctness() {
-        let prover = get_random_prover();
+        // specifying degrees of polynomials
+        let (n, m) = (4, 4);
+
+        // get a random srs
+        let srs = {
+            let srs_pcs: SRS<E> = PolyCommit::<E>::setup(n, m, &mut thread_rng());
+            Accumulator::setup(srs_pcs.clone(), &mut thread_rng())
+        };
+
+        let prover: AccumulatorVerifierCircuitProver<G1, G2, C2, E> = AccumulatorVerifierCircuitProver::rand(&srs);
+
         let (r1cs_instance, _) = prover.compute_auxiliary_input_T();
         let secondary_circuit = r1cs_instance.parse_secondary_io().unwrap();
 
@@ -361,7 +383,16 @@ pub mod tests {
 
     #[test]
     pub fn auxiliary_input_E_correctness() {
-        let prover = get_random_prover();
+        // specifying degrees of polynomials
+        let (n, m) = (4, 4);
+
+        // get a random srs
+        let srs = {
+            let srs_pcs: SRS<E> = PolyCommit::<E>::setup(n, m, &mut thread_rng());
+            Accumulator::setup(srs_pcs.clone(), &mut thread_rng())
+        };
+
+        let prover: AccumulatorVerifierCircuitProver<G1, G2, C2, E> = AccumulatorVerifierCircuitProver::rand(&srs);
 
         let (r1cs_instance, _) = prover.compute_auxiliary_input_E_1();
         let secondary_circuit_E_1 = r1cs_instance.parse_secondary_io().unwrap();
@@ -395,8 +426,17 @@ pub mod tests {
 
     #[test]
     pub fn compute_cycle_fold_proofs_correctness() {
-        let p = get_random_prover();
-        let _ = p.compute_cycle_fold_proofs_and_final_instance();
+        // specifying degrees of polynomials
+        let (n, m) = (4, 4);
+
+        // get a random srs
+        let srs = {
+            let srs_pcs: SRS<E> = PolyCommit::<E>::setup(n, m, &mut thread_rng());
+            Accumulator::setup(srs_pcs.clone(), &mut thread_rng())
+        };
+
+        let prover: AccumulatorVerifierCircuitProver<G1, G2, C2, E> = AccumulatorVerifierCircuitProver::rand(&srs);
+        let _ = prover.compute_cycle_fold_proofs_and_final_instance();
     }
 }
 

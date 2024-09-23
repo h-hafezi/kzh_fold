@@ -1,4 +1,4 @@
-/*use std::borrow::Borrow;
+use std::borrow::Borrow;
 use std::marker::PhantomData;
 use std::ops::Add;
 
@@ -21,7 +21,7 @@ use ark_relations::r1cs::{Namespace, SynthesisError};
 use ark_std::UniformRand;
 use rand::thread_rng;
 
-use crate::accumulation::accumulator::AccInstance;
+use crate::accumulation::accumulator::{AccInstance, AccSRS};
 use crate::accumulation_circuit::instance_circuit::AccumulatorInstanceVar;
 use crate::commitment::CommitmentScheme;
 use crate::constant_for_curves::{BaseField, ScalarField};
@@ -436,12 +436,12 @@ mod tests {
     use num_bigint::BigUint;
     use rand::thread_rng;
 
-    use crate::accumulation::accumulator::Accumulator;
+    use crate::accumulation::accumulator::{AccSRS, Accumulator};
     use crate::accumulation_circuit::instance_circuit::AccumulatorInstanceVar;
     use crate::accumulation_circuit::prover::AccumulatorVerifierCircuitProver;
     use crate::accumulation_circuit::verifier_circuit::AccumulatorVerifierVar;
     use crate::commitment::CommitmentScheme;
-    use crate::constant_for_curves::{BaseField, E, G1, G1Affine, ScalarField};
+    use crate::constant_for_curves::{BaseField, E, G1, G2, G1Affine, ScalarField};
     use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
     use crate::gadgets::non_native::util::convert_field_one_to_field_two;
     use crate::hash::pederson::PedersenCommitment;
@@ -449,8 +449,7 @@ mod tests {
     use crate::pcs::multilinear_pcs::{PolyCommit, SRS};
     use crate::pcs::multilinear_pcs::PolyCommitTrait;
 
-    type GrumpkinCurveGroup = ark_grumpkin::Projective;
-    type C2 = PedersenCommitment<GrumpkinCurveGroup>;
+    type C2 = PedersenCommitment<Projective<G2>>;
 
     pub fn randomness_different_formats(cs: ConstraintSystemRef<ScalarField>, beta: ScalarField) -> (
         BaseField,
@@ -471,23 +470,9 @@ mod tests {
         (beta_base, beta_var, beta_var_non_native)
     }
 
-    #[test]
-    fn initialisation_test() {
-        // a constraint system
-        let cs = ConstraintSystem::<ScalarField>::new_ref();
-
-        // specifying degrees of polynomials
-        let n = 4;
-        let m = 4;
-
-        // get a random srs
-        let srs = {
-            let srs_pcs: SRS<E> = PolyCommit::<E>::setup(n, m, &mut thread_rng());
-            Accumulator::setup(srs_pcs.clone(), &mut thread_rng())
-        };
-
+    pub fn get_random_verifier_var(srs: &AccSRS<E>, cs: ConstraintSystemRef<ScalarField>) -> AccumulatorVerifierVar<G1, G2, C2> {
         // get the prover
-        let prover = AccumulatorVerifierCircuitProver::rand(srs, &mut thread_rng());
+        let prover = AccumulatorVerifierCircuitProver::rand(&srs);
 
         // the randomness in different formats
         let beta_scalar = prover.beta.clone();
@@ -609,6 +594,25 @@ mod tests {
             m: prover.m,
         };
 
+        verifier
+    }
+    #[test]
+    fn initialisation_test() {
+        // specifying degrees of polynomials
+        let n = 4;
+        let m = 4;
+
+        // get a random srs
+        let srs = {
+            let srs_pcs: SRS<E> = PolyCommit::<E>::setup(n, m, &mut thread_rng());
+            Accumulator::setup(srs_pcs.clone(), &mut thread_rng())
+        };
+
+        // a constraint system
+        let cs = ConstraintSystem::<ScalarField>::new_ref();
+
+        let verifier = get_random_verifier_var(&srs, cs.clone());
+
         println!("number of constraint for initialisation: {}", cs.num_constraints());
         verifier.accumulate();
         println!("number of constraint for initialisation: {}", cs.num_constraints());
@@ -619,22 +623,13 @@ mod tests {
         let witness = cs_borrow.witness_assignment.clone();
         let pub_io = cs_borrow.instance_assignment.clone();
 
-        // pp which is Pederson's pp
-        let pp: Vec<Affine<G1>> = PedersenCommitment::<Projective<G1>>::setup(witness.len(), b"test", &());
-        for i in 0..10 {
-            let now = Instant::now();
-            let c: Projective<G1> = PedersenCommitment::commit(&pp, witness.as_slice());
-            println!("{:?}", now.elapsed());
-        }
-
         let file = File::create("witness.txt").unwrap();
         let mut writer = BufWriter::new(file);
         for scalar in witness.iter() {
             let big_int = scalar.into_bigint();
-            writeln!(writer, "{}", big_int.to_string()).expect("TODO: panic message");
+            writeln!(writer, "{}", big_int.to_string()).expect("error writing the witness into a file");
         }
     }
 }
 
 
- */
