@@ -5,7 +5,9 @@ use ark_ec::AffineRepr;
 use ark_ec::VariableBaseMSM;
 use ark_ec::pairing::Pairing;
 use ark_ff::{Field, One, batch_inversion};
+use ark_ff::{FftField};
 use ark_ff::Zero;
+use ark_std::{end_timer, start_timer};
 use ark_ec::CurveGroup;
 use ark_poly::{univariate::DensePolynomial, GeneralEvaluationDomain, EvaluationDomain};
 use crate::kzg::KZGProof;
@@ -53,7 +55,11 @@ pub fn prove<E: Pairing>(
     entire_domain: &GeneralEvaluationDomain<E::ScalarField>,
     transcript: &mut IOPTranscript<E::ScalarField>,
     ck: &KZGPowers<E>,
-) -> PrivateAggregationProof<E> {
+) -> PrivateAggregationProof<E>
+where
+    E::ScalarField: FftField, // FFTField is needed to do poly mul with FFTs
+{
+    // Step 1: Compute z(x) and z_i(x) polys
     let z_poly = vanishing_polynomial::<E>(&vec_omega);
 
     // This is a vector of Omega_i
@@ -64,11 +70,13 @@ pub fn prove<E: Pairing>(
     }
 
     // Compute z_i(x) = \prod (x - w_i)
+    let vec_z_i_time = start_timer!(|| format!("vec_z_i time"));
     let mut vec_z_i = vec![];
     for vec_omega_complement in &vec_omega_complements {
         let z_i_poly = vanishing_polynomial::<E>(&vec_omega_complement);
         vec_z_i.push(z_i_poly);
     }
+    end_timer!(vec_z_i_time);
 
     // Step 2: Get a challenge from the verifier
     transcript.append_serializable_element(b"z_x", &z_poly).unwrap();
@@ -83,6 +91,7 @@ pub fn prove<E: Pairing>(
     assert_eq!(vec_f.len(), vec_z_i.len());
 
     // Step 3: Compute q(x)
+    let step3_time = start_timer!(|| format!("Step3 time"));
     let mut q_x = DensePolynomial::from_coefficients_vec(vec![E::ScalarField::zero()]);
     for (rho_i, f_i, z_i) in izip!(vec_rho.clone(), vec_f.clone(), vec_z_i.clone()) { // XXX loose the clone
         // Compute rho^{i-1}*f_i
@@ -95,15 +104,19 @@ pub fn prove<E: Pairing>(
         q_x = q_x.add(numerator);
     }
     q_x = q_x.div(&z_poly);
+    end_timer!(step3_time);
 
     // Step 4: Commit to q(x)
+    let step4_time = start_timer!(|| format!("Step4 time"));
     let (q_commitment, q_blinder) = KZG10::<E,DensePolynomial<<E as Pairing>::ScalarField>>::commit(&ck, &q_x, None, None).expect("q commitment failed");
+    end_timer!(step4_time);
 
     // Step 5: Get r from verifier
     transcript.append_serializable_element(b"q_comm", &q_commitment.0).unwrap();
     let r: E::ScalarField = transcript.get_and_append_challenge(b"r").unwrap();
 
     // Step 6: Compute g(x)
+    let step6_time = start_timer!(|| format!("Step6 time"));
     let mut g_x  = DensePolynomial::from_coefficients_vec(vec![E::ScalarField::zero()]);
     for (rho_i, f_i, z_i) in izip!(vec_rho, vec_f, vec_z_i) {
         let z_i_r = z_i.evaluate(&r);
@@ -120,6 +133,7 @@ pub fn prove<E: Pairing>(
         q_x.coeffs.iter().map(|q| *q * z_r).collect(),
     );
     g_x = g_x.sub(&q_x_times_z_r);
+    end_timer!(step6_time);
 
     // Step 7: Compute commitment and proof (NOT NEEDED for private aggregation!)
     // assert_eq!(g_x.evaluate(&r), E::ScalarField::zero());
@@ -258,7 +272,7 @@ pub mod tests {
         let mut rng = StdRng::seed_from_u64(0u64);
 
         let N = 2;
-        let d = 16;
+        let d = 8192;
 
         let mut transcript_prover = IOPTranscript::<Fr>::new(b"pa");
         let mut transcript_verifier = IOPTranscript::<Fr>::new(b"pa");

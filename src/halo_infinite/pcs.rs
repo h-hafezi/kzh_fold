@@ -2,6 +2,15 @@
 
 use crate::kzg::{KZG10, KZGPowers, KZGUniversalParams, KZGVerifierKey, trim};
 
+/// Prover for PCS:
+/// Step 1) Run the HPI protocol
+/// Step 2) Run a KZG eval on the log verification scalars
+
+/// Verifier for PCS:
+/// Step 1) Verify the HPI protocol
+/// Step 2) Compute C'
+/// Step 3) Verify KZG eval using C'
+
 #[cfg(test)]
 mod tests {
     use ark_bn254::{Bn254, Fr};
