@@ -89,7 +89,7 @@ fn bench_open(c: &mut Criterion) {
         let (ck, _vk) = trim(&params, degree);
 
         let polynomial = Poly::rand(degree, &mut rng);
-        let (comm, r) = KZG10::<E, Poly>::commit(&ck, &polynomial, None, Some(&mut rng)).expect("Commitment failed");
+        let (_, r) = KZG10::<E, Poly>::commit(&ck, &polynomial, None, Some(&mut rng)).expect("Commitment failed");
 
         let bench_name = format!("open for degree {}", degree);
         c.bench_function(&bench_name, |b| {

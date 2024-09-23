@@ -56,7 +56,7 @@ pub struct MultilinearPolynomial<F: PrimeField, E: Pairing> {
 impl<E: Pairing> MultilinearPolynomial<E::ScalarField, E> {
 
     /// input[i] will represent value of x_i in the polynomial
-    pub(crate) fn evaluate(&self, input: &Vec<E::ScalarField>) -> E::ScalarField {
+    pub fn evaluate(&self, input: &Vec<E::ScalarField>) -> E::ScalarField {
         // input must have a value for each variable
         assert_eq!(input.len(), self.get_num_vars(), "wrong vector lengths");
 

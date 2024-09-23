@@ -416,14 +416,14 @@ pub mod test {
         // random points and evaluation
         let mut x1: Vec<ScalarField> = Vec::new();
         let mut x2: Vec<ScalarField> = Vec::new();
-        for i in 0..srs.pc_srs.degree_x.log_2() {
+        for _ in 0..srs.pc_srs.degree_x.log_2() {
             x1.push(ScalarField::rand(&mut thread_rng()));
             x2.push(ScalarField::rand(&mut thread_rng()));
         }
         // random points and evaluation
         let mut y1: Vec<ScalarField> = Vec::new();
         let mut y2: Vec<ScalarField> = Vec::new();
-        for i in 0..srs.pc_srs.degree_y.log_2() {
+        for _ in 0..srs.pc_srs.degree_y.log_2() {
             y1.push(ScalarField::rand(&mut thread_rng()));
             y2.push(ScalarField::rand(&mut thread_rng()));
         }

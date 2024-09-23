@@ -1,35 +1,28 @@
-/*#![allow(non_snake_case)]
+#![allow(non_snake_case)]
 #![allow(unused_imports)]
 
-use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
+use ark_poly::EvaluationDomain;
 use ark_std::UniformRand;
 use criterion::{Criterion, criterion_group, criterion_main};
 use rand::thread_rng;
-use sqrtn_pcs::constant_for_curves::{E, ScalarField};
-use sqrtn_pcs::polynomial::bivariate_poly::{BivariatePolynomial};
-use sqrtn_pcs::polynomial::lagrange_basis::LagrangeBasis;
-use sqrtn_pcs::pcs::bivariate_pcs::{PolyCommit, PolyCommitTrait, SRS};
 
+use sqrtn_pcs::constant_for_curves::{E, ScalarField};
+use sqrtn_pcs::pcs::multilinear_pcs::{PolyCommit, PolyCommitTrait, SRS};
+use sqrtn_pcs::polynomial::multilinear_polynomial::bivariate_multilinear::BivariateMultiLinearPolynomial;
+use sqrtn_pcs::polynomial::multilinear_polynomial::multilinear_poly::MultilinearPolynomial;
 
 fn bench_setup(c: &mut Criterion) {
-    let mut rng = thread_rng();
     let degrees = vec![(4, 4), (8, 8), (16, 16), (32, 32), (64, 64), (128, 128), (256, 256), (512, 512), (1024, 1024)];
-
     for (degree_x, degree_y) in degrees {
         let bench_name = format!("setup for degree n={} * m={}", degree_x, degree_y);
         c.bench_function(&bench_name, |b| {
             b.iter_custom(|iters| {
                 let mut total_time = std::time::Duration::new(0, 0);
-                let mut size = 0;
                 for _ in 0..iters {
                     let start = std::time::Instant::now();
-                    let srs: SRS<E> = PolyCommit::setup(degree_x, degree_y, &mut rng);
+                    let _srs: SRS<E> = PolyCommit::setup(degree_x, degree_y, &mut thread_rng());
                     total_time += start.elapsed();
-                    // Measure the heap-allocated size of the srs object
-                    size = srs.size_of();
                 }
-                // Print the size of the SRS object once at the end of the last iteration
-                println!("Size of SRS, degree n={} * m={}: {} bytes", degree_x, degree_y, size);
                 total_time
             });
         });
@@ -37,14 +30,15 @@ fn bench_setup(c: &mut Criterion) {
 }
 
 fn bench_commit(c: &mut Criterion) {
-    let mut rng = thread_rng();
     let degrees = vec![(4, 4), (8, 8), (16, 16), (32, 32), (64, 64), (128, 128), (256, 256), (512, 512), (1024, 1024)];
     for (degree_x, degree_y) in degrees {
-        let domain_x = GeneralEvaluationDomain::<ScalarField>::new(degree_x).unwrap();
-        let domain_y = GeneralEvaluationDomain::<ScalarField>::new(degree_y).unwrap();
-        let srs: SRS<E> = PolyCommit::setup(degree_x, degree_y, &mut rng);
+        let srs: SRS<E> = PolyCommit::setup(degree_x, degree_y, &mut thread_rng());
         let poly_commit = PolyCommit { srs };
-        let polynomial = BivariatePolynomial::random(&mut rng, domain_x.clone(), domain_y.clone(), degree_x, degree_y);
+        // random bivariate polynomial
+        let polynomial = BivariateMultiLinearPolynomial::from_multilinear_to_bivariate_multilinear(
+            MultilinearPolynomial::rand(2 + 4, &mut thread_rng()),
+            degree_x,
+        );
         let bench_name = format!("commit for degree n={} * m={}", degree_x, degree_y);
         c.bench_function(&bench_name, |b| {
             b.iter(|| {
@@ -55,47 +49,59 @@ fn bench_commit(c: &mut Criterion) {
 }
 
 fn bench_open(c: &mut Criterion) {
-    let mut rng = thread_rng();
     let degrees = vec![(4, 4), (8, 8), (16, 16), (32, 32), (64, 64), (128, 128), (256, 256), (512, 512), (1024, 1024)];
-
     for (degree_x, degree_y) in degrees {
-        let domain_x = GeneralEvaluationDomain::<ScalarField>::new(degree_x).unwrap();
-        let domain_y = GeneralEvaluationDomain::<ScalarField>::new(degree_y).unwrap();
-        let srs: SRS<E> = PolyCommit::setup(degree_x, degree_y, &mut rng);
+        let srs: SRS<E> = PolyCommit::setup(degree_x, degree_y, &mut thread_rng());
         let poly_commit = PolyCommit { srs };
-        let polynomial = BivariatePolynomial::random(&mut rng, domain_x.clone(), domain_y.clone(), degree_x, degree_y);
+        let polynomial = BivariateMultiLinearPolynomial::from_multilinear_to_bivariate_multilinear(
+            MultilinearPolynomial::rand(2 + 4, &mut thread_rng()),
+            degree_x,
+        );
         let com = poly_commit.commit(&polynomial);
 
         let bench_name = format!("open for degree n={} * m={}", degree_x, degree_y);
-        c.bench_function(&bench_name, |x| {
-            let b = ScalarField::rand(&mut rng);
-            x.iter(|| {
-                poly_commit.open(&polynomial, com.clone(), &b)
+        c.bench_function(&bench_name, |b| {
+            let x = vec![
+                ScalarField::rand(&mut thread_rng()), ScalarField::rand(&mut thread_rng()),
+            ];
+            b.iter(|| {
+                poly_commit.open(&polynomial, com.clone(), &x)
             })
         });
     }
 }
 
 fn bench_verify(c: &mut Criterion) {
-    let mut rng = thread_rng();
     let degrees = vec![(4, 4), (8, 8), (16, 16), (32, 32), (64, 64), (128, 128), (256, 256), (512, 512), (1024, 1024)];
-
     for (degree_x, degree_y) in degrees {
-        let domain_x = GeneralEvaluationDomain::<ScalarField>::new(degree_x).unwrap();
-        let domain_y = GeneralEvaluationDomain::<ScalarField>::new(degree_y).unwrap();
-        let srs: SRS<E> = PolyCommit::setup(degree_x, degree_y, &mut rng);
+        let srs: SRS<E> = PolyCommit::setup(degree_x, degree_y, &mut thread_rng());
         let poly_commit = PolyCommit { srs };
-        let polynomial = BivariatePolynomial::random(&mut rng, domain_x.clone(), domain_y.clone(), degree_x, degree_y);
+        let polynomial = BivariateMultiLinearPolynomial::from_multilinear_to_bivariate_multilinear(
+            MultilinearPolynomial::rand(2 + 4, &mut thread_rng()),
+            degree_x,
+        );
         let com = poly_commit.commit(&polynomial);
 
         let bench_name = format!("verify for degree n={} * m={}", degree_x, degree_y);
-        c.bench_function(&bench_name, |x| {
-            let b = ScalarField::rand(&mut rng);
-            let c = ScalarField::rand(&mut rng);
-            let y = polynomial.evaluate(&b, &c);
-            let open = poly_commit.open(&polynomial, com.clone(), &b);
-            x.iter(|| {
-                poly_commit.verify(LagrangeBasis { domain: domain_x.clone() }, &com, &open, &b, &c, &y)
+        c.bench_function(&bench_name, |b| {
+            // random points and evaluation
+            let x = vec![
+                ScalarField::rand(&mut thread_rng()), ScalarField::rand(&mut thread_rng()),
+            ];
+            let y = vec![
+                ScalarField::rand(&mut thread_rng()), ScalarField::rand(&mut thread_rng()),
+                ScalarField::rand(&mut thread_rng()), ScalarField::rand(&mut thread_rng()),
+            ];
+            let concat = {
+                let mut res = vec![];
+                res.extend(x.clone());
+                res.extend(y.clone());
+                res
+            };
+            let z = polynomial.poly.evaluate(&concat);
+            let open = poly_commit.open(&polynomial, com.clone(), &x);
+            b.iter(|| {
+                poly_commit.verify(&com, &open, &x, &y, &z)
             })
         });
     }
@@ -113,6 +119,3 @@ criterion_group! {
 }
 
 criterion_main!(pcs_benches);
-
-
- */
