@@ -65,7 +65,7 @@ where
     // This is a vector of Omega_i
     let mut vec_omega_complements = vec![];
     for omega in vec_omega {
-        let vec_omega_complement_i = remove_from_set(entire_domain.elements().into_iter(), omega);
+        let vec_omega_complement_i:Vec<E::ScalarField> = remove_from_set(vec_omega.clone(), omega);
         vec_omega_complements.push(vec_omega_complement_i);
     }
 
