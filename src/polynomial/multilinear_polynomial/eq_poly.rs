@@ -1,49 +1,59 @@
 use ark_ec::pairing::Pairing;
 use ark_ff::{Field, One, PrimeField, Zero};
-
+use crate::polynomial::multilinear_polynomial::compute_dot_product;
 use crate::polynomial::multilinear_polynomial::math::Math;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EqPolynomial<F: Field + Copy> {
-    w: Vec<F>,
+    r: Vec<F>,
 }
 
 impl<F: Field + Copy> EqPolynomial<F> {
     /// Creates a new EqPolynomial from a vector `w`
-    pub fn new(w: Vec<F>) -> Self {
-        EqPolynomial { w }
+    pub fn new(r: Vec<F>) -> Self {
+        EqPolynomial { r }
     }
 
     /// Evaluates the polynomial eq_w(r) = prod_{i} (w_i * r_i + (F::ONE - w_i) * (F::ONE - r_i))
-    pub fn evaluate_at_single_point(&self, r: &[F]) -> F {
-        assert_eq!(self.w.len(), r.len(), "Vectors w and r must be of the same length.");
-
-        let mut product = F::ONE;
-        for (w_i, r_i) in self.w.iter().zip(r.iter()) {
-            let term = (*w_i * *r_i) + ((F::ONE - *w_i) * (F::ONE - *r_i));
-            product *= term;
-        }
-        product
+    pub fn evaluate(&self, rx: &[F]) -> F {
+        assert_eq!(self.r.len(), rx.len());
+        (0..rx.len())
+            .map(|i| self.r[i] * rx[i] + (F::one() - self.r[i]) * (F::one() - rx[i]))
+            .product()
     }
-}
 
+    pub fn evals(&self) -> Vec<F> {
+        let ell = self.r.len();
 
-impl<F: PrimeField>  EqPolynomial<F> {
-    pub(crate) fn get_all_evaluations_over_hypercube(r: &Vec<F>) -> Vec<F> {
-        let n = r.len();
-        let mut dp = vec![vec![F::zero(); 1 << n]; n + 1];
-        dp[0][0] = F::one();
-
-        for i in 0..n {
-            for j in 0..(1 << i) {
-                dp[i + 1][j] = dp[i][j] * (F::one() - r[i]);
-                dp[i + 1][j + (1 << i)] = dp[i][j] * r[i];
+        let mut evals: Vec<F> = vec![F::one(); ell.pow2()];
+        let mut size = 1;
+        for j in 0..ell {
+            // in each iteration, we double the size of chis
+            size *= 2;
+            for i in (0..size).rev().step_by(2) {
+                // copy each element from the prior iteration twice
+                let scalar = evals[i / 2];
+                evals[i] = scalar * self.r[j];
+                evals[i - 1] = scalar - evals[i];
             }
         }
-        dp[n].clone()
+        evals
+    }
+
+    pub fn compute_factored_lens(ell: usize) -> (usize, usize) {
+        (ell / 2, ell - ell / 2)
+    }
+
+    pub fn compute_factored_evals(&self) -> (Vec<F>, Vec<F>) {
+        let ell = self.r.len();
+        let (left_num_vars, _right_num_vars) = Self::compute_factored_lens(ell);
+
+        let L = EqPolynomial::new(self.r[..left_num_vars].to_vec()).evals();
+        let R = EqPolynomial::new(self.r[left_num_vars..ell].to_vec()).evals();
+
+        (L, R)
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -61,19 +71,19 @@ mod tests {
         let w = vec![F::ZERO, F::ONE, F::ZERO];
         let r = vec![F::ONE, F::ZERO, F::ONE];
         let eq_poly = EqPolynomial::new(w);
-        let result = eq_poly.evaluate_at_single_point(&r);
+        let result = eq_poly.evaluate(&r);
         assert_eq!(result, F::ZERO);
 
         // test for single point evaluation
         let w = vec![F::ZERO, F::ONE, F::ZERO];
         let r = vec![F::ZERO, F::ONE, F::ZERO];
         let eq_poly = EqPolynomial::new(w);
-        let result = eq_poly.evaluate_at_single_point(&r);
+        let result = eq_poly.evaluate(&r);
         assert_eq!(result, F::ONE);
 
         // test for range evaluation
         let r = vec![F::ONE, F::ZERO, F::ONE];
-        let results: Vec<F> = <EqPolynomial<F>>::get_all_evaluations_over_hypercube(&r);
+        let results: Vec<F> = <EqPolynomial<F>>::new(r).evals();
         assert_eq!(results.len(), 8);
         assert_eq!(results, vec![F::ZERO, F::ZERO, F::ZERO, F::ZERO,
                                  F::ZERO, F::ONE, F::ZERO, F::ZERO]);

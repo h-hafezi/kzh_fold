@@ -1,3 +1,2 @@
-mod poly;
-mod random;
-mod transcript;
+pub  mod random;
+pub mod transcript;

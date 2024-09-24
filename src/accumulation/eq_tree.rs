@@ -10,7 +10,17 @@ pub struct EqTree<F: PrimeField> {
 impl<F: PrimeField> EqTree<F> {
     /// generates the eq tree given a vector of length depth
     pub fn new(x: &[F]) -> Self {
+        // reversing the array
+        let x = {
+            let mut temp = x.to_vec();
+            temp.reverse();
+            temp
+        };
+
+        // define depth the length of the array
         let depth = x.len();
+
+        // initialise all nodes as zero
         let mut nodes = vec![F::ZERO; 2 * (1 << depth) - 1];
 
         // The root node starts with value 1.
@@ -34,6 +44,14 @@ impl<F: PrimeField> EqTree<F> {
     /// generates the error values for a tree given a vector
     pub fn difference(&self, x: &[F]) -> Self {
         assert_eq!(x.len(), self.depth, "inconsistent depth");
+
+        // reversing the array
+        let x = {
+            let mut temp = x.to_vec();
+            temp.reverse();
+            temp
+        };
+
         let depth = x.len();
         let mut nodes = vec![F::ZERO; 2 * (1 << depth) - 1];
 
@@ -123,9 +141,12 @@ mod tests {
             F::rand(&mut thread_rng()),
             F::rand(&mut thread_rng()),
             F::rand(&mut thread_rng()),
+            F::rand(&mut thread_rng()),
+            F::rand(&mut thread_rng()),
         ];
         let tree = EqTree::new(x.as_slice());
-        let results: Vec<F> = EqPolynomial::get_all_evaluations_over_hypercube(&x);
+        let results: Vec<F> = EqPolynomial::new(x).evals();
+
         assert_eq!(tree.get_leaves().to_vec(), results);
     }
 }

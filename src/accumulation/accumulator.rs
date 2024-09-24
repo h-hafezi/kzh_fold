@@ -13,7 +13,6 @@ use crate::accumulation::generate_random_elements;
 use crate::gadgets::non_native::util::convert_affine_to_scalars;
 use crate::hash::poseidon::{PoseidonHash, PoseidonHashTrait};
 use crate::pcs::multilinear_pcs::{OpeningProof, PolyCommit, PolyCommitTrait, SRS};
-use crate::polynomial::multilinear_polynomial::bivariate_multilinear::BivariateMultiLinearPolynomial;
 use crate::polynomial::multilinear_polynomial::compute_dot_product;
 use crate::polynomial::multilinear_polynomial::math::Math;
 use crate::polynomial::multilinear_polynomial::multilinear_poly::MultilinearPolynomial;
@@ -199,13 +198,14 @@ where
                 .collect(),
             f_star_poly: MultilinearPolynomial {
                 num_variables: witness_1.f_star_poly.num_variables,
-                evaluation_over_boolean_hypercube: witness_1.f_star_poly.evaluations_over_boolean_domain().iter()
-                    .zip(witness_2.f_star_poly.evaluations_over_boolean_domain().iter())
+                evaluation_over_boolean_hypercube: witness_1.f_star_poly.evaluation_over_boolean_hypercube.iter()
+                    .zip(witness_2.f_star_poly.evaluation_over_boolean_hypercube.iter())
                     .map(
                         |(&a, &b)|
                         a * (one_minus_beta) + (b * beta)
                     )
                     .collect(),
+                len: witness_1.f_star_poly.len(),
                 phantom: Default::default(),
             },
             tree_x: EqTree {
@@ -292,6 +292,7 @@ where
                         .zip(witness_1.f_star_poly.evaluation_over_boolean_hypercube.iter())
                         .map(|(&e2, &e1)| e2 * two - e1)
                         .collect(),
+                    len: witness_1.f_star_poly.len(),
                     phantom: Default::default(),
                 },
                 tree_x: EqTree {
@@ -394,19 +395,14 @@ impl<E: Pairing> Accumulator<E> {
     where
         <E as Pairing>::ScalarField: Absorb,
         <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb,
-        <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField
+        <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
     {
         let poly_commit = PolyCommit { srs: srs.pc_srs.clone() };
 
         // random bivariate polynomial
-        let polynomial1 = BivariateMultiLinearPolynomial::from_multilinear_to_bivariate_multilinear(
-            MultilinearPolynomial::rand(srs.pc_srs.degree_x.log_2() + srs.pc_srs.degree_y.log_2(), rng),
-            srs.pc_srs.degree_x,
-        );
-        let polynomial2 = BivariateMultiLinearPolynomial::from_multilinear_to_bivariate_multilinear(
-            MultilinearPolynomial::rand(srs.pc_srs.degree_x.log_2() + srs.pc_srs.degree_y.log_2(), rng),
-            srs.pc_srs.degree_x,
-        );
+        let polynomial1 = MultilinearPolynomial::rand(srs.pc_srs.degree_x.log_2() + srs.pc_srs.degree_y.log_2(), rng);
+        let polynomial2 = MultilinearPolynomial::rand(srs.pc_srs.degree_x.log_2() + srs.pc_srs.degree_y.log_2(), rng);
+
 
         // random points and evaluation
         let mut x1: Vec<E::ScalarField> = Vec::new();
@@ -436,8 +432,8 @@ impl<E: Pairing> Accumulator<E> {
             res
         };
 
-        let z1 = polynomial1.poly.evaluate(&whole_input_1);
-        let z2 = polynomial2.poly.evaluate(&whole_input_2);
+        let z1 = polynomial1.evaluate(&whole_input_1);
+        let z2 = polynomial2.evaluate(&whole_input_2);
 
         // commit to the polynomial
         let com1 = poly_commit.commit(&polynomial1);
@@ -492,3 +488,4 @@ pub mod test {
         assert!(Accumulator::decide(&srs, &Accumulator { witness, instance }));
     }
 }
+
