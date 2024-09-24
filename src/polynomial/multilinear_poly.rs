@@ -1,3 +1,5 @@
+// mostly borrowed from Arkworks
+
 #![allow(clippy::too_many_arguments)]
 use core::ops::Index;
 use std::fmt::Debug;
@@ -16,8 +18,8 @@ use rand::{Rng, RngCore};
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
 
-use crate::polynomial::multilinear_polynomial::eq_poly::EqPolynomial;
-use crate::polynomial::multilinear_polynomial::math::Math;
+use crate::polynomial::eq_poly::EqPolynomial;
+use crate::polynomial::math::Math;
 use crate::utils::inner_product;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -104,7 +106,7 @@ where
     {
         // r must have a value for each variable
         assert_eq!(r.len(), self.get_num_vars());
-        println!("length {} {}", r.len(), self.get_num_vars());
+
         let chis = EqPolynomial::new(r.to_vec()).evals();
         assert_eq!(chis.len(), self.evaluation_over_boolean_hypercube.len());
         inner_product(&self.evaluation_over_boolean_hypercube, &chis)
@@ -188,8 +190,8 @@ mod tests {
     use rand::thread_rng;
 
     use crate::constant_for_curves::{E, ScalarField};
-    use crate::polynomial::multilinear_polynomial::decimal_to_boolean_vector;
-    use crate::polynomial::multilinear_polynomial::eq_poly::EqPolynomial;
+    use crate::polynomial::decimal_to_boolean_vector;
+    use crate::polynomial::eq_poly::EqPolynomial;
 
     use super::*;
 

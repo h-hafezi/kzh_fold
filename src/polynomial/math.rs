@@ -1,3 +1,5 @@
+// borrowed from Nexus
+
 pub trait Math {
     fn square_root(self) -> usize;
     fn pow2(self) -> usize;
@@ -37,7 +39,7 @@ impl Math for usize {
 
 #[cfg(test)]
 mod tests {
-    use crate::polynomial::multilinear_polynomial::math::Math;
+    use crate::polynomial::math::Math;
 
     #[test]
     fn test() {

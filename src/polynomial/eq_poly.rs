@@ -1,7 +1,9 @@
+// borrowed from Arkworks
+
 use ark_ec::pairing::Pairing;
 use ark_ff::{Field, One, PrimeField, Zero};
-use crate::polynomial::multilinear_polynomial::compute_dot_product;
-use crate::polynomial::multilinear_polynomial::math::Math;
+use crate::polynomial::compute_dot_product;
+use crate::polynomial::math::Math;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EqPolynomial<F: Field + Copy> {

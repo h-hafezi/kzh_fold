@@ -1,5 +1,7 @@
+// borrowed from Arkworks
+
 use ark_ff::PrimeField;
-use crate::polynomial::multilinear_polynomial::math::Math;
+use crate::polynomial::math::Math;
 
 pub struct IdentityPolynomial {
     size_point: usize,

@@ -13,9 +13,9 @@ use crate::accumulation::generate_random_elements;
 use crate::gadgets::non_native::util::convert_affine_to_scalars;
 use crate::hash::poseidon::{PoseidonHash, PoseidonHashTrait};
 use crate::pcs::multilinear_pcs::{OpeningProof, PolyCommit, PolyCommitTrait, SRS};
-use crate::polynomial::multilinear_polynomial::compute_dot_product;
-use crate::polynomial::multilinear_polynomial::math::Math;
-use crate::polynomial::multilinear_polynomial::multilinear_poly::MultilinearPolynomial;
+use crate::polynomial::compute_dot_product;
+use crate::polynomial::math::Math;
+use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AccSRS<E: Pairing> {

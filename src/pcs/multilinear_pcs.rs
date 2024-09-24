@@ -8,9 +8,9 @@ use rand::RngCore;
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
 
-use crate::polynomial::multilinear_polynomial::eq_poly::EqPolynomial;
-use crate::polynomial::multilinear_polynomial::math::Math;
-use crate::polynomial::multilinear_polynomial::multilinear_poly::MultilinearPolynomial;
+use crate::polynomial::eq_poly::EqPolynomial;
+use crate::polynomial::math::Math;
+use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SRS<E: Pairing> {
@@ -200,7 +200,7 @@ pub mod test {
 
     use crate::constant_for_curves::{E, ScalarField};
     use crate::pcs::multilinear_pcs::{PolyCommit, PolyCommitTrait, SRS};
-    use crate::polynomial::multilinear_polynomial::multilinear_poly::MultilinearPolynomial;
+    use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 
     #[test]
     fn test_setup() {
