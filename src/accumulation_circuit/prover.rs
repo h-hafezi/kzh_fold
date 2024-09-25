@@ -25,7 +25,7 @@ where
     C2: CommitmentScheme<Projective<G2>, PP = Vec<Affine<G2>>>,
     E: Pairing<G1Affine=Affine<G1>, ScalarField=G1::ScalarField>,
 {
-    /// the randomness used for taking linear combination, it should be input from Accumulator::compute_randomness()
+    /// the randomness used for taking linear combination, it should be input from Accumulator::compute_fiat_shammir_challenge()
     pub beta: G1::ScalarField,
 
     /// srs for the accumulation
@@ -274,7 +274,7 @@ where
         let cycle_fold_running_instance = RelaxedR1CSInstance::new(&shape);
         let cycle_fold_running_witness = RelaxedR1CSWitness::zero(&shape);
 
-        let beta = Accumulator::compute_randomness(&current_accumulator.instance, &running_accumulator.instance, Q);
+        let beta = Accumulator::compute_fiat_shamir_challenge(&current_accumulator.instance, &running_accumulator.instance, Q);
 
         AccumulatorVerifierCircuitProver {
             beta,

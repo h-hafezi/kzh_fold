@@ -111,7 +111,7 @@ where
         }
     }
 
-    pub fn compute_randomness(instance_1: &AccInstance<E>, instance_2: &AccInstance<E>, Q: E::G1Affine) -> E::ScalarField {
+    pub fn compute_fiat_shamir_challenge(instance_1: &AccInstance<E>, instance_2: &AccInstance<E>, Q: E::G1Affine) -> E::ScalarField {
         let mut sponge = Vec::new();
         sponge.extend(instance_1.to_sponge_field_elements());
         sponge.extend(instance_2.to_sponge_field_elements());
@@ -184,7 +184,7 @@ where
         // compute the quotient variable Q
         let Q: E::G1Affine = Self::helper_function_Q(srs, acc_1, acc_2);
 
-        let beta = Accumulator::compute_randomness(instance_1, instance_2, Q);
+        let beta = Accumulator::compute_fiat_shamir_challenge(instance_1, instance_2, Q);
 
         let one_minus_beta: E::ScalarField = E::ScalarField::ONE - beta;
 
@@ -233,7 +233,7 @@ where
     }
 
     pub fn verify(instance_1: &AccInstance<E>, instance_2: &AccInstance<E>, Q: E::G1Affine) -> AccInstance<E> {
-        let beta = Accumulator::compute_randomness(instance_1, instance_2, Q);
+        let beta = Accumulator::compute_fiat_shamir_challenge(instance_1, instance_2, Q);
         let one_minus_beta: E::ScalarField = E::ScalarField::ONE - beta;
 
         let new_error_term: E::G1Affine = {
