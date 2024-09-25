@@ -4,15 +4,16 @@ use ark_ff::PrimeField;
 use ark_serialize::*;
 use merlin::Transcript;
 
-// ax^2 + bx + c stored as vec![c,b,a]
-// ax^3 + bx^2 + cx + d stored as vec![d,c,b,a]
+/// ax^2 + bx + c stored as vec![c,b,a]
+/// ax^3 + bx^2 + cx + d stored as vec![d,c,b,a]
 #[derive(Debug)]
 pub struct UniPoly<F> {
     coeffs: Vec<F>,
 }
 
-// ax^2 + bx + c stored as vec![c,a]
-// ax^3 + bx^2 + cx + d stored as vec![d,b,a]
+/// ax^2 + bx + c stored as vec![c,a]
+/// ax^3 + bx^2 + cx + d stored as vec![d,b,a]
+/// it excludes the linear term which can be later recovered with a hint e.g. hint = poly(0) + poly(1)
 #[derive(CanonicalSerialize, CanonicalDeserialize, Debug)]
 pub struct CompressedUniPoly<F: PrimeField> {
     coeffs_except_linear_term: Vec<F>,
@@ -60,14 +61,17 @@ impl<F: PrimeField> UniPoly<F> {
         self.coeffs.clone()
     }
 
+    /// the first coefficent is the evaluation at zero
     pub fn eval_at_zero(&self) -> F {
         self.coeffs[0]
     }
 
+    /// it's in fact sum of all coefficients
     pub fn eval_at_one(&self) -> F {
         (0..self.coeffs.len()).map(|i| self.coeffs[i]).sum()
     }
 
+    ///  simply performs the Horne algorithm for the polynomial
     pub fn evaluate(&self, r: &F) -> F {
         let mut eval = self.coeffs[0];
         let mut power = *r;
@@ -78,6 +82,7 @@ impl<F: PrimeField> UniPoly<F> {
         eval
     }
 
+    /// compress by removing the linear term
     pub fn compress(&self) -> CompressedUniPoly<F> {
         let coeffs_except_linear_term = [&self.coeffs[..1], &self.coeffs[2..]].concat();
         assert_eq!(coeffs_except_linear_term.len() + 1, self.coeffs.len());
@@ -88,8 +93,9 @@ impl<F: PrimeField> UniPoly<F> {
 }
 
 impl<F: PrimeField> CompressedUniPoly<F> {
-    // we require eval(0) + eval(1) = hint, so we can solve for the linear term as:
-    // linear_term = hint - 2 * constant_term - deg2 term - deg3 term
+    /// we require eval(0) + eval(1) = hint, so we can solve for the linear term as:
+    /// linear_term = hint - 2 * constant_term - deg2 term - deg3 term
+    /// using this function we decompress it into a univariate polynomial
     pub fn decompress(&self, hint: &F) -> UniPoly<F> {
         let mut linear_term =
             *hint - self.coeffs_except_linear_term[0] - self.coeffs_except_linear_term[0];
@@ -104,6 +110,8 @@ impl<F: PrimeField> CompressedUniPoly<F> {
     }
 }
 
+
+/// append to transcript for Fiat-Shamir challenge
 impl<G: CurveGroup> AppendToTranscript<G> for UniPoly<G::ScalarField> {
     fn append_to_transcript(&self, label: &'static [u8], transcript: &mut Transcript) {
         transcript.append_message(label, b"UniPoly_begin");

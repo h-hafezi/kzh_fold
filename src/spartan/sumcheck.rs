@@ -15,6 +15,7 @@ use super::unipoly::{CompressedUniPoly, UniPoly};
 
 #[derive(CanonicalSerialize, CanonicalDeserialize, Debug)]
 pub struct SumcheckInstanceProof<F: PrimeField> {
+    /// low degree polynomials that are sent from the prover to the verifier
     compressed_polys: Vec<CompressedUniPoly<F>>,
 }
 
@@ -34,11 +35,16 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
         G: CurveGroup<ScalarField=F>,
     {
         let mut e = claim;
+
+        // the set of fiat-shamir challenges
         let mut r: Vec<F> = Vec::new();
 
         // verify that there is a univariate polynomial for each round
         assert_eq!(self.compressed_polys.len(), num_rounds);
+
+        // go through the rounds
         for i in 0..self.compressed_polys.len() {
+            // todo: understand how decompress works that just gets a claimed value
             let poly = self.compressed_polys[i].decompress(&e);
 
             // verify degree bound
@@ -51,8 +57,7 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
             <UniPoly<F> as AppendToTranscript<G>>::append_to_transcript(&poly, b"poly", transcript);
 
             //derive the verifier's challenge for the next round
-            let r_i =
-                <Transcript as ProofTranscript<G>>::challenge_scalar(transcript, b"challenge_nextround");
+            let r_i = <Transcript as ProofTranscript<G>>::challenge_scalar(transcript, b"challenge_nextround");
 
             r.push(r_i);
 
@@ -67,11 +72,16 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
 
 impl<F: PrimeField> SumcheckInstanceProof<F> {
     pub fn prove_cubic<Func, G>(
+        // todo: why there's a single claim
         claim: &F,
         num_rounds: usize,
+
+        /// the polynomial corresponding A, B, C
         poly_A: &mut MultilinearPolynomial<F>,
         poly_B: &mut MultilinearPolynomial<F>,
         poly_C: &mut MultilinearPolynomial<F>,
+
+        /// comb_func is a function taking three values and returning a linear combination of them
         comb_func: Func,
         transcript: &mut Transcript,
     ) -> (Self, Vec<F>, Vec<F>)
@@ -92,6 +102,7 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
                 // eval 0: bound_func is A(low)
                 eval_point_0 += comb_func(&poly_A[i], &poly_B[i], &poly_C[i]);
 
+                /// understand why these comb functions are defined this way
                 // eval 2: bound_func is -A(low) + 2*A(high)
                 let poly_A_bound_point = poly_A[len + i] + poly_A[len + i] - poly_A[i];
                 let poly_B_bound_point = poly_B[len + i] + poly_B[len + i] - poly_B[i];
@@ -121,10 +132,10 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
             <UniPoly<F> as AppendToTranscript<G>>::append_to_transcript(&poly, b"poly", transcript);
 
             //derive the verifier's challenge for the next round
-            let r_j =
-                <Transcript as ProofTranscript<G>>::challenge_scalar(transcript, b"challenge_nextround");
+            let r_j = <Transcript as ProofTranscript<G>>::challenge_scalar(transcript, b"challenge_nextround");
 
             r.push(r_j);
+
             // bound all tables to the verifier's challenege
             poly_A.bound_poly_var_top(&r_j);
             poly_B.bound_poly_var_top(&r_j);
@@ -219,6 +230,7 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
                 for i in 0..len {
                     // eval 0: bound_func is A(low)
                     eval_point_0 += comb_func(&poly_A[i], &poly_B[i], &poly_C[i]);
+
                     // eval 2: bound_func is -A(low) + 2*A(high)
                     let poly_A_bound_point = poly_A[len + i] + poly_A[len + i] - poly_A[i];
                     let poly_B_bound_point = poly_B[len + i] + poly_B[len + i] - poly_B[i];
@@ -228,6 +240,7 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
                         &poly_B_bound_point,
                         &poly_C_bound_point,
                     );
+
                     // eval 3: bound_func is -2A(low) + 3A(high); computed incrementally with bound_func applied to eval(2)
                     let poly_A_bound_point = poly_A_bound_point + poly_A[len + i] - poly_A[i];
                     let poly_B_bound_point = poly_B_bound_point + poly_B[len + i] - poly_B[i];
