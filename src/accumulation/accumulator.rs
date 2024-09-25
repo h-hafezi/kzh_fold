@@ -11,7 +11,7 @@ use rand::{Rng, RngCore};
 use crate::accumulation::eq_tree::EqTree;
 use crate::accumulation::generate_random_elements;
 use crate::gadgets::non_native::util::convert_affine_to_scalars;
-use crate::hash::poseidon::{PoseidonHash, PoseidonHashTrait, get_poseidon_config};
+use crate::hash::poseidon::{PoseidonHash, get_poseidon_config};
 use ark_crypto_primitives::sponge::poseidon::PoseidonConfig;
 use crate::pcs::multilinear_pcs::{OpeningProof, PolyCommit, PolyCommitTrait, SRS};
 use crate::polynomial::compute_dot_product;
@@ -115,7 +115,7 @@ where
         }
     }
 
-    pub fn compute_fiat_shamir_challenge(instance_1: &AccInstance<E>, instance_2: &AccInstance<E>, Q: E::G1Affine) -> E::ScalarField {
+    pub fn compute_fiat_shamir_challenge(srs: &AccSRS<E>, instance_1: &AccInstance<E>, instance_2: &AccInstance<E>, Q: E::G1Affine) -> E::ScalarField {
         let mut sponge = Vec::new();
         sponge.extend(instance_1.to_sponge_field_elements());
         sponge.extend(instance_2.to_sponge_field_elements());
@@ -124,7 +124,7 @@ where
         let (p1, p2) = convert_affine_to_scalars::<E>(Q);
         sponge.extend(vec![p1, p2]);
 
-        let mut hash_object = PoseidonHash::new();
+        let mut hash_object = PoseidonHash::new(&srs.poseidon_config);
         hash_object.update_sponge(sponge);
         hash_object.output()
     }
@@ -188,12 +188,12 @@ where
         // compute the quotient variable Q
         let Q: E::G1Affine = Self::helper_function_Q(srs, acc_1, acc_2);
 
-        let beta = Accumulator::compute_fiat_shamir_challenge(instance_1, instance_2, Q);
+        let beta = Accumulator::compute_fiat_shamir_challenge(srs, instance_1, instance_2, Q);
 
         let one_minus_beta: E::ScalarField = E::ScalarField::ONE - beta;
 
         // get the accumulated new_instance
-        let new_instance = Self::verify(instance_1, instance_2, Q);
+        let new_instance = Self::verify(srs, instance_1, instance_2, Q);
 
         // get the accumulated witness
         let new_witness = AccWitness {
@@ -236,8 +236,8 @@ where
         return (new_instance, new_witness, Q);
     }
 
-    pub fn verify(instance_1: &AccInstance<E>, instance_2: &AccInstance<E>, Q: E::G1Affine) -> AccInstance<E> {
-        let beta = Accumulator::compute_fiat_shamir_challenge(instance_1, instance_2, Q);
+    pub fn verify(srs: &AccSRS<E>, instance_1: &AccInstance<E>, instance_2: &AccInstance<E>, Q: E::G1Affine) -> AccInstance<E> {
+        let beta = Accumulator::compute_fiat_shamir_challenge(srs, instance_1, instance_2, Q);
         let one_minus_beta: E::ScalarField = E::ScalarField::ONE - beta;
 
         let new_error_term: E::G1Affine = {

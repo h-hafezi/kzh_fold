@@ -274,7 +274,7 @@ where
         let cycle_fold_running_instance = RelaxedR1CSInstance::new(&shape);
         let cycle_fold_running_witness = RelaxedR1CSWitness::zero(&shape);
 
-        let beta = Accumulator::compute_fiat_shamir_challenge(&current_accumulator.instance, &running_accumulator.instance, Q);
+        let beta = Accumulator::compute_fiat_shamir_challenge(srs, &current_accumulator.instance, &running_accumulator.instance, Q);
 
         AccumulatorVerifierCircuitProver {
             beta,
