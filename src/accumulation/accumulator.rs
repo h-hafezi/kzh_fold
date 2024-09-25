@@ -480,8 +480,8 @@ pub mod test {
 
     #[test]
     fn test_accumulator_end_to_end() {
-        let degree_x = 4usize;
-        let degree_y = 16usize;
+        let degree_x = 128usize;
+        let degree_y = 128usize;
         let srs_pcs: SRS<E> = PolyCommit::<E>::setup(degree_x, degree_y, &mut thread_rng());
         let srs = Accumulator::setup(srs_pcs.clone(), &mut thread_rng());
 
