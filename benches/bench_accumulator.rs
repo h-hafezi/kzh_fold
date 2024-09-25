@@ -54,7 +54,7 @@ fn bench_verify(c: &mut Criterion) {
         let bench_name = format!("verify for degrees n={} * m={} (witness size: {})", degree_x, degree_y, degree_x*degree_y);
         c.bench_function(&bench_name, |b| {
             b.iter(|| {
-                let _ = Accumulator::verify(&acc_1.instance, &acc_2.instance, Q);
+                let _ = Accumulator::verify(&srs, &acc_1.instance, &acc_2.instance, Q);
             })
         });
     }
@@ -82,7 +82,7 @@ fn custom_criterion_config() -> Criterion {
 criterion_group! {
     name = acc_benches;
     config = custom_criterion_config();
-    targets =  bench_prove, bench_verify, bench_decide, bench_setup
+    targets =  bench_verify, bench_prove, bench_decide, bench_setup
 }
 
 criterion_main!(acc_benches);

@@ -18,7 +18,7 @@ fn bench_acc_prover(c: &mut Criterion) {
     let mut rng = StdRng::seed_from_u64(0u64);
     let N = 2;
     // Gets too slow after 2^15...
-    let powers_of_two = (1..=16).map(|i| 2usize.pow(i)).collect::<Vec<_>>();
+    let powers_of_two = (1..=20).map(|i| 2usize.pow(i)).collect::<Vec<_>>();
 
     for &d in &powers_of_two {
         let (vec_f, _vec_f_commitments, vec_omega, domain, ck, _vk) = prepare_polynomials_and_srs(N, d, &mut rng);
@@ -36,7 +36,7 @@ fn bench_acc_prover(c: &mut Criterion) {
 fn bench_acc_verifier(c: &mut Criterion) {
     let mut rng = StdRng::seed_from_u64(0u64);
     let N = 2;
-    let powers_of_two = (1..=16).map(|i| 2usize.pow(i)).collect::<Vec<_>>();
+    let powers_of_two = (1..=20).map(|i| 2usize.pow(i)).collect::<Vec<_>>();
 
     for &d in &powers_of_two {
         let (vec_f, vec_f_commitments, vec_omega, domain, ck, vk) = prepare_polynomials_and_srs(N, d, &mut rng);

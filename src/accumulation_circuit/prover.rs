@@ -14,7 +14,7 @@ use crate::gadgets::r1cs::r1cs::commit_T;
 use crate::hash::pederson::PedersenCommitment;
 use crate::nova::cycle_fold::coprocessor::{SecondaryCircuit, setup_shape, synthesize};
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct AccumulatorVerifierCircuitProver<G1, G2, C2, E>
 where
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField> + Clone,
@@ -25,7 +25,7 @@ where
     C2: CommitmentScheme<Projective<G2>, PP = Vec<Affine<G2>>>,
     E: Pairing<G1Affine=Affine<G1>, ScalarField=G1::ScalarField>,
 {
-    /// the randomness used for taking linear combination, it should be input from Accumulator::compute_randomness()
+    /// the randomness used for taking linear combination, it should be input from Accumulator::compute_fiat_shammir_challenge()
     pub beta: G1::ScalarField,
 
     /// srs for the accumulation
@@ -274,7 +274,7 @@ where
         let cycle_fold_running_instance = RelaxedR1CSInstance::new(&shape);
         let cycle_fold_running_witness = RelaxedR1CSWitness::zero(&shape);
 
-        let beta = Accumulator::compute_randomness(&current_accumulator.instance, &running_accumulator.instance, Q);
+        let beta = Accumulator::compute_fiat_shamir_challenge(srs, &current_accumulator.instance, &running_accumulator.instance, Q);
 
         AccumulatorVerifierCircuitProver {
             beta,
