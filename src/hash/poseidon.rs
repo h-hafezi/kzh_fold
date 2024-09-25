@@ -69,16 +69,8 @@ pub struct PoseidonHashVar<F: Absorb + PrimeField> {
     sponge: PoseidonSpongeVar<F>,
 }
 
-pub trait PoseidonHashVarTrait<F: Absorb + PrimeField> {
-    fn new(cs: ConstraintSystemRef<F>) -> Self;
-
-    fn update_sponge<A: AbsorbGadget<F>>(&mut self, field_vector: Vec<A>) -> ();
-
-    fn output(&mut self) -> FpVar<F>;
-}
-
-impl<F: Absorb + PrimeField> PoseidonHashVarTrait<F> for PoseidonHashVar<F> {
-    fn new(cs: ConstraintSystemRef<F>) -> Self {
+impl<F: Absorb + PrimeField> PoseidonHashVar<F> {
+    pub fn new(cs: ConstraintSystemRef<F>) -> Self {
         let poseidon_config = get_poseidon_config();
         let hash = PoseidonHash::new(&poseidon_config);
         // XXX: later don't clone
@@ -90,13 +82,13 @@ impl<F: Absorb + PrimeField> PoseidonHashVarTrait<F> for PoseidonHashVar<F> {
         }
     }
 
-    fn update_sponge<A: AbsorbGadget<F>>(&mut self, field_vector: Vec<A>) -> () {
+    pub fn update_sponge<A: AbsorbGadget<F>>(&mut self, field_vector: Vec<A>) -> () {
         for field_element in field_vector {
             self.sponge.absorb(&field_element).expect("Error while sponge absorbing");
         }
     }
 
-    fn output(&mut self) -> FpVar<F> {
+    pub fn output(&mut self) -> FpVar<F> {
         let squeezed_field_element: Vec<FpVar<F>> = self.sponge.squeeze_field_elements(1).unwrap();
         squeezed_field_element[0].clone()
     }
