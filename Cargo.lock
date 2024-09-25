@@ -1001,6 +1001,7 @@ dependencies = [
  "ark-serialize",
  "ark-std",
  "ark-vesta",
+ "colored",
  "criterion",
  "itertools 0.12.1",
  "lazy_static",

@@ -30,6 +30,7 @@ rand_chacha = "0.3.1"
 ark-vesta = "0.4.0"
 num-bigint = "0.4.6"
 merlin = "3.0.0"
+colored = "2.1.0"
 
 [patch.crates-io]
 ark-crypto-primitives = { git = "https://github.com/arkworks-rs/crypto-primitives", rev = "d27a5c8" }

@@ -31,7 +31,7 @@ pub struct Commitment<E: Pairing> {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OpeningProof<E: Pairing> {
     pub vec_D: Vec<E::G1Affine>,
-    pub f_star_poly: MultilinearPolynomial<E::ScalarField, E>,
+    pub f_star_poly: MultilinearPolynomial<E::ScalarField>,
 }
 
 // Define the new struct that encapsulates the functionality of polynomial commitment
@@ -42,10 +42,10 @@ pub struct PolyCommit<E: Pairing> {
 pub trait PolyCommitTrait<E: Pairing> {
     fn setup<T: RngCore>(n: usize, m: usize, rng: &mut T) -> SRS<E>;
 
-    fn commit(&self, poly: &MultilinearPolynomial<E::ScalarField, E>) -> Commitment<E>;
+    fn commit(&self, poly: &MultilinearPolynomial<E::ScalarField>) -> Commitment<E>;
 
     fn open(&self,
-            poly: &MultilinearPolynomial<E::ScalarField, E>,
+            poly: &MultilinearPolynomial<E::ScalarField>,
             com: Commitment<E>,
             x: &Vec<E::ScalarField>,
     ) -> OpeningProof<E>;
@@ -128,7 +128,7 @@ impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
         };
     }
 
-    fn commit(&self, poly: &MultilinearPolynomial<E::ScalarField, E>) -> Commitment<E> {
+    fn commit(&self, poly: &MultilinearPolynomial<E::ScalarField>) -> Commitment<E> {
         Commitment {
             C: E::G1::sum((0..self.srs.degree_x)
                 .map(|i| {
@@ -151,7 +151,7 @@ impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
         }
     }
 
-    fn open(&self, poly: &MultilinearPolynomial<E::ScalarField, E>, com: Commitment<E>, x: &Vec<E::ScalarField>) -> OpeningProof<E> {
+    fn open(&self, poly: &MultilinearPolynomial<E::ScalarField>, com: Commitment<E>, x: &Vec<E::ScalarField>) -> OpeningProof<E> {
         OpeningProof {
             vec_D: {
                 let mut vec = Vec::new();

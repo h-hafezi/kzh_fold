@@ -76,7 +76,7 @@ pub struct AccWitness<E: Pairing> {
     pub vec_D: Vec<E::G1Affine>,
 
     // MLP of degree_y
-    pub f_star_poly: MultilinearPolynomial<E::ScalarField, E>,
+    pub f_star_poly: MultilinearPolynomial<E::ScalarField>,
 
     pub tree_x: EqTree<E::ScalarField>,
 
@@ -206,7 +206,6 @@ where
                     )
                     .collect(),
                 len: witness_1.f_star_poly.len(),
-                phantom: Default::default(),
             },
             tree_x: EqTree {
                 nodes: witness_1.tree_x.nodes.iter()
@@ -293,7 +292,6 @@ where
                         .map(|(&e2, &e1)| e2 * two - e1)
                         .collect(),
                     len: witness_1.f_star_poly.len(),
-                    phantom: Default::default(),
                 },
                 tree_x: EqTree {
                     nodes: witness_2.tree_x.nodes.iter()

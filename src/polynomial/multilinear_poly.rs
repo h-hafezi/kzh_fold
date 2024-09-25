@@ -23,27 +23,21 @@ use crate::polynomial::math::Math;
 use crate::utils::inner_product;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MultilinearPolynomial<F: PrimeField, E: Pairing> {
+pub struct MultilinearPolynomial<F: PrimeField> {
     /// the number of variables in the multilinear polynomial
     pub(crate) num_variables: usize,
     /// evaluations of the polynomial in all the 2^num_vars Boolean inputs
     pub(crate) evaluation_over_boolean_hypercube: Vec<F>,
     /// length of Z = 2^num_vars
     pub(crate) len: usize,
-    /// phantom data for E
-    pub phantom: PhantomData<E>,
 }
 
-impl<F: PrimeField, E: Pairing> MultilinearPolynomial<F, E>
-where
-    E: Pairing<ScalarField=F>,
-{
+impl<F: PrimeField> MultilinearPolynomial<F> {
     pub fn new(evaluation_over_boolean_hypercube: Vec<F>) -> Self {
         MultilinearPolynomial {
             num_variables: evaluation_over_boolean_hypercube.len().log_2(),
             len: evaluation_over_boolean_hypercube.len(),
             evaluation_over_boolean_hypercube,
-            phantom: Default::default(),
         }
     }
 
@@ -116,7 +110,7 @@ where
         &self.evaluation_over_boolean_hypercube
     }
 
-    pub fn extend(&mut self, other: &MultilinearPolynomial<F, E>) {
+    pub fn extend(&mut self, other: &MultilinearPolynomial<F>) {
         // TODO: allow extension even when some vars are bound
         assert_eq!(self.evaluation_over_boolean_hypercube.len(), self.len);
         let other_vec = other.vec();
@@ -127,7 +121,7 @@ where
         assert_eq!(self.evaluation_over_boolean_hypercube.len(), self.len);
     }
 
-    pub fn merge(polys: &[MultilinearPolynomial<F, E>]) -> MultilinearPolynomial<F, E> {
+    pub fn merge(polys: &[MultilinearPolynomial<F>]) -> MultilinearPolynomial<F> {
         let mut Z: Vec<F> = Vec::new();
         for poly in polys.iter() {
             Z.extend(poly.vec().iter());
@@ -148,10 +142,10 @@ where
     }
 }
 
-impl<F: PrimeField, E: Pairing<ScalarField=F>> MultilinearPolynomial<F, E> {
+impl<F: PrimeField> MultilinearPolynomial<F> {
     /// Perform partial evaluation by fixing the first `fixed_vars.len()` variables to `fixed_vars`.
     /// Returns a new MultilinearPolynomial in the remaining variables.
-    pub fn partial_evaluation(&self, fixed_vars: &[F]) -> MultilinearPolynomial<F, E> {
+    pub fn partial_evaluation(&self, fixed_vars: &[F]) -> MultilinearPolynomial<F> {
         let mut temp = self.clone();
         for r in fixed_vars {
             temp.bound_poly_var_top(r);
@@ -159,11 +153,11 @@ impl<F: PrimeField, E: Pairing<ScalarField=F>> MultilinearPolynomial<F, E> {
         temp
     }
 
-    pub fn get_partial_evaluation_for_boolean_input(&self, index: usize, n: usize) -> Vec<E::ScalarField> {
+    pub fn get_partial_evaluation_for_boolean_input(&self, index: usize, n: usize) -> Vec<F> {
         self.evaluation_over_boolean_hypercube[n * index..n * index +n].to_vec()
     }
 
-    pub fn rand<T: RngCore>(num_variables: usize, rng: &mut T) -> MultilinearPolynomial<F, E> {
+    pub fn rand<T: RngCore>(num_variables: usize, rng: &mut T) -> MultilinearPolynomial<F> {
         MultilinearPolynomial {
             num_variables,
             evaluation_over_boolean_hypercube: {
@@ -175,8 +169,16 @@ impl<F: PrimeField, E: Pairing<ScalarField=F>> MultilinearPolynomial<F, E> {
                 vector
             },
             len: 1 << num_variables,
-            phantom: Default::default(),
         }
+    }
+}
+
+impl<F: PrimeField> Index<usize> for MultilinearPolynomial<F> {
+    type Output = F;
+
+    #[inline(always)]
+    fn index(&self, _index: usize) -> &F {
+        &(self.evaluation_over_boolean_hypercube[_index])
     }
 }
 
@@ -197,7 +199,7 @@ mod tests {
 
     #[test]
     fn tests_partial_eval() {
-        let p = MultilinearPolynomial::<ScalarField, E>::rand(3, &mut thread_rng());
+        let p = MultilinearPolynomial::<ScalarField>::rand(3, &mut thread_rng());
         let r_1 = vec![
             ScalarField::ONE,
             ScalarField::ZERO,
@@ -259,7 +261,7 @@ mod tests {
         let r = vec![E::ScalarField::from(4u64), E::ScalarField::from(3u64)];
 
         let eval_with_LR = evaluate_with_LR::<E>(&Z, &r);
-        let poly: MultilinearPolynomial<<E as Pairing>::ScalarField, E> = MultilinearPolynomial::new(Z);
+        let poly: MultilinearPolynomial<<E as Pairing>::ScalarField> = MultilinearPolynomial::new(Z);
 
         let eval = poly.evaluate(&r);
         assert_eq!(eval, E::ScalarField::from(28u64));
