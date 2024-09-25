@@ -11,13 +11,14 @@ use rand::{Rng, RngCore};
 use crate::accumulation::eq_tree::EqTree;
 use crate::accumulation::generate_random_elements;
 use crate::gadgets::non_native::util::convert_affine_to_scalars;
-use crate::hash::poseidon::{PoseidonHash, PoseidonHashTrait};
+use crate::hash::poseidon::{PoseidonHash, PoseidonHashTrait, get_poseidon_config};
+use ark_crypto_primitives::sponge::poseidon::PoseidonConfig;
 use crate::pcs::multilinear_pcs::{OpeningProof, PolyCommit, PolyCommitTrait, SRS};
 use crate::polynomial::compute_dot_product;
 use crate::polynomial::math::Math;
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct AccSRS<E: Pairing> {
     // vector of size 2 * degree_x - 1
     pub k_x: Vec<E::G1Affine>,
@@ -27,6 +28,8 @@ pub struct AccSRS<E: Pairing> {
 
     pub k_prime: E::G1Affine,
     pub pc_srs: SRS<E>,
+
+    pub poseidon_config: PoseidonConfig<E:: ScalarField>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -101,6 +104,7 @@ where
             k_x: generate_random_elements::<E, T>(2 * pc_srs.degree_x - 1, rng),
             k_y: generate_random_elements::<E, T>(2 * pc_srs.degree_y - 1, rng),
             k_prime: E::G1Affine::rand(rng),
+            poseidon_config: get_poseidon_config(),
         }
     }
 

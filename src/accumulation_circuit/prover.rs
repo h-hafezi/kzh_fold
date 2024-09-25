@@ -14,7 +14,7 @@ use crate::gadgets::r1cs::r1cs::commit_T;
 use crate::hash::pederson::PedersenCommitment;
 use crate::nova::cycle_fold::coprocessor::{SecondaryCircuit, setup_shape, synthesize};
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct AccumulatorVerifierCircuitProver<G1, G2, C2, E>
 where
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField> + Clone,
