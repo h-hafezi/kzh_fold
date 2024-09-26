@@ -1,4 +1,6 @@
-/*use ark_crypto_primitives::sponge::Absorb;
+use std::iter;
+
+use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::AffineRepr;
 use ark_ff::{PrimeField, UniformRand};
 use rand::RngCore;
@@ -6,19 +8,17 @@ use ark_ec::pairing::Pairing;
 use ark_ec::VariableBaseMSM;
 use transcript::IOPTranscript;
 
-use crate::accumulation::accumulator::{get_srs, AccInstance, AccWitness, Accumulator};
+use crate::accumulation::accumulator::{AccInstance, AccWitness, Accumulator};
+use ark_ff::Zero;
+use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 use crate::{accumulation, pcs};
-use crate::polynomial::bivariate_polynomial::bivariate_poly::BivariatePolynomial;
-use crate::signature_aggregation::bivariate_sumcheck;
-use crate::signature_aggregation::bivariate_sumcheck::SumcheckProof;
+use crate::pcs::multilinear_pcs::{OpeningProof, PolyCommit, PolyCommitTrait, Commitment, SRS as PcsSRS};
 
-use crate::pcs::bivariate_pcs::{Commitment, OpeningProof, PolyCommit, PolyCommitTrait};
-use crate::pcs::bivariate_pcs;
+use super::bivariate_sumcheck::SumcheckProof; // XXX ugly PcsSRS
 
 // XXX move to mod.rs or somewhere neutral
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct SRS<E: Pairing> {
-    pub pcs_srs: pcs::bivariate_pcs::SRS<E>,
     pub acc_srs: accumulation::accumulator::AccSRS<E>,
 }
 
@@ -28,9 +28,10 @@ where
     <E as Pairing>::ScalarField: Absorb,
 {
     fn new<T: RngCore>(degree_x: usize, degree_y: usize, rng: &mut T) -> Self {
+        let pcs_srs =  PolyCommit::setup(degree_x, degree_y, rng);
+
         SRS {
-            pcs_srs: PolyCommit::setup(degree_x, degree_y, rng),
-            acc_srs: get_srs(degree_x, degree_y, rng),
+            acc_srs: Accumulator::setup(pcs_srs, rng),
         }
     }
 }
@@ -39,7 +40,7 @@ pub struct SignatureAggrData<E: Pairing> {
     // TODO comment this out for now. we will figure out the BLS stuff later.
     //pk: E::G1Affine,
     //sig: E::G2Affine,
-    bitfield_poly: BivariatePolynomial<E::ScalarField, E>,
+    bitfield_poly: MultilinearPolynomial<E::ScalarField>,
     bitfield_commitment: Commitment<E>,
     sumcheck_proof: Option<SumcheckProof<E>>,
     // TODO Hossein: For now, instead of a proof, let's just put the R1CS circuit here
@@ -47,9 +48,9 @@ pub struct SignatureAggrData<E: Pairing> {
 }
 
 impl<E: Pairing> SignatureAggrData<E> {
-    pub fn new(bitfield_poly: BivariatePolynomial<E::ScalarField, E>, _sumcheck_proof: Option<SumcheckProof<E>>, srs: &SRS<E>) -> Self {
+    pub fn new(bitfield_poly: MultilinearPolynomial<E::ScalarField>, _sumcheck_proof: Option<SumcheckProof<E>>, srs: &SRS<E>) -> Self {
         // XXX this PolyCommit is not very ergonomic
-        let poly_commit = PolyCommit { srs: srs.pcs_srs.clone() }; // XXX no clone
+        let poly_commit = PolyCommit { srs: srs.acc_srs.pc_srs.clone() }; // XXX no clone
         let bitfield_commitment = poly_commit.commit(&bitfield_poly);
         SignatureAggrData {
             bitfield_poly,
@@ -73,13 +74,13 @@ where
     <E as Pairing>::ScalarField: Absorb,
 {
     fn get_accumulator_from_evaluation(&self,
-                                       bitfield_poly: &BivariatePolynomial<E::ScalarField, E>,
+                                       bitfield_poly: &MultilinearPolynomial<E::ScalarField>,
                                        bitfield_commitment: &Commitment<E>,
-                                       alpha: &E::ScalarField,
-                                       beta: &E::ScalarField) -> Accumulator<E> {
-        let poly_commit = PolyCommit { srs: self.srs.pcs_srs.clone() }; // XXX no clone. bad ergonomics
+                                       alpha: &Vec<E::ScalarField>,
+                                       beta: &Vec<E::ScalarField>) -> Accumulator<E> {
+        let poly_commit = PolyCommit { srs: self.srs.acc_srs.pc_srs.clone() }; // XXX no clone. bad ergonomics
 
-        let y = bitfield_poly.evaluate(alpha, beta);
+        let y = bitfield_poly.evaluate(&alpha);
         let opening_proof = poly_commit.open(bitfield_poly, bitfield_commitment.clone(), alpha); // XXX needless clone
         // XXX bad name for function
         let acc_instance = Accumulator::new_accumulator_instance_from_proof(
@@ -102,7 +103,7 @@ where
     }
 
     pub fn aggregate(&self, transcript: &mut IOPTranscript<E::ScalarField>) -> SignatureAggrData<E> {
-        let poly_commit = PolyCommit { srs: self.srs.pcs_srs.clone() }; // XXX no clone. bad ergonomics
+        let poly_commit = PolyCommit { srs: self.srs.acc_srs.pc_srs.clone() }; // XXX no clone. bad ergonomics
         // let pk = self.A_1.pk + self.A_2.pk;
         // let sk = self.A_1.sig + self.A_2.sig;
 
@@ -115,7 +116,10 @@ where
         // for now let's pretend it's c_poly
 
         let f_poly = c_poly.clone();
-        let (sumcheck_proof, (alpha, beta)) = bivariate_sumcheck::prove::<E>(&f_poly, transcript);
+        // let (sumcheck_proof, (alpha, beta)) = bivariate_sumcheck::prove::<E>(&f_poly, transcript);
+
+        let alpha: Vec<E::ScalarField> = iter::repeat_with(|| E::ScalarField::zero()).take(12).collect();
+        let beta: Vec<E::ScalarField> = iter::repeat_with(|| E::ScalarField::zero()).take(12).collect();
 
         // Now the verifier will need:
         // y_1 = b_1(alpha, beta)
@@ -152,7 +156,7 @@ where
         SignatureAggrData {
             bitfield_poly: c_poly,
             bitfield_commitment: C_commitment,
-            sumcheck_proof: Some(sumcheck_proof),
+            sumcheck_proof: None,
             // ivc_proof: ivc_proof
         }
     }
@@ -165,7 +169,6 @@ pub mod test {
     use ark_std::test_rng;
     use ark_std::UniformRand;
     use crate::constant_for_curves::{E, ScalarField};
-    use crate::signature_aggregation::verifier::Verifier;
 
     #[test]
     fn test_aggregate() {
@@ -179,10 +182,10 @@ pub mod test {
 
         let srs = SRS::<E>::new(degree_x, degree_y, rng);
 
-        let b_1 = BivariatePolynomial::random_binary(rng, domain_x, domain_y, degree_x, degree_y);
+        let b_1 = MultilinearPolynomial::random_binary(rng, domain_x, domain_y, degree_x, degree_y);
         let sig_aggr_data_1 = SignatureAggrData::new(b_1, None, &srs);
 
-        let b_2 = BivariatePolynomial::random_binary(rng, domain_x, domain_y, degree_x, degree_y);
+        let b_2 = MultilinearPolynomial::random_binary(rng, domain_x, domain_y, degree_x, degree_y);
         let sig_aggr_data_2 = SignatureAggrData::new(b_2, None, &srs);
 
         let aggregator = Aggregator {
@@ -197,15 +200,13 @@ pub mod test {
         // TODO Hossein: Check that the witness satisfies the witness and examine the witness for 1s and 0s
 
         // Now let's do verification
-        let verifier = Verifier {
-            srs,
-            A: agg_data
-        };
+        // let verifier = Verifier {
+        //     srs,
+        //     A: agg_data
+        // };
 
-        assert_eq!(true, verifier.verify())
+        // assert_eq!(true, verifier.verify())
     }
 }
 
 
-
- */

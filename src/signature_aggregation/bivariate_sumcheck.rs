@@ -1,14 +1,17 @@
-/*use ark_ec::pairing::Pairing;
+use std::marker::PhantomData;
+
+use ark_ec::pairing::Pairing;
 use transcript::IOPTranscript;
-use crate::polynomial::bivariate_polynomial::bivariate_poly::BivariatePolynomial;
-use crate::polynomial::bivariate_polynomial::univariate_poly::UnivariatePolynomial;
-use crate::polynomial::traits::TwoDimensionalPolynomial;
+use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 
 pub struct SumcheckProof<E: Pairing> {
-    r_poly: UnivariatePolynomial<E::ScalarField, E>, // first round polynomial
-    s_poly: UnivariatePolynomial<E::ScalarField, E>, // second round polynomial
+    _field: PhantomData<E>
+    // r_poly: MultilinearPolynomial<E::ScalarField>, // first round polynomial
+    // s_poly: MultilinearPolynomial<E::ScalarField>, // second round polynomial
     // more more more
 }
+
+/*
 
 pub fn prove<E: Pairing>(f_poly: &BivariatePolynomial<E::ScalarField, E>, transcript: &mut IOPTranscript<E::ScalarField>) -> (SumcheckProof<E>, (E::ScalarField, E::ScalarField))  {
     let r_poly = f_poly.sum_partial_evaluations_in_domain();
