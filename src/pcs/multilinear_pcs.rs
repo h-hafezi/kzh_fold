@@ -151,6 +151,8 @@ impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
         }
     }
 
+    /// Creates a KZH proof for p(x,y) = z.
+    /// This function does not actually need y, so we only get the left half of the eval point.
     fn open(&self, poly: &MultilinearPolynomial<E::ScalarField>, com: Commitment<E>, x: &Vec<E::ScalarField>) -> OpeningProof<E> {
         OpeningProof {
             vec_D: {

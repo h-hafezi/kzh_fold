@@ -80,8 +80,12 @@ where
                                        beta: &Vec<E::ScalarField>) -> Accumulator<E> {
         let poly_commit = PolyCommit { srs: self.srs.acc_srs.pc_srs.clone() }; // XXX no clone. bad ergonomics
 
-        let y = bitfield_poly.evaluate(&alpha);
-        let opening_proof = poly_commit.open(bitfield_poly, bitfield_commitment.clone(), alpha); // XXX needless clone
+        // Get (alpha, beta) as the evaluation point
+        let eval_point: Vec<E::ScalarField> = alpha.clone().into_iter().chain(beta.clone()).collect(); // XXX bad clone
+
+        let y = bitfield_poly.evaluate(&eval_point);
+        let opening_proof = poly_commit.open(bitfield_poly, bitfield_commitment.clone(), &alpha); // XXX needless clone
+
         // XXX bad name for function
         let acc_instance = Accumulator::new_accumulator_instance_from_proof(
             &self.srs.acc_srs,
@@ -118,8 +122,9 @@ where
         let _f_poly = c_poly.clone();
         // let (sumcheck_proof, (alpha, beta)) = bivariate_sumcheck::prove::<E>(&f_poly, transcript);
 
-        let alpha: Vec<E::ScalarField> = iter::repeat_with(|| E::ScalarField::zero()).take(12).collect();
-        let beta: Vec<E::ScalarField> = iter::repeat_with(|| E::ScalarField::zero()).take(12).collect();
+        // XXX remove
+        let alpha: Vec<E::ScalarField> = iter::repeat_with(|| E::ScalarField::zero()).take(3).collect();
+        let beta: Vec<E::ScalarField> = iter::repeat_with(|| E::ScalarField::zero()).take(3).collect();
 
         // Now the verifier will need:
         // y_1 = b_1(alpha, beta)
@@ -175,7 +180,7 @@ pub mod test {
         let rng = &mut rand::thread_rng();
         let mut transcript = IOPTranscript::<ScalarField>::new(b"aggr");
 
-        // Can handle 8*8 evaluations. Hence need 6 vars (2^6 = 8*8)
+        // num_vars = log(degree_x) + log(degree_y)
         let degree_x = 8usize;
         let degree_y = 8usize;
         let num_vars = 6usize;
@@ -194,7 +199,7 @@ pub mod test {
             A_2: sig_aggr_data_2,
         };
 
-        let agg_data = aggregator.aggregate(&mut transcript);
+        let _agg_data = aggregator.aggregate(&mut transcript);
         // TODO Hossein: Print the constraint count of the R1CS circuit
 
         // TODO Hossein: Check that the witness satisfies the witness and examine the witness for 1s and 0s

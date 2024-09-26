@@ -129,6 +129,8 @@ where
         hash_object.output()
     }
 
+    /// Given public data for the opening p(x, y) = z
+    /// return an accumulator instance
     pub fn new_accumulator_instance_from_proof(
         srs: &AccSRS<E>,
         C: &E::G1Affine,
@@ -421,18 +423,10 @@ impl<E: Pairing> Accumulator<E> {
             y2.push(E::ScalarField::rand(rng));
         }
 
-        let whole_input_1 = {
-            let mut res = vec![];
-            res.extend(x1.clone());
-            res.extend(y1.clone());
-            res
-        };
-        let whole_input_2 = {
-            let mut res = vec![];
-            res.extend(x2.clone());
-            res.extend(y2.clone());
-            res
-        };
+        // Get vector: (x1, y1)
+        let whole_input_1:  Vec<_> = x1.clone().into_iter().chain(y1.clone()).collect();
+        // Get vector: (x2, y2)
+        let whole_input_2:  Vec<_> = x2.clone().into_iter().chain(y2.clone()).collect();
 
         let z1 = polynomial1.evaluate(&whole_input_1);
         let z2 = polynomial2.evaluate(&whole_input_2);
