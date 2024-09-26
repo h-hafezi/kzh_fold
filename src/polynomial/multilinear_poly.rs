@@ -191,6 +191,22 @@ impl<F: PrimeField> MultilinearPolynomial<F> {
             len: 1 << num_variables,
         }
     }
+
+    /// Return a multilinear poly with evaluations that are either 0 or 1
+    pub fn random_binary<T: RngCore>(num_variables: usize, rng: &mut T) -> MultilinearPolynomial<F> {
+        let evals_len = 1 << num_variables;
+
+        let evals = (0..evals_len).map(|_| {
+            let random_bit = rng.gen_bool(0.5); // Generates a random boolean with equal probability
+            if random_bit { F::one() } else { F::zero() }
+        }).collect();
+
+        MultilinearPolynomial {
+            num_variables,
+            evaluation_over_boolean_hypercube: evals,
+            len: evals_len,
+        }
+    }
 }
 
 impl<F: PrimeField> Index<usize> for MultilinearPolynomial<F> {

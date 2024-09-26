@@ -175,17 +175,17 @@ pub mod test {
         let rng = &mut rand::thread_rng();
         let mut transcript = IOPTranscript::<ScalarField>::new(b"aggr");
 
-        let degree_x = 16usize;
-        let degree_y = 4usize;
-        let domain_x = GeneralEvaluationDomain::<ScalarField>::new(degree_x).unwrap();
-        let domain_y = GeneralEvaluationDomain::<ScalarField>::new(degree_y).unwrap();
+        // Can handle 8*8 evaluations. Hence need 6 vars (2^6 = 8*8)
+        let degree_x = 8usize;
+        let degree_y = 8usize;
+        let num_vars = 6usize;
 
         let srs = SRS::<E>::new(degree_x, degree_y, rng);
 
-        let b_1 = MultilinearPolynomial::random_binary(rng, domain_x, domain_y, degree_x, degree_y);
+        let b_1 = MultilinearPolynomial::random_binary(num_vars, rng);
         let sig_aggr_data_1 = SignatureAggrData::new(b_1, None, &srs);
 
-        let b_2 = MultilinearPolynomial::random_binary(rng, domain_x, domain_y, degree_x, degree_y);
+        let b_2 = MultilinearPolynomial::random_binary(num_vars, rng);
         let sig_aggr_data_2 = SignatureAggrData::new(b_2, None, &srs);
 
         let aggregator = Aggregator {
