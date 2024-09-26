@@ -140,6 +140,26 @@ impl<F: PrimeField> MultilinearPolynomial<F> {
                 .collect::<Vec<F>>(),
         )
     }
+
+    /// Get c(x) = self(x) v other(x)
+    pub fn get_bitfield_union_poly(&self, other: &Self) -> Self {
+        assert_eq!(self.num_variables, other.num_variables);
+
+        let evaluations: Vec<F> = self.evaluation_over_boolean_hypercube.iter()
+            .zip(&other.evaluation_over_boolean_hypercube)
+            .map(|(a, b)| {
+                *a + *b - *a * *b // Since a, b are either 0 or 1, this is equivalent to a | b
+            })
+            .collect();
+
+        let len = evaluations.len();
+
+        Self {
+            num_variables: self.num_variables,
+            evaluation_over_boolean_hypercube: evaluations,
+            len: len,
+        }
+    }
 }
 
 impl<F: PrimeField> MultilinearPolynomial<F> {

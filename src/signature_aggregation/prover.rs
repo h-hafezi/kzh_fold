@@ -102,12 +102,12 @@ where
         }
     }
 
-    pub fn aggregate(&self, transcript: &mut IOPTranscript<E::ScalarField>) -> SignatureAggrData<E> {
+    pub fn aggregate(&self, _transcript: &mut IOPTranscript<E::ScalarField>) -> SignatureAggrData<E> {
         let poly_commit = PolyCommit { srs: self.srs.acc_srs.pc_srs.clone() }; // XXX no clone. bad ergonomics
         // let pk = self.A_1.pk + self.A_2.pk;
         // let sk = self.A_1.sig + self.A_2.sig;
 
-        let c_poly = self.A_1.bitfield_poly.bitfield_union(&self.A_2.bitfield_poly);
+        let c_poly = self.A_1.bitfield_poly.get_bitfield_union_poly(&self.A_2.bitfield_poly);
         let C_commitment = poly_commit.commit(&c_poly);
 
         // Now aggregate all three polys into one
@@ -115,7 +115,7 @@ where
         // let f_poly = b_1 + b_2 - b_1*b_2 - c;
         // for now let's pretend it's c_poly
 
-        let f_poly = c_poly.clone();
+        let _f_poly = c_poly.clone();
         // let (sumcheck_proof, (alpha, beta)) = bivariate_sumcheck::prove::<E>(&f_poly, transcript);
 
         let alpha: Vec<E::ScalarField> = iter::repeat_with(|| E::ScalarField::zero()).take(12).collect();
