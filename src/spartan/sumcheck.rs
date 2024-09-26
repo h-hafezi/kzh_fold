@@ -76,12 +76,12 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
         claim: &F,
         num_rounds: usize,
 
-        /// the polynomial corresponding A, B, C
+        // the polynomial corresponding A, B, C
         poly_A: &mut MultilinearPolynomial<F>,
         poly_B: &mut MultilinearPolynomial<F>,
         poly_C: &mut MultilinearPolynomial<F>,
 
-        /// comb_func is a function taking three values and returning a linear combination of them
+        // comb_func is a function taking three values and returning a linear combination of them
         comb_func: Func,
         transcript: &mut Transcript,
     ) -> (Self, Vec<F>, Vec<F>)
@@ -102,7 +102,7 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
                 // eval 0: bound_func is A(low)
                 eval_point_0 += comb_func(&poly_A[i], &poly_B[i], &poly_C[i]);
 
-                /// understand why these comb functions are defined this way
+                // XXX: understand why these comb functions are defined this way
                 // eval 2: bound_func is -A(low) + 2*A(high)
                 let poly_A_bound_point = poly_A[len + i] + poly_A[len + i] - poly_A[i];
                 let poly_B_bound_point = poly_B[len + i] + poly_B[len + i] - poly_B[i];

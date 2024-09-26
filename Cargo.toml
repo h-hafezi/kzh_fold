@@ -54,7 +54,7 @@ ark-bls12-381 = { git = "https://github.com/arkworks-rs/curves/", rev = "3fded1f
 default = ["parallel"]
 # extensive sanity checks that are useful for debugging
 extensive_sanity_checks = []
-
+profile = []
 bench = []
 
 
