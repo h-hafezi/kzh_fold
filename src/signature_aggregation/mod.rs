@@ -1,3 +1,3 @@
-pub mod bivariate_sumcheck;
+pub mod sumcheck;
 pub mod prover;
 pub mod verifier;

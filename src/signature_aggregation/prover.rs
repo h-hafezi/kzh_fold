@@ -14,7 +14,7 @@ use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 use crate::{accumulation, pcs};
 use crate::pcs::multilinear_pcs::{OpeningProof, PolyCommit, PolyCommitTrait, Commitment, SRS as PcsSRS};
 
-use super::bivariate_sumcheck::SumcheckProof; // XXX ugly PcsSRS
+use super::sumcheck::SumcheckProof; // XXX ugly PcsSRS
 
 // XXX move to mod.rs or somewhere neutral
 #[derive(Clone, Debug)]

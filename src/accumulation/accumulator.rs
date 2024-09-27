@@ -168,7 +168,6 @@ where
         assert_eq!(1 << x.len(), srs.pc_srs.degree_x, "invalid size of vector x");
         assert_eq!(1 << y.len(), srs.pc_srs.degree_y, "invalid size of vector y");
         assert_eq!(proof.vec_D.len(), srs.pc_srs.degree_x, "invalid proof size");
-
         AccWitness {
             vec_D: proof.vec_D,
             f_star_poly: proof.f_star_poly,
