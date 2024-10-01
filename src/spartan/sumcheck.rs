@@ -322,3 +322,86 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
         )
     }
 }
+
+// XXX: This is used for the signature aggregation protocol!!!
+impl<F: PrimeField> SumcheckInstanceProof<F> {
+    pub fn prove_cubic_four_terms<Func, G>(
+        claim: &F,
+        num_rounds: usize,
+        poly_A: &mut MultilinearPolynomial<F>,
+        poly_B: &mut MultilinearPolynomial<F>,
+        poly_C: &mut MultilinearPolynomial<F>,
+        poly_D: &mut MultilinearPolynomial<F>,
+        comb_func: Func,
+        transcript: &mut Transcript,
+    ) -> (Self, Vec<F>, Vec<F>)
+    where
+        Func: Fn(&F, &F, &F, &F) -> F,
+        G: CurveGroup<ScalarField = F>,
+    {
+        let mut e = *claim;
+        let mut r: Vec<F> = Vec::new();
+        let mut cubic_polys: Vec<CompressedUniPoly<F>> = Vec::new();
+        for _j in 0..num_rounds {
+            let mut eval_point_0 = F::zero();
+            let mut eval_point_2 = F::zero();
+            let mut eval_point_3 = F::zero();
+
+            let len = poly_A.len() / 2;
+            for i in 0..len {
+                // eval 0: bound_func is A(low)
+                eval_point_0 += comb_func(&poly_A[i], &poly_B[i], &poly_C[i], &poly_D[i]);
+
+                // eval 2: bound_func is -A(low) + 2*A(high)
+                let poly_A_bound_point = poly_A[len + i] + poly_A[len + i] - poly_A[i];
+                let poly_B_bound_point = poly_B[len + i] + poly_B[len + i] - poly_B[i];
+                let poly_C_bound_point = poly_C[len + i] + poly_C[len + i] - poly_C[i];
+                let poly_D_bound_point = poly_D[len + i] + poly_D[len + i] - poly_D[i];
+
+                eval_point_2 += comb_func(
+                    &poly_A_bound_point,
+                    &poly_B_bound_point,
+                    &poly_C_bound_point,
+                    &poly_D_bound_point,
+                );
+
+                // eval 3: bound_func is -2A(low) + 3A(high); computed incrementally with bound_func applied to eval(2)
+                let poly_A_bound_point = poly_A_bound_point + poly_A[len + i] - poly_A[i];
+                let poly_B_bound_point = poly_B_bound_point + poly_B[len + i] - poly_B[i];
+                let poly_C_bound_point = poly_C_bound_point + poly_C[len + i] - poly_C[i];
+                let poly_D_bound_point = poly_D_bound_point + poly_D[len + i] - poly_D[i];
+
+                eval_point_3 += comb_func(
+                    &poly_A_bound_point,
+                    &poly_B_bound_point,
+                    &poly_C_bound_point,
+                    &poly_D_bound_point,
+                );
+            }
+
+            let evals = vec![eval_point_0, e - eval_point_0, eval_point_2, eval_point_3];
+            let poly = UniPoly::from_evals(&evals);
+
+            // append the prover's message to the transcript
+            <UniPoly<F> as AppendToTranscript<G>>::append_to_transcript(&poly, b"poly", transcript);
+
+            //derive the verifier's challenge for the next round
+            let r_j =
+                <Transcript as ProofTranscript<G>>::challenge_scalar(transcript, b"challenge_nextround");
+
+            r.push(r_j);
+            // bound all tables to the verifier's challenege
+            poly_A.bound_poly_var_top(&r_j);
+            poly_B.bound_poly_var_top(&r_j);
+            poly_C.bound_poly_var_top(&r_j);
+            poly_D.bound_poly_var_top(&r_j);
+            e = poly.evaluate(&r_j);
+            cubic_polys.push(poly.compress());
+        }
+        (
+            SumcheckInstanceProof::new(cubic_polys),
+            r,
+            vec![poly_A[0], poly_B[0], poly_C[0], poly_D[0]],
+        )
+    }
+}
