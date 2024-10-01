@@ -5,9 +5,11 @@ use ark_ff::PrimeField;
 use ark_serialize::*;
 use ark_std::Zero;
 use itertools::izip;
-use merlin::Transcript;
+use merlin::Transcript; // original nexus transcript
+use transcript::IOPTranscript; // our own transcript
 
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
+use crate::constant_for_curves::E;
 
 use super::errors::ProofVerifyError;
 use super::transcript::{AppendToTranscript, ProofTranscript};
@@ -333,7 +335,7 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
         poly_C: &mut MultilinearPolynomial<F>,
         poly_D: &mut MultilinearPolynomial<F>,
         comb_func: Func,
-        transcript: &mut Transcript,
+        transcript: &mut IOPTranscript<F>,
     ) -> (Self, Vec<F>, Vec<F>)
     where
         Func: Fn(&F, &F, &F, &F) -> F,
@@ -383,11 +385,10 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
             let poly = UniPoly::from_evals(&evals);
 
             // append the prover's message to the transcript
-            <UniPoly<F> as AppendToTranscript<G>>::append_to_transcript(&poly, b"poly", transcript);
+            transcript.append_serializable_element(b"poly", &poly).unwrap();
 
             //derive the verifier's challenge for the next round
-            let r_j =
-                <Transcript as ProofTranscript<G>>::challenge_scalar(transcript, b"challenge_nextround");
+            let r_j: F = transcript.get_and_append_challenge(b"challenge_nextround").unwrap();
 
             r.push(r_j);
             // bound all tables to the verifier's challenege

@@ -6,8 +6,8 @@ use merlin::Transcript;
 
 /// ax^2 + bx + c stored as vec![c,b,a]
 /// ax^3 + bx^2 + cx + d stored as vec![d,c,b,a]
-#[derive(Debug)]
-pub struct UniPoly<F> {
+#[derive(CanonicalSerialize, Debug)]
+pub struct UniPoly<F: ark_serialize::CanonicalSerialize> {
     coeffs: Vec<F>,
 }
 

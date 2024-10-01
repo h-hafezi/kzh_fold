@@ -7,7 +7,6 @@ use rand::RngCore;
 use ark_ec::pairing::Pairing;
 use ark_ec::VariableBaseMSM;
 use transcript::IOPTranscript;
-use merlin::Transcript;
 
 use crate::accumulation::accumulator::{AccInstance, AccWitness, Accumulator};
 use ark_ff::Zero;
@@ -107,7 +106,7 @@ where
         }
     }
 
-    pub fn aggregate(&self, _transcript: &mut IOPTranscript<E::ScalarField>) -> SignatureAggrData<E> {
+    pub fn aggregate(&self, transcript: &mut IOPTranscript<E::ScalarField>) -> SignatureAggrData<E> {
         let poly_commit = PolyCommit { srs: self.srs.acc_srs.pc_srs.clone() }; // XXX no clone. bad ergonomics
         // let pk = self.A_1.pk + self.A_2.pk;
         // let sk = self.A_1.sig + self.A_2.sig;
@@ -125,7 +124,6 @@ where
         // XXX transcript
         // XXX num_rounds
         let num_rounds = c_poly.len().log_2(); // XXX wrong
-        let mut merlin_transcript = Transcript::new(b"example");
         let (sumcheck_proof, alpha, beta) =
             SumcheckInstanceProof::prove_cubic_four_terms::<_, E::G1>(&E::ScalarField::zero(),
                                                                       num_rounds,
@@ -134,8 +132,7 @@ where
                                                                       &mut self.A_2.bitfield_poly.clone(), // b_2(x)
                                                                       &mut c_poly, // c(x)
                                                                       union_comb_func,
-                                                                      &mut merlin_transcript);
-        
+                                                                      transcript);
 
         // XXX remove
         let alpha: Vec<E::ScalarField> = iter::repeat_with(|| E::ScalarField::zero()).take(3).collect();
