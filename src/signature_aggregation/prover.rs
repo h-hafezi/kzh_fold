@@ -11,10 +11,9 @@ use transcript::IOPTranscript;
 use crate::accumulation::accumulator::{AccInstance, AccWitness, Accumulator};
 use ark_ff::Zero;
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
+use crate::spartan::sumcheck::SumcheckInstanceProof;
 use crate::{accumulation, pcs};
 use crate::pcs::multilinear_pcs::{OpeningProof, PolyCommit, PolyCommitTrait, Commitment, SRS as PcsSRS};
-
-use super::sumcheck::SumcheckProof; // XXX ugly PcsSRS
 
 // XXX move to mod.rs or somewhere neutral
 #[derive(Clone, Debug)]
@@ -42,13 +41,13 @@ pub struct SignatureAggrData<E: Pairing> {
     //sig: E::G2Affine,
     bitfield_poly: MultilinearPolynomial<E::ScalarField>,
     bitfield_commitment: Commitment<E>,
-    sumcheck_proof: Option<SumcheckProof<E>>,
+    sumcheck_proof: Option<SumcheckInstanceProof<E::ScalarField>>,
     // TODO Hossein: For now, instead of a proof, let's just put the R1CS circuit here
     // ivc_proof: IVCProof<E>
 }
 
 impl<E: Pairing> SignatureAggrData<E> {
-    pub fn new(bitfield_poly: MultilinearPolynomial<E::ScalarField>, _sumcheck_proof: Option<SumcheckProof<E>>, srs: &SRS<E>) -> Self {
+    pub fn new(bitfield_poly: MultilinearPolynomial<E::ScalarField>, _sumcheck_proof: Option<SumcheckInstanceProof<E::ScalarField>>, srs: &SRS<E>) -> Self {
         // XXX this PolyCommit is not very ergonomic
         let poly_commit = PolyCommit { srs: srs.acc_srs.pc_srs.clone() }; // XXX no clone
         let bitfield_commitment = poly_commit.commit(&bitfield_poly);
@@ -114,13 +113,14 @@ where
         let c_poly = self.A_1.bitfield_poly.get_bitfield_union_poly(&self.A_2.bitfield_poly);
         let C_commitment = poly_commit.commit(&c_poly);
 
-        // Now aggregate all three polys into one
-        // TODO George
-        // let f_poly = b_1 + b_2 - b_1*b_2 - c;
-        // for now let's pretend it's c_poly
+        // We do sumcheck for the following polynomial:
+        // eq(r,x) * (b_1 + b_2 - b_1 * b_2 - c)
+        let union_comb_func =
+            |poly_eq: &E::ScalarField, poly_b_1: &E::ScalarField, poly_b_2: &E::ScalarField, poly_c: &E::ScalarField|
+                                              -> E::ScalarField { *poly_eq * (*poly_b_1 + *poly_b_2 - *poly_b_1 * *poly_b_2 - *poly_c) };
 
-        let _f_poly = c_poly.clone();
-        // let (sumcheck_proof, (alpha, beta)) = bivariate_sumcheck::prove::<E>(&f_poly, transcript);
+        let (sumcheck_proof, (alpha, beta)) = SumcheckInstanceProof::prove_cubic(&E::ScalarField::zero());
+                                                          
 
         // XXX remove
         let alpha: Vec<E::ScalarField> = iter::repeat_with(|| E::ScalarField::zero()).take(3).collect();
