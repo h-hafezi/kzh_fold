@@ -9,6 +9,7 @@ use ark_ec::VariableBaseMSM;
 use transcript::IOPTranscript;
 
 use crate::accumulation::accumulator::{AccInstance, AccWitness, Accumulator};
+use crate::polynomial::eq_poly::EqPolynomial;
 use ark_ff::Zero;
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 use crate::polynomial::math::Math;
@@ -122,12 +123,15 @@ where
         // XXX??
         let C_commitment = poly_commit.commit(&c_poly);
 
+        // This is not true in general, but it's true for our tests
+        assert_eq!(b_1_poly.len, b_2_poly.len);
+        assert_eq!(b_1_poly.len, c_poly.len);
+
         // XXX compute B'
 
         // Get r challenge from verifier
         transcript.append_serializable_element(b"poly", &C_commitment.C).unwrap();
-        let _vec_r = transcript.get_and_append_challenge_vectors(b"vec_r", 14);
-
+        let vec_r = transcript.get_and_append_challenge_vectors(b"vec_r", b_1_poly.num_variables).unwrap();
 
         // We do sumcheck for the following polynomial:
         // eq(r,x) * (b_1 + b_2 - b_1 * b_2 - c)
@@ -135,21 +139,18 @@ where
             |eq_poly: &E::ScalarField, b_1_poly: &E::ScalarField, b_2_poly: &E::ScalarField, c_poly: &E::ScalarField|
                                               -> E::ScalarField { *eq_poly * (*b_1_poly + *b_2_poly - *b_1_poly * *b_2_poly - *c_poly) };
 
-        println!("b_1 size: {}\nb_2 size: {}\nc size: {}", b_1_poly.len, b_2_poly.len, c_poly.len);
-        // XXX eq_poly instead of c_poly
         let num_rounds = c_poly.len().log_2(); // XXX wrong
+        let mut eq_at_r = MultilinearPolynomial::new(EqPolynomial::new(vec_r).evals());
         // Run the sumcheck and get back the verifier's challenges and the final random evaluation claims at the end
         let (sumcheck_proof, sumcheck_challenges, _tensorcheck_claims) =
             SumcheckInstanceProof::prove_cubic_four_terms::<_, E::G1>(&E::ScalarField::zero(),
                                                                       num_rounds,
-                                                                      &mut c_poly.clone(), // eq(r,x) XXX
+                                                                      &mut eq_at_r,
                                                                       &mut self.A_1.bitfield_poly.clone(), // b_1(x)
                                                                       &mut self.A_2.bitfield_poly.clone(), // b_2(x)
                                                                       &mut c_poly, // c(x)
                                                                       union_comb_func,
                                                                       transcript);
-
-        println!("num_rounds: {}, chals_len: {}", num_rounds, sumcheck_challenges.len());
 
         // Now the verifier will need:
         // y_1 = b_1(alpha, beta)
