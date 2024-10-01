@@ -7,10 +7,12 @@ use rand::RngCore;
 use ark_ec::pairing::Pairing;
 use ark_ec::VariableBaseMSM;
 use transcript::IOPTranscript;
+use merlin::Transcript;
 
 use crate::accumulation::accumulator::{AccInstance, AccWitness, Accumulator};
 use ark_ff::Zero;
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
+use crate::polynomial::math::Math;
 use crate::spartan::sumcheck::SumcheckInstanceProof;
 use crate::{accumulation, pcs};
 use crate::pcs::multilinear_pcs::{OpeningProof, PolyCommit, PolyCommitTrait, Commitment, SRS as PcsSRS};
@@ -110,7 +112,7 @@ where
         // let pk = self.A_1.pk + self.A_2.pk;
         // let sk = self.A_1.sig + self.A_2.sig;
 
-        let c_poly = self.A_1.bitfield_poly.get_bitfield_union_poly(&self.A_2.bitfield_poly);
+        let mut c_poly = self.A_1.bitfield_poly.get_bitfield_union_poly(&self.A_2.bitfield_poly);
         let C_commitment = poly_commit.commit(&c_poly);
 
         // We do sumcheck for the following polynomial:
@@ -119,8 +121,21 @@ where
             |poly_eq: &E::ScalarField, poly_b_1: &E::ScalarField, poly_b_2: &E::ScalarField, poly_c: &E::ScalarField|
                                               -> E::ScalarField { *poly_eq * (*poly_b_1 + *poly_b_2 - *poly_b_1 * *poly_b_2 - *poly_c) };
 
-        let (sumcheck_proof, (alpha, beta)) = SumcheckInstanceProof::prove_cubic(&E::ScalarField::zero());
-                                                          
+        // XXX eq_poly instead of c_poly
+        // XXX transcript
+        // XXX num_rounds
+        let num_rounds = c_poly.len().log_2(); // XXX wrong
+        let mut merlin_transcript = Transcript::new(b"example");
+        let (sumcheck_proof, alpha, beta) =
+            SumcheckInstanceProof::prove_cubic_four_terms::<_, E::G1>(&E::ScalarField::zero(),
+                                                                      num_rounds,
+                                                                      &mut c_poly.clone(), // eq(r,x) XXX
+                                                                      &mut self.A_1.bitfield_poly.clone(), // b_1(x)
+                                                                      &mut self.A_2.bitfield_poly.clone(), // b_2(x)
+                                                                      &mut c_poly, // c(x)
+                                                                      union_comb_func,
+                                                                      &mut merlin_transcript);
+        
 
         // XXX remove
         let alpha: Vec<E::ScalarField> = iter::repeat_with(|| E::ScalarField::zero()).take(3).collect();
