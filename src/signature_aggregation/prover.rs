@@ -76,29 +76,33 @@ where
     fn get_accumulator_from_evaluation(&self,
                                        bitfield_poly: &MultilinearPolynomial<E::ScalarField>,
                                        bitfield_commitment: &Commitment<E>,
-                                       alpha: &Vec<E::ScalarField>,
-                                       beta: &Vec<E::ScalarField>) -> Accumulator<E> {
+                                       eval_point: &Vec<E::ScalarField>
+    ) -> Accumulator<E> {
         let poly_commit = PolyCommit { srs: self.srs.acc_srs.pc_srs.clone() }; // XXX no clone. bad ergonomics
 
-        // Get (alpha, beta) as the evaluation point
-        let eval_point: Vec<E::ScalarField> = alpha.clone().into_iter().chain(beta.clone()).collect(); // XXX bad clone
+        // Split the evaluation point in half since open() just needs the first half
+        // XXX ergonomics
+        assert_eq!(eval_point.len() % 2, 0);
+        let mid = eval_point.len() / 2;
+        let (eval_point_first_half, eval_point_second_half) = eval_point.split_at(mid);
+
 
         let y = bitfield_poly.evaluate(&eval_point);
-        let opening_proof = poly_commit.open(bitfield_poly, bitfield_commitment.clone(), &alpha); // XXX needless clone
+        let opening_proof = poly_commit.open(bitfield_poly, bitfield_commitment.clone(), eval_point_first_half); // XXX needless clone
 
         // XXX bad name for function
         let acc_instance = Accumulator::new_accumulator_instance_from_proof(
             &self.srs.acc_srs,
             &bitfield_commitment.C,
-            alpha,
-            beta,
+            eval_point_first_half,
+            eval_point_second_half,
             &y
         );
         let acc_witness = Accumulator::new_accumulator_witness_from_proof(
             &self.srs.acc_srs,
             opening_proof,
-            alpha,
-            beta,
+            eval_point_first_half,
+            eval_point_second_half,
         );
         Accumulator {
             witness: acc_witness,
@@ -111,20 +115,31 @@ where
         // let pk = self.A_1.pk + self.A_2.pk;
         // let sk = self.A_1.sig + self.A_2.sig;
 
-        let mut c_poly = self.A_1.bitfield_poly.get_bitfield_union_poly(&self.A_2.bitfield_poly);
+        let b_1_poly = &self.A_1.bitfield_poly;
+        let b_2_poly = &self.A_2.bitfield_poly;
+
+        let mut c_poly = b_1_poly.get_bitfield_union_poly(&b_2_poly);
+        // XXX??
         let C_commitment = poly_commit.commit(&c_poly);
+
+        // XXX compute B'
+
+        // Get r challenge from verifier
+        transcript.append_serializable_element(b"poly", &C_commitment.C).unwrap();
+        let _vec_r = transcript.get_and_append_challenge_vectors(b"vec_r", 14);
+
 
         // We do sumcheck for the following polynomial:
         // eq(r,x) * (b_1 + b_2 - b_1 * b_2 - c)
         let union_comb_func =
-            |poly_eq: &E::ScalarField, poly_b_1: &E::ScalarField, poly_b_2: &E::ScalarField, poly_c: &E::ScalarField|
-                                              -> E::ScalarField { *poly_eq * (*poly_b_1 + *poly_b_2 - *poly_b_1 * *poly_b_2 - *poly_c) };
+            |eq_poly: &E::ScalarField, b_1_poly: &E::ScalarField, b_2_poly: &E::ScalarField, c_poly: &E::ScalarField|
+                                              -> E::ScalarField { *eq_poly * (*b_1_poly + *b_2_poly - *b_1_poly * *b_2_poly - *c_poly) };
 
+        println!("b_1 size: {}\nb_2 size: {}\nc size: {}", b_1_poly.len, b_2_poly.len, c_poly.len);
         // XXX eq_poly instead of c_poly
-        // XXX transcript
-        // XXX num_rounds
         let num_rounds = c_poly.len().log_2(); // XXX wrong
-        let (sumcheck_proof, alpha, beta) =
+        // Run the sumcheck and get back the verifier's challenges and the final random evaluation claims at the end
+        let (sumcheck_proof, sumcheck_challenges, _tensorcheck_claims) =
             SumcheckInstanceProof::prove_cubic_four_terms::<_, E::G1>(&E::ScalarField::zero(),
                                                                       num_rounds,
                                                                       &mut c_poly.clone(), // eq(r,x) XXX
@@ -134,9 +149,7 @@ where
                                                                       union_comb_func,
                                                                       transcript);
 
-        // XXX remove
-        let alpha: Vec<E::ScalarField> = iter::repeat_with(|| E::ScalarField::zero()).take(3).collect();
-        let beta: Vec<E::ScalarField> = iter::repeat_with(|| E::ScalarField::zero()).take(3).collect();
+        println!("num_rounds: {}, chals_len: {}", num_rounds, sumcheck_challenges.len());
 
         // Now the verifier will need:
         // y_1 = b_1(alpha, beta)
@@ -147,20 +160,17 @@ where
         let y_1_accumulator = self.get_accumulator_from_evaluation(
             &self.A_1.bitfield_poly,
             &self.A_1.bitfield_commitment,
-            &alpha,
-            &beta,
+            &sumcheck_challenges,
         );
         let y_2_accumulator = self.get_accumulator_from_evaluation(
             &self.A_2.bitfield_poly,
             &self.A_2.bitfield_commitment,
-            &alpha,
-            &beta,
+            &sumcheck_challenges,
         );
         let _y_3_accumulator = self.get_accumulator_from_evaluation(
             &self.A_2.bitfield_poly,
             &self.A_2.bitfield_commitment,
-            &alpha,
-            &beta,
+            &sumcheck_challenges,
         );
 
         // Here we need to accumulate y_1 acc, y_2 acc, and y_3 acc into one.
@@ -173,7 +183,7 @@ where
         SignatureAggrData {
             bitfield_poly: c_poly,
             bitfield_commitment: C_commitment,
-            sumcheck_proof: None,
+            sumcheck_proof: Some(sumcheck_proof),
             // ivc_proof: ivc_proof
         }
     }

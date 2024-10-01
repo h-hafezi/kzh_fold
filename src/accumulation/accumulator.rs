@@ -134,16 +134,16 @@ where
     pub fn new_accumulator_instance_from_proof(
         srs: &AccSRS<E>,
         C: &E::G1Affine,
-        x: &Vec<E::ScalarField>,
-        y: &Vec<E::ScalarField>,
+        x: &[E::ScalarField],
+        y: &[E::ScalarField],
         z: &E::ScalarField,
     ) -> AccInstance<E> {
         // asserting the sizes are correct
         assert_eq!(1 << x.len(), srs.pc_srs.degree_x, "invalid size of vector x");
         assert_eq!(1 << y.len(), srs.pc_srs.degree_y, "invalid size of vector y");
 
-        let tree_x = EqTree::new(x.as_slice());
-        let tree_y = EqTree::new(y.as_slice());
+        let tree_x = EqTree::new(x);
+        let tree_y = EqTree::new(y);
 
         let mut T: E::G1 = E::G1::ZERO;
         T = T.add(E::G1::msm_unchecked(srs.k_x.as_slice(), tree_x.nodes.as_slice()));
@@ -157,13 +157,13 @@ where
             C: *C,
             T: T.into(),
             E: E::G1Affine::zero(),
-            x: x.clone(),
-            y: y.clone(),
+            x: x.to_vec(),
+            y: y.to_vec(),
             z: z.clone(),
         }
     }
 
-    pub fn new_accumulator_witness_from_proof(srs: &AccSRS<E>, proof: OpeningProof<E>, x: &Vec<E::ScalarField>, y: &Vec<E::ScalarField>) -> AccWitness<E> {
+    pub fn new_accumulator_witness_from_proof(srs: &AccSRS<E>, proof: OpeningProof<E>, x: &[E::ScalarField], y: &[E::ScalarField]) -> AccWitness<E> {
         // asserting the sizes are correct
         assert_eq!(1 << x.len(), srs.pc_srs.degree_x, "invalid size of vector x");
         assert_eq!(1 << y.len(), srs.pc_srs.degree_y, "invalid size of vector y");
@@ -171,8 +171,8 @@ where
         AccWitness {
             vec_D: proof.vec_D,
             f_star_poly: proof.f_star_poly,
-            tree_x: EqTree::new(x.as_slice()),
-            tree_y: EqTree::new(y.as_slice()),
+            tree_x: EqTree::new(x),
+            tree_y: EqTree::new(y),
         }
     }
 
