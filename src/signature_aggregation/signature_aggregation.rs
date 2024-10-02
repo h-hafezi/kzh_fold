@@ -149,7 +149,7 @@ where
         assert_eq!(b_1_poly.len, eq_at_r.len);
 
         // Run the sumcheck and get back the verifier's challenges and the final random evaluation claims at the end
-        let (sumcheck_proof, sumcheck_challenges, tensorcheck_claims) =
+        let (sumcheck_proof, sumcheck_challenges, _) =
             SumcheckInstanceProof::prove_cubic_four_terms::<_, E::G1>(&E::ScalarField::zero(),
                                                                       num_rounds,
                                                                       &mut eq_at_r.clone(), // eq(r, x)
