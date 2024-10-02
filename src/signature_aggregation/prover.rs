@@ -120,14 +120,11 @@ where
         let b_2_poly = &self.A_2.bitfield_poly;
 
         let mut c_poly = b_1_poly.get_bitfield_union_poly(&b_2_poly);
-        // XXX??
         let C_commitment = poly_commit.commit(&c_poly);
 
         // This is not true in general, but it's true for our tests
         assert_eq!(b_1_poly.len, b_2_poly.len);
         assert_eq!(b_1_poly.len, c_poly.len);
-
-        // XXX compute B'
 
         // Get r challenge from verifier
         transcript.append_serializable_element(b"poly", &C_commitment.C).unwrap();
@@ -139,13 +136,13 @@ where
             |eq_poly: &E::ScalarField, b_1_poly: &E::ScalarField, b_2_poly: &E::ScalarField, c_poly: &E::ScalarField|
                                               -> E::ScalarField { *eq_poly * (*b_1_poly + *b_2_poly - *b_1_poly * *b_2_poly - *c_poly) };
 
-        let num_rounds = c_poly.len().log_2(); // XXX wrong
+        let num_rounds = c_poly.len().log_2();
         let mut eq_at_r = MultilinearPolynomial::new(EqPolynomial::new(vec_r).evals());
         // Run the sumcheck and get back the verifier's challenges and the final random evaluation claims at the end
         let (sumcheck_proof, sumcheck_challenges, _tensorcheck_claims) =
             SumcheckInstanceProof::prove_cubic_four_terms::<_, E::G1>(&E::ScalarField::zero(),
                                                                       num_rounds,
-                                                                      &mut eq_at_r,
+                                                                      &mut eq_at_r, // eq(r, x)
                                                                       &mut self.A_1.bitfield_poly.clone(), // b_1(x)
                                                                       &mut self.A_2.bitfield_poly.clone(), // b_2(x)
                                                                       &mut c_poly, // c(x)
@@ -187,6 +184,32 @@ where
             sumcheck_proof: Some(sumcheck_proof),
             // ivc_proof: ivc_proof
         }
+    }
+}
+
+/// This struct represents a network node that just received an aggregate signature. The verifier needs to verify the
+/// aggregate signature (and later aggregate it with more signatures herself).
+/// For the purposes of this module, we will only do the verification.
+pub struct Verifier<E: Pairing> {
+    pub srs: SRS<E>,
+    pub A: SignatureAggrData<E>,
+}
+
+impl<E: Pairing> Verifier<E>
+where
+    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
+    <E as Pairing>::ScalarField: Absorb,
+{
+    pub fn verify(&self) -> bool {
+        // TODO Verify the sumcheck proof (need to build the prover first)
+
+        // Verify the IVC proof
+
+        // Verify the BLS signature
+
+        // At some point, run the decider
+
+        true
     }
 }
 
