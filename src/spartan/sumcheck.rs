@@ -15,7 +15,7 @@ use super::errors::ProofVerifyError;
 use super::transcript::{AppendToTranscript, ProofTranscript};
 use super::unipoly::{CompressedUniPoly, UniPoly};
 
-#[derive(CanonicalSerialize, CanonicalDeserialize, Debug)]
+#[derive(CanonicalSerialize, CanonicalDeserialize, Debug, Clone)]
 pub struct SumcheckInstanceProof<F: PrimeField> {
     /// low degree polynomials that are sent from the prover to the verifier
     compressed_polys: Vec<CompressedUniPoly<F>>,
@@ -404,5 +404,50 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
             r,
             vec![poly_A[0], poly_B[0], poly_C[0], poly_D[0]],
         )
+    }
+
+    // XXX this is a copy of the above verify with IOPTranscript
+    pub fn verify_with_ioptranscript_xxx<G>(
+        &self,
+        claim: F,
+        num_rounds: usize,
+        degree_bound: usize,
+        transcript: &mut IOPTranscript<F>,
+    ) -> Result<(F, Vec<F>), ProofVerifyError>
+    where
+        G: CurveGroup<ScalarField=F>,
+    {
+        let mut e = claim;
+
+        // the set of fiat-shamir challenges
+        let mut r: Vec<F> = Vec::new();
+
+        // verify that there is a univariate polynomial for each round
+        assert_eq!(self.compressed_polys.len(), num_rounds);
+
+        // go through the rounds
+        for i in 0..self.compressed_polys.len() {
+            // todo: understand how decompress works that just gets a claimed value
+            let poly = self.compressed_polys[i].decompress(&e);
+
+            // verify degree bound
+            assert_eq!(poly.degree(), degree_bound);
+
+            // check if G_k(0) + G_k(1) = e
+            assert_eq!(poly.eval_at_zero() + poly.eval_at_one(), e);
+
+            // append the prover's message to the transcript
+            transcript.append_serializable_element(b"poly", &poly).unwrap();
+
+            //derive the verifier's challenge for the next round
+            let r_i: F = transcript.get_and_append_challenge(b"challenge_nextround").unwrap();
+
+            r.push(r_i);
+
+            // evaluate the claimed degree-ell polynomial at r_i
+            e = poly.evaluate(&r_i);
+        }
+
+        Ok((e, r))
     }
 }

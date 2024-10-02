@@ -37,6 +37,7 @@ where
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct SignatureAggrData<E: Pairing> {
     // TODO comment this out for now. we will figure out the BLS stuff later.
     //pk: E::G1Affine,
@@ -122,10 +123,6 @@ where
         let mut c_poly = b_1_poly.get_bitfield_union_poly(&b_2_poly);
         let C_commitment = poly_commit.commit(&c_poly);
 
-        // This is not true in general, but it's true for our tests
-        assert_eq!(b_1_poly.len, b_2_poly.len);
-        assert_eq!(b_1_poly.len, c_poly.len);
-
         // Get r challenge from verifier
         transcript.append_serializable_element(b"poly", &C_commitment.C).unwrap();
         let vec_r = transcript.get_and_append_challenge_vectors(b"vec_r", b_1_poly.num_variables).unwrap();
@@ -136,8 +133,15 @@ where
             |eq_poly: &E::ScalarField, b_1_poly: &E::ScalarField, b_2_poly: &E::ScalarField, c_poly: &E::ScalarField|
                                               -> E::ScalarField { *eq_poly * (*b_1_poly + *b_2_poly - *b_1_poly * *b_2_poly - *c_poly) };
 
-        let num_rounds = c_poly.len().log_2();
+        // Start preparing for the sumcheck
+        let num_rounds = c_poly.num_variables;
         let mut eq_at_r = MultilinearPolynomial::new(EqPolynomial::new(vec_r).evals());
+
+        // Sanity check: This is not true in general, but it's true for our tests
+        assert_eq!(b_1_poly.len, b_2_poly.len);
+        assert_eq!(b_1_poly.len, c_poly.len);
+        assert_eq!(b_1_poly.len, eq_at_r.len);
+
         // Run the sumcheck and get back the verifier's challenges and the final random evaluation claims at the end
         let (sumcheck_proof, sumcheck_challenges, _tensorcheck_claims) =
             SumcheckInstanceProof::prove_cubic_four_terms::<_, E::G1>(&E::ScalarField::zero(),
@@ -145,7 +149,7 @@ where
                                                                       &mut eq_at_r, // eq(r, x)
                                                                       &mut self.A_1.bitfield_poly.clone(), // b_1(x)
                                                                       &mut self.A_2.bitfield_poly.clone(), // b_2(x)
-                                                                      &mut c_poly, // c(x)
+                                                                      &mut c_poly.clone(), // c(x)
                                                                       union_comb_func,
                                                                       transcript);
 
@@ -200,8 +204,12 @@ where
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
     <E as Pairing>::ScalarField: Absorb,
 {
-    pub fn verify(&self) -> bool {
-        // TODO Verify the sumcheck proof (need to build the prover first)
+    pub fn verify(&self, transcript: &mut IOPTranscript<E::ScalarField>) -> bool {
+        // Verify the sumcheck proof (need to build the prover first)
+        let zero = E::ScalarField::zero();
+        let num_rounds = self.A.bitfield_poly.num_variables;
+        let (tensorcheck_claim, sumcheck_challenges) = self.A.sumcheck_proof.clone().expect("XXX").
+            verify_with_ioptranscript_xxx::<E::G1>(zero, num_rounds, 3, transcript).unwrap();
 
         // Verify the IVC proof
 
@@ -224,7 +232,8 @@ pub mod test {
     #[test]
     fn test_aggregate() {
         let rng = &mut rand::thread_rng();
-        let mut transcript = IOPTranscript::<ScalarField>::new(b"aggr");
+        let mut transcript_p = IOPTranscript::<ScalarField>::new(b"aggr");
+        let mut transcript_v = IOPTranscript::<ScalarField>::new(b"aggr");
 
         // num_vars = log(degree_x) + log(degree_y)
         let degree_x = 8usize;
@@ -245,18 +254,18 @@ pub mod test {
             A_2: sig_aggr_data_2,
         };
 
-        let _agg_data = aggregator.aggregate(&mut transcript);
+        let agg_data = aggregator.aggregate(&mut transcript_p);
         // TODO Hossein: Print the constraint count of the R1CS circuit
 
         // TODO Hossein: Check that the witness satisfies the witness and examine the witness for 1s and 0s
 
         // Now let's do verification
-        // let verifier = Verifier {
-        //     srs,
-        //     A: agg_data
-        // };
+        let verifier = Verifier {
+            srs,
+            A: agg_data
+        };
 
-        // assert_eq!(true, verifier.verify())
+        assert_eq!(true, verifier.verify(&mut transcript_v))
     }
 }
 
