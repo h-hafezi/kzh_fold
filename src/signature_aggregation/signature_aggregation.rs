@@ -159,24 +159,11 @@ where
                                                                       union_comb_func,
                                                                       transcript);
 
-        // SANITY CHECK: p(sumcheck_challenges) = tensorcheck_claim
-        // XXX remove
-        {
-            let eq_at_r_rho = eq_at_r.evaluate(&sumcheck_challenges);
-            assert_eq!(eq_at_r_rho, tensorcheck_claims[0]);
-            let b_1_at_rho = b_1_poly.evaluate(&sumcheck_challenges);
-            assert_eq!(b_1_at_rho, tensorcheck_claims[1]);
-            let b_2_at_rho = b_2_poly.evaluate(&sumcheck_challenges);
-            assert_eq!(b_2_at_rho, tensorcheck_claims[2]);
-            let c_at_rho = c_poly.evaluate(&sumcheck_challenges);
-            assert_eq!(c_at_rho, tensorcheck_claims[3]);
-        }
-
         // Now the verifier will need:
-        // y_1 = b_1(alpha, beta)
-        // y_2 = b_2(alpha, beta), and
-        // y_3 = c(alpha, beta)
-        // to verify the sumcheck
+        // y_1 = b_1(rho)
+        // y_2 = b_2(rho), and
+        // y_3 = c(rho)
+        // to verify the sumcheck, where rho are the sumcheck challegnes
         // Compute the evaluations and its accumulations
         let b_1_eval_accumulator = self.get_accumulator_from_evaluation(
             &self.A_1.bitfield_poly,
@@ -194,12 +181,8 @@ where
             &sumcheck_challenges,
         );
 
-        // Here we need to accumulate y_1 acc, y_2 acc, and y_3 acc into one.
-        // TODO Hossein: let's just do y_1 with y_2 for now. but we will need a tree for later.
-        let _acc_prime = Accumulator::prove(&self.srs.acc_srs, &b_1_eval_accumulator, &b_2_eval_accumulator);
-
-        // TODO Hossein: Now we want an IVC proof of the accumulation
-        // let ivc_proof = accumulation_circuit::prove_accumulation(&acc_prime, &y_1_accumulator, &y_2_accumulator, &self.srs.acc_srs);
+        // We now need to accumulate these three evaluations into one
+        // XXX
 
         SignatureAggrData {
             bitfield_poly: c_poly,
@@ -231,25 +214,23 @@ where
         transcript.append_serializable_element(b"poly", &self.A.bitfield_commitment.C).unwrap();
         let vec_r = transcript.get_and_append_challenge_vectors(b"vec_r", self.A.bitfield_poly.num_variables).unwrap();
 
-        // Verify the sumcheck proof (need to build the prover first)
+        // Verify the sumcheck proof
         let zero = E::ScalarField::zero();
         let num_rounds = self.A.bitfield_poly.num_variables;
         let (tensorcheck_claim, sumcheck_challenges) = self.A.sumcheck_proof.unwrap().
             verify_with_ioptranscript_xxx::<E::G1>(zero, num_rounds, 3, transcript).unwrap();
 
         // Verify the sumcheck random evaluation at the end (tensorcheck claim)
-        // We need to check: p(sumcheck_challenges) = tensorcheck_claim
+        // We need to check: p(rho) = tensorcheck_claim
+        // where rho are the sumcheck challenges and
         // where p(x) = eq(r,x) (b_1(x) + b_2(x) - b_1(x) * b_2(x) - c(x))
         let eq_at_r = MultilinearPolynomial::new(EqPolynomial::new(vec_r).evals());
         let eq_at_r_rho = eq_at_r.evaluate(&sumcheck_challenges);
         let b_1_at_rho = self.A.b_1_eval_accumulator.unwrap().instance.z;
         let b_2_at_rho = self.A.b_2_eval_accumulator.unwrap().instance.z;
         let c_at_rho = self.A.c_eval_accumulator.unwrap().instance.z;
-
         assert_eq!(tensorcheck_claim,
                    eq_at_r_rho * (b_1_at_rho + b_2_at_rho - b_1_at_rho * b_2_at_rho - c_at_rho));
-
-        // We now need to check that p(sumcheck_challenges) = tensorcheck_claim
 
         // Verify the IVC proof
 
