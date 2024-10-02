@@ -272,5 +272,37 @@ pub mod test {
         // verify the proof
         assert!(poly_commit.verify(&com, &open, &x, &y, &z));
     }
+
+    /// Given f(x) and g(x) and their KZH commitments F and G.
+    /// This test computes p(x) = f(x) + r * g(x),
+    /// and checks that its commitment is P = F + r*G
+    #[test]
+    fn test_homomorphism() {
+        let degree_x = 8usize;
+        let degree_y = 32usize;
+        let num_vars = 8; // degree_x.log_2() + degree_y.log_2()
+
+        let srs: SRS<E> = PolyCommit::<E>::setup(degree_x, degree_y, &mut thread_rng());
+
+        // define the polynomial commitment
+        let poly_commit: PolyCommit<E> = PolyCommit { srs };
+
+        let f_x: MultilinearPolynomial<ScalarField> = MultilinearPolynomial::rand(num_vars, &mut thread_rng());
+        let g_x: MultilinearPolynomial<ScalarField> = MultilinearPolynomial::rand(num_vars, &mut thread_rng());
+
+        let F = poly_commit.commit(&f_x);
+        let G = poly_commit.commit(&g_x);
+
+        let r = ScalarField::rand(&mut thread_rng());
+
+        // Compute p(x) = f(x) + r * g(x)
+        let mut r_times_g_x = g_x.clone();
+        r_times_g_x.scalar_mul(&r);
+
+        let p_x = f_x + r_times_g_x;
+
+        // Now compute P = F + r*G
+        // let r_times_G = 
+    }
 }
 
