@@ -15,7 +15,7 @@ use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 use crate::polynomial::math::Math;
 use crate::spartan::sumcheck::SumcheckInstanceProof;
 use crate::{accumulation, pcs};
-use crate::pcs::multilinear_pcs::{OpeningProof, PolyCommit, PolyCommitTrait, Commitment, SRS as PcsSRS};
+use crate::pcs::multilinear_pcs::{OpeningProof, PolyCommit, Commitment, SRS as PcsSRS};
 
 // XXX move to mod.rs or somewhere neutral
 #[derive(Clone, Debug)]

@@ -13,7 +13,7 @@ use crate::accumulation::generate_random_elements;
 use crate::gadgets::non_native::util::convert_affine_to_scalars;
 use crate::hash::poseidon::{PoseidonHash, get_poseidon_config};
 use ark_crypto_primitives::sponge::poseidon::PoseidonConfig;
-use crate::pcs::multilinear_pcs::{OpeningProof, PolyCommit, PolyCommitTrait, SRS};
+use crate::pcs::multilinear_pcs::{OpeningProof, PolyCommit, SRS};
 use crate::polynomial::compute_dot_product;
 use crate::polynomial::math::Math;
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
@@ -467,7 +467,7 @@ pub mod test {
 
     use crate::accumulation::accumulator::Accumulator;
     use crate::constant_for_curves::E;
-    use crate::pcs::multilinear_pcs::{PolyCommit, PolyCommitTrait, SRS};
+    use crate::pcs::multilinear_pcs::{PolyCommit, SRS};
 
     #[test]
     fn test_accumulator_end_to_end() {

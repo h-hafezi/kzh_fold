@@ -39,28 +39,8 @@ pub struct PolyCommit<E: Pairing> {
     pub srs: SRS<E>,
 }
 
-pub trait PolyCommitTrait<E: Pairing> {
-    fn setup<T: RngCore>(n: usize, m: usize, rng: &mut T) -> SRS<E>;
-
-    fn commit(&self, poly: &MultilinearPolynomial<E::ScalarField>) -> Commitment<E>;
-
-    fn open(&self,
-            poly: &MultilinearPolynomial<E::ScalarField>,
-            com: Commitment<E>,
-            x: &[E::ScalarField],
-    ) -> OpeningProof<E>;
-
-    fn verify(&self,
-              C: &Commitment<E>,
-              proof: &OpeningProof<E>,
-              x: &Vec<E::ScalarField>,
-              y: &Vec<E::ScalarField>,
-              z: &E::ScalarField,
-    ) -> bool;
-}
-
-impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
-    fn setup<T: RngCore>(degree_x: usize, degree_y: usize, rng: &mut T) -> SRS<E> {
+impl<E: Pairing> PolyCommit<E> {
+    pub fn setup<T: RngCore>(degree_x: usize, degree_y: usize, rng: &mut T) -> SRS<E> {
         // sample G_0, G_1, ..., G_m generators from group one
         let G1_generator_vec = {
             let mut elements = Vec::new();
@@ -128,7 +108,7 @@ impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
         };
     }
 
-    fn commit(&self, poly: &MultilinearPolynomial<E::ScalarField>) -> Commitment<E> {
+    pub fn commit(&self, poly: &MultilinearPolynomial<E::ScalarField>) -> Commitment<E> {
         Commitment {
             C: E::G1::sum((0..self.srs.degree_x)
                 .map(|i| {
@@ -153,7 +133,7 @@ impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
 
     /// Creates a KZH proof for p(x,y) = z.
     /// This function does not actually need y, so we only get the left half of the eval point.
-    fn open(&self, poly: &MultilinearPolynomial<E::ScalarField>, com: Commitment<E>, x: &[E::ScalarField]) -> OpeningProof<E> {
+    pub fn open(&self, poly: &MultilinearPolynomial<E::ScalarField>, com: Commitment<E>, x: &[E::ScalarField]) -> OpeningProof<E> {
         OpeningProof {
             vec_D: {
                 let mut vec = Vec::new();
@@ -166,7 +146,7 @@ impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
         }
     }
 
-    fn verify(&self,
+    pub fn verify(&self,
               C: &Commitment<E>,
               proof: &OpeningProof<E>,
               x: &Vec<E::ScalarField>,
@@ -201,7 +181,7 @@ pub mod test {
     use rand::thread_rng;
 
     use crate::constant_for_curves::{E, ScalarField};
-    use crate::pcs::multilinear_pcs::{PolyCommit, PolyCommitTrait, SRS};
+    use crate::pcs::multilinear_pcs::{PolyCommit, SRS};
     use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 
     #[test]
