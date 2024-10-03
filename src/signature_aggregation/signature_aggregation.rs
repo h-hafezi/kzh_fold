@@ -42,7 +42,12 @@ pub struct SignatureAggrData<E: Pairing> {
     // TODO comment this out for now. we will figure out the BLS stuff later.
     //pk: E::G1Affine,
     //sig: E::G2Affine,
+    // Commitments to b_1(x) and b_2(x)
+    B_1_commitment: Option<Commitment<E>>,
+    B_2_commitment: Option<Commitment<E>>,
+    // c(x): the union poly
     bitfield_poly: MultilinearPolynomial<E::ScalarField>,
+    // Commitment to c(x)
     bitfield_commitment: Commitment<E>,
     sumcheck_proof: Option<SumcheckInstanceProof<E::ScalarField>>,
     // Accumulator for random evaluation of p(x) at rho:
@@ -62,6 +67,8 @@ impl<E: Pairing> SignatureAggrData<E> {
         let poly_commit = PolyCommit { srs: srs.acc_srs.pc_srs.clone() }; // XXX no clone
         let bitfield_commitment = poly_commit.commit(&bitfield_poly);
         SignatureAggrData {
+            B_1_commitment: None,
+            B_2_commitment: None,
             bitfield_poly,
             bitfield_commitment,
             sumcheck_proof: None,
@@ -219,6 +226,8 @@ where
         // Hossein: Accumulate the three accumulators into one
 
         SignatureAggrData {
+            B_1_commitment: Some(self.A_1.bitfield_commitment.clone()),
+            B_2_commitment: Some(self.A_2.bitfield_commitment.clone()),
             bitfield_poly: c_poly,
             bitfield_commitment: C_commitment,
             sumcheck_proof: Some(sumcheck_proof),
@@ -250,13 +259,13 @@ where
         transcript.append_serializable_element(b"poly", &self.A.bitfield_commitment.C).unwrap();
         let vec_r = transcript.get_and_append_challenge_vectors(b"vec_r", self.A.bitfield_poly.num_variables).unwrap();
 
-        // Verify the sumcheck proof
+        // Step 2: Verify the sumcheck proof
         let zero = E::ScalarField::zero();
         let num_rounds = self.A.bitfield_poly.num_variables;
         let (tensorcheck_claim, sumcheck_challenges) = self.A.sumcheck_proof.unwrap().
             verify_with_ioptranscript_xxx::<E::G1>(zero, num_rounds, 3, transcript).unwrap();
 
-        // Verify the sumcheck random evaluation at the end (tensorcheck claim)
+        // Step 3: Verify the sumcheck tensorcheck (the random evaluation at the end of the protocol)
         // We need to check: p(rho) = tensorcheck_claim
         // where rho are the sumcheck challenges and
         // where p(x) = eq(r,x) (b_1(x) + b_2(x) - b_1(x) * b_2(x) - c(x))
@@ -268,13 +277,30 @@ where
         assert_eq!(tensorcheck_claim,
                   eq_at_r_rho * (b_1_at_rho + b_2_at_rho - b_1_at_rho * b_2_at_rho - c_at_rho));
 
-        // Verify the IVC proof
+        // Step 4: Verify the IVC proof
 
-        // Verify the BLS signature
+        // Step 5: Verify the BLS signature
 
-        // At some point, run the decider
-        // Verify the accumulator?
+        // Step ???: Run the decider!
+        // Verify the accumulator
 
+
+        // Get c_1 and c_2 (XXX could also get just c and then compute c^2)
+        let vec_c: Vec<E::ScalarField> = transcript.get_and_append_challenge_vectors(b"vec_c", 2).unwrap();
+
+        // Now compute commitment to P using B_1, B_2, and C
+        let mut c_1_times_B_2 = self.A.B_2_commitment.unwrap();
+        c_1_times_B_2.scale_by_r(&vec_c[0]);
+        let mut c_2_times_C = self.A.bitfield_commitment;
+        c_2_times_C.scale_by_r(&vec_c[1]);
+        let _P_commitment = self.A.B_1_commitment.unwrap().clone() + c_1_times_B_2 + c_2_times_C;
+
+        // Now compute p(rho)
+        let _p_at_rho = b_1_at_rho + vec_c[0] * b_2_at_rho + vec_c[1] * c_at_rho;
+
+        // Verify the accumulator
+        //XXX how to verify?
+        assert_eq!(Accumulator::decide(&self.srs.acc_srs, &self.A.sumcheck_eval_accumulator.unwrap()), true);
 
         true
     }
