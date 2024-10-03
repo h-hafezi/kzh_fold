@@ -45,9 +45,13 @@ pub struct SignatureAggrData<E: Pairing> {
     bitfield_poly: MultilinearPolynomial<E::ScalarField>,
     bitfield_commitment: Commitment<E>,
     sumcheck_proof: Option<SumcheckInstanceProof<E::ScalarField>>,
-    b_1_eval_accumulator: Option<Accumulator<E>>,
-    b_2_eval_accumulator: Option<Accumulator<E>>,
-    c_eval_accumulator: Option<Accumulator<E>>,
+    // Accumulator for random evaluation of p(x) at rho:
+    // p(rho) = b_1(rho) + c_1 * b_2(rho) + c_2 * c(rho)
+    sumcheck_eval_accumulator: Option<Accumulator<E>>,
+    // Evaluations of the inner polynomials at rho:
+    b_1_at_rho: Option<E::ScalarField>, // b_1(rho)
+    b_2_at_rho: Option<E::ScalarField>, // b_2(rho)
+    c_at_rho: Option<E::ScalarField>, // c(rho)
     // TODO Hossein: For now, instead of a proof, let's just put the R1CS circuit here
     // ivc_proof: IVCProof<E>
 }
@@ -61,9 +65,10 @@ impl<E: Pairing> SignatureAggrData<E> {
             bitfield_poly,
             bitfield_commitment,
             sumcheck_proof: None,
-            b_1_eval_accumulator: None,
-            b_2_eval_accumulator: None,
-            c_eval_accumulator: None,
+            sumcheck_eval_accumulator: None,
+            b_1_at_rho: None,
+            b_2_at_rho: None,
+            c_at_rho: None,
         }
     }
 }
@@ -84,6 +89,7 @@ where
     fn get_accumulator_from_evaluation(&self,
                                        bitfield_poly: &MultilinearPolynomial<E::ScalarField>,
                                        bitfield_commitment: &Commitment<E>,
+                                       eval_result: &E::ScalarField,
                                        eval_point: &Vec<E::ScalarField>
     ) -> Accumulator<E> {
         let poly_commit = PolyCommit { srs: self.srs.acc_srs.pc_srs.clone() }; // XXX no clone. bad ergonomics
@@ -94,8 +100,6 @@ where
         let mid = eval_point.len() / 2;
         let (eval_point_first_half, eval_point_second_half) = eval_point.split_at(mid);
 
-
-        let y = bitfield_poly.evaluate(&eval_point);
         let opening_proof = poly_commit.open(bitfield_poly, bitfield_commitment.clone(), eval_point_first_half); // XXX needless clone
 
         // XXX bad name for function
@@ -104,7 +108,7 @@ where
             &bitfield_commitment.C,
             eval_point_first_half,
             eval_point_second_half,
-            &y
+            eval_result,
         );
         let acc_witness = Accumulator::new_accumulator_witness_from_proof(
             &self.srs.acc_srs,
@@ -120,20 +124,22 @@ where
 
     pub fn aggregate(&self, transcript: &mut IOPTranscript<E::ScalarField>) -> SignatureAggrData<E> {
         let poly_commit = PolyCommit { srs: self.srs.acc_srs.pc_srs.clone() }; // XXX no clone. bad ergonomics
+        // Step 1:
         // let pk = self.A_1.pk + self.A_2.pk;
         // let sk = self.A_1.sig + self.A_2.sig;
 
+        // Step 2: Compute c(x)
         let b_1_poly = &self.A_1.bitfield_poly;
         let b_2_poly = &self.A_2.bitfield_poly;
 
         let c_poly = b_1_poly.get_bitfield_union_poly(&b_2_poly);
         let C_commitment = poly_commit.commit(&c_poly);
 
-        // Get r challenge from verifier
+        // Step 3: Get r from verifier: it's the evaluation point challenge (for the zerocheck)
         transcript.append_serializable_element(b"poly", &C_commitment.C).unwrap();
         let vec_r = transcript.get_and_append_challenge_vectors(b"vec_r", b_1_poly.num_variables).unwrap();
 
-        // We do sumcheck for the following polynomial:
+        // Step 4: Do the sumcheck for the following polynomial:
         // eq(r,x) * (b_1 + b_2 - b_1 * b_2 - c)
         let union_comb_func =
             |eq_poly: &E::ScalarField, b_1_poly: &E::ScalarField, b_2_poly: &E::ScalarField, c_poly: &E::ScalarField|
@@ -148,7 +154,7 @@ where
         assert_eq!(b_1_poly.len, c_poly.len);
         assert_eq!(b_1_poly.len, eq_at_r.len);
 
-        // Run the sumcheck and get back the verifier's challenges and the final random evaluation claims at the end
+        // Run the sumcheck and get back the verifier's challenge (random eval point rho)
         let (sumcheck_proof, sumcheck_challenges, _) =
             SumcheckInstanceProof::prove_cubic_four_terms::<_, E::G1>(&E::ScalarField::zero(),
                                                                       num_rounds,
@@ -159,38 +165,67 @@ where
                                                                       union_comb_func,
                                                                       transcript);
 
-        // Now the verifier will need:
-        // y_1 = b_1(rho)
-        // y_2 = b_2(rho), and
-        // y_3 = c(rho)
-        // to verify the sumcheck, where rho are the sumcheck challegnes
-        // Compute the evaluations and its accumulations
-        let b_1_eval_accumulator = self.get_accumulator_from_evaluation(
-            &self.A_1.bitfield_poly,
-            &self.A_1.bitfield_commitment,
-            &sumcheck_challenges,
-        );
-        let b_2_eval_accumulator = self.get_accumulator_from_evaluation(
-            &self.A_2.bitfield_poly,
-            &self.A_2.bitfield_commitment,
-            &sumcheck_challenges,
-        );
-        let c_eval_accumulator = self.get_accumulator_from_evaluation(
-            &c_poly,
-            &C_commitment,
+        // Step 5: Send evaluations to verifier
+        // The verifier needs the following evaluation to verify the sumcheck:
+        // y_1 = b_1(rho), y_2 = b_2(rho), and y_3 = c(rho)
+        // where rho are the sumcheck challenges.
+        //
+        // Instead of sending three KZH proofs to the verifier, we ask the verifier for challenges c_1 and c_2
+        // then we combine three three polys into a single polynomial using a random linear combination, and send a
+        // proof for the resulting polynomial p(x) where p(x) = b_1(x) + c_1 * b_2(x) + c_2 * c(x)
+
+        // Get c_1 and c_2 (XXX could also get just c and then compute c^2)
+        let vec_c: Vec<E::ScalarField> = transcript.get_and_append_challenge_vectors(b"vec_c", 2).unwrap();
+
+        // Step 5.1: First compute p(x):
+        // Get c_1 * b_2(x)
+        let mut c_1_times_b_2_poly = b_2_poly.clone();
+        c_1_times_b_2_poly.scalar_mul(&vec_c[0]);
+        // Get c_2 * c(x)
+        let mut c_2_times_c_poly = c_poly.clone();
+        c_2_times_c_poly.scalar_mul(&vec_c[1]);
+        // Now combine everything to p(x)
+        let p_x = b_1_poly.clone() + c_1_times_b_2_poly + c_2_times_c_poly;
+
+        // Step 5.2: Now compute P commitment to p(x)
+        // First compute c_1 * B_2
+        // let b_1_eval_accumulator = self.get_accumulator_from_evaluation(
+        //     &self.A_1.bitfield_poly,
+        //     &self.A_1.bitfield_commitment,
+        //     &sumcheck_challenges,
+        // );
+        let mut c_1_times_B_2 = self.A_2.bitfield_commitment.clone();
+        c_1_times_B_2.scale_by_r(&vec_c[0]);
+        // Now compute c_2 * C
+        let mut c_2_times_C = C_commitment.clone();
+        c_2_times_C.scale_by_r(&vec_c[1]);
+        let P_commitment = self.A_1.bitfield_commitment.clone() + c_1_times_B_2 + c_2_times_C;
+
+        // Step 5.3: Compute b_1(rho), b_2(rho), c(rho) to send it to verifier
+        let b_1_at_rho = b_1_poly.evaluate(&sumcheck_challenges);
+        let b_2_at_rho = b_2_poly.evaluate(&sumcheck_challenges);
+        let c_at_rho = c_poly.evaluate(&sumcheck_challenges);
+        let p_at_rho = b_1_at_rho + vec_c[0] * b_2_at_rho + vec_c[1] * c_at_rho;
+
+        // Step 5.4: Compute accumulator for opening of p(rho)
+        let sumcheck_eval_accumulator = self.get_accumulator_from_evaluation(
+            &p_x,
+            &P_commitment,
+            &p_at_rho,
             &sumcheck_challenges,
         );
 
-        // We now need to accumulate these three evaluations into one
-        // XXX
+        // Hossein: At this point we will also have two more accumulators from the IVC proofs of Bob and Charlie
+        // Hossein: Accumulate the three accumulators into one
 
         SignatureAggrData {
             bitfield_poly: c_poly,
             bitfield_commitment: C_commitment,
             sumcheck_proof: Some(sumcheck_proof),
-            b_1_eval_accumulator: Some(b_1_eval_accumulator),
-            b_2_eval_accumulator: Some(b_2_eval_accumulator),
-            c_eval_accumulator: Some(c_eval_accumulator),
+            sumcheck_eval_accumulator: Some(sumcheck_eval_accumulator),
+            b_1_at_rho: Some(b_1_at_rho),
+            b_2_at_rho: Some(b_2_at_rho),
+            c_at_rho: Some(c_at_rho),
             // ivc_proof: ivc_proof
         }
     }
@@ -210,6 +245,7 @@ where
     <E as Pairing>::ScalarField: Absorb,
 {
     pub fn verify(self, transcript: &mut IOPTranscript<E::ScalarField>) -> bool {
+        // Step 1:
         // Get r challenge from verifier
         transcript.append_serializable_element(b"poly", &self.A.bitfield_commitment.C).unwrap();
         let vec_r = transcript.get_and_append_challenge_vectors(b"vec_r", self.A.bitfield_poly.num_variables).unwrap();
@@ -226,17 +262,19 @@ where
         // where p(x) = eq(r,x) (b_1(x) + b_2(x) - b_1(x) * b_2(x) - c(x))
         let eq_at_r = MultilinearPolynomial::new(EqPolynomial::new(vec_r).evals());
         let eq_at_r_rho = eq_at_r.evaluate(&sumcheck_challenges);
-        let b_1_at_rho = self.A.b_1_eval_accumulator.unwrap().instance.z;
-        let b_2_at_rho = self.A.b_2_eval_accumulator.unwrap().instance.z;
-        let c_at_rho = self.A.c_eval_accumulator.unwrap().instance.z;
+        let b_1_at_rho = self.A.b_1_at_rho.unwrap();
+        let b_2_at_rho = self.A.b_2_at_rho.unwrap();
+        let c_at_rho = self.A.c_at_rho.unwrap();
         assert_eq!(tensorcheck_claim,
-                   eq_at_r_rho * (b_1_at_rho + b_2_at_rho - b_1_at_rho * b_2_at_rho - c_at_rho));
+                  eq_at_r_rho * (b_1_at_rho + b_2_at_rho - b_1_at_rho * b_2_at_rho - c_at_rho));
 
         // Verify the IVC proof
 
         // Verify the BLS signature
 
         // At some point, run the decider
+        // Verify the accumulator?
+
 
         true
     }
