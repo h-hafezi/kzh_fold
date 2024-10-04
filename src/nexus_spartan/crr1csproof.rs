@@ -3,7 +3,6 @@
 use super::polycommitments::PolyCommitmentScheme;
 use super::unipoly::{CompressedUniPoly, UniPoly};
 
-use super::dense_mlpoly::{DensePolynomial, EqPolynomial};
 use super::errors::ProofVerifyError;
 use super::math::Math;
 use super::sparse_mlpoly::{SparsePolyEntry, SparsePolynomial};
@@ -15,7 +14,8 @@ use ark_ff::PrimeField;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::{One, Zero};
 use merlin::Transcript;
-
+use crate::polynomial::eq_poly::EqPolynomial;
+use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 pub use super::crr1cs::*;
 
 #[derive(CanonicalSerialize, CanonicalDeserialize, Debug)]
@@ -41,8 +41,8 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
     pub fn prove_quad<Func, G>(
         claim: &F,
         num_rounds: usize,
-        poly_A: &mut DensePolynomial<F>,
-        poly_B: &mut DensePolynomial<F>,
+        poly_A: &mut MultilinearPolynomial<F>,
+        poly_B: &mut MultilinearPolynomial<F>,
         comb_func: Func,
         transcript: &mut Transcript,
     ) -> (Self, Vec<F>, Vec<F>)
@@ -96,11 +96,11 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
     pub fn prove_cubic_five_terms<Func, G>(
         claim: &F,
         num_rounds: usize,
-        poly_A: &mut DensePolynomial<F>,
-        poly_B: &mut DensePolynomial<F>,
-        poly_C: &mut DensePolynomial<F>,
-        poly_D: &mut DensePolynomial<F>,
-        poly_E: &mut DensePolynomial<F>,
+        poly_A: &mut MultilinearPolynomial<F>,
+        poly_B: &mut MultilinearPolynomial<F>,
+        poly_C: &mut MultilinearPolynomial<F>,
+        poly_D: &mut MultilinearPolynomial<F>,
+        poly_E: &mut MultilinearPolynomial<F>,
         comb_func: Func,
         transcript: &mut Transcript,
     ) -> (Self, Vec<F>, Vec<F>)
@@ -186,11 +186,11 @@ impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> CRR1CSProof<G, PC> {
     /// Note that this proof does not use blinding factors, so this is not zero-knowledge.
     fn prove_phase_one(
         num_rounds: usize,
-        evals_tau: &mut DensePolynomial<G::ScalarField>,
-        evals_Az: &mut DensePolynomial<G::ScalarField>,
-        evals_Bz: &mut DensePolynomial<G::ScalarField>,
-        evals_Cz: &mut DensePolynomial<G::ScalarField>,
-        evals_E: &mut DensePolynomial<G::ScalarField>,
+        evals_tau: &mut MultilinearPolynomial<G::ScalarField>,
+        evals_Az: &mut MultilinearPolynomial<G::ScalarField>,
+        evals_Bz: &mut MultilinearPolynomial<G::ScalarField>,
+        evals_Cz: &mut MultilinearPolynomial<G::ScalarField>,
+        evals_E: &mut MultilinearPolynomial<G::ScalarField>,
         u: &G::ScalarField,
         transcript: &mut Transcript,
     ) -> (
@@ -226,8 +226,8 @@ impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> CRR1CSProof<G, PC> {
     fn prove_phase_two(
         num_rounds: usize,
         claim: &G::ScalarField,
-        evals_z: &mut DensePolynomial<G::ScalarField>,
-        evals_ABC: &mut DensePolynomial<G::ScalarField>,
+        evals_z: &mut MultilinearPolynomial<G::ScalarField>,
+        evals_ABC: &mut MultilinearPolynomial<G::ScalarField>,
         transcript: &mut Transcript,
     ) -> (
         SumcheckInstanceProof<G::ScalarField>,
@@ -280,9 +280,9 @@ impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> CRR1CSProof<G, PC> {
         comm_W.append_to_transcript(b"comm_W", transcript);
         comm_E.append_to_transcript(b"comm_E", transcript);
         // create a multilinear polynomial using the supplied assignment for variables
-        let poly_vars = DensePolynomial::<G::ScalarField>::new(vars.clone());
+        let poly_vars = MultilinearPolynomial::<G::ScalarField>::new(vars.clone());
         // create a multilinear polynomial from the error vector
-        let poly_error = DensePolynomial::<G::ScalarField>::new(E.clone());
+        let poly_error = MultilinearPolynomial::<G::ScalarField>::new(E.clone());
 
         let timer_sc_proof_phase1 = Timer::new("prove_sc_phase_one");
 
@@ -305,7 +305,7 @@ impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> CRR1CSProof<G, PC> {
             num_rounds_x,
         );
         // compute the initial evaluation table for R(\tau, x)
-        let mut poly_tau = DensePolynomial::new(EqPolynomial::new(tau).evals());
+        let mut poly_tau = MultilinearPolynomial::new(EqPolynomial::new(tau).evals());
         let (mut poly_Az, mut poly_Bz, mut poly_Cz) =
             inst.multiply_vec(inst.get_num_cons(), z.len(), &z);
 
@@ -365,14 +365,14 @@ impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> CRR1CSProof<G, PC> {
         let (sc_proof_phase2, ry, _claims_phase2) = CRR1CSProof::<G, PC>::prove_phase_two(
             num_rounds_y,
             &claim_phase2,
-            &mut DensePolynomial::new(z),
-            &mut DensePolynomial::new(evals_ABC),
+            &mut MultilinearPolynomial::new(z),
+            &mut MultilinearPolynomial::new(evals_ABC),
             transcript,
         );
         timer_sc_proof_phase2.stop();
 
         let timer_polyeval = Timer::new("polyeval");
-        let eval_vars_at_ry = poly_vars.evaluate::<G>(&ry[1..]);
+        let eval_vars_at_ry = poly_vars.evaluate(&ry[1..]);
         timer_polyeval.stop();
 
         let timer_polyevalproof = Timer::new("polyevalproof");

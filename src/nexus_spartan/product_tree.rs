@@ -1,6 +1,4 @@
 #![allow(dead_code)]
-use super::dense_mlpoly::DensePolynomial;
-use super::dense_mlpoly::EqPolynomial;
 use super::math::Math;
 use super::sumcheck::SumcheckInstanceProof;
 use super::transcript::ProofTranscript;
@@ -8,21 +6,23 @@ use ark_ec::CurveGroup;
 use ark_ff::PrimeField;
 use ark_serialize::*;
 use merlin::Transcript;
+use crate::polynomial::eq_poly::EqPolynomial;
+use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 
 #[derive(Debug)]
 pub struct ProductCircuit<F>
 where
-    F: Sync + CanonicalDeserialize + CanonicalSerialize,
+    F: Sync + CanonicalDeserialize + CanonicalSerialize + PrimeField,
 {
-    left_vec: Vec<DensePolynomial<F>>,
-    right_vec: Vec<DensePolynomial<F>>,
+    left_vec: Vec<MultilinearPolynomial<F>>,
+    right_vec: Vec<MultilinearPolynomial<F>>,
 }
 
 impl<F: PrimeField> ProductCircuit<F> {
     fn compute_layer(
-        inp_left: &DensePolynomial<F>,
-        inp_right: &DensePolynomial<F>,
-    ) -> (DensePolynomial<F>, DensePolynomial<F>) {
+        inp_left: &MultilinearPolynomial<F>,
+        inp_right: &MultilinearPolynomial<F>,
+    ) -> (MultilinearPolynomial<F>, MultilinearPolynomial<F>) {
         let len = inp_left.len() + inp_right.len();
         let outp_left = (0..len / 4)
             .map(|i| inp_left[i] * inp_right[i])
@@ -32,14 +32,14 @@ impl<F: PrimeField> ProductCircuit<F> {
             .collect::<Vec<F>>();
 
         (
-            DensePolynomial::new(outp_left),
-            DensePolynomial::new(outp_right),
+            MultilinearPolynomial::new(outp_left),
+            MultilinearPolynomial::new(outp_right),
         )
     }
 
-    pub fn new(poly: &DensePolynomial<F>) -> Self {
-        let mut left_vec: Vec<DensePolynomial<F>> = Vec::new();
-        let mut right_vec: Vec<DensePolynomial<F>> = Vec::new();
+    pub fn new(poly: &MultilinearPolynomial<F>) -> Self {
+        let mut left_vec: Vec<MultilinearPolynomial<F>> = Vec::new();
+        let mut right_vec: Vec<MultilinearPolynomial<F>> = Vec::new();
 
         let num_layers = poly.len().log_2();
         let (outp_left, outp_right) = poly.split(poly.len() / 2);
@@ -69,18 +69,18 @@ impl<F: PrimeField> ProductCircuit<F> {
 
 pub struct DotProductCircuit<F>
 where
-    F: Sync + CanonicalDeserialize + CanonicalSerialize,
+    F: Sync + CanonicalDeserialize + CanonicalSerialize + PrimeField,
 {
-    left: DensePolynomial<F>,
-    right: DensePolynomial<F>,
-    weight: DensePolynomial<F>,
+    left: MultilinearPolynomial<F>,
+    right: MultilinearPolynomial<F>,
+    weight: MultilinearPolynomial<F>,
 }
 
 impl<F: PrimeField> DotProductCircuit<F> {
     pub fn new(
-        left: DensePolynomial<F>,
-        right: DensePolynomial<F>,
-        weight: DensePolynomial<F>,
+        left: MultilinearPolynomial<F>,
+        right: MultilinearPolynomial<F>,
+        weight: MultilinearPolynomial<F>,
     ) -> Self {
         assert_eq!(left.len(), right.len());
         assert_eq!(left.len(), weight.len());
@@ -196,7 +196,7 @@ impl<F: PrimeField> ProductCircuitEvalProof<F> {
         for layer_id in (0..num_layers).rev() {
             let len = circuit.left_vec[layer_id].len() + circuit.right_vec[layer_id].len();
 
-            let mut poly_C = DensePolynomial::new(EqPolynomial::new(rand.clone()).evals());
+            let mut poly_C = MultilinearPolynomial::new(EqPolynomial::new(rand.clone()).evals());
             assert_eq!(poly_C.len(), len / 2);
 
             let num_rounds_prod = poly_C.len().log_2();
@@ -311,7 +311,7 @@ impl<F: PrimeField> ProductCircuitEvalProofBatched<F> {
             let len = prod_circuit_vec[0].left_vec[layer_id].len()
                 + prod_circuit_vec[0].right_vec[layer_id].len();
 
-            let mut poly_C_par = DensePolynomial::new(EqPolynomial::<F>::new(rand.clone()).evals());
+            let mut poly_C_par = MultilinearPolynomial::new(EqPolynomial::<F>::new(rand.clone()).evals());
             assert_eq!(poly_C_par.len(), len / 2);
 
             let num_rounds_prod = poly_C_par.len().log_2();
@@ -319,8 +319,8 @@ impl<F: PrimeField> ProductCircuitEvalProofBatched<F> {
                 *poly_A_comp * *poly_B_comp * *poly_C_comp
             };
 
-            let mut poly_A_batched_par: Vec<&mut DensePolynomial<F>> = Vec::new();
-            let mut poly_B_batched_par: Vec<&mut DensePolynomial<F>> = Vec::new();
+            let mut poly_A_batched_par: Vec<&mut MultilinearPolynomial<F>> = Vec::new();
+            let mut poly_B_batched_par: Vec<&mut MultilinearPolynomial<F>> = Vec::new();
             for prod_circuit in prod_circuit_vec.iter_mut() {
                 poly_A_batched_par.push(&mut prod_circuit.left_vec[layer_id]);
                 poly_B_batched_par.push(&mut prod_circuit.right_vec[layer_id])
@@ -332,9 +332,9 @@ impl<F: PrimeField> ProductCircuitEvalProofBatched<F> {
             );
 
             // prepare sequential instances that don't share poly_C
-            let mut poly_A_batched_seq: Vec<&mut DensePolynomial<F>> = Vec::new();
-            let mut poly_B_batched_seq: Vec<&mut DensePolynomial<F>> = Vec::new();
-            let mut poly_C_batched_seq: Vec<&mut DensePolynomial<F>> = Vec::new();
+            let mut poly_A_batched_seq: Vec<&mut MultilinearPolynomial<F>> = Vec::new();
+            let mut poly_B_batched_seq: Vec<&mut MultilinearPolynomial<F>> = Vec::new();
+            let mut poly_C_batched_seq: Vec<&mut MultilinearPolynomial<F>> = Vec::new();
             if layer_id == 0 && !dotp_circuit_vec.is_empty() {
                 // add additional claims
                 for item in dotp_circuit_vec.iter() {

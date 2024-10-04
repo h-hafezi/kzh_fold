@@ -3,7 +3,6 @@
 #![allow(clippy::too_many_arguments)]
 use core::ops::{Add, Index};
 use std::fmt::Debug;
-use std::marker::PhantomData;
 
 use ark_crypto_primitives::crh::sha256::digest::typenum::private::PrivateIntegerAdd;
 use ark_ec::CurveGroup;
@@ -22,7 +21,7 @@ use crate::polynomial::eq_poly::EqPolynomial;
 use crate::polynomial::math::Math;
 use crate::utils::inner_product;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, CanonicalDeserialize, CanonicalSerialize)]
 pub struct MultilinearPolynomial<F: PrimeField> {
     /// the number of variables in the multilinear polynomial
     pub(crate) num_variables: usize,
@@ -181,7 +180,7 @@ impl<F: PrimeField> MultilinearPolynomial<F> {
     }
 
     pub fn get_partial_evaluation_for_boolean_input(&self, index: usize, n: usize) -> Vec<F> {
-        self.evaluation_over_boolean_hypercube[n * index..n * index +n].to_vec()
+        self.evaluation_over_boolean_hypercube[n * index..n * index + n].to_vec()
     }
 
     pub fn rand<T: RngCore>(num_variables: usize, rng: &mut T) -> MultilinearPolynomial<F> {
@@ -261,7 +260,6 @@ mod tests {
     use rand::thread_rng;
 
     use crate::constant_for_curves::{E, ScalarField};
-    use crate::polynomial::decimal_to_boolean_vector;
     use crate::polynomial::eq_poly::EqPolynomial;
 
     use super::*;

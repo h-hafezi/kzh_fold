@@ -1,7 +1,6 @@
 #![allow(clippy::type_complexity)]
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::needless_range_loop)]
-use super::dense_mlpoly::{DensePolynomial, EqPolynomial, IdentityPolynomial};
 use super::errors::ProofVerifyError;
 use super::math::Math;
 use super::polycommitments::{PCSKeys, PolyCommitmentScheme, SRSTrait};
@@ -14,6 +13,9 @@ use ark_serialize::*;
 use ark_std::{cmp::max, One, Zero};
 use core::cmp::Ordering;
 use merlin::Transcript;
+use crate::polynomial::eq_poly::EqPolynomial;
+use crate::polynomial::identity::IdentityPolynomial;
+use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 
 #[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
 pub struct SparseMatEntry<F: PrimeField> {
@@ -37,11 +39,11 @@ pub struct SparseMatPolynomial<F: PrimeField> {
 
 pub struct Derefs<F>
 where
-    F: Sync + CanonicalDeserialize + CanonicalSerialize,
+    F: Sync + CanonicalDeserialize + CanonicalSerialize + PrimeField,
 {
-    row_ops_val: Vec<DensePolynomial<F>>,
-    col_ops_val: Vec<DensePolynomial<F>>,
-    comb: DensePolynomial<F>,
+    row_ops_val: Vec<MultilinearPolynomial<F>>,
+    col_ops_val: Vec<MultilinearPolynomial<F>>,
+    comb: MultilinearPolynomial<F>,
 }
 
 #[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
@@ -50,12 +52,12 @@ pub struct DerefsCommitment<G: CurveGroup, PC: PolyCommitmentScheme<G>> {
 }
 
 impl<F: PrimeField> Derefs<F> {
-    pub fn new(row_ops_val: Vec<DensePolynomial<F>>, col_ops_val: Vec<DensePolynomial<F>>) -> Self {
+    pub fn new(row_ops_val: Vec<MultilinearPolynomial<F>>, col_ops_val: Vec<MultilinearPolynomial<F>>) -> Self {
         assert_eq!(row_ops_val.len(), col_ops_val.len());
 
         let derefs = {
             // combine all polynomials into a single polynomial (used below to produce a single commitment)
-            let comb = DensePolynomial::merge(
+            let comb = MultilinearPolynomial::merge(
                 [row_ops_val.as_slice(), col_ops_val.as_slice()]
                     .concat()
                     .as_slice(),
@@ -91,7 +93,7 @@ impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> DerefsEvalProof<G, PC> {
     }
 
     fn prove_single(
-        joint_poly: &DensePolynomial<G::ScalarField>,
+        joint_poly: &MultilinearPolynomial<G::ScalarField>,
         r: &[G::ScalarField],
         evals: Vec<G::ScalarField>,
         ck: &PC::PolyCommitmentKey,
@@ -110,7 +112,7 @@ impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> DerefsEvalProof<G, PC> {
                 evals.len().log_2(),
             );
 
-            let mut poly_evals = DensePolynomial::new(evals);
+            let mut poly_evals = MultilinearPolynomial::new(evals);
             for i in (0..challenges.len()).rev() {
                 poly_evals.bound_poly_var_bot(&challenges[i]);
             }
@@ -119,7 +121,7 @@ impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> DerefsEvalProof<G, PC> {
             let mut r_joint = challenges;
             r_joint.extend(r);
 
-            debug_assert_eq!(joint_poly.evaluate::<G>(&r_joint), joint_claim_eval);
+            debug_assert_eq!(joint_poly.evaluate(&r_joint), joint_claim_eval);
             (r_joint, joint_claim_eval)
         };
         // decommit the joint polynomial at r_joint
@@ -171,7 +173,7 @@ impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> DerefsEvalProof<G, PC> {
             b"challenge_combine_n_to_one",
             evals.len().log_2(),
         );
-        let mut poly_evals = DensePolynomial::new(evals);
+        let mut poly_evals = MultilinearPolynomial::new(evals);
         for i in (0..challenges.len()).rev() {
             poly_evals.bound_poly_var_bot(&challenges[i]);
         }
@@ -230,12 +232,12 @@ impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> AppendToTranscript<G> for Deref
 #[derive(CanonicalDeserialize, CanonicalSerialize)]
 struct AddrTimestamps<F>
 where
-    F: Sync + CanonicalSerialize + CanonicalDeserialize,
+    F: Sync + CanonicalSerialize + CanonicalDeserialize + PrimeField,
 {
     ops_addr_usize: Vec<Vec<usize>>,
-    ops_addr: Vec<DensePolynomial<F>>,
-    read_ts: Vec<DensePolynomial<F>>,
-    audit_ts: DensePolynomial<F>,
+    ops_addr: Vec<MultilinearPolynomial<F>>,
+    read_ts: Vec<MultilinearPolynomial<F>>,
+    audit_ts: MultilinearPolynomial<F>,
 }
 
 impl<F: PrimeField> AddrTimestamps<F> {
@@ -245,8 +247,8 @@ impl<F: PrimeField> AddrTimestamps<F> {
         }
 
         let mut audit_ts = vec![0usize; num_cells];
-        let mut ops_addr_vec: Vec<DensePolynomial<F>> = Vec::new();
-        let mut read_ts_vec: Vec<DensePolynomial<F>> = Vec::new();
+        let mut ops_addr_vec: Vec<MultilinearPolynomial<F>> = Vec::new();
+        let mut read_ts_vec: Vec<MultilinearPolynomial<F>> = Vec::new();
         for ops_addr_inst in ops_addr.iter() {
             let mut read_ts = vec![0usize; num_ops];
 
@@ -262,20 +264,20 @@ impl<F: PrimeField> AddrTimestamps<F> {
                 audit_ts[addr] = w_ts;
             }
 
-            ops_addr_vec.push(DensePolynomial::from_usize(ops_addr_inst));
-            read_ts_vec.push(DensePolynomial::from_usize(&read_ts));
+            ops_addr_vec.push(MultilinearPolynomial::from_usize(ops_addr_inst));
+            read_ts_vec.push(MultilinearPolynomial::from_usize(&read_ts));
         }
 
         AddrTimestamps {
             ops_addr: ops_addr_vec,
             ops_addr_usize: ops_addr,
             read_ts: read_ts_vec,
-            audit_ts: DensePolynomial::from_usize(&audit_ts),
+            audit_ts: MultilinearPolynomial::from_usize(&audit_ts),
         }
     }
 
-    fn deref_mem(addr: &[usize], mem_val: &[F]) -> DensePolynomial<F> {
-        DensePolynomial::new(
+    fn deref_mem(addr: &[usize], mem_val: &[F]) -> MultilinearPolynomial<F> {
+        MultilinearPolynomial::new(
             (0..addr.len())
                 .map(|i| {
                     let a = addr[i];
@@ -285,24 +287,24 @@ impl<F: PrimeField> AddrTimestamps<F> {
         )
     }
 
-    pub fn deref(&self, mem_val: &[F]) -> Vec<DensePolynomial<F>> {
+    pub fn deref(&self, mem_val: &[F]) -> Vec<MultilinearPolynomial<F>> {
         (0..self.ops_addr.len())
             .map(|i| AddrTimestamps::deref_mem(&self.ops_addr_usize[i], mem_val))
-            .collect::<Vec<DensePolynomial<F>>>()
+            .collect::<Vec<MultilinearPolynomial<F>>>()
     }
 }
 
 #[derive(CanonicalDeserialize, CanonicalSerialize)]
 pub struct MultiSparseMatPolynomialAsDense<F>
 where
-    F: Sync + CanonicalSerialize + CanonicalDeserialize,
+    F: Sync + CanonicalSerialize + CanonicalDeserialize + PrimeField,
 {
     batch_size: usize,
-    val: Vec<DensePolynomial<F>>,
+    val: Vec<MultilinearPolynomial<F>>,
     row: AddrTimestamps<F>,
     col: AddrTimestamps<F>,
-    comb_ops: DensePolynomial<F>,
-    comb_mem: DensePolynomial<F>,
+    comb_ops: MultilinearPolynomial<F>,
+    comb_mem: MultilinearPolynomial<F>,
 }
 
 #[derive(CanonicalDeserialize, CanonicalSerialize)]
@@ -441,12 +443,12 @@ impl<F: PrimeField> SparseMatPolynomial<F> {
 
         let mut ops_row_vec: Vec<Vec<usize>> = Vec::new();
         let mut ops_col_vec: Vec<Vec<usize>> = Vec::new();
-        let mut val_vec: Vec<DensePolynomial<F>> = Vec::new();
+        let mut val_vec: Vec<MultilinearPolynomial<F>> = Vec::new();
         for poly in sparse_polys {
             let (ops_row, ops_col, val) = poly.sparse_to_dense_vecs(N);
             ops_row_vec.push(ops_row);
             ops_col_vec.push(ops_col);
-            val_vec.push(DensePolynomial::new(val));
+            val_vec.push(MultilinearPolynomial::new(val));
         }
 
         let any_poly = &sparse_polys[0];
@@ -461,7 +463,7 @@ impl<F: PrimeField> SparseMatPolynomial<F> {
         let col = AddrTimestamps::new(num_mem_cells, N, ops_col_vec);
 
         // combine polynomials into a single polynomial for commitment purposes
-        let comb_ops = DensePolynomial::merge(
+        let comb_ops = MultilinearPolynomial::merge(
             [
                 row.ops_addr.as_slice(),
                 row.read_ts.as_slice(),
@@ -574,7 +576,7 @@ impl<F: PrimeField> MultiSparseMatPolynomialAsDense<F> {
 #[derive(Debug)]
 struct ProductLayer<F>
 where
-    F: Sync + CanonicalSerialize + CanonicalDeserialize,
+    F: Sync + CanonicalSerialize + CanonicalDeserialize + PrimeField,
 {
     init: ProductCircuit<F>,
     read_vec: Vec<ProductCircuit<F>>,
@@ -585,7 +587,7 @@ where
 #[derive(Debug)]
 struct Layers<F>
 where
-    F: Sync + CanonicalSerialize + CanonicalDeserialize,
+    F: Sync + CanonicalSerialize + CanonicalDeserialize + PrimeField,
 {
     prod_layer: ProductLayer<F>,
 }
@@ -593,16 +595,16 @@ where
 impl<F: PrimeField> Layers<F> {
     fn build_hash_layer(
         eval_table: &[F],
-        addrs_vec: &[DensePolynomial<F>],
-        derefs_vec: &[DensePolynomial<F>],
-        read_ts_vec: &[DensePolynomial<F>],
-        audit_ts: &DensePolynomial<F>,
+        addrs_vec: &[MultilinearPolynomial<F>],
+        derefs_vec: &[MultilinearPolynomial<F>],
+        read_ts_vec: &[MultilinearPolynomial<F>],
+        audit_ts: &MultilinearPolynomial<F>,
         r_mem_check: &(F, F),
     ) -> (
-        DensePolynomial<F>,
-        Vec<DensePolynomial<F>>,
-        Vec<DensePolynomial<F>>,
-        DensePolynomial<F>,
+        MultilinearPolynomial<F>,
+        Vec<MultilinearPolynomial<F>>,
+        Vec<MultilinearPolynomial<F>>,
+        MultilinearPolynomial<F>,
     ) {
         let (r_hash, r_multiset_check) = r_mem_check;
 
@@ -612,7 +614,7 @@ impl<F: PrimeField> Layers<F> {
 
         // hash init and audit that does not depend on #instances
         let num_mem_cells = eval_table.len();
-        let poly_init_hashed = DensePolynomial::new(
+        let poly_init_hashed = MultilinearPolynomial::new(
             (0..num_mem_cells)
                 .map(|i| {
                     // at init time, addr is given by i, init value is given by eval_table, and ts = 0
@@ -620,7 +622,7 @@ impl<F: PrimeField> Layers<F> {
                 })
                 .collect::<Vec<F>>(),
         );
-        let poly_audit_hashed = DensePolynomial::new(
+        let poly_audit_hashed = MultilinearPolynomial::new(
             (0..num_mem_cells)
                 .map(|i| {
                     // at audit time, addr is given by i, value is given by eval_table, and ts is given by audit_ts
@@ -630,14 +632,14 @@ impl<F: PrimeField> Layers<F> {
         );
 
         // hash read and write that depends on #instances
-        let mut poly_read_hashed_vec: Vec<DensePolynomial<F>> = Vec::new();
-        let mut poly_write_hashed_vec: Vec<DensePolynomial<F>> = Vec::new();
+        let mut poly_read_hashed_vec: Vec<MultilinearPolynomial<F>> = Vec::new();
+        let mut poly_write_hashed_vec: Vec<MultilinearPolynomial<F>> = Vec::new();
         for i in 0..addrs_vec.len() {
             let (addrs, derefs, read_ts) = (&addrs_vec[i], &derefs_vec[i], &read_ts_vec[i]);
             assert_eq!(addrs.len(), derefs.len());
             assert_eq!(addrs.len(), read_ts.len());
             let num_ops = addrs.len();
-            let poly_read_hashed = DensePolynomial::new(
+            let poly_read_hashed = MultilinearPolynomial::new(
                 (0..num_ops)
                     .map(|i| {
                         // at read time, addr is given by addrs, value is given by derefs, and ts is given by read_ts
@@ -647,7 +649,7 @@ impl<F: PrimeField> Layers<F> {
             );
             poly_read_hashed_vec.push(poly_read_hashed);
 
-            let poly_write_hashed = DensePolynomial::new(
+            let poly_write_hashed = MultilinearPolynomial::new(
                 (0..num_ops)
                     .map(|i| {
                         // at write time, addr is given by addrs, value is given by derefs, and ts is given by write_ts = read_ts + 1
@@ -669,7 +671,7 @@ impl<F: PrimeField> Layers<F> {
     pub fn new(
         eval_table: &[F],
         addr_timestamps: &AddrTimestamps<F>,
-        poly_ops_val: &[DensePolynomial<F>],
+        poly_ops_val: &[MultilinearPolynomial<F>],
         r_mem_check: &(F, F),
     ) -> Self {
         let (poly_init_hashed, poly_read_hashed_vec, poly_write_hashed_vec, poly_audit_hashed) =
@@ -719,7 +721,7 @@ impl<F: PrimeField> Layers<F> {
 #[derive(Debug)]
 struct PolyEvalNetwork<F>
 where
-    F: Sync + CanonicalDeserialize + CanonicalSerialize,
+    F: Sync + CanonicalDeserialize + CanonicalSerialize + PrimeField,
 {
     row_layers: Layers<F>,
     col_layers: Layers<F>,
@@ -768,19 +770,19 @@ impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> HashLayerProof<G, PC> {
         // decommit ops-addr at rand_ops
         let mut eval_ops_addr_vec: Vec<G::ScalarField> = Vec::new();
         for i in 0..addr_timestamps.ops_addr.len() {
-            let eval_ops_addr = addr_timestamps.ops_addr[i].evaluate::<G>(rand_ops);
+            let eval_ops_addr = addr_timestamps.ops_addr[i].evaluate(rand_ops);
             eval_ops_addr_vec.push(eval_ops_addr);
         }
 
         // decommit read_ts at rand_ops
         let mut eval_read_ts_vec: Vec<G::ScalarField> = Vec::new();
         for i in 0..addr_timestamps.read_ts.len() {
-            let eval_read_ts = addr_timestamps.read_ts[i].evaluate::<G>(rand_ops);
+            let eval_read_ts = addr_timestamps.read_ts[i].evaluate(rand_ops);
             eval_read_ts_vec.push(eval_read_ts);
         }
 
         // decommit audit-ts at rand_mem
-        let eval_audit_ts = addr_timestamps.audit_ts.evaluate::<G>(rand_mem);
+        let eval_audit_ts = addr_timestamps.audit_ts.evaluate(rand_mem);
 
         (eval_ops_addr_vec, eval_read_ts_vec, eval_audit_ts)
     }
@@ -801,10 +803,10 @@ impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> HashLayerProof<G, PC> {
 
         // decommit derefs at rand_ops
         let eval_row_ops_val = (0..derefs.row_ops_val.len())
-            .map(|i| derefs.row_ops_val[i].evaluate::<G>(rand_ops))
+            .map(|i| derefs.row_ops_val[i].evaluate(rand_ops))
             .collect::<Vec<G::ScalarField>>();
         let eval_col_ops_val = (0..derefs.col_ops_val.len())
-            .map(|i| derefs.col_ops_val[i].evaluate::<G>(rand_ops))
+            .map(|i| derefs.col_ops_val[i].evaluate(rand_ops))
             .collect::<Vec<G::ScalarField>>();
         let proof_derefs = DerefsEvalProof::prove(
             derefs,
@@ -823,7 +825,7 @@ impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> HashLayerProof<G, PC> {
         let (eval_col_addr_vec, eval_col_read_ts_vec, eval_col_audit_ts) =
             HashLayerProof::<G, PC>::prove_helper((rand_mem, rand_ops), &dense.col);
         let eval_val_vec = (0..dense.val.len())
-            .map(|i| dense.val[i].evaluate::<G>(rand_ops))
+            .map(|i| dense.val[i].evaluate(rand_ops))
             .collect::<Vec<G::ScalarField>>();
 
         // form a single decommitment using comm_comb_ops
@@ -843,7 +845,7 @@ impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> HashLayerProof<G, PC> {
             evals_ops.len().log_2(),
         );
 
-        let mut poly_evals_ops = DensePolynomial::new(evals_ops);
+        let mut poly_evals_ops = MultilinearPolynomial::new(evals_ops);
         for i in (0..challenges_ops.len()).rev() {
             poly_evals_ops.bound_poly_var_bot(&challenges_ops[i]);
         }
@@ -852,7 +854,7 @@ impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> HashLayerProof<G, PC> {
         let mut r_joint_ops = challenges_ops;
         r_joint_ops.extend(rand_ops);
         debug_assert_eq!(
-            dense.comb_ops.evaluate::<G>(&r_joint_ops),
+            dense.comb_ops.evaluate(&r_joint_ops),
             joint_claim_eval_ops
         );
         <Transcript as ProofTranscript<G>>::append_scalar(
@@ -880,7 +882,7 @@ impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> HashLayerProof<G, PC> {
             evals_mem.len().log_2(),
         );
 
-        let mut poly_evals_mem = DensePolynomial::new(evals_mem);
+        let mut poly_evals_mem = MultilinearPolynomial::new(evals_mem);
         for i in (0..challenges_mem.len()).rev() {
             poly_evals_mem.bound_poly_var_bot(&challenges_mem[i]);
         }
@@ -889,7 +891,7 @@ impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> HashLayerProof<G, PC> {
         let mut r_joint_mem = challenges_mem;
         r_joint_mem.extend(rand_mem);
         debug_assert_eq!(
-            dense.comb_mem.evaluate::<G>(&r_joint_mem),
+            dense.comb_mem.evaluate(&r_joint_mem),
             joint_claim_eval_mem
         );
         <Transcript as ProofTranscript<G>>::append_scalar(
@@ -1053,7 +1055,7 @@ impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> HashLayerProof<G, PC> {
             evals_ops.len().log_2(),
         );
 
-        let mut poly_evals_ops = DensePolynomial::new(evals_ops);
+        let mut poly_evals_ops = MultilinearPolynomial::new(evals_ops);
         for i in (0..challenges_ops.len()).rev() {
             poly_evals_ops.bound_poly_var_bot(&challenges_ops[i]);
         }
@@ -1085,7 +1087,7 @@ impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> HashLayerProof<G, PC> {
             evals_mem.len().log_2(),
         );
 
-        let mut poly_evals_mem = DensePolynomial::new(evals_mem);
+        let mut poly_evals_mem = MultilinearPolynomial::new(evals_mem);
         for i in (0..challenges_mem.len()).rev() {
             poly_evals_mem.bound_poly_var_bot(&challenges_mem[i]);
         }

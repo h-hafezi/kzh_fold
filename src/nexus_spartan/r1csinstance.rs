@@ -1,4 +1,3 @@
-use super::dense_mlpoly::DensePolynomial;
 use super::errors::ProofVerifyError;
 use super::math::Math;
 use super::polycommitments::{PolyCommitmentScheme, SRSTrait};
@@ -13,6 +12,7 @@ use ark_ff::PrimeField;
 use ark_serialize::*;
 use ark_std::test_rng;
 use merlin::Transcript;
+use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 
 #[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
 pub struct R1CSInstance<F: PrimeField> {
@@ -88,7 +88,7 @@ impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> AppendToTranscript<G> for R1CSC
 #[derive(CanonicalDeserialize, CanonicalSerialize)]
 pub struct R1CSDecommitment<F>
 where
-    F: Sync + CanonicalDeserialize + CanonicalSerialize,
+    F: Sync + CanonicalDeserialize + CanonicalSerialize + PrimeField,
 {
     dense: MultiSparseMatPolynomialAsDense<F>,
 }
@@ -287,14 +287,14 @@ impl<F: PrimeField> R1CSInstance<F> {
         num_rows: usize,
         num_cols: usize,
         z: &[F],
-    ) -> (DensePolynomial<F>, DensePolynomial<F>, DensePolynomial<F>) {
+    ) -> (MultilinearPolynomial<F>, MultilinearPolynomial<F>, MultilinearPolynomial<F>) {
         assert_eq!(num_rows, self.num_cons);
         assert_eq!(z.len(), num_cols);
         assert!(num_cols > self.num_vars);
         (
-            DensePolynomial::new(self.A.multiply_vec(num_rows, num_cols, z)),
-            DensePolynomial::new(self.B.multiply_vec(num_rows, num_cols, z)),
-            DensePolynomial::new(self.C.multiply_vec(num_rows, num_cols, z)),
+            MultilinearPolynomial::new(self.A.multiply_vec(num_rows, num_cols, z)),
+            MultilinearPolynomial::new(self.B.multiply_vec(num_rows, num_cols, z)),
+            MultilinearPolynomial::new(self.C.multiply_vec(num_rows, num_cols, z)),
         )
     }
 

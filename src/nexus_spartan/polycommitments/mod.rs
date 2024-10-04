@@ -1,3 +1,5 @@
+use core::fmt::Debug;
+
 use ark_ec::CurveGroup;
 use ark_poly_commit::Error;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
@@ -5,13 +7,15 @@ use ark_std::{
     ops::{Add, AddAssign, Mul, MulAssign},
     rand::RngCore,
 };
-use core::fmt::Debug;
 use derivative::Derivative;
 use merlin::Transcript;
 
-use crate::nexus_spartan::{dense_mlpoly::DensePolynomial, transcript::AppendToTranscript};
+use crate::polynomial::multilinear_poly;
+use crate::nexus_spartan::{transcript::AppendToTranscript};
+use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 
 pub mod error;
+
 pub trait VectorCommitmentScheme<G: CurveGroup> {
     type VectorCommitment: AppendToTranscript<G>
     + Sized
@@ -33,10 +37,10 @@ Sized
 + CanonicalDeserialize
 + PartialEq
 + Eq
-+ Add<Self, Output = Self>
++ Add<Self, Output=Self>
 + AddAssign<Self>
 + MulAssign<G::ScalarField>
-+ Mul<G::ScalarField, Output = Self>
++ Mul<G::ScalarField, Output=Self>
 + Into<Vec<G>>
 + From<Vec<G>>
 + Default
@@ -81,13 +85,13 @@ pub trait PolyCommitmentScheme<G: CurveGroup>: Send + Sync {
     // Optionally takes `vector_comm` as a "hint" to speed up the commitment process if a
     // commitment to the vector of evaluations has already been computed
     fn commit(
-        poly: &DensePolynomial<G::ScalarField>,
+        poly: &MultilinearPolynomial<G::ScalarField>,
         ck: &Self::PolyCommitmentKey,
     ) -> Self::Commitment;
 
     fn prove(
         C: Option<&Self::Commitment>,
-        poly: &DensePolynomial<G::ScalarField>,
+        poly: &MultilinearPolynomial<G::ScalarField>,
         r: &[G::ScalarField],
         eval: &G::ScalarField,
         ck: &Self::PolyCommitmentKey,
@@ -118,7 +122,7 @@ impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> VectorCommitmentScheme<G> for P
     type VectorCommitment = PC::Commitment;
     type CommitmentKey = PC::PolyCommitmentKey;
     fn commit(vec: &[<G>::ScalarField], ck: &Self::CommitmentKey) -> Self::VectorCommitment {
-        let poly = DensePolynomial::new(vec.to_vec());
+        let poly = MultilinearPolynomial::new(vec.to_vec());
         PC::commit(&poly, ck)
     }
     fn zero(n: usize) -> Self::VectorCommitment {

@@ -8,7 +8,6 @@ mod commitments;
 pub mod committed_relaxed_snark;
 mod crr1cs;
 pub mod crr1csproof;
-pub mod dense_mlpoly;
 pub mod errors;
 pub mod math;
 pub mod polycommitments;
@@ -45,7 +44,7 @@ pub struct ComputationCommitment<G: CurveGroup, PC: PolyCommitmentScheme<G>> {
 #[derive(CanonicalDeserialize, CanonicalSerialize)]
 pub struct ComputationDecommitment<F>
 where
-    F: Sync + CanonicalDeserialize + CanonicalSerialize,
+    F: Sync + CanonicalDeserialize + CanonicalSerialize + PrimeField,
 {
     decomm: R1CSDecommitment<F>,
 }

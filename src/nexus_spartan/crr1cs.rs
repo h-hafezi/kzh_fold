@@ -2,8 +2,9 @@ use ark_ec::CurveGroup;
 use ark_ff::PrimeField;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::{cmp::max, test_rng, One, UniformRand, Zero};
+use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 use super::polycommitments::{PCSKeys, PolyCommitmentScheme, VectorCommitmentScheme};
-use super::{committed_relaxed_snark::CRSNARKKey, dense_mlpoly::DensePolynomial, errors::R1CSError, InputsAssignment, Instance, math::Math, VarsAssignment};
+use super::{committed_relaxed_snark::CRSNARKKey, errors::R1CSError, InputsAssignment, Instance, math::Math, VarsAssignment};
 #[derive(CanonicalDeserialize, CanonicalSerialize)]
 pub struct CRR1CSKey<G: CurveGroup, PC: PolyCommitmentScheme<G>> {
     pub keys: PCSKeys<G, PC>,
@@ -150,8 +151,8 @@ pub fn check_commitments<G: CurveGroup, PC: PolyCommitmentScheme<G>>(
     let W = W.assignment.clone();
     let E = E.clone();
 
-    let poly_W = DensePolynomial::new(W);
-    let poly_E = DensePolynomial::new(E);
+    let poly_W = MultilinearPolynomial::new(W);
+    let poly_E = MultilinearPolynomial::new(E);
 
     let expected_comm_W = PC::commit(&poly_W, &key.keys.ck);
     let expected_comm_E = PC::commit(&poly_E, &key.keys.ck);

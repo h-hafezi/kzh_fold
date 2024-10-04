@@ -1,7 +1,6 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::type_complexity)]
 use super::commitments::{Commitments, MultiCommitGens};
-use super::dense_mlpoly::DensePolynomial;
 use super::errors::ProofVerifyError;
 use super::random::RandomTape;
 use super::transcript::{AppendToTranscript, ProofTranscript};
@@ -14,6 +13,7 @@ use ark_std::{One, Zero};
 
 use itertools::izip;
 use merlin::Transcript;
+use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 
 #[derive(CanonicalSerialize, CanonicalDeserialize, Debug)]
 pub struct SumcheckInstanceProof<F: PrimeField> {
@@ -70,9 +70,9 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
     pub fn prove_cubic<Func, G>(
         claim: &F,
         num_rounds: usize,
-        poly_A: &mut DensePolynomial<F>,
-        poly_B: &mut DensePolynomial<F>,
-        poly_C: &mut DensePolynomial<F>,
+        poly_A: &mut MultilinearPolynomial<F>,
+        poly_B: &mut MultilinearPolynomial<F>,
+        poly_C: &mut MultilinearPolynomial<F>,
         comb_func: Func,
         transcript: &mut Transcript,
     ) -> (Self, Vec<F>, Vec<F>)
@@ -145,14 +145,14 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
         claim: &F,
         num_rounds: usize,
         poly_vec_par: (
-            &mut Vec<&mut DensePolynomial<F>>,
-            &mut Vec<&mut DensePolynomial<F>>,
-            &mut DensePolynomial<F>,
+            &mut Vec<&mut MultilinearPolynomial<F>>,
+            &mut Vec<&mut MultilinearPolynomial<F>>,
+            &mut MultilinearPolynomial<F>,
         ),
         poly_vec_seq: (
-            &mut Vec<&mut DensePolynomial<F>>,
-            &mut Vec<&mut DensePolynomial<F>>,
-            &mut Vec<&mut DensePolynomial<F>>,
+            &mut Vec<&mut MultilinearPolynomial<F>>,
+            &mut Vec<&mut MultilinearPolynomial<F>>,
+            &mut Vec<&mut MultilinearPolynomial<F>>,
         ),
         coeffs: &[F],
         comb_func: Func,
