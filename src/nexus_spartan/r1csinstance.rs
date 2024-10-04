@@ -24,14 +24,6 @@ pub struct R1CSInstance<F: PrimeField> {
     pub(crate) C: SparseMatPolynomial<F>,
 }
 
-impl<G: CurveGroup> AppendToTranscript<G> for R1CSInstance<G::ScalarField> {
-    fn append_to_transcript(&self, _label: &'static [u8], transcript: &mut Transcript) {
-        let mut data = vec![];
-        self.serialize_compressed(&mut data).unwrap();
-
-        transcript.append_message(b"R1CSInstance", &data);
-    }
-}
 
 #[derive(CanonicalDeserialize, CanonicalSerialize)]
 pub struct R1CSCommitmentGens<G, PC>
@@ -325,70 +317,5 @@ impl<F: PrimeField> R1CSInstance<F> {
     pub fn evaluate(&self, rx: &[F], ry: &[F]) -> (F, F, F) {
         let evals = SparseMatPolynomial::multi_evaluate(&[&self.A, &self.B, &self.C], rx, ry);
         (evals[0], evals[1], evals[2])
-    }
-
-    pub fn commit<G: CurveGroup<ScalarField = F>, PC: PolyCommitmentScheme<G>>(
-        &self,
-        gens: &R1CSCommitmentGens<G, PC>,
-    ) -> (R1CSCommitment<G, PC>, R1CSDecommitment<F>) {
-        let (comm, dense) = SparseMatPolynomial::multi_commit(&[&self.A, &self.B, &self.C], &gens.gens);
-        let r1cs_comm = R1CSCommitment {
-            num_cons: self.num_cons,
-            num_vars: self.num_vars,
-            num_inputs: self.num_inputs,
-            comm,
-        };
-
-        let r1cs_decomm = R1CSDecommitment { dense };
-
-        (r1cs_comm, r1cs_decomm)
-    }
-}
-
-#[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
-pub struct R1CSEvalProof<G: CurveGroup, PC: PolyCommitmentScheme<G>> {
-    proof: SparseMatPolyEvalProof<G, PC>,
-}
-
-impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> R1CSEvalProof<G, PC> {
-    pub fn prove(
-        decomm: &R1CSDecommitment<G::ScalarField>,
-        rx: &[G::ScalarField], // point at which the polynomial is evaluated
-        ry: &[G::ScalarField],
-        evals: &(G::ScalarField, G::ScalarField, G::ScalarField),
-        gens: &R1CSCommitmentGens<G, PC>,
-        transcript: &mut Transcript,
-    ) -> R1CSEvalProof<G, PC> {
-        let timer = Timer::new("R1CSEvalProof::prove");
-        let proof = SparseMatPolyEvalProof::prove(
-            &decomm.dense,
-            rx,
-            ry,
-            &[evals.0, evals.1, evals.2],
-            &gens.gens,
-            transcript,
-        );
-        timer.stop();
-
-        R1CSEvalProof { proof }
-    }
-
-    pub fn verify(
-        &self,
-        comm: &R1CSCommitment<G, PC>,
-        rx: &[G::ScalarField], // point at which the R1CS matrix polynomials are evaluated
-        ry: &[G::ScalarField],
-        evals: &(G::ScalarField, G::ScalarField, G::ScalarField),
-        gens: &R1CSCommitmentGens<G, PC>,
-        transcript: &mut Transcript,
-    ) -> Result<(), ProofVerifyError> {
-        self.proof.verify(
-            &comm.comm,
-            rx,
-            ry,
-            &[evals.0, evals.1, evals.2],
-            &gens.gens,
-            transcript,
-        )
     }
 }

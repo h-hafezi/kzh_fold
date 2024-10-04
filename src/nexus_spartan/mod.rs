@@ -30,7 +30,7 @@ use errors::{ProofVerifyError, R1CSError};
 use merlin::Transcript;
 use polycommitments::PolyCommitmentScheme;
 use r1csinstance::{
-    R1CSCommitment, R1CSCommitmentGens, R1CSDecommitment, R1CSEvalProof, R1CSInstance,
+    R1CSCommitment, R1CSCommitmentGens, R1CSDecommitment, R1CSInstance,
 };
 use random::RandomTape;
 use timer::Timer;

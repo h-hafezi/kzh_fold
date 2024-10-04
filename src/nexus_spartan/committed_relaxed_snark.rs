@@ -6,7 +6,7 @@ use ark_ec::CurveGroup;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::Zero;
 use merlin::Transcript;
-use super::{ComputationCommitment, ComputationDecommitment, crr1csproof::{CRR1CSInstance, CRR1CSKey, CRR1CSProof, CRR1CSShape, CRR1CSWitness}, errors::ProofVerifyError, Instance, polycommitments::PolyCommitmentScheme, r1csinstance::{R1CSCommitmentGens, R1CSEvalProof}, timer::Timer, transcript::{AppendToTranscript, ProofTranscript}};
+use super::{ComputationCommitment, ComputationDecommitment, crr1csproof::{CRR1CSInstance, CRR1CSKey, CRR1CSProof, CRR1CSShape, CRR1CSWitness}, errors::ProofVerifyError, Instance, polycommitments::PolyCommitmentScheme, r1csinstance::{R1CSCommitmentGens}, timer::Timer, transcript::{AppendToTranscript, ProofTranscript}};
 
 /// `SNARKGens` holds public parameters for producing and verifying proofs with the Spartan SNARK
 #[derive(CanonicalDeserialize, CanonicalSerialize)]
