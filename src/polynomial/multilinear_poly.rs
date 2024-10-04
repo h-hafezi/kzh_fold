@@ -1,7 +1,7 @@
 // mostly borrowed from Arkworks
 
 #![allow(clippy::too_many_arguments)]
-use core::ops::Index;
+use core::ops::{Add, Index};
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
@@ -140,6 +140,33 @@ impl<F: PrimeField> MultilinearPolynomial<F> {
                 .collect::<Vec<F>>(),
         )
     }
+
+    /// Get c(x) = self(x) v other(x)
+    pub fn get_bitfield_union_poly(&self, other: &Self) -> Self {
+        assert_eq!(self.num_variables, other.num_variables);
+
+        let evaluations: Vec<F> = self.evaluation_over_boolean_hypercube.iter()
+            .zip(&other.evaluation_over_boolean_hypercube)
+            .map(|(a, b)| {
+                *a + *b - *a * *b // Since a, b are either 0 or 1, this is equivalent to a | b
+            })
+            .collect();
+
+        let len = evaluations.len();
+
+        Self {
+            num_variables: self.num_variables,
+            evaluation_over_boolean_hypercube: evaluations,
+            len: len,
+        }
+    }
+
+    /// Given f(x), compute r * f(x)
+    pub fn scalar_mul(&mut self, r: &F) {
+        for f_i in self.evaluation_over_boolean_hypercube.iter_mut() {
+            *f_i = *f_i * r;
+        }
+    }
 }
 
 impl<F: PrimeField> MultilinearPolynomial<F> {
@@ -171,6 +198,22 @@ impl<F: PrimeField> MultilinearPolynomial<F> {
             len: 1 << num_variables,
         }
     }
+
+    /// Return a multilinear poly with evaluations that are either 0 or 1
+    pub fn random_binary<T: RngCore>(num_variables: usize, rng: &mut T) -> MultilinearPolynomial<F> {
+        let evals_len = 1 << num_variables;
+
+        let evals = (0..evals_len).map(|_| {
+            let random_bit = rng.gen_bool(0.5); // Generates a random boolean with equal probability
+            if random_bit { F::one() } else { F::zero() }
+        }).collect();
+
+        MultilinearPolynomial {
+            num_variables,
+            evaluation_over_boolean_hypercube: evals,
+            len: evals_len,
+        }
+    }
 }
 
 impl<F: PrimeField> Index<usize> for MultilinearPolynomial<F> {
@@ -182,6 +225,32 @@ impl<F: PrimeField> Index<usize> for MultilinearPolynomial<F> {
     }
 }
 
+
+impl<F: PrimeField> Add for MultilinearPolynomial<F> {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        // Ensure that both polynomials have the same number of variables
+        assert_eq!(self.num_variables, other.num_variables, "Polynomials must have the same number of variables");
+
+        // Ensure both polynomials have evaluation vectors of the same length
+        assert_eq!(self.len, other.len, "Evaluation vectors must have the same length");
+
+        // Perform element-wise addition over the evaluation vectors
+        let new_evaluation_over_boolean_hypercube: Vec<F> = self.evaluation_over_boolean_hypercube
+            .iter()
+            .zip(other.evaluation_over_boolean_hypercube.iter())
+            .map(|(a, b)| *a + *b)
+            .collect();
+
+        // Return a new MultilinearPolynomial with the result
+        MultilinearPolynomial {
+            num_variables: self.num_variables,
+            evaluation_over_boolean_hypercube: new_evaluation_over_boolean_hypercube,
+            len: self.len,
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {

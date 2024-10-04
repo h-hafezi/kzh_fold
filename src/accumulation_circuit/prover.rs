@@ -307,7 +307,7 @@ pub mod tests {
     use crate::gadgets::r1cs::RelaxedR1CSWitness;
     use crate::hash::pederson::PedersenCommitment;
     use crate::nova::cycle_fold::coprocessor::setup_shape;
-    use crate::pcs::multilinear_pcs::{PolyCommit, PolyCommitTrait, SRS};
+    use crate::pcs::multilinear_pcs::{PolyCommit, SRS};
 
     type GrumpkinCurveGroup = ark_grumpkin::Projective;
     type C2 = PedersenCommitment<GrumpkinCurveGroup>;

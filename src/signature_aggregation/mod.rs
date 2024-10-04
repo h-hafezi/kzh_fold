@@ -1,3 +1,1 @@
-pub mod bivariate_sumcheck;
-pub mod prover;
-pub mod verifier;
+pub mod signature_aggregation;

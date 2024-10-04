@@ -36,29 +36,3 @@ pub struct PolyCommit<E: Pairing> {
 }
 ```
 
-## Traits
-
-```rust
-pub trait PolyCommitTrait<E: Pairing> {
-    fn setup<T: RngCore>(n: usize, m: usize, rng: &mut T) -> SRS<E>;
-
-    fn commit(&self, poly: &BivariatePolynomial<E::ScalarField>) -> Commitment<E>;
-
-    fn open(&self,
-            poly: &BivariatePolynomial<E::ScalarField>,
-            com: Commitment<E>,
-            b: &E::ScalarField,
-    ) -> OpeningProof<E>;
-
-    fn verify(&self,
-              lagrange_x: LagrangeBasis<E::ScalarField>,
-              C: &Commitment<E>,
-              proof: &OpeningProof<E>,
-              b: &E::ScalarField,
-              c: &E::ScalarField,
-              y: &E::ScalarField,
-    ) -> bool;
-}
-```
-
-Parameter `b` is X domain and parameter `c` is in Y domain and value `y` is such that `y=poly(b, c)`

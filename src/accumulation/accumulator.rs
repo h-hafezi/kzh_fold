@@ -13,7 +13,7 @@ use crate::accumulation::generate_random_elements;
 use crate::gadgets::non_native::util::convert_affine_to_scalars;
 use crate::hash::poseidon::{PoseidonHash, get_poseidon_config};
 use ark_crypto_primitives::sponge::poseidon::PoseidonConfig;
-use crate::pcs::multilinear_pcs::{OpeningProof, PolyCommit, PolyCommitTrait, SRS};
+use crate::pcs::multilinear_pcs::{OpeningProof, PolyCommit, SRS};
 use crate::polynomial::compute_dot_product;
 use crate::polynomial::math::Math;
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
@@ -129,19 +129,21 @@ where
         hash_object.output()
     }
 
+    /// Given public data for the opening p(x, y) = z
+    /// return an accumulator instance
     pub fn new_accumulator_instance_from_proof(
         srs: &AccSRS<E>,
         C: &E::G1Affine,
-        x: &Vec<E::ScalarField>,
-        y: &Vec<E::ScalarField>,
+        x: &[E::ScalarField],
+        y: &[E::ScalarField],
         z: &E::ScalarField,
     ) -> AccInstance<E> {
         // asserting the sizes are correct
         assert_eq!(1 << x.len(), srs.pc_srs.degree_x, "invalid size of vector x");
         assert_eq!(1 << y.len(), srs.pc_srs.degree_y, "invalid size of vector y");
 
-        let tree_x = EqTree::new(x.as_slice());
-        let tree_y = EqTree::new(y.as_slice());
+        let tree_x = EqTree::new(x);
+        let tree_y = EqTree::new(y);
 
         let mut T: E::G1 = E::G1::ZERO;
         T = T.add(E::G1::msm_unchecked(srs.k_x.as_slice(), tree_x.nodes.as_slice()));
@@ -155,23 +157,22 @@ where
             C: *C,
             T: T.into(),
             E: E::G1Affine::zero(),
-            x: x.clone(),
-            y: y.clone(),
+            x: x.to_vec(),
+            y: y.to_vec(),
             z: z.clone(),
         }
     }
 
-    pub fn new_accumulator_witness_from_proof(srs: &AccSRS<E>, proof: OpeningProof<E>, x: &Vec<E::ScalarField>, y: &Vec<E::ScalarField>) -> AccWitness<E> {
+    pub fn new_accumulator_witness_from_proof(srs: &AccSRS<E>, proof: OpeningProof<E>, x: &[E::ScalarField], y: &[E::ScalarField]) -> AccWitness<E> {
         // asserting the sizes are correct
         assert_eq!(1 << x.len(), srs.pc_srs.degree_x, "invalid size of vector x");
         assert_eq!(1 << y.len(), srs.pc_srs.degree_y, "invalid size of vector y");
         assert_eq!(proof.vec_D.len(), srs.pc_srs.degree_x, "invalid proof size");
-
         AccWitness {
             vec_D: proof.vec_D,
             f_star_poly: proof.f_star_poly,
-            tree_x: EqTree::new(x.as_slice()),
-            tree_y: EqTree::new(y.as_slice()),
+            tree_x: EqTree::new(x),
+            tree_y: EqTree::new(y),
         }
     }
 
@@ -421,18 +422,10 @@ impl<E: Pairing> Accumulator<E> {
             y2.push(E::ScalarField::rand(rng));
         }
 
-        let whole_input_1 = {
-            let mut res = vec![];
-            res.extend(x1.clone());
-            res.extend(y1.clone());
-            res
-        };
-        let whole_input_2 = {
-            let mut res = vec![];
-            res.extend(x2.clone());
-            res.extend(y2.clone());
-            res
-        };
+        // Get vector: (x1, y1)
+        let whole_input_1:  Vec<_> = x1.clone().into_iter().chain(y1.clone()).collect();
+        // Get vector: (x2, y2)
+        let whole_input_2:  Vec<_> = x2.clone().into_iter().chain(y2.clone()).collect();
 
         let z1 = polynomial1.evaluate(&whole_input_1);
         let z2 = polynomial2.evaluate(&whole_input_2);
@@ -474,7 +467,7 @@ pub mod test {
 
     use crate::accumulation::accumulator::Accumulator;
     use crate::constant_for_curves::E;
-    use crate::pcs::multilinear_pcs::{PolyCommit, PolyCommitTrait, SRS};
+    use crate::pcs::multilinear_pcs::{PolyCommit, SRS};
 
     #[test]
     fn test_accumulator_end_to_end() {

@@ -1,5 +1,5 @@
 use std::iter::Sum;
-use std::ops::Mul;
+use std::ops::{Add, Mul};
 
 use ark_ec::{CurveGroup, VariableBaseMSM};
 use ark_ec::pairing::Pairing;
@@ -39,28 +39,8 @@ pub struct PolyCommit<E: Pairing> {
     pub srs: SRS<E>,
 }
 
-pub trait PolyCommitTrait<E: Pairing> {
-    fn setup<T: RngCore>(n: usize, m: usize, rng: &mut T) -> SRS<E>;
-
-    fn commit(&self, poly: &MultilinearPolynomial<E::ScalarField>) -> Commitment<E>;
-
-    fn open(&self,
-            poly: &MultilinearPolynomial<E::ScalarField>,
-            com: Commitment<E>,
-            x: &Vec<E::ScalarField>,
-    ) -> OpeningProof<E>;
-
-    fn verify(&self,
-              C: &Commitment<E>,
-              proof: &OpeningProof<E>,
-              x: &Vec<E::ScalarField>,
-              y: &Vec<E::ScalarField>,
-              z: &E::ScalarField,
-    ) -> bool;
-}
-
-impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
-    fn setup<T: RngCore>(degree_x: usize, degree_y: usize, rng: &mut T) -> SRS<E> {
+impl<E: Pairing> PolyCommit<E> {
+    pub fn setup<T: RngCore>(degree_x: usize, degree_y: usize, rng: &mut T) -> SRS<E> {
         // sample G_0, G_1, ..., G_m generators from group one
         let G1_generator_vec = {
             let mut elements = Vec::new();
@@ -128,7 +108,7 @@ impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
         };
     }
 
-    fn commit(&self, poly: &MultilinearPolynomial<E::ScalarField>) -> Commitment<E> {
+    pub fn commit(&self, poly: &MultilinearPolynomial<E::ScalarField>) -> Commitment<E> {
         Commitment {
             C: E::G1::sum((0..self.srs.degree_x)
                 .map(|i| {
@@ -151,7 +131,9 @@ impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
         }
     }
 
-    fn open(&self, poly: &MultilinearPolynomial<E::ScalarField>, com: Commitment<E>, x: &Vec<E::ScalarField>) -> OpeningProof<E> {
+    /// Creates a KZH proof for p(x,y) = z.
+    /// This function does not actually need y, so we only get the left half of the eval point.
+    pub fn open(&self, poly: &MultilinearPolynomial<E::ScalarField>, com: Commitment<E>, x: &[E::ScalarField]) -> OpeningProof<E> {
         OpeningProof {
             vec_D: {
                 let mut vec = Vec::new();
@@ -164,11 +146,11 @@ impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
         }
     }
 
-    fn verify(&self,
+    pub fn verify(&self,
               C: &Commitment<E>,
               proof: &OpeningProof<E>,
-              x: &Vec<E::ScalarField>,
-              y: &Vec<E::ScalarField>,
+              x: &[E::ScalarField],
+              y: &[E::ScalarField],
               z: &E::ScalarField,
     ) -> bool {
         // first condition
@@ -180,13 +162,56 @@ impl<E: Pairing> PolyCommitTrait<E> for PolyCommit<E> {
             .f_star_poly
             .evaluation_over_boolean_hypercube.as_slice(),
         );
-        let msm_rhs = E::G1::msm_unchecked(proof.vec_D.as_slice(), &EqPolynomial::new(x.clone()).evals());
+        let msm_rhs = E::G1::msm_unchecked(&proof.vec_D, &EqPolynomial::new(x.to_vec()).evals());
 
         // third condition
         let y_expected = proof.f_star_poly.evaluate(y);
 
         // checking all three conditions
         return (pairing_lhs == pairing_rhs) && (msm_lhs == msm_rhs) && (y_expected == *z);
+    }
+}
+
+
+impl<E: Pairing> Commitment<E> {
+    /// Scales the commitment and its auxiliary elements by a scalar `r`
+    pub fn scale_by_r(&mut self, r: &E::ScalarField) {
+        // Scale the main commitment C by r
+        let scaled_C = self.C.mul(r); // G1Affine -> G1Projective when multiplied by scalar
+
+        // Scale each element in the aux vector by r
+        let scaled_aux: Vec<E::G1> = self.aux.iter()
+            .map(|element| element.mul(r))  // Multiply each element in aux by r
+            .collect();
+
+        // Update the commitment with the scaled values
+        self.C = scaled_C.into_affine();  // Convert back to G1Affine after multiplication
+        self.aux = scaled_aux;
+    }
+}
+
+
+impl<E: Pairing> Add for Commitment<E> {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        // Ensure both commitments have the same size in aux vectors
+        assert_eq!(self.aux.len(), other.aux.len(), "Aux vectors must have the same length");
+
+        // Add the main commitment points C
+        let new_C = (self.C + other.C).into_affine();
+
+        // Add the corresponding elements in the aux vector
+        let new_aux: Vec<E::G1> = self.aux.iter()
+            .zip(other.aux.iter())
+            .map(|(a, b)| *a + *b)
+            .collect();
+
+        // Return a new Commitment with the resulting sums
+        Commitment {
+            C: new_C,
+            aux: new_aux,
+        }
     }
 }
 
@@ -199,7 +224,7 @@ pub mod test {
     use rand::thread_rng;
 
     use crate::constant_for_curves::{E, ScalarField};
-    use crate::pcs::multilinear_pcs::{PolyCommit, PolyCommitTrait, SRS};
+    use crate::pcs::multilinear_pcs::{PolyCommit, SRS};
     use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 
     #[test]
@@ -269,6 +294,62 @@ pub mod test {
 
         // verify the proof
         assert!(poly_commit.verify(&com, &open, &x, &y, &z));
+    }
+
+    /// Given f(x) and g(x) and their KZH commitments F and G.
+    /// This test computes p(x) = f(x) + r * g(x),
+    /// and checks that its commitment is P = F + r*G
+    ///
+    /// Prover sends F,G
+    /// Verifier responds with r, rho
+    /// Prover sends p(rho), f(rho), g(rho), proof_P_at_rho
+    /// Verifier checks that p(rho) = f(rho) + r * g(rho)
+    /// and the proof verifies using P = F + r * G
+    #[test]
+    fn test_homomorphism() {
+        let degree_x = 16usize;
+        let degree_y = 16usize;
+        let num_vars = 8; // degree_x.log_2() + degree_y.log_2()
+
+        let srs: SRS<E> = PolyCommit::<E>::setup(degree_x, degree_y, &mut thread_rng());
+
+        // define the polynomial commitment
+        let poly_commit: PolyCommit<E> = PolyCommit { srs };
+
+        let f_x: MultilinearPolynomial<ScalarField> = MultilinearPolynomial::rand(num_vars, &mut thread_rng());
+        let g_x: MultilinearPolynomial<ScalarField> = MultilinearPolynomial::rand(num_vars, &mut thread_rng());
+
+        let F = poly_commit.commit(&f_x);
+        let G = poly_commit.commit(&g_x);
+
+        // Verifier's challenge: for poly batching
+        let r = ScalarField::rand(&mut thread_rng());
+        // Verifier's challenge: evaluation point
+        let rho = vec![ScalarField::rand(&mut thread_rng()); num_vars];
+        // Split rho in half
+        assert_eq!(rho.len() % 2, 0);
+        let mid = rho.len() / 2;
+        let (rho_first_half, rho_second_half) = rho.split_at(mid);
+
+        // Compute p(x) = f(x) + r * g(x)
+        let mut r_times_g_x = g_x.clone();
+        r_times_g_x.scalar_mul(&r);
+        let p_x = f_x.clone() + r_times_g_x;
+        let P = poly_commit.commit(&p_x);
+
+        // Open p_x at rho
+        let proof_P_at_rho = poly_commit.open(&p_x, P.clone(), &rho_first_half);
+        let p_at_rho = p_x.evaluate(&rho);
+
+        // Verifier:
+        assert_eq!(p_at_rho, f_x.evaluate(&rho) + r * g_x.evaluate(&rho));
+
+        // Verifier: compute P = F + r*G
+        let mut r_times_G = G.clone();
+        r_times_G.scale_by_r(&r);
+        let P_verifier = F + r_times_G;
+
+        assert!(poly_commit.verify(&P_verifier, &proof_P_at_rho, rho_first_half, rho_second_half, &p_at_rho));
     }
 }
 

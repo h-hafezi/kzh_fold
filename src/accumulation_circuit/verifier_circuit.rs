@@ -580,7 +580,6 @@ pub mod tests {
     use crate::constant_for_curves::{E, G1, G2, ScalarField};
     use crate::hash::pederson::PedersenCommitment;
     use crate::pcs::multilinear_pcs::{PolyCommit, SRS};
-    use crate::pcs::multilinear_pcs::PolyCommitTrait;
 
     type C2 = PedersenCommitment<Projective<G2>>;
 
