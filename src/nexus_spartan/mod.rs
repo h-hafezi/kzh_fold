@@ -11,7 +11,6 @@ pub mod crr1csproof;
 pub mod dense_mlpoly;
 pub mod errors;
 pub mod math;
-mod nizk;
 pub mod polycommitments;
 mod product_tree;
 pub mod r1csinstance;

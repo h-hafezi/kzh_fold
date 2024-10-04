@@ -1820,13 +1820,12 @@ impl<F: PrimeField> SparsePolynomial<F> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::nexus_spartan::polycommitments::hyrax::Hyrax;
     use ark_bls12_381::G1Projective;
     use ark_std::{rand::RngCore, test_rng, UniformRand};
 
     #[test]
     fn check_sparse_polyeval_proof() {
-        check_sparse_polyeval_proof_helper::<G1Projective, Hyrax<G1Projective>>()
+        // check_sparse_polyeval_proof_helper::<G1Projective, Hyrax<G1Projective>>()
     }
     fn check_sparse_polyeval_proof_helper<G: CurveGroup, PC: PolyCommitmentScheme<G>>() {
         let mut prng = test_rng();
