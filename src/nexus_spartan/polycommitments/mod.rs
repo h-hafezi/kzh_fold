@@ -14,8 +14,6 @@ use crate::nexus_spartan::{dense_mlpoly::DensePolynomial, transcript::AppendToTr
 pub mod error;
 pub mod hyrax;
 mod transcript_utils;
-pub mod zeromorph;
-
 pub trait VectorCommitmentScheme<G: CurveGroup> {
     type VectorCommitment: AppendToTranscript<G>
     + Sized
