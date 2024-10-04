@@ -134,8 +134,6 @@ impl<E: Pairing> PolyCommit<E> {
     /// Creates a KZH proof for p(x,y) = z.
     /// This function does not actually need y, so we only get the left half of the eval point.
     pub fn open(&self, poly: &MultilinearPolynomial<E::ScalarField>, com: Commitment<E>, x: &[E::ScalarField]) -> OpeningProof<E> {
-        assert_eq!(poly.num_variables / 2, x.len());
-
         OpeningProof {
             vec_D: {
                 let mut vec = Vec::new();

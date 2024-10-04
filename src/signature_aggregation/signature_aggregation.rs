@@ -50,9 +50,9 @@ pub struct SignatureAggrData<E: Pairing> {
     // Commitment to c(x)
     bitfield_commitment: Commitment<E>,
     sumcheck_proof: Option<SumcheckInstanceProof<E::ScalarField>>,
-    // Accumulator for random evaluation of p(x) at rho:
+    // Accumulator witness for random evaluation of p(x) at rho:
     // p(rho) = b_1(rho) + c_1 * b_2(rho) + c_2 * c(rho)
-    sumcheck_eval_accumulator: Option<Accumulator<E>>,
+    sumcheck_eval_acc_witness: Option<AccWitness<E>>,
     // Evaluations of the inner polynomials at rho:
     b_1_at_rho: Option<E::ScalarField>, // b_1(rho)
     b_2_at_rho: Option<E::ScalarField>, // b_2(rho)
@@ -72,7 +72,7 @@ impl<E: Pairing> SignatureAggrData<E> {
             bitfield_poly,
             bitfield_commitment,
             sumcheck_proof: None,
-            sumcheck_eval_accumulator: None,
+            sumcheck_eval_acc_witness: None,
             b_1_at_rho: None,
             b_2_at_rho: None,
             c_at_rho: None,
@@ -93,12 +93,12 @@ where
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
     <E as Pairing>::ScalarField: Absorb,
 {
-    fn get_accumulator_from_evaluation(&self,
+    /// Return (A.W) given poly f(x), and z and y such that f(z) = y
+    fn get_acc_witness_from_evaluation(&self,
                                        bitfield_poly: &MultilinearPolynomial<E::ScalarField>,
                                        bitfield_commitment: &Commitment<E>,
-                                       eval_result: &E::ScalarField,
                                        eval_point: &Vec<E::ScalarField>
-    ) -> Accumulator<E> {
+    ) -> AccWitness<E> {
         let poly_commit = PolyCommit { srs: self.srs.acc_srs.pc_srs.clone() }; // XXX no clone. bad ergonomics
 
         // Split the evaluation point in half since open() just needs the first half
@@ -108,25 +108,12 @@ where
         let (eval_point_first_half, eval_point_second_half) = eval_point.split_at(mid);
 
         let opening_proof = poly_commit.open(bitfield_poly, bitfield_commitment.clone(), eval_point_first_half); // XXX needless clone
-
-        // XXX bad name for function
-        let acc_instance = Accumulator::new_accumulator_instance_from_proof(
-            &self.srs.acc_srs,
-            &bitfield_commitment.C,
-            eval_point_first_half,
-            eval_point_second_half,
-            eval_result,
-        );
-        let acc_witness = Accumulator::new_accumulator_witness_from_proof(
+        Accumulator::new_accumulator_witness_from_proof(
             &self.srs.acc_srs,
             opening_proof,
             eval_point_first_half,
             eval_point_second_half,
-        );
-        Accumulator {
-            witness: acc_witness,
-            instance: acc_instance,
-        }
+        )
     }
 
     pub fn aggregate(&self, transcript: &mut IOPTranscript<E::ScalarField>) -> SignatureAggrData<E> {
@@ -212,13 +199,12 @@ where
         let b_1_at_rho = b_1_poly.evaluate(&sumcheck_challenges);
         let b_2_at_rho = b_2_poly.evaluate(&sumcheck_challenges);
         let c_at_rho = c_poly.evaluate(&sumcheck_challenges);
-        let p_at_rho = b_1_at_rho + vec_c[0] * b_2_at_rho + vec_c[1] * c_at_rho;
 
-        // Step 5.4: Compute accumulator for opening of p(rho)
-        let sumcheck_eval_accumulator = self.get_accumulator_from_evaluation(
+        // Step 5.4: Compute accumulator witness for opening of p(rho)
+        // where p(rho) = b_1_at_rho + b_2_at_rho - b_1_at_rho*b_2_at_rho - c_at_rho
+        let sumcheck_eval_acc_witness = self.get_acc_witness_from_evaluation(
             &p_x,
             &P_commitment,
-            &p_at_rho,
             &sumcheck_challenges,
         );
 
@@ -231,7 +217,7 @@ where
             bitfield_poly: c_poly,
             bitfield_commitment: C_commitment,
             sumcheck_proof: Some(sumcheck_proof),
-            sumcheck_eval_accumulator: Some(sumcheck_eval_accumulator),
+            sumcheck_eval_acc_witness: Some(sumcheck_eval_acc_witness),
             b_1_at_rho: Some(b_1_at_rho),
             b_2_at_rho: Some(b_2_at_rho),
             c_at_rho: Some(c_at_rho),
@@ -253,6 +239,27 @@ where
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
     <E as Pairing>::ScalarField: Absorb,
 {
+    fn get_acc_instance_from_evaluation(&self,
+                                        bitfield_commitment: &Commitment<E>,
+                                        eval_result: &E::ScalarField,
+                                        eval_point: &Vec<E::ScalarField>
+    ) -> AccInstance<E> {
+        // Split the evaluation point in half since open() just needs the first half
+        // XXX ergonomics
+        assert_eq!(eval_point.len() % 2, 0);
+        let mid = eval_point.len() / 2;
+        let (eval_point_first_half, eval_point_second_half) = eval_point.split_at(mid);
+
+        // XXX bad name for function
+        Accumulator::new_accumulator_instance_from_proof(
+            &self.srs.acc_srs,
+            &bitfield_commitment.C,
+            eval_point_first_half,
+            eval_point_second_half,
+            eval_result,
+        )
+    }
+
     pub fn verify(self, transcript: &mut IOPTranscript<E::ScalarField>) -> bool {
         // Step 1:
         // Get r challenge from verifier
@@ -262,7 +269,7 @@ where
         // Step 2: Verify the sumcheck proof
         let zero = E::ScalarField::zero();
         let num_rounds = self.A.bitfield_poly.num_variables;
-        let (tensorcheck_claim, sumcheck_challenges) = self.A.sumcheck_proof.unwrap().
+        let (tensorcheck_claim, sumcheck_challenges) = self.A.sumcheck_proof.clone().unwrap().
             verify_with_ioptranscript_xxx::<E::G1>(zero, num_rounds, 3, transcript).unwrap();
 
         // Step 3: Verify the sumcheck tensorcheck (the random evaluation at the end of the protocol)
@@ -284,23 +291,33 @@ where
         // Step ???: Run the decider!
         // Verify the accumulator
 
-
         // Get c_1 and c_2 (XXX could also get just c and then compute c^2)
         let vec_c: Vec<E::ScalarField> = transcript.get_and_append_challenge_vectors(b"vec_c", 2).unwrap();
 
         // Now compute commitment to P using B_1, B_2, and C
-        let mut c_1_times_B_2 = self.A.B_2_commitment.unwrap();
+        let mut c_1_times_B_2 = self.A.B_2_commitment.clone().unwrap(); // XXX stop the cloning!!!
         c_1_times_B_2.scale_by_r(&vec_c[0]);
-        let mut c_2_times_C = self.A.bitfield_commitment;
+        let mut c_2_times_C = self.A.bitfield_commitment.clone();
         c_2_times_C.scale_by_r(&vec_c[1]);
-        let _P_commitment = self.A.B_1_commitment.unwrap().clone() + c_1_times_B_2 + c_2_times_C;
+        let P_commitment = self.A.B_1_commitment.clone().unwrap() + c_1_times_B_2 + c_2_times_C;
 
         // Now compute p(rho)
-        let _p_at_rho = b_1_at_rho + vec_c[0] * b_2_at_rho + vec_c[1] * c_at_rho;
+        let p_at_rho = b_1_at_rho + vec_c[0] * b_2_at_rho + vec_c[1] * c_at_rho;
 
-        // Verify the accumulator
-        //XXX how to verify?
-        assert_eq!(Accumulator::decide(&self.srs.acc_srs, &self.A.sumcheck_eval_accumulator.unwrap()), true);
+        // Compute the decider's accumulator instance
+        let acc_instance = self.get_acc_instance_from_evaluation(
+            &P_commitment,
+            &p_at_rho,
+            &sumcheck_challenges);
+
+        // Compute the full accumulator using the witness from the prover
+        let accumulator = Accumulator {
+            instance: acc_instance,
+            witness: self.A.sumcheck_eval_acc_witness.unwrap(),
+        };
+
+        // Decide the accumulator!
+        assert_eq!(Accumulator::decide(&self.srs.acc_srs, &accumulator), true);
 
         true
     }
