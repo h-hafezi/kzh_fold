@@ -76,7 +76,7 @@ dependencies = [
  "ark-std",
  "blake2",
  "derivative",
- "digest 0.10.7",
+ "digest",
  "sha2",
  "tracing",
 ]
@@ -95,6 +95,7 @@ dependencies = [
  "itertools 0.12.1",
  "num-bigint",
  "num-traits",
+ "rayon",
  "zeroize",
 ]
 
@@ -109,7 +110,7 @@ dependencies = [
  "ark-std",
  "arrayvec",
  "derivative",
- "digest 0.10.7",
+ "digest",
  "itertools 0.12.1",
  "num-bigint",
  "num-traits",
@@ -174,6 +175,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "ark-poly-commit"
+version = "0.4.0"
+source = "git+https://github.com/arkworks-rs/poly-commit/?rev=12f5529#12f5529c9ca609d07dd4683fcd1e196bc375eb0d"
+dependencies = [
+ "ark-crypto-primitives",
+ "ark-ec",
+ "ark-ff",
+ "ark-poly",
+ "ark-relations",
+ "ark-serialize",
+ "ark-std",
+ "derivative",
+ "digest",
+ "rayon",
+]
+
+[[package]]
 name = "ark-r1cs-std"
 version = "0.4.0"
 source = "git+https://github.com/arkworks-rs/r1cs-std/?rev=2ca3bd7#2ca3bd7d97ac2674a09fed63ace16b4f181531b1"
@@ -208,7 +226,7 @@ source = "git+https://github.com/arkworks-rs/algebra/?rev=2a80c54#2a80c54687582f
 dependencies = [
  "ark-serialize-derive",
  "ark-std",
- "digest 0.10.7",
+ "digest",
  "num-bigint",
 ]
 
@@ -275,7 +293,7 @@ version = "0.10.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "46502ad458c9a52b69d4d4d32775c788b7a1b85e8bc9d482d92250fc0e3f8efe"
 dependencies = [
- "digest 0.10.7",
+ "digest",
 ]
 
 [[package]]
@@ -285,15 +303,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3078c7629b62d3f0439517fa394996acacc5cbc91c5a20d8c658e77abd503a71"
 dependencies = [
  "generic-array",
-]
-
-[[package]]
-name = "block-buffer"
-version = "0.11.0-rc.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "17092d478f4fadfb35a7e082f62e49f0907fdf048801d9d706277e34f9df8a78"
-dependencies = [
- "crypto-common 0.2.0-rc.0",
 ]
 
 [[package]]
@@ -383,12 +392,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "const-oid"
-version = "0.10.0-rc.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9adcf94f05e094fca3005698822ec791cb4433ced416afda1c5ca3b8dfc05a2f"
-
-[[package]]
 name = "cpufeatures"
 version = "0.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -475,17 +478,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "crypto-common"
-version = "0.2.0-rc.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8c070b79a496dccd931229780ad5bbedd535ceff6c3565605a8e440e18e1aa2b"
-dependencies = [
- "getrandom",
- "hybrid-array",
- "rand_core",
-]
-
-[[package]]
 name = "derivative"
 version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -502,20 +494,9 @@ version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292"
 dependencies = [
- "block-buffer 0.10.4",
- "crypto-common 0.1.6",
+ "block-buffer",
+ "crypto-common",
  "subtle",
-]
-
-[[package]]
-name = "digest"
-version = "0.11.0-pre.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cf2e3d6615d99707295a9673e889bf363a04b2a466bd320c65a72536f7577379"
-dependencies = [
- "block-buffer 0.11.0-rc.0",
- "const-oid",
- "crypto-common 0.2.0-rc.0",
 ]
 
 [[package]]
@@ -583,15 +564,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d231dfb89cfffdbc30e7fc41579ed6066ad03abda9e567ccafae602b97ec5024"
 
 [[package]]
-name = "hybrid-array"
-version = "0.2.0-rc.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d306b679262030ad8813a82d4915fc04efff97776e4db7f8eb5137039d56400"
-dependencies = [
- "typenum",
-]
-
-[[package]]
 name = "is-terminal"
 version = "0.4.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -645,15 +617,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "keccak"
-version = "0.2.0-pre.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7cdd4f0dc5807b9a2b25dd48a3f58e862606fe7bd47f41ecde36e97422d7e90"
-dependencies = [
- "cpufeatures",
-]
-
-[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -684,7 +647,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "58c38e2799fc0978b65dfff8023ec7843e2330bb462f19198840b34b6582397d"
 dependencies = [
  "byteorder",
- "keccak 0.1.5",
+ "keccak",
  "rand_core",
  "zeroize",
 ]
@@ -971,17 +934,17 @@ checksum = "793db75ad2bcafc3ffa7c68b215fee268f537982cd901d132f89c6343f3a3dc8"
 dependencies = [
  "cfg-if",
  "cpufeatures",
- "digest 0.10.7",
+ "digest",
 ]
 
 [[package]]
 name = "sha3"
-version = "0.11.0-pre.4"
+version = "0.10.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e485881f388c2818d709796dc883c1ffcadde9d1f0e054f3a5c14974185261a6"
+checksum = "75872d278a8f37ef87fa0ddbda7802605cb18344497949862c0d4dcb291eba60"
 dependencies = [
- "digest 0.11.0-pre.9",
- "keccak 0.2.0-pre.0",
+ "digest",
+ "keccak",
 ]
 
 [[package]]
@@ -996,6 +959,7 @@ dependencies = [
  "ark-grumpkin",
  "ark-pallas",
  "ark-poly",
+ "ark-poly-commit",
  "ark-r1cs-std",
  "ark-relations",
  "ark-serialize",
@@ -1003,6 +967,8 @@ dependencies = [
  "ark-vesta",
  "colored",
  "criterion",
+ "derivative",
+ "digest",
  "itertools 0.12.1",
  "lazy_static",
  "merlin",
@@ -1419,11 +1385,6 @@ dependencies = [
  "quote",
  "syn 2.0.68",
 ]
-
-[[patch.unused]]
-name = "ark-poly-commit"
-version = "0.4.0"
-source = "git+https://github.com/arkworks-rs/poly-commit/?rev=12f5529#12f5529c9ca609d07dd4683fcd1e196bc375eb0d"
 
 [[patch.unused]]
 name = "ark-test-curves"

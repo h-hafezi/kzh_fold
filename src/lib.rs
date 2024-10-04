@@ -16,4 +16,5 @@ pub mod accumulation_circuit;
 pub mod constant_for_curves;
 pub mod commitment;
 pub mod halo_infinite;
-mod spartan;
+pub mod spartan;
+pub mod nexus_spartan;

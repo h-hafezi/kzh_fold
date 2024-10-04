@@ -76,12 +76,12 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
         claim: &F,
         num_rounds: usize,
 
-        /// the polynomial corresponding A, B, C
+        // the polynomial corresponding A, B, C
         poly_A: &mut MultilinearPolynomial<F>,
         poly_B: &mut MultilinearPolynomial<F>,
         poly_C: &mut MultilinearPolynomial<F>,
 
-        /// comb_func is a function taking three values and returning a linear combination of them
+        // comb_func is a function taking three values and returning a linear combination of them
         comb_func: Func,
         transcript: &mut Transcript,
     ) -> (Self, Vec<F>, Vec<F>)
