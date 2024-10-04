@@ -1,11 +1,12 @@
 use ark_ec::CurveGroup;
 use ark_ec::VariableBaseMSM;
 use ark_std::rand::SeedableRng;
-use digest::{ExtendableOutput, Input};
+use digest::{ExtendableOutput};
 use rand_chacha::ChaCha20Rng;
 use sha3::Shake256;
 use std::io::Read;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
+use rand::thread_rng;
 
 #[derive(Debug, Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct MultiCommitGens<G>
@@ -18,21 +19,10 @@ where
 }
 
 impl<G: CurveGroup> MultiCommitGens<G> {
-    pub fn new(n: usize, label: &[u8]) -> Self {
-        let mut shake = Shake256::default();
-        shake.input(label);
-        let mut buf = vec![];
-        G::generator().serialize_compressed(&mut buf).unwrap();
-        shake.input(buf);
-
-        let mut reader = shake.xof_result();
-        let mut seed = [0u8; 32];
-        reader.read_exact(&mut seed).unwrap();
-        let mut rng = ChaCha20Rng::from_seed(seed);
-
+    pub fn new(n: usize, _label: &[u8]) -> Self {
         let mut gens: Vec<G> = Vec::new();
         for _ in 0..n + 1 {
-            gens.push(G::rand(&mut rng));
+            gens.push(G::rand(&mut thread_rng()));
         }
 
         MultiCommitGens {
