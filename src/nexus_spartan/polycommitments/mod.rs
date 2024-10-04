@@ -12,7 +12,6 @@ use merlin::Transcript;
 use crate::nexus_spartan::{dense_mlpoly::DensePolynomial, transcript::AppendToTranscript};
 
 pub mod error;
-mod transcript_utils;
 pub trait VectorCommitmentScheme<G: CurveGroup> {
     type VectorCommitment: AppendToTranscript<G>
     + Sized

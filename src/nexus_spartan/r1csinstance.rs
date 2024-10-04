@@ -4,7 +4,7 @@ use super::math::Math;
 use super::polycommitments::{PolyCommitmentScheme, SRSTrait};
 use super::sparse_mlpoly::{
     MultiSparseMatPolynomialAsDense, SparseMatEntry, SparseMatPolyCommitment,
-    SparseMatPolyCommitmentKey, SparseMatPolyEvalProof, SparseMatPolynomial,
+    SparseMatPolyCommitmentKey, SparseMatPolynomial,
 };
 use super::timer::Timer;
 use super::transcript::AppendToTranscript;

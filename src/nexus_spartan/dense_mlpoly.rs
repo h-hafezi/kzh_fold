@@ -27,24 +27,6 @@ where
 }
 
 
-#[derive(Clone, Debug, CanonicalSerialize, CanonicalDeserialize)]
-pub struct PolyCommitmentBlinds<F>
-where
-    F: PrimeField,
-{
-    pub blinds: Vec<F>,
-}
-
-#[derive(Clone, Debug, Default, CanonicalSerialize, CanonicalDeserialize, PartialEq, Eq)]
-pub struct PolyCommitment<G: CurveGroup> {
-    pub(crate) C: Vec<G>,
-}
-
-#[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
-pub struct ConstPolyCommitment<G: CurveGroup> {
-    C: G,
-}
-
 pub struct EqPolynomial<F> {
     r: Vec<F>,
 }
@@ -141,26 +123,6 @@ impl<F: PrimeField> DensePolynomial<F> {
         )
     }
 
-    fn commit_inner<G: CurveGroup<ScalarField = F>>(
-        &self,
-        blinds: &[F],
-        gens: &MultiCommitGens<G>,
-    ) -> PolyCommitment<G> {
-        let L_size = blinds.len();
-        let R_size = self.Z.len() / L_size;
-        assert_eq!(L_size * R_size, self.Z.len());
-        let C = ark_std::cfg_into_iter!(0..L_size)
-            .map(|i| {
-                Commitments::batch_commit(
-                    self.Z[R_size * i..R_size * (i + 1)].as_ref(),
-                    &blinds[i],
-                    gens,
-                )
-            })
-            .collect();
-        PolyCommitment { C }
-    }
-
     pub fn bound(&self, L: &[F]) -> Vec<F> {
         let (left_num_vars, right_num_vars) =
             EqPolynomial::<F>::compute_factored_lens(self.get_num_vars());
@@ -246,16 +208,6 @@ where
     #[inline(always)]
     fn index(&self, _index: usize) -> &F {
         &(self.Z[_index])
-    }
-}
-
-impl<G: CurveGroup> AppendToTranscript<G> for PolyCommitment<G> {
-    fn append_to_transcript(&self, label: &'static [u8], transcript: &mut Transcript) {
-        transcript.append_message(label, b"poly_commitment_begin");
-        for i in 0..self.C.len() {
-            transcript.append_point(b"poly_commitment_share", &self.C[i]);
-        }
-        transcript.append_message(label, b"poly_commitment_end");
     }
 }
 
