@@ -57,7 +57,6 @@ pub struct SignatureAggrData<E: Pairing> {
     b_1_at_rho: Option<E::ScalarField>, // b_1(rho)
     b_2_at_rho: Option<E::ScalarField>, // b_2(rho)
     c_at_rho: Option<E::ScalarField>, // c(rho)
-    // TODO Hossein: For now, instead of a proof, let's just put the R1CS circuit here
     // ivc_proof: IVCProof<E>
 }
 
@@ -93,12 +92,13 @@ where
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
     <E as Pairing>::ScalarField: Absorb,
 {
-    /// Return (A.W) given poly f(x), and z and y such that f(z) = y
-    fn get_acc_witness_from_evaluation(&self,
+    /// Return (A.X, A.W) given f(x), and z and y such that f(z) = y
+    fn get_accumulator_from_evaluation(&self,
                                        bitfield_poly: &MultilinearPolynomial<E::ScalarField>,
                                        bitfield_commitment: &Commitment<E>,
+                                       eval_result: &E::ScalarField,
                                        eval_point: &Vec<E::ScalarField>
-    ) -> AccWitness<E> {
+    ) -> Accumulator<E> {
         let poly_commit = PolyCommit { srs: self.srs.acc_srs.pc_srs.clone() }; // XXX no clone. bad ergonomics
 
         // Split the evaluation point in half since open() just needs the first half
@@ -108,12 +108,25 @@ where
         let (eval_point_first_half, eval_point_second_half) = eval_point.split_at(mid);
 
         let opening_proof = poly_commit.open(bitfield_poly, bitfield_commitment.clone(), eval_point_first_half); // XXX needless clone
-        Accumulator::new_accumulator_witness_from_proof(
+
+        // XXX bad name for function
+        let acc_instance = Accumulator::new_accumulator_instance_from_proof(
+            &self.srs.acc_srs,
+            &bitfield_commitment.C,
+            eval_point_first_half,
+            eval_point_second_half,
+            eval_result,
+        );
+        let acc_witness = Accumulator::new_accumulator_witness_from_proof(
             &self.srs.acc_srs,
             opening_proof,
             eval_point_first_half,
             eval_point_second_half,
-        )
+        );
+        Accumulator {
+            witness: acc_witness,
+            instance: acc_instance,
+        }
     }
 
     pub fn aggregate(&self, transcript: &mut IOPTranscript<E::ScalarField>) -> SignatureAggrData<E> {
@@ -199,17 +212,21 @@ where
         let b_1_at_rho = b_1_poly.evaluate(&sumcheck_challenges);
         let b_2_at_rho = b_2_poly.evaluate(&sumcheck_challenges);
         let c_at_rho = c_poly.evaluate(&sumcheck_challenges);
+        let p_at_rho = b_1_at_rho + vec_c[0] * b_2_at_rho + vec_c[1] * c_at_rho;
 
-        // Step 5.4: Compute accumulator witness for opening of p(rho)
-        // where p(rho) = b_1_at_rho + b_2_at_rho - b_1_at_rho*b_2_at_rho - c_at_rho
-        let sumcheck_eval_acc_witness = self.get_acc_witness_from_evaluation(
+        // Step 5.4: Compute accumulator for opening of p(rho)
+        let sumcheck_eval_accumulator = self.get_accumulator_from_evaluation(
             &p_x,
             &P_commitment,
+            &p_at_rho,
             &sumcheck_challenges,
         );
 
         // Hossein: At this point we will also have two more accumulators from the IVC proofs of Bob and Charlie
         // Hossein: Accumulate the three accumulators into one
+        // let bob_accumulator = self.A_1.ivc_proof.acc_witness;
+        // let charlie_accumulator = self.A_1.ivc_proof.acc_witness;
+        // let (ivc_proof, final_accumulator) = self.accumulate_everything(sumcheck_eval_accumulator, bob_accumulator, charlie_accumulator);
 
         SignatureAggrData {
             B_1_commitment: Some(self.A_1.bitfield_commitment.clone()),
@@ -217,7 +234,7 @@ where
             bitfield_poly: c_poly,
             bitfield_commitment: C_commitment,
             sumcheck_proof: Some(sumcheck_proof),
-            sumcheck_eval_acc_witness: Some(sumcheck_eval_acc_witness),
+            sumcheck_eval_acc_witness: Some(sumcheck_eval_accumulator.witness),
             b_1_at_rho: Some(b_1_at_rho),
             b_2_at_rho: Some(b_2_at_rho),
             c_at_rho: Some(c_at_rho),
@@ -357,9 +374,6 @@ pub mod test {
         };
 
         let agg_data = aggregator.aggregate(&mut transcript_p);
-        // TODO Hossein: Print the constraint count of the R1CS circuit
-
-        // TODO Hossein: Check that the witness satisfies the witness and examine the witness for 1s and 0s
 
         // Now let's do verification
         let verifier = Verifier {
