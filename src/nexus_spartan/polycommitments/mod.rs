@@ -36,26 +36,11 @@ Sized
 + CanonicalDeserialize
 + PartialEq
 + Eq
-+ Add<Self, Output=Self>
-+ AddAssign<Self>
-+ MulAssign<E::ScalarField>
-+ Mul<E::ScalarField, Output=Self>
-+ Into<Vec<E>>
-+ From<Vec<E>>
 + Default
 + Clone
-+ Send
-+ Sync
 {
     // this should be the commitment to the zero vector of length n
     fn zero(n: usize) -> Self;
-
-    /// Convert the commitment into a single affine point.
-    ///
-    /// This default implementation should only be overwritten if the scheme uses commitments in the form of a single curve point (e.g., Zeromorph, but not Hyrax).
-    fn try_into_affine_point(self) -> Option<E::G1Affine> {
-        None
-    }
 }
 
 
