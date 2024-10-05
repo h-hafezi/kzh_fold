@@ -3,9 +3,6 @@ use ark_bn254::g1::Config as BNConfig;
 use ark_grumpkin::GrumpkinConfig;
 use ark_bn254::g1::{G1Affine as g1};
 use ark_bn254::g2::{G2Affine as g2};
-use ark_ec::AffineRepr;
-use ark_ec::short_weierstrass::Projective;
-use ark_ff::Zero;
 
 /// Since we use the cycle of curves (Bn254, Grumpkin) throughout our tests, we define some types here, so later we can easily use them in out tests
 

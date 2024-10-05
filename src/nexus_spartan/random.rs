@@ -1,7 +1,6 @@
 use std::marker::PhantomData;
 
 use super::transcript::ProofTranscript;
-use ark_ec::CurveGroup;
 use ark_ec::pairing::Pairing;
 use ark_ff::UniformRand;
 use ark_std::test_rng;

@@ -20,20 +20,15 @@ mod timer;
 mod transcript;
 mod unipoly;
 
-use ark_ec::CurveGroup;
 use ark_ff::PrimeField;
 use ark_serialize::*;
 use core::cmp::max;
 use ark_ec::pairing::Pairing;
-use errors::{ProofVerifyError, R1CSError};
-use merlin::Transcript;
+use errors::{R1CSError};
 use polycommitments::PolyCommitmentScheme;
 use r1csinstance::{
-    R1CSCommitment, R1CSCommitmentGens, R1CSDecommitment, R1CSInstance,
+    R1CSCommitment, R1CSDecommitment, R1CSInstance,
 };
-use random::RandomTape;
-use timer::Timer;
-use transcript::{AppendToTranscript, ProofTranscript};
 
 /// `ComputationCommitment` holds a public preprocessed NP statement (e.g., R1CS)
 #[derive(CanonicalSerialize, CanonicalDeserialize)]

@@ -1,8 +1,5 @@
 // borrowed from Arkworks
-
-use ark_ec::pairing::Pairing;
-use ark_ff::{Field, One, PrimeField, Zero};
-use crate::polynomial::compute_dot_product;
+use ark_ff::{Field};
 use crate::polynomial::math::Math;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -61,7 +58,7 @@ impl<F: Field + Copy> EqPolynomial<F> {
 mod tests {
     use ark_ff::AdditiveGroup;
 
-    use crate::constant_for_curves::{E, ScalarField};
+    use crate::constant_for_curves::{ScalarField};
 
     use super::*;
 

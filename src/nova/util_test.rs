@@ -11,7 +11,6 @@ use ark_r1cs_std::{
 use ark_relations::r1cs::{
     ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef, SynthesisError, SynthesisMode,
 };
-use ark_std::rand::RngCore;
 use crate::commitment::CommitmentScheme;
 use crate::gadgets::r1cs::r1cs::{R1CSInstance, R1CSShape, R1CSWitness};
 

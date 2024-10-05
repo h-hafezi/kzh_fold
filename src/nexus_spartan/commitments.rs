@@ -1,10 +1,5 @@
 use ark_ec::CurveGroup;
 use ark_ec::VariableBaseMSM;
-use ark_std::rand::SeedableRng;
-use digest::{ExtendableOutput};
-use rand_chacha::ChaCha20Rng;
-use sha3::Shake256;
-use std::io::Read;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use rand::thread_rng;
 

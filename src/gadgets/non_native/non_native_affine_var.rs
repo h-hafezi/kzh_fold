@@ -5,7 +5,7 @@ use ark_ec::{
     CurveGroup,
     short_weierstrass::{Projective, SWCurveConfig},
 };
-use ark_ff::{AdditiveGroup, Field, One, PrimeField};
+use ark_ff::{AdditiveGroup, Field, PrimeField};
 use ark_r1cs_std::{
     alloc::{AllocationMode, AllocVar},
     boolean::Boolean,
@@ -197,18 +197,14 @@ where
 mod tests {
     use ark_crypto_primitives::sponge::constraints::AbsorbGadget;
     use ark_ec::short_weierstrass::Projective;
-    use ark_ff::PrimeField;
     use ark_r1cs_std::alloc::{AllocationMode, AllocVar};
-    use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
-    use ark_r1cs_std::R1CSVar;
     use ark_relations::ns;
     use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
     use ark_std::UniformRand;
     use rand::thread_rng;
 
-    use crate::constant_for_curves::{BaseField, G1, ScalarField};
+    use crate::constant_for_curves::{G1, ScalarField};
     use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
-    use crate::gadgets::non_native::util::{convert_field_one_to_field_two, non_native_to_fpvar};
 
     #[test]
     fn constraint_count_test() {

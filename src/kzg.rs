@@ -2,11 +2,9 @@
 
 use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
-use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::marker::PhantomData;
 use std::ops::{Add, AddAssign, Div, Mul};
-use std::time::Instant;
 use ark_crypto_primitives::Error;
 use ark_ec::{AffineRepr, CurveGroup, ScalarMul, VariableBaseMSM};
 use ark_ec::pairing::Pairing;

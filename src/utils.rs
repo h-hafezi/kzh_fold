@@ -1,6 +1,4 @@
-use std::ops::Mul;
-
-use ark_ff::{Field, One, PrimeField, BigInteger, ToConstraintField};
+use ark_ff::{Field, PrimeField, BigInteger, ToConstraintField};
 use rayon::prelude::*;
 
 /// return [x^0, x^1, ..., x^n-1]

@@ -3,14 +3,14 @@
 pub(crate) mod tests {
     use ark_ff::PrimeField;
     use ark_pallas::{Fq, Fr, PallasConfig, Projective};
-    use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef};
+    use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystem};
     use ark_std::UniformRand;
     use ark_vesta::VestaConfig;
     use rand::thread_rng;
     pub use crate::hash::pederson::PedersenCommitment;
     use crate::commitment::CommitmentScheme;
     use crate::nova::cycle_fold::coprocessor::{SecondaryCircuit, setup_shape, synthesize};
-    use crate::gadgets::r1cs::r1cs::{commit_T, commit_T_with_relaxed, RelaxedR1CSWitness};
+    use crate::gadgets::r1cs::r1cs::{commit_T, RelaxedR1CSWitness};
     use crate::gadgets::r1cs::RelaxedR1CSInstance;
     use crate::utils::cast_field_element;
 

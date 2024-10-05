@@ -9,7 +9,6 @@ use super::sparse_mlpoly::{SparsePolyEntry, SparsePolynomial};
 use super::sumcheck::SumcheckInstanceProof;
 use super::timer::Timer;
 use super::transcript::{AppendToTranscript, ProofTranscript};
-use ark_ec::CurveGroup;
 use ark_ec::pairing::Pairing;
 use ark_ff::PrimeField;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
@@ -552,7 +551,6 @@ mod tests {
 
     use super::*;
     use ark_bls12_381::Fr;
-    use ark_bls12_381::G1Projective;
     use ark_ff::PrimeField;
     use ark_std::test_rng;
 

@@ -1,21 +1,17 @@
-use std::iter;
-
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::AffineRepr;
-use ark_ff::{PrimeField, UniformRand};
+use ark_ff::{PrimeField};
 use rand::RngCore;
 use ark_ec::pairing::Pairing;
-use ark_ec::VariableBaseMSM;
 use transcript::IOPTranscript;
 
 use crate::accumulation::accumulator::{AccInstance, AccWitness, Accumulator};
 use crate::polynomial::eq_poly::EqPolynomial;
 use ark_ff::Zero;
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
-use crate::polynomial::math::Math;
 use crate::spartan::sumcheck::SumcheckInstanceProof;
-use crate::{accumulation, pcs};
-use crate::pcs::multilinear_pcs::{OpeningProof, PolyCommit, Commitment, SRS as PcsSRS};
+use crate::{accumulation,};
+use crate::pcs::multilinear_pcs::{PolyCommit, Commitment};
 
 // XXX move to mod.rs or somewhere neutral
 #[derive(Clone, Debug)]
@@ -343,9 +339,6 @@ where
 #[cfg(test)]
 pub mod test {
     use super::*;
-    use ark_poly::{EvaluationDomain,GeneralEvaluationDomain};
-    use ark_std::test_rng;
-    use ark_std::UniformRand;
     use crate::constant_for_curves::{E, ScalarField};
 
     #[test]

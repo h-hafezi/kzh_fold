@@ -2,12 +2,9 @@
 /// This is mostly a copy of the SNARK implementation in lib.rs, with minor modifications to work with committed relaxed R1CS.
 use core::cmp::max;
 
-use ark_ec::CurveGroup;
 use ark_ec::pairing::Pairing;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use ark_std::Zero;
-use merlin::Transcript;
-use super::{ComputationCommitment, ComputationDecommitment, crr1csproof::{CRR1CSInstance, CRR1CSKey, CRR1CSProof, CRR1CSShape, CRR1CSWitness}, errors::ProofVerifyError, Instance, polycommitments::PolyCommitmentScheme, r1csinstance::{R1CSCommitmentGens}, timer::Timer, transcript::{AppendToTranscript, ProofTranscript}};
+use super::{crr1csproof::{CRR1CSKey}, polycommitments::PolyCommitmentScheme, r1csinstance::{R1CSCommitmentGens}};
 
 /// `SNARKGens` holds public parameters for producing and verifying proofs with the Spartan SNARK
 #[derive(CanonicalDeserialize, CanonicalSerialize)]

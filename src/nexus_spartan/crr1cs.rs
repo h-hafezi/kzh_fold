@@ -1,9 +1,7 @@
-use ark_ec::CurveGroup;
 use ark_ec::pairing::Pairing;
 use ark_ff::PrimeField;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::{cmp::max, test_rng, One, UniformRand, Zero};
-use rayon::iter::ParallelIterator;
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 use super::polycommitments::{PCSKeys, PolyCommitmentScheme, VectorCommitmentScheme};
 use super::{committed_relaxed_snark::CRSNARKKey, errors::R1CSError, InputsAssignment, Instance, math::Math, VarsAssignment};

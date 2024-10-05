@@ -1,11 +1,10 @@
 use ark_ec::AffineRepr;
 use ark_ec::pairing::Pairing;
-use ark_ff::{AdditiveGroup, BigInteger, FftField, Field, PrimeField};
+use ark_ff::{AdditiveGroup, BigInteger, Field, PrimeField};
 use ark_r1cs_std::boolean::Boolean;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
-use ark_r1cs_std::{ToBitsGadget, ToConstraintFieldGadget};
-use num_bigint::BigUint;
+use ark_r1cs_std::{ToBitsGadget};
 
 pub fn non_native_to_fpvar<ScalarField, BaseField>(
     non_native_var: &NonNativeFieldVar<BaseField, ScalarField>,

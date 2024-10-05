@@ -24,7 +24,6 @@ use ark_r1cs_std::boolean::Boolean;
 use ark_relations::r1cs::{
     ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef, SynthesisError, SynthesisMode,
 };
-use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::Zero;
 
 use crate::gadgets::r1cs::*;

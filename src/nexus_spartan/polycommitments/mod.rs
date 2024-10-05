@@ -1,9 +1,6 @@
 use core::fmt::Debug;
 
-use ark_ec::{CurveConfig, CurveGroup};
 use ark_ec::pairing::Pairing;
-use ark_ec::short_weierstrass::Affine;
-use ark_ff::PrimeField;
 use ark_poly_commit::Error;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::{
@@ -13,9 +10,7 @@ use ark_std::{
 use derivative::Derivative;
 use merlin::Transcript;
 
-use crate::nexus_spartan::polycommitments::error::PCSError;
 use crate::nexus_spartan::transcript::AppendToTranscript;
-use crate::pcs::multilinear_pcs::SRS;
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 
 pub mod error;
@@ -63,9 +58,6 @@ Sized
     }
 }
 
-pub trait SRSTrait: CanonicalSerialize + CanonicalDeserialize {
-    fn max_num_vars(&self) -> usize;
-}
 
 #[derive(CanonicalSerialize, CanonicalDeserialize, Derivative, Debug)]
 #[derivative(Clone(bound = ""))]
@@ -79,7 +71,7 @@ where
 }
 
 pub trait PolyCommitmentScheme<E: Pairing>: Send + Sync {
-    type SRS: SRSTrait;
+    type SRS: CanonicalSerialize + CanonicalDeserialize + Clone;
     type PolyCommitmentKey: CanonicalSerialize + CanonicalDeserialize + Clone;
     type EvalVerifierKey: CanonicalSerialize + CanonicalDeserialize + Clone;
     type Commitment: PolyCommitmentTrait<E>;

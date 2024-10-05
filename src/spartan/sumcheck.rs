@@ -3,13 +3,11 @@
 use ark_ec::CurveGroup;
 use ark_ff::PrimeField;
 use ark_serialize::*;
-use ark_std::Zero;
 use itertools::izip;
 use merlin::Transcript; // original nexus transcript
 use transcript::IOPTranscript; // our own transcript
 
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
-use crate::constant_for_curves::E;
 
 use super::errors::ProofVerifyError;
 use super::transcript::{AppendToTranscript, ProofTranscript};

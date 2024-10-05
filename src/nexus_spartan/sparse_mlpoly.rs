@@ -3,15 +3,13 @@
 #![allow(clippy::needless_range_loop)]
 use super::errors::ProofVerifyError;
 use super::math::Math;
-use super::polycommitments::{PCSKeys, PolyCommitmentScheme, SRSTrait};
+use super::polycommitments::{PCSKeys, PolyCommitmentScheme};
 use super::product_tree::{DotProductCircuit, ProductCircuit, ProductCircuitEvalProofBatched};
 use super::timer::Timer;
 use super::transcript::{AppendToTranscript, ProofTranscript};
-use ark_ec::CurveGroup;
 use ark_ff::{Field, PrimeField};
 use ark_serialize::*;
 use ark_std::{cmp::max, One, Zero};
-use core::cmp::Ordering;
 use ark_ec::pairing::Pairing;
 use merlin::Transcript;
 use crate::polynomial::eq_poly::EqPolynomial;
@@ -327,13 +325,6 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> SparseMatPolyCommitmentKey<E, PC> 
         num_nz_entries: usize,
         batch_size: usize,
     ) -> SparseMatPolyCommitmentKey<E, PC> {
-        assert!(
-            SRS.max_num_vars()
-                >= Self::get_min_num_vars(num_vars_x, num_vars_y, num_nz_entries, batch_size),
-            "SRS too small: max_num_vars = {}, required = {}",
-            SRS.max_num_vars(),
-            Self::get_min_num_vars(num_vars_x, num_vars_y, num_nz_entries, batch_size)
-        );
         let (num_vars_ops, num_vars_mem, num_vars_derefs) =
             Self::get_gens_sizes(num_vars_x, num_vars_y, num_nz_entries, batch_size);
 

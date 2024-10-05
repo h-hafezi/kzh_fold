@@ -97,21 +97,11 @@ impl<F: Absorb + PrimeField> PoseidonHashVar<F> {
 
 #[cfg(test)]
 mod tests {
-    use std::ops::Mul;
-    use ark_crypto_primitives::sponge::{Absorb, CryptographicSponge};
-    use ark_crypto_primitives::sponge::poseidon::{PoseidonConfig, PoseidonSponge};
-    use ark_ec::CurveGroup;
-    use ark_ec::short_weierstrass::{SWCurveConfig, Projective};
-    use ark_ff::{Field, PrimeField};
-    use ark_r1cs_std::alloc::{AllocationMode, AllocVar};
+    use ark_ff::{Field};
     use ark_r1cs_std::fields::fp::FpVar;
     use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
-    use ark_r1cs_std::{R1CSVar, ToConstraintFieldGadget};
-    use ark_r1cs_std::fields::FieldVar;
-    use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
-    use ark_std::UniformRand;
-    use rand::rngs::OsRng;
-    use rand::thread_rng;
+    use ark_r1cs_std::{R1CSVar};
+    use ark_relations::r1cs::{ConstraintSystem};
 
     use super::*;
 

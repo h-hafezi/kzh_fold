@@ -4,18 +4,11 @@
 use core::ops::{Add, Index};
 use std::fmt::Debug;
 
-use ark_crypto_primitives::crh::sha256::digest::typenum::private::PrivateIntegerAdd;
-use ark_ec::CurveGroup;
 use ark_ec::pairing::Pairing;
-use ark_ec::VariableBaseMSM;
 use ark_ff::{Field, PrimeField};
 use ark_serialize::*;
-use ark_std::Zero;
-use itertools::Itertools;
-use num::One;
 use rand::{Rng, RngCore};
 #[cfg(feature = "parallel")]
-use rayon::prelude::*;
 
 use crate::polynomial::eq_poly::EqPolynomial;
 use crate::polynomial::math::Math;

@@ -1,16 +1,11 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::type_complexity)]
-use super::commitments::{Commitments, MultiCommitGens};
 use super::errors::ProofVerifyError;
-use super::random::RandomTape;
 use super::transcript::{AppendToTranscript, ProofTranscript};
 use super::unipoly::{CompressedUniPoly, UniPoly};
-use ark_ec::CurveGroup;
 use ark_ec::pairing::Pairing;
-use ark_ec::VariableBaseMSM;
 use ark_ff::PrimeField;
 use ark_serialize::*;
-use ark_std::{One, Zero};
 
 use itertools::izip;
 use merlin::Transcript;

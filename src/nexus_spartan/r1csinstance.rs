@@ -1,13 +1,11 @@
-use super::errors::ProofVerifyError;
 use super::math::Math;
-use super::polycommitments::{PolyCommitmentScheme, SRSTrait};
+use super::polycommitments::{PolyCommitmentScheme};
 use super::sparse_mlpoly::{
     MultiSparseMatPolynomialAsDense, SparseMatEntry, SparseMatPolyCommitment,
     SparseMatPolyCommitmentKey, SparseMatPolynomial,
 };
 use super::timer::Timer;
 use super::transcript::AppendToTranscript;
-use ark_ec::CurveGroup;
 use ark_ec::pairing::Pairing;
 use ark_ff::PrimeField;
 use ark_serialize::*;
@@ -46,13 +44,6 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> R1CSCommitmentGens<E, PC> {
         assert!(num_inputs < num_vars);
         let num_poly_vars_x = num_cons.log_2();
         let num_poly_vars_y = (2 * num_vars).log_2();
-        let min_num_vars = Self::get_min_num_vars(num_cons, num_vars, num_nz_entries);
-        assert!(
-            SRS.max_num_vars() >= min_num_vars,
-            "SRS is too small for the given R1CS instance: max_num_vars = {}, required = {}",
-            SRS.max_num_vars(),
-            min_num_vars
-        );
         let gens =
             SparseMatPolyCommitmentKey::new(SRS, num_poly_vars_x, num_poly_vars_y, num_nz_entries, 3);
         R1CSCommitmentGens { gens }

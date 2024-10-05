@@ -9,7 +9,6 @@ use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
 
 use crate::polynomial::eq_poly::EqPolynomial;
-use crate::polynomial::math::Math;
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
