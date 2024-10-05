@@ -1,16 +1,18 @@
 use ark_ec::CurveGroup;
+use ark_ec::pairing::Pairing;
 use ark_ff::PrimeField;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::{cmp::max, test_rng, One, UniformRand, Zero};
+use rayon::iter::ParallelIterator;
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 use super::polycommitments::{PCSKeys, PolyCommitmentScheme, VectorCommitmentScheme};
 use super::{committed_relaxed_snark::CRSNARKKey, errors::R1CSError, InputsAssignment, Instance, math::Math, VarsAssignment};
 #[derive(CanonicalDeserialize, CanonicalSerialize)]
-pub struct CRR1CSKey<G: CurveGroup, PC: PolyCommitmentScheme<G>> {
-    pub keys: PCSKeys<G, PC>,
+pub struct CRR1CSKey<E: Pairing, PC: PolyCommitmentScheme<E>> {
+    pub keys: PCSKeys<E, PC>,
 }
 
-impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> CRR1CSKey<G, PC> {
+impl<E: Pairing, PC: PolyCommitmentScheme<E>> CRR1CSKey<E, PC> {
     pub fn new(SRS: &PC::SRS, num_cons: usize, num_vars: usize) -> Self {
         // Since we have commitments both to the witness and the error vectors
         // we need the commitment key to hold the larger of the two
@@ -42,9 +44,9 @@ impl<F: PrimeField> CRR1CSShape<F> {
     }
 }
 
-pub struct CRR1CSInstance<G: CurveGroup, PC: PolyCommitmentScheme<G>> {
-    pub input: InputsAssignment<G::ScalarField>,
-    pub u: G::ScalarField,
+pub struct CRR1CSInstance<E: Pairing, PC: PolyCommitmentScheme<E>> {
+    pub input: InputsAssignment<E::ScalarField>,
+    pub u: E::ScalarField,
     pub comm_W: PC::Commitment,
     pub comm_E: PC::Commitment,
 }
@@ -55,10 +57,10 @@ pub struct CRR1CSWitness<F: PrimeField> {
     pub E: Vec<F>,
 }
 
-pub fn relaxed_r1cs_is_sat<G: CurveGroup, PC: PolyCommitmentScheme<G>>(
-    shape: &CRR1CSShape<G::ScalarField>,
-    instance: &CRR1CSInstance<G, PC>,
-    witness: &CRR1CSWitness<G::ScalarField>,
+pub fn relaxed_r1cs_is_sat<E: Pairing, PC: PolyCommitmentScheme<E>>(
+    shape: &CRR1CSShape<E::ScalarField>,
+    instance: &CRR1CSInstance<E, PC>,
+    witness: &CRR1CSWitness<E::ScalarField>,
 ) -> Result<bool, R1CSError> {
     let CRR1CSWitness { W, E } = witness;
     let CRR1CSInstance { input, u, .. } = instance;
@@ -89,7 +91,7 @@ pub fn relaxed_r1cs_is_sat<G: CurveGroup, PC: PolyCommitmentScheme<G>>(
         let num_cons = E.len();
         if num_padded_cons > num_cons {
             let mut padded_E = E.clone();
-            padded_E.resize(num_padded_cons, G::ScalarField::zero());
+            padded_E.resize(num_padded_cons, E::ScalarField::zero());
             padded_E
         } else {
             E.clone()
@@ -140,10 +142,10 @@ pub fn relaxed_r1cs_is_sat<G: CurveGroup, PC: PolyCommitmentScheme<G>>(
     Ok(res == 0)
 }
 
-pub fn check_commitments<G: CurveGroup, PC: PolyCommitmentScheme<G>>(
-    instance: &CRR1CSInstance<G, PC>,
-    witness: &CRR1CSWitness<G::ScalarField>,
-    key: &CRR1CSKey<G, PC>,
+pub fn check_commitments<E: Pairing, PC: PolyCommitmentScheme<E>>(
+    instance: &CRR1CSInstance<E, PC>,
+    witness: &CRR1CSWitness<E::ScalarField>,
+    key: &CRR1CSKey<E, PC>,
 ) -> bool {
     let CRR1CSWitness { W, E } = witness;
     let CRR1CSInstance { comm_W, comm_E, .. } = instance;
@@ -160,11 +162,11 @@ pub fn check_commitments<G: CurveGroup, PC: PolyCommitmentScheme<G>>(
     expected_comm_W == *comm_W && expected_comm_E == *comm_E
 }
 
-pub fn is_sat<G: CurveGroup, PC: PolyCommitmentScheme<G>>(
-    shape: &CRR1CSShape<G::ScalarField>,
-    instance: &CRR1CSInstance<G, PC>,
-    witness: &CRR1CSWitness<G::ScalarField>,
-    key: &CRR1CSKey<G, PC>,
+pub fn is_sat<E: Pairing, PC: PolyCommitmentScheme<E>>(
+    shape: &CRR1CSShape<E::ScalarField>,
+    instance: &CRR1CSInstance<E, PC>,
+    witness: &CRR1CSWitness<E::ScalarField>,
+    key: &CRR1CSKey<E, PC>,
 ) -> Result<bool, R1CSError> {
     if !check_commitments(instance, witness, key) {
         return Ok(false);
@@ -174,15 +176,15 @@ pub fn is_sat<G: CurveGroup, PC: PolyCommitmentScheme<G>>(
 
 #[allow(clippy::type_complexity)]
 // This produces a random satisfying structure, instance, witness, and public parameters for testing and benchmarking purposes.
-pub fn produce_synthetic_crr1cs<G: CurveGroup, PC: PolyCommitmentScheme<G>>(
+pub fn produce_synthetic_crr1cs<E: Pairing, PC: PolyCommitmentScheme<E>>(
     num_cons: usize,
     num_vars: usize,
     num_inputs: usize,
 ) -> (
-    CRR1CSShape<G::ScalarField>,
-    CRR1CSInstance<G, PC>,
-    CRR1CSWitness<G::ScalarField>,
-    CRSNARKKey<G, PC>,
+    CRR1CSShape<E::ScalarField>,
+    CRR1CSInstance<E, PC>,
+    CRR1CSWitness<E::ScalarField>,
+    CRSNARKKey<E, PC>,
 ) {
     // compute random satisfying assignment for r1cs
     let (inst, vars, inputs) = Instance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
@@ -198,11 +200,11 @@ pub fn produce_synthetic_crr1cs<G: CurveGroup, PC: PolyCommitmentScheme<G>>(
 
     // Note that `produce_synthetic_r1cs` produces a satisfying assignment for Z = [vars, 1, inputs].
     let mut Z = vars.assignment.clone();
-    Z.extend(&vec![G::ScalarField::one()]);
+    Z.extend(&vec![E::ScalarField::one()]);
     Z.extend(inputs.assignment.clone());
 
     // Choose a random u and set Z[num_vars] = u.
-    let u = G::ScalarField::rand(&mut test_rng());
+    let u = E::ScalarField::rand(&mut test_rng());
     Z[num_vars] = u;
 
     let (poly_A, poly_B, poly_C) =
@@ -212,7 +214,7 @@ pub fn produce_synthetic_crr1cs<G: CurveGroup, PC: PolyCommitmentScheme<G>>(
             .multiply_vec(num_cons, num_vars + num_inputs + 1, Z.as_slice());
 
     // Compute the error vector E = (AZ * BZ) - (u * CZ)
-    let mut E = vec![G::ScalarField::zero(); num_cons];
+    let mut E = vec![E::ScalarField::zero(); num_cons];
     for i in 0..num_cons {
         let AB_val = poly_A[i] * poly_B[i];
         let C_val = poly_C[i];
@@ -221,25 +223,25 @@ pub fn produce_synthetic_crr1cs<G: CurveGroup, PC: PolyCommitmentScheme<G>>(
 
     // produce public parameters
     let min_num_vars =
-        CRSNARKKey::<G, PC>::get_min_num_vars(num_cons, num_vars, num_inputs, num_cons);
+        CRSNARKKey::<E, PC>::get_min_num_vars(num_cons, num_vars, num_inputs, num_cons);
     let SRS = PC::setup(min_num_vars, b"CRSNARK_profiler_SRS", &mut test_rng()).unwrap();
-    let gens = CRSNARKKey::<G, PC>::new(&SRS, num_cons, num_vars, num_inputs, num_cons);
+    let gens = CRSNARKKey::<E, PC>::new(&SRS, num_cons, num_vars, num_inputs, num_cons);
 
     // compute commitments to the vectors `vars` and `E`.
-    let comm_W = <PC as VectorCommitmentScheme<G>>::commit(
+    let comm_W = <PC as VectorCommitmentScheme<E>>::commit(
         vars.assignment.as_slice(),
         &gens.gens_r1cs_sat.keys.ck,
     );
-    let comm_E = <PC as VectorCommitmentScheme<G>>::commit(E.as_slice(), &gens.gens_r1cs_sat.keys.ck);
+    let comm_E = <PC as VectorCommitmentScheme<E>>::commit(E.as_slice(), &gens.gens_r1cs_sat.keys.ck);
     (
         shape,
-        CRR1CSInstance::<G, PC> {
+        CRR1CSInstance::<E, PC> {
             input: inputs,
             u,
             comm_W,
             comm_E,
         },
-        CRR1CSWitness::<G::ScalarField> {
+        CRR1CSWitness::<E::ScalarField> {
             W: vars.clone(),
             E: E.clone(),
         },

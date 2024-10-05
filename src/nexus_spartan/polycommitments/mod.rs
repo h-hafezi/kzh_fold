@@ -1,6 +1,9 @@
 use core::fmt::Debug;
 
-use ark_ec::CurveGroup;
+use ark_ec::{CurveConfig, CurveGroup};
+use ark_ec::pairing::Pairing;
+use ark_ec::short_weierstrass::Affine;
+use ark_ff::PrimeField;
 use ark_poly_commit::Error;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::{
@@ -10,28 +13,29 @@ use ark_std::{
 use derivative::Derivative;
 use merlin::Transcript;
 
-use crate::polynomial::multilinear_poly;
-use crate::nexus_spartan::{transcript::AppendToTranscript};
+use crate::nexus_spartan::polycommitments::error::PCSError;
+use crate::nexus_spartan::transcript::AppendToTranscript;
+use crate::pcs::multilinear_pcs::SRS;
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 
 pub mod error;
 
-pub trait VectorCommitmentScheme<G: CurveGroup> {
-    type VectorCommitment: AppendToTranscript<G>
+pub trait VectorCommitmentScheme<E: Pairing> {
+    type VectorCommitment: AppendToTranscript<E>
     + Sized
     + Sync
     + CanonicalSerialize
     + CanonicalDeserialize;
     type CommitmentKey;
-    fn commit(vec: &[G::ScalarField], ck: &Self::CommitmentKey) -> Self::VectorCommitment;
+    fn commit(vec: &[E::ScalarField], ck: &Self::CommitmentKey) -> Self::VectorCommitment;
 
     // Commitment to the zero vector of length n
     fn zero(n: usize) -> Self::VectorCommitment;
 }
 
-pub trait PolyCommitmentTrait<G: CurveGroup>:
+pub trait PolyCommitmentTrait<E: Pairing>:
 Sized
-+ AppendToTranscript<G>
++ AppendToTranscript<E>
 + Debug
 + CanonicalSerialize
 + CanonicalDeserialize
@@ -39,10 +43,10 @@ Sized
 + Eq
 + Add<Self, Output=Self>
 + AddAssign<Self>
-+ MulAssign<G::ScalarField>
-+ Mul<G::ScalarField, Output=Self>
-+ Into<Vec<G>>
-+ From<Vec<G>>
++ MulAssign<E::ScalarField>
++ Mul<E::ScalarField, Output=Self>
++ Into<Vec<E>>
++ From<Vec<E>>
 + Default
 + Clone
 + Send
@@ -54,7 +58,7 @@ Sized
     /// Convert the commitment into a single affine point.
     ///
     /// This default implementation should only be overwritten if the scheme uses commitments in the form of a single curve point (e.g., Zeromorph, but not Hyrax).
-    fn try_into_affine_point(self) -> Option<G::Affine> {
+    fn try_into_affine_point(self) -> Option<E::G1Affine> {
         None
     }
 }
@@ -65,35 +69,35 @@ pub trait SRSTrait: CanonicalSerialize + CanonicalDeserialize {
 
 #[derive(CanonicalSerialize, CanonicalDeserialize, Derivative, Debug)]
 #[derivative(Clone(bound = ""))]
-pub struct PCSKeys<G, PC>
+pub struct PCSKeys<E, PC>
 where
-    G: CurveGroup,
-    PC: PolyCommitmentScheme<G> + ?Sized,
+    PC: PolyCommitmentScheme<E> + ?Sized,
+    E: Pairing,
 {
     pub ck: PC::PolyCommitmentKey,
     pub vk: PC::EvalVerifierKey,
 }
 
-pub trait PolyCommitmentScheme<G: CurveGroup>: Send + Sync {
+pub trait PolyCommitmentScheme<E: Pairing>: Send + Sync {
     type SRS: SRSTrait;
     type PolyCommitmentKey: CanonicalSerialize + CanonicalDeserialize + Clone;
     type EvalVerifierKey: CanonicalSerialize + CanonicalDeserialize + Clone;
-    type Commitment: PolyCommitmentTrait<G>;
+    type Commitment: PolyCommitmentTrait<E>;
     // The commitments should be compatible with a homomorphic vector commitment valued in G
     type PolyCommitmentProof: Sync + CanonicalSerialize + CanonicalDeserialize + Debug;
 
     // Optionally takes `vector_comm` as a "hint" to speed up the commitment process if a
     // commitment to the vector of evaluations has already been computed
     fn commit(
-        poly: &MultilinearPolynomial<G::ScalarField>,
+        poly: &MultilinearPolynomial<E::ScalarField>,
         ck: &Self::PolyCommitmentKey,
     ) -> Self::Commitment;
 
     fn prove(
         C: Option<&Self::Commitment>,
-        poly: &MultilinearPolynomial<G::ScalarField>,
-        r: &[G::ScalarField],
-        eval: &G::ScalarField,
+        poly: &MultilinearPolynomial<E::ScalarField>,
+        r: &[E::ScalarField],
+        eval: &E::ScalarField,
         ck: &Self::PolyCommitmentKey,
         transcript: &mut Transcript,
     ) -> Self::PolyCommitmentProof;
@@ -103,8 +107,8 @@ pub trait PolyCommitmentScheme<G: CurveGroup>: Send + Sync {
         proof: &Self::PolyCommitmentProof,
         ck: &Self::EvalVerifierKey,
         transcript: &mut Transcript,
-        r: &[G::ScalarField],
-        eval: &G::ScalarField,
+        r: &[E::ScalarField],
+        eval: &E::ScalarField,
     ) -> Result<(), error::PCSError>;
 
     // Generate a SRS using the provided RNG; this is just for testing purposes, since in reality
@@ -115,13 +119,13 @@ pub trait PolyCommitmentScheme<G: CurveGroup>: Send + Sync {
         rng: &mut impl RngCore,
     ) -> Result<Self::SRS, Error>;
 
-    fn trim(srs: &Self::SRS, supported_num_vars: usize) -> PCSKeys<G, Self>;
+    fn trim(srs: &Self::SRS, supported_num_vars: usize) -> PCSKeys<E, Self>;
 }
 
-impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> VectorCommitmentScheme<G> for PC {
+impl<E: Pairing, PC: PolyCommitmentScheme<E>> VectorCommitmentScheme<E> for PC {
     type VectorCommitment = PC::Commitment;
     type CommitmentKey = PC::PolyCommitmentKey;
-    fn commit(vec: &[<G>::ScalarField], ck: &Self::CommitmentKey) -> Self::VectorCommitment {
+    fn commit(vec: &[<E>::ScalarField], ck: &Self::CommitmentKey) -> Self::VectorCommitment {
         let poly = MultilinearPolynomial::new(vec.to_vec());
         PC::commit(&poly, ck)
     }

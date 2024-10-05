@@ -6,6 +6,7 @@ use super::random::RandomTape;
 use super::transcript::{AppendToTranscript, ProofTranscript};
 use super::unipoly::{CompressedUniPoly, UniPoly};
 use ark_ec::CurveGroup;
+use ark_ec::pairing::Pairing;
 use ark_ec::VariableBaseMSM;
 use ark_ff::PrimeField;
 use ark_serialize::*;
@@ -25,7 +26,7 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
         SumcheckInstanceProof { compressed_polys }
     }
 
-    pub fn verify<G>(
+    pub fn verify<E>(
         &self,
         claim: F,
         num_rounds: usize,
@@ -33,7 +34,7 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
         transcript: &mut Transcript,
     ) -> Result<(F, Vec<F>), ProofVerifyError>
     where
-        G: CurveGroup<ScalarField = F>,
+        E: Pairing<ScalarField = F>,
     {
         let mut e = claim;
         let mut r: Vec<F> = Vec::new();
@@ -50,11 +51,11 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
             assert_eq!(poly.eval_at_zero() + poly.eval_at_one(), e);
 
             // append the prover's message to the transcript
-            <UniPoly<F> as AppendToTranscript<G>>::append_to_transcript(&poly, b"poly", transcript);
+            <UniPoly<F> as AppendToTranscript<E>>::append_to_transcript(&poly, b"poly", transcript);
 
             //derive the verifier's challenge for the next round
             let r_i =
-                <Transcript as ProofTranscript<G>>::challenge_scalar(transcript, b"challenge_nextround");
+                <Transcript as ProofTranscript<E>>::challenge_scalar(transcript, b"challenge_nextround");
 
             r.push(r_i);
 
@@ -67,7 +68,7 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
 }
 
 impl<F: PrimeField> SumcheckInstanceProof<F> {
-    pub fn prove_cubic<Func, G>(
+    pub fn prove_cubic<Func, E>(
         claim: &F,
         num_rounds: usize,
         poly_A: &mut MultilinearPolynomial<F>,
@@ -78,7 +79,7 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
     ) -> (Self, Vec<F>, Vec<F>)
     where
         Func: Fn(&F, &F, &F) -> F,
-        G: CurveGroup<ScalarField = F>,
+        E: Pairing<ScalarField = F>,
     {
         let mut e = *claim;
         let mut r: Vec<F> = Vec::new();
@@ -119,11 +120,11 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
             let poly = UniPoly::from_evals(&evals);
 
             // append the prover's message to the transcript
-            <UniPoly<F> as AppendToTranscript<G>>::append_to_transcript(&poly, b"poly", transcript);
+            <UniPoly<F> as AppendToTranscript<E>>::append_to_transcript(&poly, b"poly", transcript);
 
             //derive the verifier's challenge for the next round
             let r_j =
-                <Transcript as ProofTranscript<G>>::challenge_scalar(transcript, b"challenge_nextround");
+                <Transcript as ProofTranscript<E>>::challenge_scalar(transcript, b"challenge_nextround");
 
             r.push(r_j);
             // bound all tables to the verifier's challenege
@@ -141,7 +142,7 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
         )
     }
 
-    pub fn prove_cubic_batched<Func, G>(
+    pub fn prove_cubic_batched<Func, E>(
         claim: &F,
         num_rounds: usize,
         poly_vec_par: (
@@ -160,7 +161,7 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
     ) -> (Self, Vec<F>, (Vec<F>, Vec<F>, F), (Vec<F>, Vec<F>, Vec<F>))
     where
         Func: Fn(&F, &F, &F) -> F,
-        G: CurveGroup<ScalarField = F>,
+        E: Pairing<ScalarField = F>,
     {
         let (poly_A_vec_par, poly_B_vec_par, poly_C_par) = poly_vec_par;
         let (poly_A_vec_seq, poly_B_vec_seq, poly_C_vec_seq) = poly_vec_seq;
@@ -255,11 +256,11 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
             let poly = UniPoly::from_evals(&evals);
 
             // append the prover's message to the transcript
-            <UniPoly<F> as AppendToTranscript<G>>::append_to_transcript(&poly, b"poly", transcript);
+            <UniPoly<F> as AppendToTranscript<E>>::append_to_transcript(&poly, b"poly", transcript);
 
             //derive the verifier's challenge for the next round
             let r_j =
-                <Transcript as ProofTranscript<G>>::challenge_scalar(transcript, b"challenge_nextround");
+                <Transcript as ProofTranscript<E>>::challenge_scalar(transcript, b"challenge_nextround");
             r.push(r_j);
 
             // bound all tables to the verifier's challenege

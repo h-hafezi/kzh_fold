@@ -1,6 +1,7 @@
 use super::commitments::{Commitments, MultiCommitGens};
 use super::transcript::{AppendToTranscript, ProofTranscript};
 use ark_ec::CurveGroup;
+use ark_ec::pairing::Pairing;
 use ark_ff::PrimeField;
 use ark_serialize::*;
 use merlin::Transcript;
@@ -109,11 +110,11 @@ impl<F: PrimeField> CompressedUniPoly<F> {
     }
 }
 
-impl<G: CurveGroup> AppendToTranscript<G> for UniPoly<G::ScalarField> {
+impl<E: Pairing> AppendToTranscript<E> for UniPoly<E::ScalarField> {
     fn append_to_transcript(&self, label: &'static [u8], transcript: &mut Transcript) {
         transcript.append_message(label, b"UniPoly_begin");
         for i in 0..self.coeffs.len() {
-            <Transcript as ProofTranscript<G>>::append_scalar(transcript, b"coeff", &self.coeffs[i]);
+            <Transcript as ProofTranscript<E>>::append_scalar(transcript, b"coeff", &self.coeffs[i]);
         }
         transcript.append_message(label, b"UniPoly_end");
     }

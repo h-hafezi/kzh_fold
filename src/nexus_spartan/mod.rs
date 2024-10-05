@@ -24,6 +24,7 @@ use ark_ec::CurveGroup;
 use ark_ff::PrimeField;
 use ark_serialize::*;
 use core::cmp::max;
+use ark_ec::pairing::Pairing;
 use errors::{ProofVerifyError, R1CSError};
 use merlin::Transcript;
 use polycommitments::PolyCommitmentScheme;
@@ -36,8 +37,8 @@ use transcript::{AppendToTranscript, ProofTranscript};
 
 /// `ComputationCommitment` holds a public preprocessed NP statement (e.g., R1CS)
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
-pub struct ComputationCommitment<G: CurveGroup, PC: PolyCommitmentScheme<G>> {
-    comm: R1CSCommitment<G, PC>,
+pub struct ComputationCommitment<E: Pairing, PC: PolyCommitmentScheme<E>> {
+    comm: R1CSCommitment<E, PC>,
 }
 
 /// `ComputationDecommitment` holds information to decommit `ComputationCommitment`

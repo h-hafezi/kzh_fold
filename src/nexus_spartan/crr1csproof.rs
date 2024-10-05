@@ -10,6 +10,7 @@ use super::sumcheck::SumcheckInstanceProof;
 use super::timer::Timer;
 use super::transcript::{AppendToTranscript, ProofTranscript};
 use ark_ec::CurveGroup;
+use ark_ec::pairing::Pairing;
 use ark_ff::PrimeField;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::{One, Zero};
@@ -19,26 +20,26 @@ use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 pub use super::crr1cs::*;
 
 #[derive(CanonicalSerialize, CanonicalDeserialize, Debug)]
-pub struct CRR1CSProof<G: CurveGroup, PC: PolyCommitmentScheme<G>> {
+pub struct CRR1CSProof<E: Pairing, PC: PolyCommitmentScheme<E>> {
     /// Sumcheck proof for the polynomial g(x) = \sum eq(tau,x) * (~Az~(x) * ~Bz~(x) - u * ~Cz~(x) - ~E~(x))
-    sc_proof_phase1: SumcheckInstanceProof<G::ScalarField>,
+    sc_proof_phase1: SumcheckInstanceProof<E::ScalarField>,
     /// Evaluation claims for ~Az~(rx), ~Bz~(rx), and ~Cz~(rx).
-    claims_phase2: (G::ScalarField, G::ScalarField, G::ScalarField),
+    claims_phase2: (E::ScalarField, E::ScalarField, E::ScalarField),
     /// Sumcheck proof for the polynomial F(x) = ~Z(x)~ * ~ABC~(x), where ABC(x) = \sum_t ~M~(t,x) eq(r,t)
     /// for M a random linear combination of A, B, and C.
-    sc_proof_phase2: SumcheckInstanceProof<G::ScalarField>,
+    sc_proof_phase2: SumcheckInstanceProof<E::ScalarField>,
     /// The claimed evaluation ~Z~(ry)
-    eval_vars_at_ry: G::ScalarField,
+    eval_vars_at_ry: E::ScalarField,
     /// A polynomial evaluation proof of the claimed evaluation ~Z~(ry) with respect to the commitment comm_W.
     proof_eval_vars_at_ry: PC::PolyCommitmentProof,
     /// The claimed evaluation ~E~(rx)
-    eval_error_at_rx: G::ScalarField,
+    eval_error_at_rx: E::ScalarField,
     /// A polynomial evaluation proof of the claimed evaluation ~E~(rx) with respect to the commitment comm_E.
     proof_eval_error_at_rx: PC::PolyCommitmentProof,
 }
 
 impl<F: PrimeField> SumcheckInstanceProof<F> {
-    pub fn prove_quad<Func, G>(
+    pub fn prove_quad<Func, E>(
         claim: &F,
         num_rounds: usize,
         poly_A: &mut MultilinearPolynomial<F>,
@@ -48,7 +49,7 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
     ) -> (Self, Vec<F>, Vec<F>)
     where
         Func: Fn(&F, &F) -> F,
-        G: CurveGroup<ScalarField = F>,
+        E: Pairing<ScalarField = F>,
     {
         let mut e = *claim;
         let mut r: Vec<F> = Vec::new();
@@ -73,11 +74,11 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
             let poly = UniPoly::from_evals(&evals);
 
             // append the prover's message to the transcript
-            <UniPoly<F> as AppendToTranscript<G>>::append_to_transcript(&poly, b"poly", transcript);
+            <UniPoly<F> as AppendToTranscript<E>>::append_to_transcript(&poly, b"poly", transcript);
 
             //derive the verifier's challenge for the next round
             let r_j =
-                <Transcript as ProofTranscript<G>>::challenge_scalar(transcript, b"challenge_nextround");
+                <Transcript as ProofTranscript<E>>::challenge_scalar(transcript, b"challenge_nextround");
 
             r.push(r_j);
             // bound all tables to the verifier's challenege
@@ -93,7 +94,7 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
             vec![poly_A[0], poly_B[0]],
         )
     }
-    pub fn prove_cubic_five_terms<Func, G>(
+    pub fn prove_cubic_five_terms<Func, E>(
         claim: &F,
         num_rounds: usize,
         poly_A: &mut MultilinearPolynomial<F>,
@@ -106,7 +107,7 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
     ) -> (Self, Vec<F>, Vec<F>)
     where
         Func: Fn(&F, &F, &F, &F, &F) -> F,
-        G: CurveGroup<ScalarField = F>,
+        E: Pairing<ScalarField = F>,
     {
         let mut e = *claim;
         let mut r: Vec<F> = Vec::new();
@@ -156,11 +157,11 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
             let poly = UniPoly::from_evals(&evals);
 
             // append the prover's message to the transcript
-            <UniPoly<F> as AppendToTranscript<G>>::append_to_transcript(&poly, b"poly", transcript);
+            <UniPoly<F> as AppendToTranscript<E>>::append_to_transcript(&poly, b"poly", transcript);
 
             //derive the verifier's challenge for the next round
             let r_j =
-                <Transcript as ProofTranscript<G>>::challenge_scalar(transcript, b"challenge_nextround");
+                <Transcript as ProofTranscript<E>>::challenge_scalar(transcript, b"challenge_nextround");
 
             r.push(r_j);
             // bound all tables to the verifier's challenege
@@ -180,34 +181,34 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
     }
 }
 
-impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> CRR1CSProof<G, PC> {
+impl<E: Pairing, PC: PolyCommitmentScheme<E>> CRR1CSProof<E, PC> {
     #[allow(clippy::type_complexity)]
     /// Generates the sumcheck proof that sum_s evals_tau(s) * (evals_Az(s) * evals_Bz(s) - u * evals_Cz(s) - E(s)) == 0.
     /// Note that this proof does not use blinding factors, so this is not zero-knowledge.
     fn prove_phase_one(
         num_rounds: usize,
-        evals_tau: &mut MultilinearPolynomial<G::ScalarField>,
-        evals_Az: &mut MultilinearPolynomial<G::ScalarField>,
-        evals_Bz: &mut MultilinearPolynomial<G::ScalarField>,
-        evals_Cz: &mut MultilinearPolynomial<G::ScalarField>,
-        evals_E: &mut MultilinearPolynomial<G::ScalarField>,
-        u: &G::ScalarField,
+        evals_tau: &mut MultilinearPolynomial<E::ScalarField>,
+        evals_Az: &mut MultilinearPolynomial<E::ScalarField>,
+        evals_Bz: &mut MultilinearPolynomial<E::ScalarField>,
+        evals_Cz: &mut MultilinearPolynomial<E::ScalarField>,
+        evals_E: &mut MultilinearPolynomial<E::ScalarField>,
+        u: &E::ScalarField,
         transcript: &mut Transcript,
     ) -> (
-        SumcheckInstanceProof<G::ScalarField>,
-        Vec<G::ScalarField>,
-        Vec<G::ScalarField>,
+        SumcheckInstanceProof<E::ScalarField>,
+        Vec<E::ScalarField>,
+        Vec<E::ScalarField>,
     ) {
         let relaxed_comb_func =
-            |poly_tau: &G::ScalarField,
-             poly_A: &G::ScalarField,
-             poly_B: &G::ScalarField,
-             poly_C: &G::ScalarField,
-             poly_E: &G::ScalarField|
-             -> G::ScalarField { (*poly_A * *poly_B - *u * *poly_C - *poly_E) * *poly_tau };
+            |poly_tau: &E::ScalarField,
+             poly_A: &E::ScalarField,
+             poly_B: &E::ScalarField,
+             poly_C: &E::ScalarField,
+             poly_E: &E::ScalarField|
+             -> E::ScalarField { (*poly_A * *poly_B - *u * *poly_C - *poly_E) * *poly_tau };
 
-        let (sc_proof_phase_one, r, claims) = SumcheckInstanceProof::prove_cubic_five_terms::<_, G>(
-            &G::ScalarField::zero(), // claim is zero
+        let (sc_proof_phase_one, r, claims) = SumcheckInstanceProof::prove_cubic_five_terms::<_, E>(
+            &E::ScalarField::zero(), // claim is zero
             num_rounds,
             evals_tau,
             evals_Az,
@@ -225,19 +226,19 @@ impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> CRR1CSProof<G, PC> {
     #[allow(clippy::type_complexity)]
     fn prove_phase_two(
         num_rounds: usize,
-        claim: &G::ScalarField,
-        evals_z: &mut MultilinearPolynomial<G::ScalarField>,
-        evals_ABC: &mut MultilinearPolynomial<G::ScalarField>,
+        claim: &E::ScalarField,
+        evals_z: &mut MultilinearPolynomial<E::ScalarField>,
+        evals_ABC: &mut MultilinearPolynomial<E::ScalarField>,
         transcript: &mut Transcript,
     ) -> (
-        SumcheckInstanceProof<G::ScalarField>,
-        Vec<G::ScalarField>,
-        Vec<G::ScalarField>,
+        SumcheckInstanceProof<E::ScalarField>,
+        Vec<E::ScalarField>,
+        Vec<E::ScalarField>,
     ) {
-        let comb_func = |poly_A_comp: &G::ScalarField,
-                         poly_B_comp: &G::ScalarField|
-                         -> G::ScalarField { *poly_A_comp * *poly_B_comp };
-        let (sc_proof_phase_two, r, claims) = SumcheckInstanceProof::prove_quad::<_, G>(
+        let comb_func = |poly_A_comp: &E::ScalarField,
+                         poly_B_comp: &E::ScalarField|
+                         -> E::ScalarField { poly_A_comp.clone() * poly_B_comp.clone() };
+        let (sc_proof_phase_two, r, claims) = SumcheckInstanceProof::prove_quad::<_, E>(
             claim, num_rounds, evals_z, evals_ABC, comb_func, transcript,
         );
 
@@ -249,16 +250,16 @@ impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> CRR1CSProof<G, PC> {
     }
     #[allow(clippy::type_complexity)]
     pub fn prove(
-        shape: &CRR1CSShape<G::ScalarField>,
-        instance: &CRR1CSInstance<G, PC>,
-        witness: CRR1CSWitness<G::ScalarField>,
-        key: &CRR1CSKey<G, PC>,
+        shape: &CRR1CSShape<E::ScalarField>,
+        instance: &CRR1CSInstance<E, PC>,
+        witness: CRR1CSWitness<E::ScalarField>,
+        key: &CRR1CSKey<E, PC>,
         transcript: &mut Transcript,
-    ) -> (CRR1CSProof<G, PC>, Vec<G::ScalarField>, Vec<G::ScalarField>) {
+    ) -> (CRR1CSProof<E, PC>, Vec<E::ScalarField>, Vec<E::ScalarField>) {
         let timer_prove = Timer::new("CRR1CSProof::prove");
-        <Transcript as ProofTranscript<G>>::append_protocol_name(
+        <Transcript as ProofTranscript<E>>::append_protocol_name(
             transcript,
-            CRR1CSProof::<G, PC>::protocol_name(),
+            CRR1CSProof::<E, PC>::protocol_name(),
         );
 
         let _inst = &shape.inst.inst;
@@ -275,14 +276,14 @@ impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> CRR1CSProof<G, PC> {
 
         // we currently require the number of |inputs| + 1 to be at most number of vars
         assert!(input.len() < vars.len());
-        <Transcript as ProofTranscript<G>>::append_scalars(transcript, b"input", input);
-        <Transcript as ProofTranscript<G>>::append_scalar(transcript, b"u", u);
+        <Transcript as ProofTranscript<E>>::append_scalars(transcript, b"input", input);
+        <Transcript as ProofTranscript<E>>::append_scalar(transcript, b"u", u);
         comm_W.append_to_transcript(b"comm_W", transcript);
         comm_E.append_to_transcript(b"comm_E", transcript);
         // create a multilinear polynomial using the supplied assignment for variables
-        let poly_vars = MultilinearPolynomial::<G::ScalarField>::new(vars.clone());
+        let poly_vars = MultilinearPolynomial::<E::ScalarField>::new(vars.clone());
         // create a multilinear polynomial from the error vector
-        let poly_error = MultilinearPolynomial::<G::ScalarField>::new(E.clone());
+        let poly_error = MultilinearPolynomial::<E::ScalarField>::new(E.clone());
 
         let timer_sc_proof_phase1 = Timer::new("prove_sc_phase_one");
 
@@ -293,13 +294,13 @@ impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> CRR1CSProof<G, PC> {
             let mut z = vars;
             z.extend(vec![u]); // add relaxed constant term in z
             z.extend(input);
-            z.extend(&vec![G::ScalarField::zero(); num_vars - num_inputs - 1]); // we will pad with zeros
+            z.extend(&vec![E::ScalarField::zero(); num_vars - num_inputs - 1]); // we will pad with zeros
             z
         };
 
         // derive the verifier's challenge tau
         let (num_rounds_x, num_rounds_y) = (inst.get_num_cons().log_2(), z.len().log_2());
-        let tau = <Transcript as ProofTranscript<G>>::challenge_vector(
+        let tau = <Transcript as ProofTranscript<E>>::challenge_vector(
             transcript,
             b"challenge_tau",
             num_rounds_x,
@@ -311,7 +312,7 @@ impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> CRR1CSProof<G, PC> {
 
         let mut poly_E_final = poly_error.clone();
 
-        let (sc_proof_phase1, rx, _claims_phase1) = CRR1CSProof::<G, PC>::prove_phase_one(
+        let (sc_proof_phase1, rx, _claims_phase1) = CRR1CSProof::<E, PC>::prove_phase_one(
             num_rounds_x,
             &mut poly_tau,
             &mut poly_Az,
@@ -336,16 +337,16 @@ impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> CRR1CSProof<G, PC> {
             &poly_E_final[0],
         );
 
-        <Transcript as ProofTranscript<G>>::append_scalar(transcript, b"Az_claim", Az_claim);
-        <Transcript as ProofTranscript<G>>::append_scalar(transcript, b"Bz_claim", Bz_claim);
-        <Transcript as ProofTranscript<G>>::append_scalar(transcript, b"Cz_claim", Cz_claim);
-        <Transcript as ProofTranscript<G>>::append_scalar(transcript, b"E_claim", E_claim);
+        <Transcript as ProofTranscript<E>>::append_scalar(transcript, b"Az_claim", Az_claim);
+        <Transcript as ProofTranscript<E>>::append_scalar(transcript, b"Bz_claim", Bz_claim);
+        <Transcript as ProofTranscript<E>>::append_scalar(transcript, b"Cz_claim", Cz_claim);
+        <Transcript as ProofTranscript<E>>::append_scalar(transcript, b"E_claim", E_claim);
 
         let timer_sc_proof_phase2 = Timer::new("prove_sc_phase_two");
         // combine the three claims into a single claim
-        let r_A = <Transcript as ProofTranscript<G>>::challenge_scalar(transcript, b"challenege_Az");
-        let r_B = <Transcript as ProofTranscript<G>>::challenge_scalar(transcript, b"challenege_Bz");
-        let r_C = <Transcript as ProofTranscript<G>>::challenge_scalar(transcript, b"challenege_Cz");
+        let r_A = <Transcript as ProofTranscript<E>>::challenge_scalar(transcript, b"challenege_Az");
+        let r_B = <Transcript as ProofTranscript<E>>::challenge_scalar(transcript, b"challenege_Bz");
+        let r_C = <Transcript as ProofTranscript<E>>::challenge_scalar(transcript, b"challenege_Cz");
         let claim_phase2 = r_A * Az_claim + r_B * Bz_claim + r_C * Cz_claim;
 
         let evals_ABC = {
@@ -358,11 +359,11 @@ impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> CRR1CSProof<G, PC> {
             assert_eq!(evals_A.len(), evals_C.len());
             (0..evals_A.len())
                 .map(|i| r_A * evals_A[i] + r_B * evals_B[i] + r_C * evals_C[i])
-                .collect::<Vec<G::ScalarField>>()
+                .collect::<Vec<E::ScalarField>>()
         };
 
         // another instance of the sum-check protocol
-        let (sc_proof_phase2, ry, _claims_phase2) = CRR1CSProof::<G, PC>::prove_phase_two(
+        let (sc_proof_phase2, ry, _claims_phase2) = CRR1CSProof::<E, PC>::prove_phase_two(
             num_rounds_y,
             &claim_phase2,
             &mut MultilinearPolynomial::new(z),
@@ -422,14 +423,14 @@ impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> CRR1CSProof<G, PC> {
         &self,
         num_vars: usize,
         num_cons: usize,
-        instance: &CRR1CSInstance<G, PC>,
-        evals: &(G::ScalarField, G::ScalarField, G::ScalarField),
+        instance: &CRR1CSInstance<E, PC>,
+        evals: &(E::ScalarField, E::ScalarField, E::ScalarField),
         transcript: &mut Transcript,
         key: &PC::EvalVerifierKey,
-    ) -> Result<(Vec<G::ScalarField>, Vec<G::ScalarField>), ProofVerifyError> {
-        <Transcript as ProofTranscript<G>>::append_protocol_name(
+    ) -> Result<(Vec<E::ScalarField>, Vec<E::ScalarField>), ProofVerifyError> {
+        <Transcript as ProofTranscript<E>>::append_protocol_name(
             transcript,
-            CRR1CSProof::<G, PC>::protocol_name(),
+            CRR1CSProof::<E, PC>::protocol_name(),
         );
 
         let CRR1CSInstance {
@@ -441,8 +442,8 @@ impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> CRR1CSProof<G, PC> {
 
         let input = _input.assignment.as_slice();
 
-        <Transcript as ProofTranscript<G>>::append_scalars(transcript, b"input", input);
-        <Transcript as ProofTranscript<G>>::append_scalar(transcript, b"u", u);
+        <Transcript as ProofTranscript<E>>::append_scalars(transcript, b"input", input);
+        <Transcript as ProofTranscript<E>>::append_scalar(transcript, b"u", u);
         comm_W.append_to_transcript(b"comm_W", transcript);
         comm_E.append_to_transcript(b"comm_E", transcript);
 
@@ -451,30 +452,30 @@ impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> CRR1CSProof<G, PC> {
         let (num_rounds_x, num_rounds_y) = (num_cons.log_2(), (2 * num_vars).log_2());
 
         // derive the verifier's challenge tau
-        let tau = <Transcript as ProofTranscript<G>>::challenge_vector(
+        let tau = <Transcript as ProofTranscript<E>>::challenge_vector(
             transcript,
             b"challenge_tau",
             num_rounds_x,
         );
 
         // verify the first sum-check instance
-        let claim_phase1 = G::ScalarField::zero();
+        let claim_phase1 = E::ScalarField::zero();
         let (claim_post_phase1, rx) =
             self
                 .sc_proof_phase1
-                .verify::<G>(claim_phase1, num_rounds_x, 3, transcript)?;
+                .verify::<E>(claim_phase1, num_rounds_x, 3, transcript)?;
 
         // perform the intermediate sum-check test with claimed Az, Bz, Cz, and E
         let (Az_claim, Bz_claim, Cz_claim) = self.claims_phase2;
         let E_claim = &self.eval_error_at_rx;
 
-        <Transcript as ProofTranscript<G>>::append_scalar(transcript, b"Az_claim", &Az_claim);
-        <Transcript as ProofTranscript<G>>::append_scalar(transcript, b"Bz_claim", &Bz_claim);
-        <Transcript as ProofTranscript<G>>::append_scalar(transcript, b"Cz_claim", &Cz_claim);
-        <Transcript as ProofTranscript<G>>::append_scalar(transcript, b"E_claim", E_claim);
+        <Transcript as ProofTranscript<E>>::append_scalar(transcript, b"Az_claim", &Az_claim);
+        <Transcript as ProofTranscript<E>>::append_scalar(transcript, b"Bz_claim", &Bz_claim);
+        <Transcript as ProofTranscript<E>>::append_scalar(transcript, b"Cz_claim", &Cz_claim);
+        <Transcript as ProofTranscript<E>>::append_scalar(transcript, b"E_claim", E_claim);
 
-        let taus_bound_rx: G::ScalarField = (0..rx.len())
-            .map(|i| rx[i] * tau[i] + (G::ScalarField::one() - rx[i]) * (G::ScalarField::one() - tau[i]))
+        let taus_bound_rx: E::ScalarField = (0..rx.len())
+            .map(|i| rx[i] * tau[i] + (E::ScalarField::one() - rx[i]) * (E::ScalarField::one() - tau[i]))
             .product();
 
         let expected_claim_post_phase1 =
@@ -482,9 +483,9 @@ impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> CRR1CSProof<G, PC> {
         assert_eq!(expected_claim_post_phase1, claim_post_phase1);
 
         // derive three public challenges and then derive a joint claim
-        let r_A = <Transcript as ProofTranscript<G>>::challenge_scalar(transcript, b"challenege_Az");
-        let r_B = <Transcript as ProofTranscript<G>>::challenge_scalar(transcript, b"challenege_Bz");
-        let r_C = <Transcript as ProofTranscript<G>>::challenge_scalar(transcript, b"challenege_Cz");
+        let r_A = <Transcript as ProofTranscript<E>>::challenge_scalar(transcript, b"challenege_Az");
+        let r_B = <Transcript as ProofTranscript<E>>::challenge_scalar(transcript, b"challenege_Bz");
+        let r_C = <Transcript as ProofTranscript<E>>::challenge_scalar(transcript, b"challenege_Cz");
 
         // r_A * Az_claim + r_B * Bz_claim + r_C * Cz_claim;
         let claim_phase2 = r_A * Az_claim + r_B * Bz_claim + r_C * Cz_claim;
@@ -493,7 +494,7 @@ impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> CRR1CSProof<G, PC> {
         let (claim_post_phase2, ry) =
             self
                 .sc_proof_phase2
-                .verify::<G>(claim_phase2, num_rounds_y, 2, transcript)?;
+                .verify::<E>(claim_phase2, num_rounds_y, 2, transcript)?;
 
         // verify Z(ry) proof against the initial commitment `comm_W`
         PC::verify(
@@ -524,14 +525,14 @@ impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> CRR1CSProof<G, PC> {
             input_as_sparse_poly_entries.extend(
                 (0..input.len())
                     .map(|i| SparsePolyEntry::new(i + 1, input[i]))
-                    .collect::<Vec<SparsePolyEntry<G::ScalarField>>>(),
+                    .collect::<Vec<SparsePolyEntry<E::ScalarField>>>(),
             );
             SparsePolynomial::new(n.log_2(), input_as_sparse_poly_entries).evaluate(&ry[1..])
         };
 
         // compute eval_Z_at_ry = (F::one() - ry[0]) * self.eval_vars_at_ry + ry[0] * poly_input_eval
         let eval_Z_at_ry =
-            (G::ScalarField::one() - ry[0]) * self.eval_vars_at_ry + ry[0] * poly_input_eval;
+            (E::ScalarField::one() - ry[0]) * self.eval_vars_at_ry + ry[0] * poly_input_eval;
 
         // perform the final check in the second sum-check protocol
         let (eval_A_r, eval_B_r, eval_C_r) = evals;
@@ -638,12 +639,12 @@ mod tests {
     pub fn check_crr1cs_proof() {
         // check_crr1cs_proof_helper::<G1Projective, Hyrax<G1Projective>>()
     }
-    fn check_crr1cs_proof_helper<G: CurveGroup, PC: PolyCommitmentScheme<G>>() {
+    fn check_crr1cs_proof_helper<E: Pairing, PC: PolyCommitmentScheme<E>>() {
         let num_vars = 1024;
         let num_cons = num_vars;
         let num_inputs = 10;
         let (shape, instance, witness, gens) =
-            produce_synthetic_crr1cs::<G, PC>(num_cons, num_vars, num_inputs);
+            produce_synthetic_crr1cs::<E, PC>(num_cons, num_vars, num_inputs);
         assert!(is_sat(&shape, &instance, &witness, &gens.gens_r1cs_sat).unwrap());
         let (num_cons, num_vars, _num_inputs) = (
             shape.get_num_cons(),

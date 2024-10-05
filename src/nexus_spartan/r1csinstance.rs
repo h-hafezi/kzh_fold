@@ -8,6 +8,7 @@ use super::sparse_mlpoly::{
 use super::timer::Timer;
 use super::transcript::AppendToTranscript;
 use ark_ec::CurveGroup;
+use ark_ec::pairing::Pairing;
 use ark_ff::PrimeField;
 use ark_serialize::*;
 use ark_std::test_rng;
@@ -26,22 +27,22 @@ pub struct R1CSInstance<F: PrimeField> {
 
 
 #[derive(CanonicalDeserialize, CanonicalSerialize)]
-pub struct R1CSCommitmentGens<G, PC>
+pub struct R1CSCommitmentGens<E, PC>
 where
-    G: CurveGroup,
-    PC: PolyCommitmentScheme<G>,
+    E: Pairing,
+    PC: PolyCommitmentScheme<E>,
 {
-    gens: SparseMatPolyCommitmentKey<G, PC>,
+    gens: SparseMatPolyCommitmentKey<E, PC>,
 }
 
-impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> R1CSCommitmentGens<G, PC> {
+impl<E: Pairing, PC: PolyCommitmentScheme<E>> R1CSCommitmentGens<E, PC> {
     pub fn new(
         SRS: &PC::SRS,
         num_cons: usize,
         num_vars: usize,
         num_inputs: usize,
         num_nz_entries: usize,
-    ) -> R1CSCommitmentGens<G, PC> {
+    ) -> R1CSCommitmentGens<E, PC> {
         assert!(num_inputs < num_vars);
         let num_poly_vars_x = num_cons.log_2();
         let num_poly_vars_y = (2 * num_vars).log_2();
@@ -59,7 +60,7 @@ impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> R1CSCommitmentGens<G, PC> {
     pub fn get_min_num_vars(num_cons: usize, num_vars: usize, num_nz_entries: usize) -> usize {
         let num_poly_vars_x = num_cons.log_2();
         let num_poly_vars_y = (2 * num_vars).log_2();
-        SparseMatPolyCommitmentKey::<G, PC>::get_min_num_vars(
+        SparseMatPolyCommitmentKey::<E, PC>::get_min_num_vars(
             num_poly_vars_x,
             num_poly_vars_y,
             num_nz_entries,
@@ -69,14 +70,14 @@ impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> R1CSCommitmentGens<G, PC> {
 }
 
 #[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
-pub struct R1CSCommitment<G: CurveGroup, PC: PolyCommitmentScheme<G>> {
+pub struct R1CSCommitment<E: Pairing, PC: PolyCommitmentScheme<E>> {
     num_cons: usize,
     num_vars: usize,
     num_inputs: usize,
-    comm: SparseMatPolyCommitment<G, PC>,
+    comm: SparseMatPolyCommitment<E, PC>,
 }
 
-impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> AppendToTranscript<G> for R1CSCommitment<G, PC> {
+impl<E: Pairing, PC: PolyCommitmentScheme<E>> AppendToTranscript<E> for R1CSCommitment<E, PC> {
     fn append_to_transcript(&self, _label: &'static [u8], transcript: &mut Transcript) {
         transcript.append_u64(b"num_cons", self.num_cons as u64);
         transcript.append_u64(b"num_vars", self.num_vars as u64);
@@ -93,7 +94,7 @@ where
     dense: MultiSparseMatPolynomialAsDense<F>,
 }
 
-impl<G: CurveGroup, PC: PolyCommitmentScheme<G>> R1CSCommitment<G, PC> {
+impl<E: Pairing, PC: PolyCommitmentScheme<E>> R1CSCommitment<E, PC> {
     pub fn get_num_cons(&self) -> usize {
         self.num_cons
     }
