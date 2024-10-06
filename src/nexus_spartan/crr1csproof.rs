@@ -553,6 +553,7 @@ mod tests {
     use ark_bls12_381::Fr;
     use ark_ff::PrimeField;
     use ark_std::test_rng;
+    use crate::constant_for_curves::{E, ScalarField};
 
     fn produce_tiny_r1cs<F: PrimeField>() -> (R1CSInstance<F>, Vec<F>, Vec<F>) {
         // three constraints over five variables Z1, Z2, Z3, Z4, and Z5
@@ -635,8 +636,9 @@ mod tests {
 
     #[test]
     pub fn check_crr1cs_proof() {
-        // check_crr1cs_proof_helper::<G1Projective, Hyrax<G1Projective>>()
+        check_crr1cs_proof_helper::<E, MultilinearPolynomial<ScalarField>>()
     }
+
     fn check_crr1cs_proof_helper<E: Pairing, PC: PolyCommitmentScheme<E>>() {
         let num_vars = 1024;
         let num_cons = num_vars;

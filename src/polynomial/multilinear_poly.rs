@@ -8,8 +8,8 @@ use ark_ec::pairing::Pairing;
 use ark_ff::{Field, PrimeField};
 use ark_serialize::*;
 use rand::{Rng, RngCore};
-#[cfg(feature = "parallel")]
 
+#[cfg(feature = "parallel")]
 use crate::polynomial::eq_poly::EqPolynomial;
 use crate::polynomial::math::Math;
 use crate::utils::inner_product;
@@ -159,6 +159,18 @@ impl<F: PrimeField> MultilinearPolynomial<F> {
             *f_i = *f_i * r;
         }
     }
+
+    /// extend it to some number of variables
+    pub fn extend_number_of_variables(&self, num_variables: usize) -> MultilinearPolynomial<F> {
+        assert!(self.num_variables <= num_variables);
+        let mut temp = self.evaluation_over_boolean_hypercube.clone();
+        temp.extend(vec![F::ZERO; (1 << num_variables) - self.evaluation_over_boolean_hypercube.len()]);
+        MultilinearPolynomial {
+            num_variables,
+            evaluation_over_boolean_hypercube: temp,
+            len: 1 << num_variables,
+        }
+    }
 }
 
 impl<F: PrimeField> MultilinearPolynomial<F> {
@@ -173,6 +185,7 @@ impl<F: PrimeField> MultilinearPolynomial<F> {
     }
 
     pub fn get_partial_evaluation_for_boolean_input(&self, index: usize, n: usize) -> Vec<F> {
+        println!("length {}", self.evaluation_over_boolean_hypercube.len());
         self.evaluation_over_boolean_hypercube[n * index..n * index + n].to_vec()
     }
 
@@ -256,6 +269,19 @@ mod tests {
     use crate::polynomial::eq_poly::EqPolynomial;
 
     use super::*;
+
+    #[test]
+    fn extend_test() {
+        // define a polynomial
+        let poly = MultilinearPolynomial::<ScalarField>::rand(3, &mut thread_rng());
+        // extend it with 2 variables
+        let new_poly = poly.extend_number_of_variables(5);
+        // define what extension looks like
+        let mut temp = poly.evaluation_over_boolean_hypercube.clone();
+        temp.extend(vec![ScalarField::ZERO; 32 - 8]);
+        // assert the equality
+        assert_eq!(temp, new_poly.evaluation_over_boolean_hypercube);
+    }
 
     #[test]
     fn tests_partial_eval() {

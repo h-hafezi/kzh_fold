@@ -3,15 +3,19 @@ use std::ops::{Add, Mul};
 
 use ark_ec::{CurveGroup, VariableBaseMSM};
 use ark_ec::pairing::Pairing;
+use ark_ff::AdditiveGroup;
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::UniformRand;
+use derivative::Derivative;
 use rand::RngCore;
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
 
+use crate::nexus_spartan::math::Math;
 use crate::polynomial::eq_poly::EqPolynomial;
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize, Derivative)]
 pub struct SRS<E: Pairing> {
     pub degree_x: usize,
     pub degree_y: usize,
@@ -21,21 +25,50 @@ pub struct SRS<E: Pairing> {
     pub V_prime: E::G2,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Default, Clone, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize, Derivative)]
 pub struct Commitment<E: Pairing> {
     pub C: E::G1Affine,
     pub aux: Vec<E::G1>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize, Derivative)]
 pub struct OpeningProof<E: Pairing> {
     pub vec_D: Vec<E::G1Affine>,
     pub f_star_poly: MultilinearPolynomial<E::ScalarField>,
 }
 
 // Define the new struct that encapsulates the functionality of polynomial commitment
+#[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize, Derivative)]
 pub struct PolyCommit<E: Pairing> {
     pub srs: SRS<E>,
+}
+
+impl<E: Pairing> SRS<E> {
+    pub fn get_x_length(&self) -> usize {
+        self.degree_x.log_2()
+    }
+
+    pub fn get_y_length(&self) -> usize {
+        self.degree_y.log_2()
+    }
+
+    pub fn split_between_x_and_y(&self, r: &[E::ScalarField]) -> (Vec<E::ScalarField>, Vec<E::ScalarField>) {
+        let x_length = self.get_x_length();
+        let y_length = self.get_y_length();
+        let total_length = x_length + y_length;
+
+        // If r is smaller than the required length, extend it with zeros
+        let mut extended_r = r.to_vec();
+        if r.len() < total_length {
+            extended_r.extend(vec![E::ScalarField::ZERO; total_length - r.len()]);
+        }
+
+        // Split the vector into two parts
+        let r_x = extended_r[..x_length].to_vec();
+        let r_y = extended_r[x_length..total_length].to_vec();
+
+        (r_x, r_y)
+    }
 }
 
 impl<E: Pairing> PolyCommit<E> {
@@ -146,11 +179,11 @@ impl<E: Pairing> PolyCommit<E> {
     }
 
     pub fn verify(&self,
-              C: &Commitment<E>,
-              proof: &OpeningProof<E>,
-              x: &[E::ScalarField],
-              y: &[E::ScalarField],
-              z: &E::ScalarField,
+                  C: &Commitment<E>,
+                  proof: &OpeningProof<E>,
+                  x: &[E::ScalarField],
+                  y: &[E::ScalarField],
+                  z: &E::ScalarField,
     ) -> bool {
         // first condition
         let pairing_rhs = E::multi_pairing(proof.vec_D.clone(), &self.srs.vec_V);
@@ -219,6 +252,7 @@ pub mod test {
     use std::cmp::min;
 
     use ark_ec::pairing::Pairing;
+    use ark_ff::AdditiveGroup;
     use ark_std::UniformRand;
     use rand::thread_rng;
 
@@ -257,11 +291,32 @@ pub mod test {
         let degree_y = 32usize;
         let srs: SRS<E> = PolyCommit::<E>::setup(degree_x, degree_y, &mut thread_rng());
 
+        // testing srs functions
+        assert_eq!(3, srs.get_x_length());
+        assert_eq!(5, srs.get_y_length());
+
+        let mut r = vec![
+            ScalarField::rand(&mut thread_rng()),
+            ScalarField::rand(&mut thread_rng()),
+            ScalarField::rand(&mut thread_rng()),
+            ScalarField::rand(&mut thread_rng()),
+            ScalarField::rand(&mut thread_rng()),
+        ];
+        r.extend(vec![ScalarField::ZERO; 3]);
+        let x = r[0..3].to_vec();
+        let y = r[3..].to_vec();
+
+        // do the split and assert equality
+        let (x_new, y_new) = srs.split_between_x_and_y(r.as_slice());
+        assert_eq!(x_new, x);
+        assert_eq!(y_new, y);
+
+
         // define the polynomial commitment
         let poly_commit: PolyCommit<E> = PolyCommit { srs };
 
         // random bivariate polynomial
-        let polynomial = MultilinearPolynomial::rand(3 + 5, &mut thread_rng());
+        let mut polynomial = MultilinearPolynomial::rand(3 + 5, &mut thread_rng());
 
         // random points and evaluation
         let x = vec![

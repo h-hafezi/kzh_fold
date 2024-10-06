@@ -14,6 +14,7 @@ use crate::nexus_spartan::transcript::AppendToTranscript;
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 
 pub mod error;
+pub mod kzh;
 
 pub trait VectorCommitmentScheme<E: Pairing> {
     type VectorCommitment: AppendToTranscript<E>
@@ -23,26 +24,7 @@ pub trait VectorCommitmentScheme<E: Pairing> {
     + CanonicalDeserialize;
     type CommitmentKey;
     fn commit(vec: &[E::ScalarField], ck: &Self::CommitmentKey) -> Self::VectorCommitment;
-
-    // Commitment to the zero vector of length n
-    fn zero(n: usize) -> Self::VectorCommitment;
 }
-
-pub trait PolyCommitmentTrait<E: Pairing>:
-Sized
-+ AppendToTranscript<E>
-+ Debug
-+ CanonicalSerialize
-+ CanonicalDeserialize
-+ PartialEq
-+ Eq
-+ Default
-+ Clone
-{
-    // this should be the commitment to the zero vector of length n
-    fn zero(n: usize) -> Self;
-}
-
 
 #[derive(CanonicalSerialize, CanonicalDeserialize, Derivative, Debug)]
 #[derivative(Clone(bound = ""))]
@@ -59,7 +41,14 @@ pub trait PolyCommitmentScheme<E: Pairing>: Send + Sync {
     type SRS: CanonicalSerialize + CanonicalDeserialize + Clone;
     type PolyCommitmentKey: CanonicalSerialize + CanonicalDeserialize + Clone;
     type EvalVerifierKey: CanonicalSerialize + CanonicalDeserialize + Clone;
-    type Commitment: PolyCommitmentTrait<E>;
+    type Commitment: AppendToTranscript<E>
+        + Debug
+        + CanonicalSerialize
+        + CanonicalDeserialize
+        + PartialEq
+        + Eq
+        + Clone;
+
     // The commitments should be compatible with a homomorphic vector commitment valued in G
     type PolyCommitmentProof: Sync + CanonicalSerialize + CanonicalDeserialize + Debug;
 
@@ -105,8 +94,5 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> VectorCommitmentScheme<E> for PC {
     fn commit(vec: &[<E>::ScalarField], ck: &Self::CommitmentKey) -> Self::VectorCommitment {
         let poly = MultilinearPolynomial::new(vec.to_vec());
         PC::commit(&poly, ck)
-    }
-    fn zero(n: usize) -> Self::VectorCommitment {
-        PC::Commitment::zero(n)
     }
 }

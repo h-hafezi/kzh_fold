@@ -39,6 +39,8 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> CRSNARKKey<E, PC> {
         }
         num_vars_padded
     }
+
+    // todo: later make sure I'm doing this correctly, in brief this function sets the number of variables for PC
     pub fn get_min_num_vars(
         num_cons: usize,
         num_vars: usize,
@@ -47,9 +49,11 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> CRSNARKKey<E, PC> {
     ) -> usize {
         let num_vars_padded = Self::get_num_vars_padded(num_vars, num_inputs);
         let min_num_vars_sat = CRR1CSKey::<E, PC>::get_min_num_vars(num_cons, num_vars_padded);
-        let min_num_vars_eval =
-            R1CSCommitmentGens::<E, PC>::get_min_num_vars(num_cons, num_vars_padded, num_nz_entries);
-        max(min_num_vars_sat, min_num_vars_eval)
+        // todo: I think we don't use this since it's used for sparse matrices
+        let min_num_vars_eval = R1CSCommitmentGens::<E, PC>::get_min_num_vars(num_cons, num_vars_padded, num_nz_entries);
+        println!("{} {}", min_num_vars_sat, min_num_vars_eval);
+        // max(min_num_vars_sat, min_num_vars_eval)
+        min_num_vars_sat
     }
 }
 

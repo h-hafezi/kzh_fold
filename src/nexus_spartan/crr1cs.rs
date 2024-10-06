@@ -220,8 +220,7 @@ pub fn produce_synthetic_crr1cs<E: Pairing, PC: PolyCommitmentScheme<E>>(
     }
 
     // produce public parameters
-    let min_num_vars =
-        CRSNARKKey::<E, PC>::get_min_num_vars(num_cons, num_vars, num_inputs, num_cons);
+    let min_num_vars = CRSNARKKey::<E, PC>::get_min_num_vars(num_cons, num_vars, num_inputs, num_cons);
     let SRS = PC::setup(min_num_vars, b"CRSNARK_profiler_SRS", &mut test_rng()).unwrap();
     let gens = CRSNARKKey::<E, PC>::new(&SRS, num_cons, num_vars, num_inputs, num_cons);
 
