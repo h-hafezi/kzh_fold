@@ -18,6 +18,7 @@ use crate::polynomial::eq_poly::EqPolynomial;
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 pub use super::crr1cs::*;
 
+// todo: what is the point of r_x and r_y
 #[derive(CanonicalSerialize, CanonicalDeserialize, Debug)]
 pub struct CRR1CSProof<E: Pairing, PC: PolyCommitmentScheme<E>> {
     /// Sumcheck proof for the polynomial g(x) = \sum eq(tau,x) * (~Az~(x) * ~Bz~(x) - u * ~Cz~(x) - ~E~(x))
