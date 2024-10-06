@@ -11,7 +11,7 @@ use rand::{Rng, RngCore};
 
 #[cfg(feature = "parallel")]
 use crate::polynomial::eq_poly::EqPolynomial;
-use crate::polynomial::math::Math;
+use crate::math::Math;
 use crate::utils::inner_product;
 
 #[derive(Debug, Clone, PartialEq, Eq, CanonicalDeserialize, CanonicalSerialize)]

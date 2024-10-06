@@ -5,8 +5,10 @@ use ark_std::{cmp::max, One, test_rng, UniformRand};
 
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 
-use super::{committed_relaxed_snark::CRSNARKKey, errors::R1CSError, InputsAssignment, Instance, math::Math, VarsAssignment};
+use super::{committed_relaxed_snark::CRSNARKKey, errors::R1CSError, InputsAssignment, Instance, VarsAssignment};
 use super::polycommitments::{PCSKeys, PolyCommitmentScheme, VectorCommitmentScheme};
+use crate::math::Math;
+
 
 #[derive(CanonicalDeserialize, CanonicalSerialize)]
 pub struct CRR1CSKey<E: Pairing, PC: PolyCommitmentScheme<E>> {
@@ -14,7 +16,7 @@ pub struct CRR1CSKey<E: Pairing, PC: PolyCommitmentScheme<E>> {
 }
 
 impl<E: Pairing, PC: PolyCommitmentScheme<E>> CRR1CSKey<E, PC> {
-    pub fn new(SRS: &PC::SRS, num_cons: usize, num_vars: usize) -> Self {
+    pub fn new(SRS: &PC::SRS, _num_cons: usize, _num_vars: usize) -> Self {
         // Since we have commitments both to the witness and the error vectors
         // we need the commitment key to hold the larger of the two (Hossein: previously)
 

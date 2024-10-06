@@ -3,7 +3,8 @@
 pub trait Math {
     fn square_root(self) -> usize;
     fn pow2(self) -> usize;
-    fn get_bits(self, num_bits: usize) -> Vec<bool>;
+    fn get_bits_non_canonical_order(self, num_bits: usize) -> Vec<bool>;
+    fn get_bits_canonical_order(self, num_bits: usize) -> Vec<bool>;
     fn log_2(self) -> usize;
 }
 
@@ -20,9 +21,16 @@ impl Math for usize {
     }
 
     /// Returns the num_bits from n in a non-canonical order
-    fn get_bits(self, num_bits: usize) -> Vec<bool> {
+    fn get_bits_non_canonical_order(self, num_bits: usize) -> Vec<bool> {
         (0..num_bits)
-            .map(|shift_amount| ((self & (1 << (num_bits - shift_amount - 1))) > 0)).rev()
+            .map(|shift_amount| (self & (1 << (num_bits - shift_amount - 1))) > 0).rev()
+            .collect::<Vec<bool>>()
+    }
+
+    /// Returns the num_bits from n in a canonical order
+    fn get_bits_canonical_order(self, num_bits: usize) -> Vec<bool> {
+        (0..num_bits)
+            .map(|shift_amount| (self & (1 << (num_bits - shift_amount - 1))) > 0)
             .collect::<Vec<bool>>()
     }
 
@@ -39,11 +47,11 @@ impl Math for usize {
 
 #[cfg(test)]
 mod tests {
-    use crate::polynomial::math::Math;
+    use crate::math::Math;
 
     #[test]
     fn test() {
-        println!("{:?}", 11.get_bits(8));
+        println!("{:?}", 11.get_bits_non_canonical_order(8));
         assert_eq!(2000f64.log2().floor() as usize, 10);
         assert_eq!(10f64.log2().floor() as usize, 3);
         assert_eq!(1024f64.log2().floor() as usize, 10);

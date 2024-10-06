@@ -15,7 +15,7 @@ use crate::hash::poseidon::{PoseidonHash, get_poseidon_config};
 use ark_crypto_primitives::sponge::poseidon::PoseidonConfig;
 use crate::pcs::multilinear_pcs::{OpeningProof, PolyCommit, SRS};
 use crate::polynomial::compute_dot_product;
-use crate::polynomial::math::Math;
+use crate::math::Math;
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 
 #[derive(Clone, Debug)]

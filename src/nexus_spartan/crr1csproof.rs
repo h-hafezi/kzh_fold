@@ -4,7 +4,7 @@ use super::polycommitments::PolyCommitmentScheme;
 use super::unipoly::{CompressedUniPoly, UniPoly};
 
 use super::errors::ProofVerifyError;
-use super::math::Math;
+use crate::math::Math;
 use super::sparse_mlpoly::{SparsePolyEntry, SparsePolynomial};
 use super::sumcheck::SumcheckInstanceProof;
 use super::timer::Timer;

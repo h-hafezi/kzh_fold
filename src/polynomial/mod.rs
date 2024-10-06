@@ -1,11 +1,9 @@
 use ark_ff::{Field, PrimeField};
-use crate::polynomial::math::Math;
+use crate::math::Math;
 
 pub mod eq_poly;
 
 pub mod identity;
-
-pub mod math;
 
 pub mod multilinear_poly;
 
@@ -32,7 +30,7 @@ pub fn boolean_vector_to_decimal<F: Field>(r: &[F]) -> usize {
 }
 
 pub fn decimal_to_boolean_vector<F: Field>(d: usize, length: usize) -> Vec<F> {
-    let bits = d.get_bits(length);
+    let bits = d.get_bits_non_canonical_order(length);
     let mut output = Vec::with_capacity(length);
     for b in bits {
         output.push(if b { F::ONE } else { F::ZERO });

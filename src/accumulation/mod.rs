@@ -7,7 +7,7 @@ use ark_std::UniformRand;
 use rand::Rng;
 
 use crate::gadgets::non_native::util::convert_field_one_to_field_two;
-use crate::polynomial::math::Math;
+use crate::math::Math;
 
 pub mod accumulator;
 mod eq_tree;

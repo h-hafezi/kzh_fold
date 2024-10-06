@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use super::math::Math;
+use crate::math::Math;
 use super::sumcheck::SumcheckInstanceProof;
 use super::transcript::ProofTranscript;
 use ark_ec::pairing::Pairing;

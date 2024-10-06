@@ -6,7 +6,7 @@ use ark_ff::PrimeField;
 use ark_serialize::*;
 use merlin::Transcript;
 use crate::polynomial::eq_poly::EqPolynomial;
-use crate::polynomial::math::Math;
+use crate::math::Math;
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 
 #[derive(Debug)]

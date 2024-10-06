@@ -1,4 +1,4 @@
-use super::math::Math;
+use crate::math::Math;
 use super::polycommitments::{PolyCommitmentScheme};
 use super::sparse_mlpoly::{
     MultiSparseMatPolynomialAsDense, SparseMatEntry, SparseMatPolyCommitment,

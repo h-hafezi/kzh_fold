@@ -2,7 +2,7 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::needless_range_loop)]
 use super::errors::ProofVerifyError;
-use super::math::Math;
+use crate::math::Math;
 use super::polycommitments::{PCSKeys, PolyCommitmentScheme};
 use super::product_tree::{DotProductCircuit, ProductCircuit, ProductCircuitEvalProofBatched};
 use super::timer::Timer;
@@ -1659,7 +1659,7 @@ impl<F: PrimeField> SparsePolynomial<F> {
 
         (0..self.Z.len())
             .map(|i| {
-                let bits = self.Z[i].idx.get_bits(r.len());
+                let bits = self.Z[i].idx.get_bits_canonical_order(r.len());
                 SparsePolynomial::compute_chi(&bits, r) * self.Z[i].val
             })
             .sum()

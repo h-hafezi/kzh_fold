@@ -18,3 +18,5 @@ pub mod commitment;
 pub mod halo_infinite;
 pub mod spartan;
 pub mod nexus_spartan;
+
+pub mod math;

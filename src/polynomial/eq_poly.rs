@@ -1,6 +1,6 @@
 // borrowed from Arkworks
 use ark_ff::{Field};
-use crate::polynomial::math::Math;
+use crate::math::Math;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EqPolynomial<F: Field + Copy> {

@@ -11,7 +11,7 @@ use rand::RngCore;
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
 
-use crate::nexus_spartan::math::Math;
+use crate::math::Math;
 use crate::polynomial::eq_poly::EqPolynomial;
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 
