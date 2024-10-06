@@ -381,9 +381,7 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> CRR1CSProof<E, PC> {
                 Some(comm_W),
                 &poly_vars,
                 &ry[1..],
-                &eval_vars_at_ry,
                 &key.keys.ck,
-                transcript,
             )
         };
 
@@ -392,9 +390,7 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> CRR1CSProof<E, PC> {
                 Some(comm_E),
                 &poly_error,
                 &rx,
-                E_claim,
                 &key.keys.ck,
-                transcript,
             )
         };
 
@@ -500,7 +496,6 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> CRR1CSProof<E, PC> {
             comm_W,
             &self.proof_eval_vars_at_ry,
             key,
-            transcript,
             &ry[1..],
             &self.eval_vars_at_ry,
         )
@@ -511,7 +506,6 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> CRR1CSProof<E, PC> {
             comm_E,
             &self.proof_eval_error_at_rx,
             key,
-            transcript,
             &rx,
             &self.eval_error_at_rx,
         )

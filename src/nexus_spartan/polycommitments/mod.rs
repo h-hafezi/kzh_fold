@@ -22,7 +22,9 @@ pub trait VectorCommitmentScheme<E: Pairing> {
     + Sync
     + CanonicalSerialize
     + CanonicalDeserialize;
+
     type CommitmentKey;
+
     fn commit(vec: &[E::ScalarField], ck: &Self::CommitmentKey) -> Self::VectorCommitment;
 }
 
@@ -39,8 +41,11 @@ where
 
 pub trait PolyCommitmentScheme<E: Pairing>: Send + Sync {
     type SRS: CanonicalSerialize + CanonicalDeserialize + Clone;
+
     type PolyCommitmentKey: CanonicalSerialize + CanonicalDeserialize + Clone;
+
     type EvalVerifierKey: CanonicalSerialize + CanonicalDeserialize + Clone;
+
     type Commitment: AppendToTranscript<E>
         + Debug
         + CanonicalSerialize
@@ -63,16 +68,13 @@ pub trait PolyCommitmentScheme<E: Pairing>: Send + Sync {
         C: Option<&Self::Commitment>,
         poly: &MultilinearPolynomial<E::ScalarField>,
         r: &[E::ScalarField],
-        eval: &E::ScalarField,
         ck: &Self::PolyCommitmentKey,
-        transcript: &mut Transcript,
     ) -> Self::PolyCommitmentProof;
 
     fn verify(
         commitment: &Self::Commitment,
         proof: &Self::PolyCommitmentProof,
         ck: &Self::EvalVerifierKey,
-        transcript: &mut Transcript,
         r: &[E::ScalarField],
         eval: &E::ScalarField,
     ) -> Result<(), error::PCSError>;
@@ -81,11 +83,10 @@ pub trait PolyCommitmentScheme<E: Pairing>: Send + Sync {
     // we need to perform a trusted setup ceremony and then read the SRS from a file.
     fn setup(
         max_poly_vars: usize,
-        label: &'static [u8],
         rng: &mut impl RngCore,
     ) -> Result<Self::SRS, Error>;
 
-    fn trim(srs: &Self::SRS, supported_num_vars: usize) -> PCSKeys<E, Self>;
+    fn trim(srs: &Self::SRS) -> PCSKeys<E, Self>;
 }
 
 impl<E: Pairing, PC: PolyCommitmentScheme<E>> VectorCommitmentScheme<E> for PC {

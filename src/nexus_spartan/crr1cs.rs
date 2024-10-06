@@ -16,7 +16,7 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> CRR1CSKey<E, PC> {
         // we need the commitment key to hold the larger of the two
         let n = max(num_cons, num_vars);
         CRR1CSKey {
-            keys: PC::trim(SRS, n.log_2()),
+            keys: PC::trim(SRS),
         }
     }
     pub fn get_min_num_vars(num_cons: usize, num_vars: usize) -> usize {
@@ -221,7 +221,7 @@ pub fn produce_synthetic_crr1cs<E: Pairing, PC: PolyCommitmentScheme<E>>(
 
     // produce public parameters
     let min_num_vars = CRSNARKKey::<E, PC>::get_min_num_vars(num_cons, num_vars, num_inputs, num_cons);
-    let SRS = PC::setup(min_num_vars, b"CRSNARK_profiler_SRS", &mut test_rng()).unwrap();
+    let SRS = PC::setup(min_num_vars, &mut test_rng()).unwrap();
     let gens = CRSNARKKey::<E, PC>::new(&SRS, num_cons, num_vars, num_inputs, num_cons);
 
     // compute commitments to the vectors `vars` and `E`.

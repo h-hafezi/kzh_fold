@@ -185,7 +185,6 @@ impl<F: PrimeField> MultilinearPolynomial<F> {
     }
 
     pub fn get_partial_evaluation_for_boolean_input(&self, index: usize, n: usize) -> Vec<F> {
-        println!("length {}", self.evaluation_over_boolean_hypercube.len());
         self.evaluation_over_boolean_hypercube[n * index..n * index + n].to_vec()
     }
 

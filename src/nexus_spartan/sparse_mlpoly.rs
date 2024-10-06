@@ -126,7 +126,7 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> DerefsEvalProof<E, PC> {
         // decommit the joint polynomial at r_joint
         <Transcript as ProofTranscript<E>>::append_scalar(transcript, b"joint_claim_eval", &eval_joint);
 
-        PC::prove(None, joint_poly, &r_joint, &eval_joint, ck, transcript)
+        PC::prove(None, joint_poly, &r_joint, ck)
     }
 
     // evalues both polynomials at r and produces a joint proof of opening
@@ -188,7 +188,7 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> DerefsEvalProof<E, PC> {
             &joint_claim_eval,
         );
 
-        PC::verify(comm, proof, vk, transcript, &r_joint, &joint_claim_eval).map_err(|e| e.into())
+        PC::verify(comm, proof, vk, &r_joint, &joint_claim_eval).map_err(|e| e.into())
     }
 
     // verify evaluations of both polynomials at r
@@ -328,9 +328,9 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> SparseMatPolyCommitmentKey<E, PC> 
         let (num_vars_ops, num_vars_mem, num_vars_derefs) =
             Self::get_gens_sizes(num_vars_x, num_vars_y, num_nz_entries, batch_size);
 
-        let gens_ops = PC::trim(SRS, num_vars_ops);
-        let gens_mem = PC::trim(SRS, num_vars_mem);
-        let gens_derefs = PC::trim(SRS, num_vars_derefs);
+        let gens_ops = PC::trim(SRS);
+        let gens_mem = PC::trim(SRS);
+        let gens_derefs = PC::trim(SRS);
         SparseMatPolyCommitmentKey {
             gens_ops,
             gens_mem,
@@ -859,9 +859,7 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> HashLayerProof<E, PC> {
             None,
             &dense.comb_ops,
             &r_joint_ops,
-            &joint_claim_eval_ops,
             &gens.gens_ops.ck,
-            transcript,
         );
 
         // form a single decommitment using comb_comb_mem at rand_mem
@@ -896,9 +894,7 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> HashLayerProof<E, PC> {
             None,
             &dense.comb_mem,
             &r_joint_mem,
-            &joint_claim_eval_mem,
             &gens.gens_mem.ck,
-            transcript,
         );
 
         HashLayerProof {
@@ -1064,7 +1060,6 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> HashLayerProof<E, PC> {
             &comm.comm_comb_ops,
             &self.proof_ops,
             &gens.gens_ops.vk,
-            transcript,
             &r_joint_ops,
             &joint_claim_eval_ops,
         )?;
@@ -1096,7 +1091,6 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> HashLayerProof<E, PC> {
             &comm.comm_comb_mem,
             &self.proof_mem,
             &gens.gens_mem.vk,
-            transcript,
             &r_joint_mem,
             &joint_claim_eval_mem,
         )?;
