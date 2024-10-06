@@ -50,8 +50,8 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> CRSNARKKey<E, PC> {
         let num_vars_padded = Self::get_num_vars_padded(num_vars, num_inputs);
         let min_num_vars_sat = CRR1CSKey::<E, PC>::get_min_num_vars(num_cons, num_vars_padded);
         // todo: I think we don't use this since it's used for sparse matrices
-        let min_num_vars_eval = R1CSCommitmentGens::<E, PC>::get_min_num_vars(num_cons, num_vars_padded, num_nz_entries);
-        // max(min_num_vars_sat, min_num_vars_eval)
+        let _min_num_vars_eval = R1CSCommitmentGens::<E, PC>::get_min_num_vars(num_cons, num_vars_padded, num_nz_entries);
+        // max(min_num_vars_sat, _min_num_vars_eval)
         min_num_vars_sat
     }
 }

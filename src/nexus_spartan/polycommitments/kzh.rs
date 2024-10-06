@@ -42,7 +42,7 @@ impl<F: PrimeField, E: Pairing<ScalarField=F>> PolyCommitmentScheme<E> for Multi
         Ok(())
     }
 
-    fn setup(mut max_poly_vars: usize, rng: &mut impl RngCore) -> Result<Self::SRS, Error> {
+    fn setup(max_poly_vars: usize, rng: &mut impl RngCore) -> Result<Self::SRS, Error> {
         let x = max_poly_vars / 2;
         let y = max_poly_vars - x;
         let degree_x = 2usize.pow(x as u32);

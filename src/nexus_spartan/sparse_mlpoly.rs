@@ -325,7 +325,7 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> SparseMatPolyCommitmentKey<E, PC> 
         num_nz_entries: usize,
         batch_size: usize,
     ) -> SparseMatPolyCommitmentKey<E, PC> {
-        let (num_vars_ops, num_vars_mem, num_vars_derefs) =
+        let (_num_vars_ops, _num_vars_mem, _num_vars_derefs) =
             Self::get_gens_sizes(num_vars_x, num_vars_y, num_nz_entries, batch_size);
 
         let gens_ops = PC::trim(SRS);

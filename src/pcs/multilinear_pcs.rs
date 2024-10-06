@@ -316,7 +316,7 @@ pub mod test {
         let poly_commit: PolyCommit<E> = PolyCommit { srs };
 
         // random bivariate polynomial
-        let mut polynomial = MultilinearPolynomial::rand(3 + 5, &mut thread_rng());
+        let polynomial = MultilinearPolynomial::rand(3 + 5, &mut thread_rng());
 
         // random points and evaluation
         let x = vec![

@@ -10,7 +10,7 @@ use super::sumcheck::SumcheckInstanceProof;
 use super::timer::Timer;
 use super::transcript::{AppendToTranscript, ProofTranscript};
 use ark_ec::pairing::Pairing;
-use ark_ff::PrimeField;
+use ark_ff::{Field, PrimeField};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::{One, Zero};
 use merlin::Transcript;
@@ -31,10 +31,6 @@ pub struct CRR1CSProof<E: Pairing, PC: PolyCommitmentScheme<E>> {
     eval_vars_at_ry: E::ScalarField,
     /// A polynomial evaluation proof of the claimed evaluation ~Z~(ry) with respect to the commitment comm_W.
     proof_eval_vars_at_ry: PC::PolyCommitmentProof,
-    /// The claimed evaluation ~E~(rx)
-    eval_error_at_rx: E::ScalarField,
-    /// A polynomial evaluation proof of the claimed evaluation ~E~(rx) with respect to the commitment comm_E.
-    proof_eval_error_at_rx: PC::PolyCommitmentProof,
 }
 
 impl<F: PrimeField> SumcheckInstanceProof<F> {
@@ -100,12 +96,11 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
         poly_B: &mut MultilinearPolynomial<F>,
         poly_C: &mut MultilinearPolynomial<F>,
         poly_D: &mut MultilinearPolynomial<F>,
-        poly_E: &mut MultilinearPolynomial<F>,
         comb_func: Func,
         transcript: &mut Transcript,
     ) -> (Self, Vec<F>, Vec<F>)
     where
-        Func: Fn(&F, &F, &F, &F, &F) -> F,
+        Func: Fn(&F, &F, &F, &F) -> F,
         E: Pairing<ScalarField = F>,
     {
         let mut e = *claim;
@@ -119,21 +114,19 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
             let len = poly_A.len() / 2;
             for i in 0..len {
                 // eval 0: bound_func is A(low)
-                eval_point_0 += comb_func(&poly_A[i], &poly_B[i], &poly_C[i], &poly_D[i], &poly_E[i]);
+                eval_point_0 += comb_func(&poly_A[i], &poly_B[i], &poly_C[i], &poly_D[i]);
 
                 // eval 2: bound_func is -A(low) + 2*A(high)
                 let poly_A_bound_point = poly_A[len + i] + poly_A[len + i] - poly_A[i];
                 let poly_B_bound_point = poly_B[len + i] + poly_B[len + i] - poly_B[i];
                 let poly_C_bound_point = poly_C[len + i] + poly_C[len + i] - poly_C[i];
                 let poly_D_bound_point = poly_D[len + i] + poly_D[len + i] - poly_D[i];
-                let poly_E_bound_point = poly_E[len + i] + poly_E[len + i] - poly_E[i];
 
                 eval_point_2 += comb_func(
                     &poly_A_bound_point,
                     &poly_B_bound_point,
                     &poly_C_bound_point,
                     &poly_D_bound_point,
-                    &poly_E_bound_point,
                 );
 
                 // eval 3: bound_func is -2A(low) + 3A(high); computed incrementally with bound_func applied to eval(2)
@@ -141,14 +134,12 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
                 let poly_B_bound_point = poly_B_bound_point + poly_B[len + i] - poly_B[i];
                 let poly_C_bound_point = poly_C_bound_point + poly_C[len + i] - poly_C[i];
                 let poly_D_bound_point = poly_D_bound_point + poly_D[len + i] - poly_D[i];
-                let poly_E_bound_point = poly_E_bound_point + poly_E[len + i] - poly_E[i];
 
                 eval_point_3 += comb_func(
                     &poly_A_bound_point,
                     &poly_B_bound_point,
                     &poly_C_bound_point,
                     &poly_D_bound_point,
-                    &poly_E_bound_point,
                 );
             }
 
@@ -168,14 +159,13 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
             poly_B.bound_poly_var_top(&r_j);
             poly_C.bound_poly_var_top(&r_j);
             poly_D.bound_poly_var_top(&r_j);
-            poly_E.bound_poly_var_top(&r_j);
             e = poly.evaluate(&r_j);
             cubic_polys.push(poly.compress());
         }
         (
             SumcheckInstanceProof::new(cubic_polys),
             r,
-            vec![poly_A[0], poly_B[0], poly_C[0], poly_D[0], poly_E[0]],
+            vec![poly_A[0], poly_B[0], poly_C[0], poly_D[0]],
         )
     }
 }
@@ -190,8 +180,6 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> CRR1CSProof<E, PC> {
         evals_Az: &mut MultilinearPolynomial<E::ScalarField>,
         evals_Bz: &mut MultilinearPolynomial<E::ScalarField>,
         evals_Cz: &mut MultilinearPolynomial<E::ScalarField>,
-        evals_E: &mut MultilinearPolynomial<E::ScalarField>,
-        u: &E::ScalarField,
         transcript: &mut Transcript,
     ) -> (
         SumcheckInstanceProof<E::ScalarField>,
@@ -202,9 +190,8 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> CRR1CSProof<E, PC> {
             |poly_tau: &E::ScalarField,
              poly_A: &E::ScalarField,
              poly_B: &E::ScalarField,
-             poly_C: &E::ScalarField,
-             poly_E: &E::ScalarField|
-             -> E::ScalarField { (*poly_A * *poly_B - *u * *poly_C - *poly_E) * *poly_tau };
+             poly_C: &E::ScalarField|
+             -> E::ScalarField { (*poly_A * *poly_B - *poly_C) * *poly_tau };
 
         let (sc_proof_phase_one, r, claims) = SumcheckInstanceProof::prove_cubic_five_terms::<_, E>(
             &E::ScalarField::zero(), // claim is zero
@@ -213,7 +200,6 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> CRR1CSProof<E, PC> {
             evals_Az,
             evals_Bz,
             evals_Cz,
-            evals_E,
             relaxed_comb_func,
             transcript,
         );
@@ -264,25 +250,19 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> CRR1CSProof<E, PC> {
         let _inst = &shape.inst.inst;
         let CRR1CSInstance {
             input: _input,
-            u,
             comm_W,
-            comm_E,
         } = instance;
 
-        let CRR1CSWitness { W: _vars, E } = witness;
+        let CRR1CSWitness { W: _vars } = witness;
 
         let (inst, input, vars) = (&_inst, _input.assignment.as_slice(), _vars.assignment);
 
         // we currently require the number of |inputs| + 1 to be at most number of vars
         assert!(input.len() < vars.len());
         <Transcript as ProofTranscript<E>>::append_scalars(transcript, b"input", input);
-        <Transcript as ProofTranscript<E>>::append_scalar(transcript, b"u", u);
         comm_W.append_to_transcript(b"comm_W", transcript);
-        comm_E.append_to_transcript(b"comm_E", transcript);
         // create a multilinear polynomial using the supplied assignment for variables
         let poly_vars = MultilinearPolynomial::<E::ScalarField>::new(vars.clone());
-        // create a multilinear polynomial from the error vector
-        let poly_error = MultilinearPolynomial::<E::ScalarField>::new(E.clone());
 
         let timer_sc_proof_phase1 = Timer::new("prove_sc_phase_one");
 
@@ -291,7 +271,7 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> CRR1CSProof<E, PC> {
             let num_inputs = input.len();
             let num_vars = vars.len();
             let mut z = vars;
-            z.extend(vec![u]); // add relaxed constant term in z
+            z.extend(vec![E::ScalarField::ONE]); // add relaxed constant term in z
             z.extend(input);
             z.extend(&vec![E::ScalarField::zero(); num_vars - num_inputs - 1]); // we will pad with zeros
             z
@@ -309,7 +289,6 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> CRR1CSProof<E, PC> {
         let (mut poly_Az, mut poly_Bz, mut poly_Cz) =
             inst.multiply_vec(inst.get_num_cons(), z.len(), &z);
 
-        let mut poly_E_final = poly_error.clone();
 
         let (sc_proof_phase1, rx, _claims_phase1) = CRR1CSProof::<E, PC>::prove_phase_one(
             num_rounds_x,
@@ -317,29 +296,24 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> CRR1CSProof<E, PC> {
             &mut poly_Az,
             &mut poly_Bz,
             &mut poly_Cz,
-            &mut poly_E_final,
-            u,
             transcript,
         );
         assert_eq!(poly_tau.len(), 1);
         assert_eq!(poly_Az.len(), 1);
         assert_eq!(poly_Bz.len(), 1);
         assert_eq!(poly_Cz.len(), 1);
-        assert_eq!(poly_E_final.len(), 1);
         timer_sc_proof_phase1.stop();
 
-        let (_, Az_claim, Bz_claim, Cz_claim, E_claim) = (
+        let (_, Az_claim, Bz_claim, Cz_claim) = (
             &poly_tau[0],
             &poly_Az[0],
             &poly_Bz[0],
             &poly_Cz[0],
-            &poly_E_final[0],
         );
 
         <Transcript as ProofTranscript<E>>::append_scalar(transcript, b"Az_claim", Az_claim);
         <Transcript as ProofTranscript<E>>::append_scalar(transcript, b"Bz_claim", Bz_claim);
         <Transcript as ProofTranscript<E>>::append_scalar(transcript, b"Cz_claim", Cz_claim);
-        <Transcript as ProofTranscript<E>>::append_scalar(transcript, b"E_claim", E_claim);
 
         let timer_sc_proof_phase2 = Timer::new("prove_sc_phase_two");
         // combine the three claims into a single claim
@@ -385,14 +359,6 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> CRR1CSProof<E, PC> {
             )
         };
 
-        let proof_eval_error_at_rx = {
-            PC::prove(
-                Some(comm_E),
-                &poly_error,
-                &rx,
-                &key.keys.ck,
-            )
-        };
 
         timer_polyevalproof.stop();
 
@@ -405,8 +371,6 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> CRR1CSProof<E, PC> {
                 sc_proof_phase2,
                 eval_vars_at_ry,
                 proof_eval_vars_at_ry,
-                eval_error_at_rx: *E_claim,
-                proof_eval_error_at_rx,
             },
             rx,
             ry,
@@ -430,17 +394,13 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> CRR1CSProof<E, PC> {
 
         let CRR1CSInstance {
             input: _input,
-            u,
             comm_W,
-            comm_E,
         } = instance;
 
         let input = _input.assignment.as_slice();
 
         <Transcript as ProofTranscript<E>>::append_scalars(transcript, b"input", input);
-        <Transcript as ProofTranscript<E>>::append_scalar(transcript, b"u", u);
         comm_W.append_to_transcript(b"comm_W", transcript);
-        comm_E.append_to_transcript(b"comm_E", transcript);
 
         let n = num_vars;
 
@@ -462,19 +422,17 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> CRR1CSProof<E, PC> {
 
         // perform the intermediate sum-check test with claimed Az, Bz, Cz, and E
         let (Az_claim, Bz_claim, Cz_claim) = self.claims_phase2;
-        let E_claim = &self.eval_error_at_rx;
 
         <Transcript as ProofTranscript<E>>::append_scalar(transcript, b"Az_claim", &Az_claim);
         <Transcript as ProofTranscript<E>>::append_scalar(transcript, b"Bz_claim", &Bz_claim);
         <Transcript as ProofTranscript<E>>::append_scalar(transcript, b"Cz_claim", &Cz_claim);
-        <Transcript as ProofTranscript<E>>::append_scalar(transcript, b"E_claim", E_claim);
 
         let taus_bound_rx: E::ScalarField = (0..rx.len())
             .map(|i| rx[i] * tau[i] + (E::ScalarField::one() - rx[i]) * (E::ScalarField::one() - tau[i]))
             .product();
 
         let expected_claim_post_phase1 =
-            (Az_claim * Bz_claim - *u * Cz_claim - E_claim) * taus_bound_rx;
+            (Az_claim * Bz_claim - Cz_claim) * taus_bound_rx;
         assert_eq!(expected_claim_post_phase1, claim_post_phase1);
 
         // derive three public challenges and then derive a joint claim
@@ -501,19 +459,9 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> CRR1CSProof<E, PC> {
         )
             .map_err(|_| ProofVerifyError::InternalError)?;
 
-        // verify E(rx) proof against the initial commitment `comm_E`
-        PC::verify(
-            comm_E,
-            &self.proof_eval_error_at_rx,
-            key,
-            &rx,
-            &self.eval_error_at_rx,
-        )
-            .map_err(|_| ProofVerifyError::InternalError)?;
-
         let poly_input_eval = {
             // constant term
-            let mut input_as_sparse_poly_entries = vec![SparsePolyEntry::new(0, *u)];
+            let mut input_as_sparse_poly_entries = vec![SparsePolyEntry::new(0, E::ScalarField::ONE)];
             //remaining inputs
             input_as_sparse_poly_entries.extend(
                 (0..input.len())
@@ -612,7 +560,7 @@ mod tests {
     }
 
     fn test_tiny_r1cs_helper<F: PrimeField>() {
-        let (inst, vars, input) = tests::produce_tiny_r1cs::<F>();
+        let (inst, vars, input) = produce_tiny_r1cs::<F>();
         let is_sat = inst.is_sat(&vars, &input);
         assert!(is_sat);
     }

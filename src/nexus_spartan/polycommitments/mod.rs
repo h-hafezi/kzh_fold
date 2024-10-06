@@ -3,12 +3,8 @@ use core::fmt::Debug;
 use ark_ec::pairing::Pairing;
 use ark_poly_commit::Error;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use ark_std::{
-    ops::{Add, AddAssign, Mul, MulAssign},
-    rand::RngCore,
-};
+use ark_std::{rand::RngCore};
 use derivative::Derivative;
-use merlin::Transcript;
 
 use crate::nexus_spartan::transcript::AppendToTranscript;
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;

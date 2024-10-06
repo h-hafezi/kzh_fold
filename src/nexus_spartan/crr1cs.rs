@@ -1,10 +1,13 @@
 use ark_ec::pairing::Pairing;
-use ark_ff::PrimeField;
+use ark_ff::{Field, PrimeField};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use ark_std::{cmp::max, test_rng, One, UniformRand, Zero};
+use ark_std::{cmp::max, One, test_rng, UniformRand};
+
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
-use super::polycommitments::{PCSKeys, PolyCommitmentScheme, VectorCommitmentScheme};
+
 use super::{committed_relaxed_snark::CRSNARKKey, errors::R1CSError, InputsAssignment, Instance, math::Math, VarsAssignment};
+use super::polycommitments::{PCSKeys, PolyCommitmentScheme, VectorCommitmentScheme};
+
 #[derive(CanonicalDeserialize, CanonicalSerialize)]
 pub struct CRR1CSKey<E: Pairing, PC: PolyCommitmentScheme<E>> {
     pub keys: PCSKeys<E, PC>,
@@ -13,8 +16,8 @@ pub struct CRR1CSKey<E: Pairing, PC: PolyCommitmentScheme<E>> {
 impl<E: Pairing, PC: PolyCommitmentScheme<E>> CRR1CSKey<E, PC> {
     pub fn new(SRS: &PC::SRS, num_cons: usize, num_vars: usize) -> Self {
         // Since we have commitments both to the witness and the error vectors
-        // we need the commitment key to hold the larger of the two
-        let n = max(num_cons, num_vars);
+        // we need the commitment key to hold the larger of the two (Hossein: previously)
+
         CRR1CSKey {
             keys: PC::trim(SRS),
         }
@@ -44,15 +47,12 @@ impl<F: PrimeField> CRR1CSShape<F> {
 
 pub struct CRR1CSInstance<E: Pairing, PC: PolyCommitmentScheme<E>> {
     pub input: InputsAssignment<E::ScalarField>,
-    pub u: E::ScalarField,
     pub comm_W: PC::Commitment,
-    pub comm_E: PC::Commitment,
 }
 
 #[derive(Clone)]
 pub struct CRR1CSWitness<F: PrimeField> {
     pub W: VarsAssignment<F>,
-    pub E: Vec<F>,
 }
 
 pub fn relaxed_r1cs_is_sat<E: Pairing, PC: PolyCommitmentScheme<E>>(
@@ -60,10 +60,9 @@ pub fn relaxed_r1cs_is_sat<E: Pairing, PC: PolyCommitmentScheme<E>>(
     instance: &CRR1CSInstance<E, PC>,
     witness: &CRR1CSWitness<E::ScalarField>,
 ) -> Result<bool, R1CSError> {
-    let CRR1CSWitness { W, E } = witness;
-    let CRR1CSInstance { input, u, .. } = instance;
+    let CRR1CSWitness { W } = witness;
+    let CRR1CSInstance { input, .. } = instance;
     let CRR1CSShape { inst } = shape;
-
     if W.assignment.len() > inst.inst.get_num_vars() {
         return Err(R1CSError::InvalidNumberOfInputs);
     }
@@ -83,19 +82,6 @@ pub fn relaxed_r1cs_is_sat<E: Pairing, PC: PolyCommitmentScheme<E>>(
         }
     };
 
-    // similarly we might need to pad the error vector
-    let padded_E = {
-        let num_padded_cons = inst.inst.get_num_cons();
-        let num_cons = E.len();
-        if num_padded_cons > num_cons {
-            let mut padded_E = E.clone();
-            padded_E.resize(num_padded_cons, E::ScalarField::zero());
-            padded_E
-        } else {
-            E.clone()
-        }
-    };
-
     let (num_cons, num_vars, num_inputs) = (
         inst.inst.get_num_cons(),
         inst.inst.get_num_vars(),
@@ -104,7 +90,7 @@ pub fn relaxed_r1cs_is_sat<E: Pairing, PC: PolyCommitmentScheme<E>>(
 
     let z = {
         let mut z = padded_vars.assignment.to_vec();
-        z.extend(&vec![*u]);
+        z.extend(&vec![E::ScalarField::ONE]);
         z.extend(input.assignment.clone());
         z
     };
@@ -126,10 +112,9 @@ pub fn relaxed_r1cs_is_sat<E: Pairing, PC: PolyCommitmentScheme<E>>(
     assert_eq!(Az.len(), num_cons);
     assert_eq!(Bz.len(), num_cons);
     assert_eq!(Cz.len(), num_cons);
-    assert_eq!(padded_E.len(), num_cons);
     let res: usize = (0..num_cons)
         .map(|i| {
-            if Az[i] * Bz[i] == *u * Cz[i] + padded_E[i] {
+            if Az[i] * Bz[i] == Cz[i] {
                 0
             } else {
                 1
@@ -145,19 +130,16 @@ pub fn check_commitments<E: Pairing, PC: PolyCommitmentScheme<E>>(
     witness: &CRR1CSWitness<E::ScalarField>,
     key: &CRR1CSKey<E, PC>,
 ) -> bool {
-    let CRR1CSWitness { W, E } = witness;
-    let CRR1CSInstance { comm_W, comm_E, .. } = instance;
+    let CRR1CSWitness { W } = witness;
+    let CRR1CSInstance { comm_W, .. } = instance;
 
     let W = W.assignment.clone();
-    let E = E.clone();
 
     let poly_W = MultilinearPolynomial::new(W);
-    let poly_E = MultilinearPolynomial::new(E);
 
     let expected_comm_W = PC::commit(&poly_W, &key.keys.ck);
-    let expected_comm_E = PC::commit(&poly_E, &key.keys.ck);
 
-    expected_comm_W == *comm_W && expected_comm_E == *comm_E
+    expected_comm_W == *comm_W
 }
 
 pub fn is_sat<E: Pairing, PC: PolyCommitmentScheme<E>>(
@@ -201,23 +183,7 @@ pub fn produce_synthetic_crr1cs<E: Pairing, PC: PolyCommitmentScheme<E>>(
     Z.extend(&vec![E::ScalarField::one()]);
     Z.extend(inputs.assignment.clone());
 
-    // Choose a random u and set Z[num_vars] = u.
-    let u = E::ScalarField::rand(&mut test_rng());
-    Z[num_vars] = u;
-
-    let (poly_A, poly_B, poly_C) =
-        shape
-            .inst
-            .inst
-            .multiply_vec(num_cons, num_vars + num_inputs + 1, Z.as_slice());
-
-    // Compute the error vector E = (AZ * BZ) - (u * CZ)
-    let mut E = vec![E::ScalarField::zero(); num_cons];
-    for i in 0..num_cons {
-        let AB_val = poly_A[i] * poly_B[i];
-        let C_val = poly_C[i];
-        E[i] = AB_val - u * C_val;
-    }
+    Z[num_vars] = E::ScalarField::ONE;
 
     // produce public parameters
     let min_num_vars = CRSNARKKey::<E, PC>::get_min_num_vars(num_cons, num_vars, num_inputs, num_cons);
@@ -229,18 +195,15 @@ pub fn produce_synthetic_crr1cs<E: Pairing, PC: PolyCommitmentScheme<E>>(
         vars.assignment.as_slice(),
         &gens.gens_r1cs_sat.keys.ck,
     );
-    let comm_E = <PC as VectorCommitmentScheme<E>>::commit(E.as_slice(), &gens.gens_r1cs_sat.keys.ck);
+
     (
         shape,
         CRR1CSInstance::<E, PC> {
             input: inputs,
-            u,
             comm_W,
-            comm_E,
         },
         CRR1CSWitness::<E::ScalarField> {
             W: vars.clone(),
-            E: E.clone(),
         },
         gens,
     )
