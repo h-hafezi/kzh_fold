@@ -6,7 +6,7 @@ use rand::thread_rng;
 
 use sqrtn_pcs::accumulation::accumulator::{AccSRS, Accumulator};
 use sqrtn_pcs::constant_for_curves::E;
-use sqrtn_pcs::pcs::multilinear_pcs::{PolyCommit, PolyCommitTrait, SRS};
+use sqrtn_pcs::pcs::multilinear_pcs::{PolyCommit, SRS};
 
 fn get_srs(degree_x: usize, degree_y: usize) -> AccSRS<E> {
     let srs_pcs: SRS<E> = PolyCommit::<E>::setup(degree_x, degree_y, &mut thread_rng());

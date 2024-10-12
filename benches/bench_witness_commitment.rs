@@ -23,7 +23,7 @@ use sqrtn_pcs::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
 use sqrtn_pcs::gadgets::non_native::util::convert_field_one_to_field_two;
 use sqrtn_pcs::hash::pederson::PedersenCommitment;
 use sqrtn_pcs::nova::cycle_fold::coprocessor_constraints::{R1CSInstanceVar, RelaxedR1CSInstanceVar};
-use sqrtn_pcs::pcs::multilinear_pcs::{PolyCommit, PolyCommitTrait, SRS};
+use sqrtn_pcs::pcs::multilinear_pcs::{PolyCommit, SRS};
 
 type C2 = PedersenCommitment<Projective<G2>>;
 
