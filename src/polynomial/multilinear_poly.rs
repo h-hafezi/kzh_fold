@@ -95,6 +95,7 @@ impl<F: PrimeField> MultilinearPolynomial<F> {
 
         let chis = EqPolynomial::new(r.to_vec()).evals();
         assert_eq!(chis.len(), self.evaluation_over_boolean_hypercube.len());
+
         inner_product(&self.evaluation_over_boolean_hypercube, &chis)
     }
 
@@ -163,7 +164,7 @@ impl<F: PrimeField> MultilinearPolynomial<F> {
     /// extend it to some number of variables
     pub fn extend_number_of_variables(&self, num_variables: usize) -> MultilinearPolynomial<F> {
         assert!(self.num_variables <= num_variables);
-        let mut temp = self.evaluation_over_boolean_hypercube.clone();
+        let mut temp =self.evaluation_over_boolean_hypercube.clone();
         temp.extend(vec![F::ZERO; (1 << num_variables) - self.evaluation_over_boolean_hypercube.len()]);
         MultilinearPolynomial {
             num_variables,
@@ -476,5 +477,32 @@ mod tests {
         let (L2, R2) = eq.compute_factored_evals();
         assert_eq!(L, L2);
         assert_eq!(R, R2);
+    }
+
+    #[test]
+    fn check_extend_function() {
+        // random bivariate polynomial
+        let polynomial = MultilinearPolynomial::rand(1, &mut thread_rng());
+
+        // random points and evaluation
+        let x1 = vec![
+            ScalarField::rand(&mut thread_rng()),
+        ];
+
+        let z1 = polynomial.evaluate(&x1);
+
+        let polynomial = polynomial.extend_number_of_variables(4);
+
+        // random points and evaluation
+        let mut x2 = vec![
+            ScalarField::ZERO,
+            ScalarField::ZERO,
+            ScalarField::ZERO,
+        ];
+        x2.extend(x1);
+
+        let z2 = polynomial.evaluate(&x2);
+
+        assert_eq!(z1, z2);
     }
 }

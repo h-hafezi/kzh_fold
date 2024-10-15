@@ -1,4 +1,4 @@
-use crate::commitment::CommitmentScheme;
+/*use crate::commitment::CommitmentScheme;
 use crate::gadgets::r1cs::{R1CSInstance, R1CSShape, R1CSWitness};
 use crate::gadgets::sparse::SparseMatrix;
 use crate::nexus_spartan::crr1cs::{CRR1CSInstance, CRR1CSKey, CRR1CSShape, CRR1CSWitness};
@@ -152,3 +152,4 @@ mod tests {
         // assert!(is_sat(&shape, &instance, &witness, &key).unwrap());
     }
 }
+ */

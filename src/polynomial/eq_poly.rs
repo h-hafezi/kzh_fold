@@ -86,5 +86,12 @@ mod tests {
         assert_eq!(results.len(), 8);
         assert_eq!(results, vec![F::ZERO, F::ZERO, F::ZERO, F::ZERO,
                                  F::ZERO, F::ONE, F::ZERO, F::ZERO]);
+
+        // test for range evaluation
+        let r = vec![F::ZERO, F::ZERO, F::ONE];
+        let results: Vec<F> = <EqPolynomial<F>>::new(r).evals();
+        assert_eq!(results.len(), 8);
+        assert_eq!(results, vec![F::ZERO, F::ONE, F::ZERO, F::ZERO,
+                                 F::ZERO, F::ZERO, F::ZERO, F::ZERO]);
     }
 }

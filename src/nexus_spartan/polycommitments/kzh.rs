@@ -25,10 +25,22 @@ impl<F: PrimeField, E: Pairing<ScalarField=F>> PolyCommitmentScheme<E> for Multi
     type PolyCommitmentProof = OpeningProof<E>;
 
     fn commit(poly: &MultilinearPolynomial<E::ScalarField>, ck: &Self::PolyCommitmentKey) -> Self::Commitment {
+        let len = ck.srs.get_x_length() + ck.srs.get_y_length();
+        let poly = poly.extend_number_of_variables(len);
+        assert_eq!(poly.num_variables, len);
+        assert_eq!(poly.len, 1 << poly.num_variables);
+        assert_eq!(poly.evaluation_over_boolean_hypercube.len(), poly.len);
+
         ck.commit(&poly)
     }
 
     fn prove(C: Option<&Self::Commitment>, poly: &MultilinearPolynomial<E::ScalarField>, r: &[E::ScalarField], ck: &Self::PolyCommitmentKey) -> Self::PolyCommitmentProof {
+        let len = ck.srs.get_x_length() + ck.srs.get_y_length();
+        let poly = poly.extend_number_of_variables(len);
+        assert_eq!(poly.num_variables, len);
+        assert_eq!(poly.len, 1 << poly.num_variables);
+        assert_eq!(poly.evaluation_over_boolean_hypercube.len(), poly.len);
+
         let (x, _) = ck.srs.split_between_x_and_y(r);
         ck.open(&poly, C.unwrap().clone(), x.as_slice())
     }
@@ -55,5 +67,42 @@ impl<F: PrimeField, E: Pairing<ScalarField=F>> PolyCommitmentScheme<E> for Multi
             ck: PolyCommit { srs: srs.clone() },
             vk: PolyCommit { srs: srs.clone() },
         }
+    }
+}
+
+#[cfg(test)]
+pub mod test {
+    use std::cmp::min;
+
+    use ark_ec::pairing::Pairing;
+    use ark_ff::AdditiveGroup;
+    use ark_std::UniformRand;
+    use rand::thread_rng;
+
+    use crate::constant_for_curves::{ScalarField, E};
+    use crate::nexus_spartan::polycommitments::{PCSKeys, PolyCommitmentScheme};
+    use crate::pcs::multilinear_pcs::{PolyCommit, SRS};
+    use crate::polynomial::multilinear_poly::MultilinearPolynomial;
+
+    #[test]
+    fn test_end_to_end() {
+        let srs: SRS<E> = MultilinearPolynomial::<ScalarField>::setup(5, &mut thread_rng()).unwrap();
+        let PCSKeys{vk, ck} = MultilinearPolynomial::trim(&srs);
+
+        // random bivariate polynomial
+        let polynomial = MultilinearPolynomial::<ScalarField>::rand(3, &mut thread_rng());
+
+        // random points and evaluation
+        let x = vec![
+            ScalarField::rand(&mut thread_rng()),
+            ScalarField::rand(&mut thread_rng()),
+            ScalarField::rand(&mut thread_rng()),
+        ];
+
+        let z = polynomial.evaluate(&x);
+
+        let com = MultilinearPolynomial::commit(&polynomial, &ck);
+        let open = MultilinearPolynomial::prove(Option::from(&com), &polynomial, x.as_slice(), &ck);
+        MultilinearPolynomial::verify(&com, &open, &ck, x.as_slice(), &z).expect("verification failed");
     }
 }

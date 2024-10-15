@@ -1,8 +1,8 @@
 use std::iter::Sum;
 use std::ops::{Add, Mul};
 
-use ark_ec::{CurveGroup, VariableBaseMSM};
 use ark_ec::pairing::Pairing;
+use ark_ec::{CurveGroup, VariableBaseMSM};
 use ark_ff::AdditiveGroup;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::UniformRand;
@@ -25,7 +25,16 @@ pub struct SRS<E: Pairing> {
     pub V_prime: E::G2,
 }
 
-#[derive(Default, Clone, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize, Derivative)]
+#[derive(
+    Default,
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    CanonicalSerialize,
+    CanonicalDeserialize,
+    Derivative
+)]
 pub struct Commitment<E: Pairing> {
     pub C: E::G1Affine,
     pub aux: Vec<E::G1>,
@@ -57,10 +66,12 @@ impl<E: Pairing> SRS<E> {
         let y_length = self.get_y_length();
         let total_length = x_length + y_length;
 
-        // If r is smaller than the required length, extend it with zeros
+        // If r is smaller than the required length, extend it with zeros at the beginning
         let mut extended_r = r.to_vec();
         if r.len() < total_length {
-            extended_r.extend(vec![E::ScalarField::ZERO; total_length - r.len()]);
+            let mut zeros = vec![E::ScalarField::ZERO; total_length - r.len()];
+            zeros.extend(extended_r);  // Prepend zeros to the beginning
+            extended_r = zeros;
         }
 
         // Split the vector into two parts
@@ -197,10 +208,10 @@ impl<E: Pairing> PolyCommit<E> {
         let msm_rhs = E::G1::msm_unchecked(&proof.vec_D, &EqPolynomial::new(x.to_vec()).evals());
 
         // third condition
-        let y_expected = proof.f_star_poly.evaluate(y);
+            let y_expected = proof.f_star_poly.evaluate(y);
 
         // checking all three conditions
-        return (pairing_lhs == pairing_rhs) && (msm_lhs == msm_rhs) && (y_expected == *z);
+        (pairing_lhs == pairing_rhs) && (msm_lhs == msm_rhs) && (y_expected == *z)
     }
 }
 
@@ -256,7 +267,7 @@ pub mod test {
     use ark_std::UniformRand;
     use rand::thread_rng;
 
-    use crate::constant_for_curves::{E, ScalarField};
+    use crate::constant_for_curves::{ScalarField, E};
     use crate::pcs::multilinear_pcs::{PolyCommit, SRS};
     use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 
@@ -311,7 +322,6 @@ pub mod test {
         assert_eq!(x_new, x);
         assert_eq!(y_new, y);
 
-
         // define the polynomial commitment
         let poly_commit: PolyCommit<E> = PolyCommit { srs };
 
@@ -346,6 +356,7 @@ pub mod test {
         // open the commitment
         let open = poly_commit.open(&polynomial, com.clone(), &x);
 
+        // re compute x and y
         // verify the proof
         assert!(poly_commit.verify(&com, &open, &x, &y, &z));
     }
