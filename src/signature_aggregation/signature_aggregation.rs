@@ -9,7 +9,7 @@ use crate::accumulation::accumulator::{AccInstance, AccWitness, Accumulator};
 use crate::polynomial::eq_poly::EqPolynomial;
 use ark_ff::Zero;
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
-use crate::spartan::sumcheck::SumcheckInstanceProof;
+use crate::nexus_spartan::sumcheck::SumcheckInstanceProof;
 use crate::{accumulation,};
 use crate::pcs::multilinear_pcs::{PolyCommit, Commitment};
 

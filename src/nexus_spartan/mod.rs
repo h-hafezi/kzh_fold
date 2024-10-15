@@ -14,7 +14,7 @@ mod product_tree;
 pub mod r1csinstance;
 mod random;
 pub mod sparse_mlpoly;
-mod sumcheck;
+pub mod sumcheck;
 mod timer;
 mod transcript;
 mod unipoly;
