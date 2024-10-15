@@ -43,7 +43,7 @@ impl Display for ConversionError {
 }
 
 impl<F: PrimeField> CRR1CSShape<F> {
-    fn convert<G: SWCurveConfig<ScalarField=F>>(cs: ConstraintSystemRef<F>) -> Self{
+    pub(crate) fn convert<G: SWCurveConfig<ScalarField=F>>(cs: ConstraintSystemRef<F>) -> Self{
         // convert constraint system into R1CS shape
         let shape: R1CSShape<G> = R1CSShape::from(cs);
         // extract R1CS field
@@ -87,7 +87,7 @@ where
     E: Pairing,
     PC: PolyCommitmentScheme<E>,
 {
-    fn convert<G: SWCurveConfig>(
+    pub(crate) fn convert<G: SWCurveConfig>(
         cs: ConstraintSystemRef<G::ScalarField>,
         key: &PC::PolyCommitmentKey,
     ) -> Self where
@@ -110,7 +110,7 @@ where
 }
 
 impl<F: PrimeField> CRR1CSWitness<F> {
-    fn convert(cs: ConstraintSystemRef<F>, ) -> Self {
+    pub(crate) fn convert(cs: ConstraintSystemRef<F>, ) -> Self {
         let cs_borrow = cs.borrow().unwrap();
         let witness = cs_borrow.witness_assignment.clone();
         CRR1CSWitness { W: Assignment::new(&witness).unwrap() }

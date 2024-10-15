@@ -187,7 +187,7 @@ impl<G: CurveGroup> R1CSShape<G> {
 
 impl<G: CurveGroup> From<ConstraintSystemRef<G::ScalarField>> for R1CSShape<G> {
     fn from(cs: ConstraintSystemRef<G::ScalarField>) -> Self {
-        assert!(cs.should_construct_matrices());
+        assert!(cs.should_construct_matrices(), "no constraint is collected");
         let matrices = cs.to_matrices().unwrap();
 
         let num_constraints = cs.num_constraints();

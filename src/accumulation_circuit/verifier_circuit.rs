@@ -571,7 +571,7 @@ pub mod tests {
 
     use ark_ec::short_weierstrass::Projective;
     use ark_ff::PrimeField;
-    use ark_relations::r1cs::ConstraintSystem;
+    use ark_relations::r1cs::{ConstraintSystem, LinearCombination};
     use rand::thread_rng;
 
     use crate::accumulation::accumulator::Accumulator;
@@ -579,7 +579,10 @@ pub mod tests {
     use crate::commitment::CommitmentScheme;
     use crate::constant_for_curves::{E, G1, G2, ScalarField};
     use crate::hash::pederson::PedersenCommitment;
+    use crate::nexus_spartan::crr1csproof::{is_sat, CRR1CSInstance, CRR1CSKey, CRR1CSShape, CRR1CSWitness};
+    use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
     use crate::pcs::multilinear_pcs::{PolyCommit, SRS};
+    use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 
     type C2 = PedersenCommitment<Projective<G2>>;
 
@@ -602,9 +605,20 @@ pub mod tests {
 
         println!("number of constraint for initialisation: {}", cs.num_constraints());
         verifier.accumulate();
-        println!("number of constraint for initialisation: {}", cs.num_constraints());
+        println!("number of constraint after accumulation: {}", cs.num_constraints());
         assert!(cs.is_satisfied().unwrap());
 
+        // convert to the corresponding Spartan types
+        let shape = CRR1CSShape::<ScalarField>::convert::<G1>(cs.clone());
+        let SRS: SRS<E> = MultilinearPolynomial::setup(17, &mut thread_rng()).unwrap();
+        let key: CRR1CSKey<E, MultilinearPolynomial<ScalarField>> = CRR1CSKey::new(&SRS, shape.get_num_cons(), shape.get_num_vars());
+        let instance: CRR1CSInstance<E, MultilinearPolynomial<ScalarField>> = CRR1CSInstance::convert(cs.clone(), &key.keys.ck);
+        let witness = CRR1CSWitness::<ScalarField>::convert(cs.clone());
+
+        // check that the Spartan instance-witness pair is still satisfying
+        assert!(is_sat(&shape, &instance, &witness, &key).unwrap());
+
+        /*
         // write the witness into a file
         let cs_borrow = cs.borrow().unwrap();
         let witness = cs_borrow.witness_assignment.clone();
@@ -616,5 +630,6 @@ pub mod tests {
             let big_int = scalar.into_bigint();
             writeln!(writer, "{}", big_int.to_string()).expect("error writing the witness into a file");
         }
+         */
     }
 }
