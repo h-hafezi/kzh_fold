@@ -18,6 +18,7 @@ mod sumcheck;
 mod timer;
 mod transcript;
 mod unipoly;
+mod conversion;
 
 use ark_ff::PrimeField;
 use ark_serialize::*;
