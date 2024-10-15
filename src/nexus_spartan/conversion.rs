@@ -132,14 +132,17 @@ mod tests {
     use ark_ec::short_weierstrass::Projective;
     use ark_ec::CurveConfig;
     use ark_ff::PrimeField;
-    use ark_r1cs_std::alloc::AllocVar;
+    use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
+    use ark_r1cs_std::eq::EqGadget;
     use ark_r1cs_std::fields::fp::FpVar;
+    use ark_relations::ns;
     use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef, SynthesisError};
     use rand::thread_rng;
 
     type Pedersen = PedersenCommitment<Projective<G1>>;
 
     // Define a simple constraint system struct
+    // for the circuit: a + b == a^2
     struct TrivialCircuit<F: PrimeField> {
         pub a: F,  // Public input
         pub b: F,  // Public input
@@ -156,14 +159,11 @@ mod tests {
 
             // Perform arithmetic operations
             let sum = &a_var + &b_var; // Sum a and b
-            for i in 0..10 {
-                let product = &a_var * &b_var; // Multiply a and b
-            }
 
-            // Add a constraint: sum + product == a^2 + b^2
+            // Add a constraint: a + b == a^2
             let a_squared = &a_var * &a_var;
-            let b_squared = &b_var * &b_var;
-            let _sum_of_squares = a_squared + b_squared;
+
+            sum.enforce_equal(&a_squared).expect("OMG");
 
             Ok(())
         }
@@ -171,13 +171,14 @@ mod tests {
 
 
     #[test]
-    fn test_conversion() {
-        // Create a new constraint system
+    fn test_r1cs_conversion() {
+        // Create a new constraint system for: a + b == a^2
         let cs = ConstraintSystem::<ScalarField>::new_ref();
 
         // Example public inputs
-        let a = ScalarField::from(3u32);
-        let b = ScalarField::from(4u32);
+        // 4 + 12 == 16 == 4^2
+        let a = ScalarField::from(4u32);
+        let b = ScalarField::from(12u32);
 
         // Instantiate the trivial circuit with inputs
         let circuit = TrivialCircuit { a, b };
