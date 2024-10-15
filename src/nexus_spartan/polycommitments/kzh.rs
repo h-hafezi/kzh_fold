@@ -87,7 +87,7 @@ pub mod test {
     #[test]
     fn test_end_to_end() {
         let srs: SRS<E> = MultilinearPolynomial::<ScalarField>::setup(5, &mut thread_rng()).unwrap();
-        let PCSKeys{vk, ck} = MultilinearPolynomial::trim(&srs);
+        let PCSKeys{vk: _, ck} = MultilinearPolynomial::trim(&srs);
 
         // random bivariate polynomial
         let polynomial = MultilinearPolynomial::<ScalarField>::rand(3, &mut thread_rng());
