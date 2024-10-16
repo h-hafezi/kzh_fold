@@ -582,7 +582,7 @@ pub mod tests {
     type C2 = PedersenCommitment<Projective<G2>>;
 
     #[test]
-    fn initialisation_test() {
+    fn kzh_acc_verifier_circuit_initialisation_test() {
         // specifying degrees of polynomials
         let n = 4;
         let m = 4;
@@ -616,7 +616,7 @@ pub mod tests {
         let witness = CRR1CSWitness::<ScalarField>::convert(cs.clone());
 
         // check that the Spartan instance-witness pair is still satisfying
-        //assert!(is_sat(&shape, &instance, &witness, &key).unwrap());
+        assert!(is_sat(&shape, &instance, &witness, &key).unwrap());
 
         /*
         // write the witness into a file
