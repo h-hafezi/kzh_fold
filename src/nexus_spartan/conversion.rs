@@ -136,7 +136,7 @@ mod tests {
     use ark_r1cs_std::eq::EqGadget;
     use ark_r1cs_std::fields::fp::FpVar;
     use ark_relations::ns;
-    use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef, SynthesisError};
+    use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef, SynthesisError, SynthesisMode};
     use rand::thread_rng;
 
     type Pedersen = PedersenCommitment<Projective<G1>>;
@@ -188,7 +188,8 @@ mod tests {
         assert!(cs.is_satisfied().unwrap());
         println!("{}", cs.num_constraints());
 
-
+        cs.set_mode(SynthesisMode::Prove { construct_matrices: true });
+        cs.finalize();
 
         // convert to the corresponding Spartan types
         let shape = CRR1CSShape::<ScalarField>::convert::<G1>(cs.clone());
