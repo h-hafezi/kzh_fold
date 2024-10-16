@@ -19,6 +19,7 @@ mod timer;
 mod transcript;
 mod unipoly;
 mod conversion;
+mod sumcheck_circuit;
 
 use ark_ff::PrimeField;
 use ark_serialize::*;

@@ -19,3 +19,4 @@ pub mod halo_infinite;
 pub mod nexus_spartan;
 
 pub mod math;
+mod transcript;
