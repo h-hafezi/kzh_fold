@@ -1,8 +1,9 @@
-/*use ark_crypto_primitives::sponge::Absorb;
+use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::AffineRepr;
 use ark_ff::{PrimeField};
 use rand::RngCore;
 use ark_ec::pairing::Pairing;
+use transcript::IOPTranscript;
 
 use crate::accumulation::accumulator::{AccInstance, AccWitness, Accumulator};
 use crate::polynomial::eq_poly::EqPolynomial;
@@ -11,7 +12,6 @@ use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 use crate::nexus_spartan::sumcheck::SumcheckInstanceProof;
 use crate::{accumulation,};
 use crate::pcs::multilinear_pcs::{PolyCommit, Commitment};
-use crate::transcript::transcript::Transcript;
 
 // XXX move to mod.rs or somewhere neutral
 #[derive(Clone, Debug)]
@@ -125,7 +125,7 @@ where
         }
     }
 
-    pub fn aggregate(&self, transcript: &mut Transcript<E::ScalarField>) -> SignatureAggrData<E> {
+    pub fn aggregate(&self, transcript: &mut IOPTranscript<E::ScalarField>) -> SignatureAggrData<E> {
         let poly_commit = PolyCommit { srs: self.srs.acc_srs.pc_srs.clone() }; // XXX no clone. bad ergonomics
         // Step 1:
         // let pk = self.A_1.pk + self.A_2.pk;
@@ -146,7 +146,7 @@ where
         // eq(r,x) * (b_1 + b_2 - b_1 * b_2 - c)
         let union_comb_func =
             |eq_poly: &E::ScalarField, b_1_poly: &E::ScalarField, b_2_poly: &E::ScalarField, c_poly: &E::ScalarField|
-                                              -> E::ScalarField { *eq_poly * (*b_1_poly + *b_2_poly - *b_1_poly * *b_2_poly - *c_poly) };
+             -> E::ScalarField { *eq_poly * (*b_1_poly + *b_2_poly - *b_1_poly * *b_2_poly - *c_poly) };
 
         // Start preparing for the sumcheck
         let num_rounds = c_poly.num_variables;
@@ -273,7 +273,7 @@ where
         )
     }
 
-    pub fn verify(self, transcript: &mut Transcript<E::ScalarField>) -> bool {
+    pub fn verify(self, transcript: &mut IOPTranscript<E::ScalarField>) -> bool {
         // Step 1:
         // Get r challenge from verifier
         transcript.append_serializable_element(b"poly", &self.A.bitfield_commitment.C).unwrap();
@@ -295,7 +295,7 @@ where
         let b_2_at_rho = self.A.b_2_at_rho.unwrap();
         let c_at_rho = self.A.c_at_rho.unwrap();
         assert_eq!(tensorcheck_claim,
-                  eq_at_r_rho * (b_1_at_rho + b_2_at_rho - b_1_at_rho * b_2_at_rho - c_at_rho));
+                   eq_at_r_rho * (b_1_at_rho + b_2_at_rho - b_1_at_rho * b_2_at_rho - c_at_rho));
 
         // Step 4: Verify the IVC proof
 
@@ -344,8 +344,8 @@ pub mod test {
     #[test]
     fn test_aggregate() {
         let rng = &mut rand::thread_rng();
-        let mut transcript_p = Transcript::<ScalarField>::new(b"aggr");
-        let mut transcript_v = Transcript::<ScalarField>::new(b"aggr");
+        let mut transcript_p = IOPTranscript::<ScalarField>::new(b"aggr");
+        let mut transcript_v = IOPTranscript::<ScalarField>::new(b"aggr");
 
         // num_vars = log(degree_x) + log(degree_y)
         let degree_x = 8usize;
@@ -377,6 +377,4 @@ pub mod test {
         assert_eq!(true, verifier.verify(&mut transcript_v))
     }
 }
- */
-
 

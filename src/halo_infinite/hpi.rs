@@ -1,4 +1,4 @@
-/*#![allow(unused)]
+#![allow(unused)]
 // It's basically an HPI
 
 use ark_ec::VariableBaseMSM;
@@ -8,8 +8,9 @@ use ark_ec::CurveGroup;
 
 use std::ops::Mul;
 
+use transcript::IOPTranscript;
+
 use crate::halo_infinite::errors::ProofError;
-use crate::transcript::transcript::Transcript;
 
 /// Return the inner product of two field vectors
 pub fn inner_product<Fr: Field>(a: &[Fr], b: &[Fr]) -> Fr {
@@ -22,8 +23,8 @@ pub fn inner_product<Fr: Field>(a: &[Fr], b: &[Fr]) -> Fr {
 }
 
 pub struct HPIProof<E: Pairing> {
-//    B_c: E::G1Projective,
-//    B_d: E::G1Projective,
+    //    B_c: E::G1Projective,
+    //    B_d: E::G1Projective,
 
     vec_Y_L: Vec<E::G1Affine>,
     vec_Y_R: Vec<E::G1Affine>,
@@ -37,7 +38,7 @@ pub fn prove<E: Pairing>(
     vec_x: Vec<E::ScalarField>,
     // _y: E::ScalarField, // XXX
 
-    transcript: &mut Transcript<E::ScalarField>,
+    transcript: &mut IOPTranscript<E::ScalarField>,
 ) -> HPIProof<E> {
     let mut n = vec_x.len();
     let lg_n = ark_std::log2(n) as usize;
@@ -122,7 +123,7 @@ pub fn get_verification_scalars_bitstring(n: usize, logn: usize) -> Vec<Vec<usiz
 fn verification_scalars<E: Pairing>(
     proof: &HPIProof<E>,
     n: usize,
-    transcript: &mut Transcript<E::ScalarField>,
+    transcript: &mut IOPTranscript<E::ScalarField>,
 ) -> Result<(Vec<E::ScalarField>, Vec<E::ScalarField>, Vec<E::ScalarField>), ProofError> {
     let lg_n = proof.vec_Y_L.len();
     if lg_n >= 32 {
@@ -168,7 +169,7 @@ pub fn verify<E: Pairing>(
     crs_G_vec: Vec<E::G1Affine>,
     C: E::G1Affine,
 
-    transcript: &mut Transcript<E::ScalarField>
+    transcript: &mut IOPTranscript<E::ScalarField>
 ) -> Result<(), ProofError> {
     let mut n = crs_G_vec.len();
     assert!(n.is_power_of_two());
@@ -217,8 +218,8 @@ mod tests {
         let mut rng = StdRng::seed_from_u64(0u64);
         let n = 128;
 
-        let mut transcript_prover = Transcript::<Fr>::new(b"ipa");
-        let mut transcript_verifier = Transcript::<Fr>::new(b"ipa");
+        let mut transcript_prover = IOPTranscript::<Fr>::new(b"ipa");
+        let mut transcript_verifier = IOPTranscript::<Fr>::new(b"ipa");
 
         let crs_G_vec: Vec<G1Affine> =
             iter::repeat_with(|| G1Projective::rand(&mut rng).into_affine())
@@ -242,5 +243,3 @@ mod tests {
         ).unwrap();
     }
 }
-
- */

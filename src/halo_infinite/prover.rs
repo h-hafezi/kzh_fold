@@ -1,4 +1,4 @@
-/*#![allow(unused)]
+#![allow(unused)]
 use ark_ec::pairing::Pairing;
 use ark_std::marker::PhantomData;
 
@@ -25,6 +25,3 @@ mod tests {
     pub fn aggregate() {
     }
 }
-
-
- */

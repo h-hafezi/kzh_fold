@@ -1,4 +1,4 @@
-/*#![allow(unused)]
+#![allow(unused)]
 use itertools::izip;
 use ark_poly::{DenseUVPolynomial, Polynomial};
 use ark_ec::AffineRepr;
@@ -15,9 +15,9 @@ use crate::kzg::{KZGCommitment, KZGPowers, KZGVerifierKey, KZG10};
 
 use std::ops::{Div, Mul, Add, Sub, Neg};
 
+use transcript::IOPTranscript;
 
 use crate::halo_infinite::errors::ProofError;
-use crate::transcript::transcript::Transcript;
 use crate::utils::compute_powers;
 
 /// The polynomial in \\(\FF\\) that vanishes in all the points `points`.
@@ -53,7 +53,7 @@ pub fn prove<E: Pairing>(
     vec_f: &Vec<DensePolynomial<E::ScalarField>>,
     vec_omega: &Vec<E::ScalarField>,
     entire_domain: &GeneralEvaluationDomain<E::ScalarField>,
-    transcript: &mut Transcript<E::ScalarField>,
+    transcript: &mut IOPTranscript<E::ScalarField>,
     ck: &KZGPowers<E>,
 ) -> PrivateAggregationProof<E>
 where
@@ -124,7 +124,7 @@ where
             f_i.coeffs.iter().map(|f| *f * z_i_r).collect(),
         );
         let summand = DensePolynomial::from_coefficients_vec(
-            f_i_times_z_i_r.coeffs.iter().map(|f| f.clone() * rho_i).collect(),
+            f_i_times_z_i_r.coeffs.iter().map(|f| *f * rho_i).collect(),
         );
         g_x = g_x.add(summand);
     }
@@ -155,7 +155,7 @@ pub fn verify<E: Pairing>(
     vec_f_commitments: &Vec<KZGCommitment<E>>,
     vec_omega: &Vec<E::ScalarField>,
     entire_domain: &GeneralEvaluationDomain<E::ScalarField>,
-    transcript: &mut Transcript<E::ScalarField>,
+    transcript: &mut IOPTranscript<E::ScalarField>,
     vk: &KZGVerifierKey<E>
 ) -> bool {
     let n = vec_f_commitments.len();
@@ -274,8 +274,8 @@ pub mod tests {
         let N = 2;
         let d = 8192;
 
-        let mut transcript_prover = Transcript::<Fr>::new(b"pa");
-        let mut transcript_verifier = Transcript::<Fr>::new(b"pa");
+        let mut transcript_prover = IOPTranscript::<Fr>::new(b"pa");
+        let mut transcript_verifier = IOPTranscript::<Fr>::new(b"pa");
 
         let (vec_f, vec_f_commitments, vec_omega, domain, ck, vk) = prepare_polynomials_and_srs(N, d, &mut rng);
 
@@ -284,6 +284,3 @@ pub mod tests {
         assert!(is_valid);
     }
 }
-
- */
-

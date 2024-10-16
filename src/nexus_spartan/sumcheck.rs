@@ -8,6 +8,7 @@ use ark_ff::PrimeField;
 use ark_serialize::*;
 
 use itertools::izip;
+use transcript::IOPTranscript;
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript::{AppendToTranscript, Transcript};
 
@@ -305,7 +306,7 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
 }
 
 
-/*// XXX: This is used for the signature aggregation protocol!!!
+// XXX: This is used for the signature aggregation protocol!!!
 impl<F: PrimeField> SumcheckInstanceProof<F> {
     pub fn prove_cubic_four_terms<Func, G>(
         claim: &F,
@@ -315,7 +316,7 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
         poly_C: &mut MultilinearPolynomial<F>,
         poly_D: &mut MultilinearPolynomial<F>,
         comb_func: Func,
-        transcript: &mut Transcript<F>,
+        transcript: &mut IOPTranscript<F>,
     ) -> (Self, Vec<F>, Vec<F>)
     where
         Func: Fn(&F, &F, &F, &F) -> F,
@@ -392,7 +393,7 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
         claim: F,
         num_rounds: usize,
         degree_bound: usize,
-        transcript: &mut Transcript<F>,
+        transcript: &mut IOPTranscript<F>,
     ) -> Result<(F, Vec<F>), ProofVerifyError>
     where
         G: CurveGroup<ScalarField=F>,
@@ -431,5 +432,3 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
         Ok((e, r))
     }
 }
-
- */
