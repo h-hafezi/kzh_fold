@@ -1,3 +1,4 @@
+use ark_crypto_primitives::sponge::Absorb;
 use super::commitments::{Commitments, MultiCommitGens};
 use crate::transcript::transcript::{AppendToTranscript, Transcript};
 use ark_ec::pairing::Pairing;
@@ -8,18 +9,18 @@ use ark_serialize::*;
 // ax^2 + bx + c stored as vec![c,b,a]
 // ax^3 + bx^2 + cx + d stored as vec![d,c,b,a]
 #[derive(CanonicalSerialize, Debug)]
-pub struct UniPoly<F: PrimeField> {
+pub struct UniPoly<F: PrimeField + Absorb> {
     coeffs: Vec<F>,
 }
 
 // ax^2 + bx + c stored as vec![c,a]
 // ax^3 + bx^2 + cx + d stored as vec![d,b,a]
 #[derive(CanonicalSerialize, CanonicalDeserialize, Debug, Clone)]
-pub struct CompressedUniPoly<F: PrimeField> {
+pub struct CompressedUniPoly<F: PrimeField + Absorb> {
     coeffs_except_linear_term: Vec<F>,
 }
 
-impl<F: PrimeField> UniPoly<F> {
+impl<F: PrimeField + Absorb> UniPoly<F> {
     pub fn from_evals(evals: &[F]) -> Self {
         // we only support degree-2 or degree-3 univariate polynomials
         assert!(evals.len() == 3 || evals.len() == 4);
@@ -92,7 +93,7 @@ impl<F: PrimeField> UniPoly<F> {
     }
 }
 
-impl<F: PrimeField> CompressedUniPoly<F> {
+impl<F: PrimeField + Absorb> CompressedUniPoly<F> {
     // we require eval(0) + eval(1) = hint, so we can solve for the linear term as:
     // linear_term = hint - 2 * constant_term - deg2 term - deg3 term
     pub fn decompress(&self, hint: &F) -> UniPoly<F> {
@@ -109,7 +110,7 @@ impl<F: PrimeField> CompressedUniPoly<F> {
     }
 }
 
-impl<F: PrimeField> AppendToTranscript<F> for UniPoly<F> {
+impl<F: PrimeField + Absorb> AppendToTranscript<F> for UniPoly<F> {
     fn append_to_transcript(&self, label: &'static [u8], transcript: &mut Transcript<F>) {
         transcript.append_message(label, b"UniPoly_begin");
         for i in 0..self.coeffs.len() {
@@ -129,7 +130,7 @@ mod tests {
         test_from_evals_quad_helper::<Fr>()
     }
 
-    fn test_from_evals_quad_helper<F: PrimeField>() {
+    fn test_from_evals_quad_helper<F: PrimeField + Absorb>() {
         // polynomial is 2x^2 + 3x + 1
         let e0 = F::one();
         let e1 = F::from(6u64);
@@ -159,7 +160,7 @@ mod tests {
     fn test_from_evals_cubic() {
         test_from_evals_cubic_helper::<Fr>()
     }
-    fn test_from_evals_cubic_helper<F: PrimeField>() {
+    fn test_from_evals_cubic_helper<F: PrimeField + Absorb>() {
         // polynomial is x^3 + 2x^2 + 3x + 1
         let e0 = F::one();
         let e1 = F::from(7u64);

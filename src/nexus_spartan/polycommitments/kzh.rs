@@ -1,22 +1,31 @@
+use ark_crypto_primitives::sponge::Absorb;
+use ark_ec::AffineRepr;
 use ark_ec::pairing::Pairing;
 use ark_ff::PrimeField;
 use ark_poly_commit::Error;
 use rand::RngCore;
 
-use crate::nexus_spartan::polycommitments::{PCSKeys, PolyCommitmentScheme};
 use crate::nexus_spartan::polycommitments::error::PCSError;
+use crate::nexus_spartan::polycommitments::{PCSKeys, PolyCommitmentScheme};
 use crate::pcs::multilinear_pcs::{Commitment, OpeningProof, PolyCommit, SRS};
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript::{AppendToTranscript, Transcript};
 
-impl<E: Pairing> AppendToTranscript<E::ScalarField> for Commitment<E> {
-    fn append_to_transcript(&self, label: &'static [u8], transcript: &mut Transcript<E::ScalarField>) {
-        Transcript ::append_point::<E>(transcript, label, &self.C);
+impl<E: Pairing, F: PrimeField + Absorb> AppendToTranscript<F> for Commitment<E>
+where
+    E: Pairing<ScalarField=F>,
+    <<E as Pairing>::G1Affine as ark_ec::AffineRepr>::BaseField: PrimeField,
+{
+    fn append_to_transcript(&self, label: &'static [u8], transcript: &mut Transcript<F>) {
+        Transcript::append_point::<E>(transcript, label, &self.C);
     }
 }
 
 
-impl<F: PrimeField, E: Pairing<ScalarField=F>> PolyCommitmentScheme<E> for MultilinearPolynomial<F> {
+impl<F: PrimeField + Absorb, E: Pairing<ScalarField=F>> PolyCommitmentScheme<E> for MultilinearPolynomial<F>
+where
+    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
+{
     type SRS = SRS<E>;
     type PolyCommitmentKey = PolyCommit<E>;
     type EvalVerifierKey = PolyCommit<E>;
@@ -71,22 +80,19 @@ impl<F: PrimeField, E: Pairing<ScalarField=F>> PolyCommitmentScheme<E> for Multi
 
 #[cfg(test)]
 pub mod test {
-    use std::cmp::min;
-
     use ark_ec::pairing::Pairing;
-    use ark_ff::AdditiveGroup;
     use ark_std::UniformRand;
     use rand::thread_rng;
 
     use crate::constant_for_curves::{ScalarField, E};
     use crate::nexus_spartan::polycommitments::{PCSKeys, PolyCommitmentScheme};
-    use crate::pcs::multilinear_pcs::{PolyCommit, SRS};
+    use crate::pcs::multilinear_pcs::SRS;
     use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 
     #[test]
     fn test_end_to_end() {
         let srs: SRS<E> = MultilinearPolynomial::<ScalarField>::setup(5, &mut thread_rng()).unwrap();
-        let PCSKeys{vk: _, ck} = MultilinearPolynomial::trim(&srs);
+        let PCSKeys { vk: _, ck } = MultilinearPolynomial::trim(&srs);
 
         // random bivariate polynomial
         let polynomial = MultilinearPolynomial::<ScalarField>::rand(3, &mut thread_rng());

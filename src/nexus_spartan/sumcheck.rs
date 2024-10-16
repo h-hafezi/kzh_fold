@@ -1,5 +1,7 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::type_complexity)]
+
+use ark_crypto_primitives::sponge::Absorb;
 use super::errors::ProofVerifyError;
 use super::unipoly::{CompressedUniPoly, UniPoly};
 use ark_ec::CurveGroup;
@@ -13,11 +15,11 @@ use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript::{AppendToTranscript, Transcript};
 
 #[derive(CanonicalSerialize, CanonicalDeserialize, Debug, Clone)]
-pub struct SumcheckInstanceProof<F: PrimeField> {
+pub struct SumcheckInstanceProof<F: PrimeField + Absorb> {
     compressed_polys: Vec<CompressedUniPoly<F>>,
 }
 
-impl<F: PrimeField> SumcheckInstanceProof<F> {
+impl<F: PrimeField + Absorb> SumcheckInstanceProof<F> {
     pub fn new(compressed_polys: Vec<CompressedUniPoly<F>>) -> SumcheckInstanceProof<F> {
         SumcheckInstanceProof { compressed_polys }
     }
@@ -62,7 +64,7 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
     }
 }
 
-impl<F: PrimeField> SumcheckInstanceProof<F> {
+impl<F: PrimeField + Absorb> SumcheckInstanceProof<F> {
     pub fn prove_cubic<Func, E>(
         claim: &F,
         num_rounds: usize,
@@ -307,7 +309,7 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
 
 
 // XXX: This is used for the signature aggregation protocol!!!
-impl<F: PrimeField> SumcheckInstanceProof<F> {
+impl<F: PrimeField + Absorb> SumcheckInstanceProof<F> {
     pub fn prove_cubic_four_terms<Func, G>(
         claim: &F,
         num_rounds: usize,

@@ -1,15 +1,17 @@
-use std::marker::PhantomData;
-
+use crate::transcript::transcript::Transcript;
+use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
 use ark_ff::{PrimeField, UniformRand};
 use ark_std::test_rng;
-use crate::transcript::transcript::Transcript;
 
-pub struct RandomTape<E: Pairing> {
+pub struct RandomTape<E: Pairing>
+where
+    <E as Pairing>::ScalarField: Absorb,
+{
     pub tape: Transcript<E::ScalarField>,
 }
 
-impl<E: Pairing> RandomTape<E> {
+impl<E: Pairing<ScalarField=F>, F: PrimeField + Absorb> RandomTape<E> {
     pub fn new(name: &'static [u8]) -> Self {
         let tape = {
             let mut prng = test_rng();
@@ -26,11 +28,11 @@ impl<E: Pairing> RandomTape<E> {
         }
     }
 
-    pub fn random_scalar(&mut self, label: &'static [u8]) -> E::ScalarField {
+    pub fn random_scalar(&mut self, label: &'static [u8]) -> F {
         Transcript::challenge_scalar(&mut self.tape, label)
     }
 
-    pub fn random_vector(&mut self, label: &'static [u8], len: usize) -> Vec<E::ScalarField> {
+    pub fn random_vector(&mut self, label: &'static [u8], len: usize) -> Vec<F> {
         Transcript::challenge_vector(&mut self.tape, label, len)
     }
 }

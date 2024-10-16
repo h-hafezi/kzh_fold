@@ -1,17 +1,17 @@
 use ark_crypto_primitives::sponge::Absorb;
-use ark_ec::AffineRepr;
-use ark_ff::{PrimeField};
-use rand::RngCore;
 use ark_ec::pairing::Pairing;
+use ark_ec::AffineRepr;
+use ark_ff::PrimeField;
+use rand::RngCore;
 use transcript::IOPTranscript;
 
+use crate::accumulation;
 use crate::accumulation::accumulator::{AccInstance, AccWitness, Accumulator};
-use crate::polynomial::eq_poly::EqPolynomial;
-use ark_ff::Zero;
-use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 use crate::nexus_spartan::sumcheck::SumcheckInstanceProof;
-use crate::{accumulation,};
-use crate::pcs::multilinear_pcs::{PolyCommit, Commitment};
+use crate::pcs::multilinear_pcs::{Commitment, PolyCommit};
+use crate::polynomial::eq_poly::EqPolynomial;
+use crate::polynomial::multilinear_poly::MultilinearPolynomial;
+use ark_ff::Zero;
 
 // XXX move to mod.rs or somewhere neutral
 #[derive(Clone, Debug)]
@@ -25,7 +25,7 @@ where
     <E as Pairing>::ScalarField: Absorb,
 {
     fn new<T: RngCore>(degree_x: usize, degree_y: usize, rng: &mut T) -> Self {
-        let pcs_srs =  PolyCommit::setup(degree_x, degree_y, rng);
+        let pcs_srs = PolyCommit::setup(degree_x, degree_y, rng);
 
         SRS {
             acc_srs: Accumulator::setup(pcs_srs, rng),
@@ -34,7 +34,10 @@ where
 }
 
 #[derive(Clone, Debug)]
-pub struct SignatureAggrData<E: Pairing> {
+pub struct SignatureAggrData<E: Pairing>
+where
+    <E as Pairing>::ScalarField: Absorb,
+{
     // TODO comment this out for now. we will figure out the BLS stuff later.
     //pk: E::G1Affine,
     //sig: E::G2Affine,
@@ -56,7 +59,10 @@ pub struct SignatureAggrData<E: Pairing> {
     // ivc_proof: IVCProof<E>
 }
 
-impl<E: Pairing> SignatureAggrData<E> {
+impl<E: Pairing> SignatureAggrData<E>
+where
+    <E as Pairing>::ScalarField: Absorb,
+{
     pub fn new(bitfield_poly: MultilinearPolynomial<E::ScalarField>, _sumcheck_proof: Option<SumcheckInstanceProof<E::ScalarField>>, srs: &SRS<E>) -> Self {
         // XXX this PolyCommit is not very ergonomic
         let poly_commit = PolyCommit { srs: srs.acc_srs.pc_srs.clone() }; // XXX no clone
@@ -77,7 +83,10 @@ impl<E: Pairing> SignatureAggrData<E> {
 
 /// This struct represents an aggregator on the network that receives data from two parties and needs to aggregate them
 /// into one. After aggregation, the aggregator forwards the aggregated data.
-pub struct Aggregator<E: Pairing> {
+pub struct Aggregator<E: Pairing>
+where
+    <E as Pairing>::ScalarField: Absorb,
+{
     srs: SRS<E>,
     A_1: SignatureAggrData<E>,
     A_2: SignatureAggrData<E>,
@@ -93,7 +102,7 @@ where
                                        bitfield_poly: &MultilinearPolynomial<E::ScalarField>,
                                        bitfield_commitment: &Commitment<E>,
                                        eval_result: &E::ScalarField,
-                                       eval_point: &Vec<E::ScalarField>
+                                       eval_point: &Vec<E::ScalarField>,
     ) -> Accumulator<E> {
         let poly_commit = PolyCommit { srs: self.srs.acc_srs.pc_srs.clone() }; // XXX no clone. bad ergonomics
 
@@ -242,7 +251,10 @@ where
 /// This struct represents a network node that just received an aggregate signature. The verifier needs to verify the
 /// aggregate signature (and later aggregate it with more signatures herself).
 /// For the purposes of this module, we will only do the verification.
-pub struct Verifier<E: Pairing> {
+pub struct Verifier<E: Pairing>
+where
+    <E as Pairing>::ScalarField: Absorb,
+{
     pub srs: SRS<E>,
     pub A: SignatureAggrData<E>,
 }
@@ -255,7 +267,7 @@ where
     fn get_acc_instance_from_evaluation(&self,
                                         bitfield_commitment: &Commitment<E>,
                                         eval_result: &E::ScalarField,
-                                        eval_point: &Vec<E::ScalarField>
+                                        eval_point: &Vec<E::ScalarField>,
     ) -> AccInstance<E> {
         // Split the evaluation point in half since open() just needs the first half
         // XXX ergonomics
@@ -339,7 +351,7 @@ where
 #[cfg(test)]
 pub mod test {
     use super::*;
-    use crate::constant_for_curves::{E, ScalarField};
+    use crate::constant_for_curves::{ScalarField, E};
 
     #[test]
     fn test_aggregate() {
@@ -371,7 +383,7 @@ pub mod test {
         // Now let's do verification
         let verifier = Verifier {
             srs,
-            A: agg_data
+            A: agg_data,
         };
 
         assert_eq!(true, verifier.verify(&mut transcript_v))

@@ -1,19 +1,21 @@
 #![allow(clippy::type_complexity)]
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::needless_range_loop)]
+
 use super::errors::ProofVerifyError;
-use crate::math::Math;
 use super::polycommitments::{PCSKeys, PolyCommitmentScheme};
 use super::product_tree::{DotProductCircuit, ProductCircuit, ProductCircuitEvalProofBatched};
 use super::timer::Timer;
-use ark_ff::{Field, PrimeField};
-use ark_serialize::*;
-use ark_std::{cmp::max, One, Zero};
-use ark_ec::pairing::Pairing;
+use crate::math::Math;
 use crate::polynomial::eq_poly::EqPolynomial;
 use crate::polynomial::identity::IdentityPolynomial;
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript::{AppendToTranscript, Transcript};
+use ark_crypto_primitives::sponge::Absorb;
+use ark_ec::pairing::Pairing;
+use ark_ff::{Field, PrimeField};
+use ark_serialize::*;
+use ark_std::{cmp::max, One, Zero};
 
 #[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
 pub struct SparseMatEntry<F: PrimeField> {
@@ -45,11 +47,14 @@ where
 }
 
 #[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
-pub struct DerefsCommitment<E: Pairing, PC: PolyCommitmentScheme<E>> {
+pub struct DerefsCommitment<E: Pairing, PC: PolyCommitmentScheme<E>>
+where
+    <E as Pairing>::ScalarField: Absorb,
+{
     comm_ops_val: PC::Commitment,
 }
 
-impl<F: PrimeField> Derefs<F> {
+impl<F: PrimeField + Absorb> Derefs<F> {
     pub fn new(row_ops_val: Vec<MultilinearPolynomial<F>>, col_ops_val: Vec<MultilinearPolynomial<F>>) -> Self {
         assert_eq!(row_ops_val.len(), col_ops_val.len());
 
@@ -71,7 +76,7 @@ impl<F: PrimeField> Derefs<F> {
         derefs
     }
 
-    pub fn commit<E: Pairing<ScalarField = F>, PC: PolyCommitmentScheme<E>>(
+    pub fn commit<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>>(
         &self,
         gens: &PC::PolyCommitmentKey,
     ) -> DerefsCommitment<E, PC> {
@@ -81,22 +86,30 @@ impl<F: PrimeField> Derefs<F> {
 }
 
 #[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
-pub struct DerefsEvalProof<E: Pairing, PC: PolyCommitmentScheme<E>> {
+pub struct DerefsEvalProof<E: Pairing, PC: PolyCommitmentScheme<E>>
+where
+    <E as Pairing>::ScalarField: Absorb,
+{
     proof_derefs: PC::PolyCommitmentProof,
 }
 
-impl<E: Pairing, PC: PolyCommitmentScheme<E>> DerefsEvalProof<E, PC> {
+impl<E: Pairing, PC: PolyCommitmentScheme<E>> DerefsEvalProof<E, PC>
+where
+    <E as Pairing>::ScalarField: Absorb,
+{
     fn protocol_name() -> &'static [u8] {
         b"Derefs evaluation proof"
     }
 
-    fn prove_single(
-        joint_poly: &MultilinearPolynomial<E::ScalarField>,
-        r: &[E::ScalarField],
-        evals: Vec<E::ScalarField>,
+    fn prove_single<F: PrimeField + Absorb>(
+        joint_poly: &MultilinearPolynomial<F>,
+        r: &[F],
+        evals: Vec<F>,
         ck: &PC::PolyCommitmentKey,
-        transcript: &mut Transcript<E::ScalarField>,
-    ) -> PC::PolyCommitmentProof {
+        transcript: &mut Transcript<F>,
+    ) -> PC::PolyCommitmentProof where
+        E: Pairing<ScalarField=F>,
+    {
         assert_eq!(joint_poly.get_num_vars(), r.len() + evals.len().log_2());
 
         // append the claimed evaluations to transcript
@@ -129,14 +142,16 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> DerefsEvalProof<E, PC> {
     }
 
     // evalues both polynomials at r and produces a joint proof of opening
-    pub fn prove(
-        derefs: &Derefs<E::ScalarField>,
-        eval_row_ops_val_vec: &[E::ScalarField],
-        eval_col_ops_val_vec: &[E::ScalarField],
-        r: &[E::ScalarField],
+    pub fn prove<F: PrimeField + Absorb>(
+        derefs: &Derefs<F>,
+        eval_row_ops_val_vec: &[F],
+        eval_col_ops_val_vec: &[F],
+        r: &[F],
         ck: &PC::PolyCommitmentKey,
-        transcript: &mut Transcript<E::ScalarField>,
-    ) -> Self {
+        transcript: &mut Transcript<F>,
+    ) -> Self where
+        E: Pairing<ScalarField=F>,
+    {
         Transcript::append_protocol_name(
             transcript,
             DerefsEvalProof::<E, PC>::protocol_name(),
@@ -145,7 +160,7 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> DerefsEvalProof<E, PC> {
         let evals = {
             let mut evals = eval_row_ops_val_vec.to_owned();
             evals.extend(eval_col_ops_val_vec);
-            evals.resize(evals.len().next_power_of_two(), E::ScalarField::zero());
+            evals.resize(evals.len().next_power_of_two(), F::zero());
             evals
         };
         let proof_derefs =
@@ -154,14 +169,16 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> DerefsEvalProof<E, PC> {
         DerefsEvalProof { proof_derefs }
     }
 
-    fn verify_single(
+    fn verify_single<F: PrimeField + Absorb>(
         proof: &PC::PolyCommitmentProof,
         comm: &PC::Commitment,
-        r: &[E::ScalarField],
+        r: &[F],
         evals: Vec<E::ScalarField>,
         vk: &PC::EvalVerifierKey,
-        transcript: &mut Transcript<E::ScalarField>,
-    ) -> Result<(), ProofVerifyError> {
+        transcript: &mut Transcript<F>,
+    ) -> Result<(), ProofVerifyError> where
+        E: Pairing<ScalarField=F>,
+    {
         // append the claimed evaluations to transcript
         Transcript::append_scalars(transcript, b"evals_ops_val", &evals);
 
@@ -191,22 +208,24 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> DerefsEvalProof<E, PC> {
     }
 
     // verify evaluations of both polynomials at r
-    pub fn verify(
+    pub fn verify<F: PrimeField + Absorb>(
         &self,
-        r: &[E::ScalarField],
-        eval_row_ops_val_vec: &[E::ScalarField],
-        eval_col_ops_val_vec: &[E::ScalarField],
+        r: &[F],
+        eval_row_ops_val_vec: &[F],
+        eval_col_ops_val_vec: &[F],
         vk: &PC::EvalVerifierKey,
         comm: &DerefsCommitment<E, PC>,
-        transcript: &mut Transcript<E::ScalarField>,
-    ) -> Result<(), ProofVerifyError> {
+        transcript: &mut Transcript<F>,
+    ) -> Result<(), ProofVerifyError> where
+        E: Pairing<ScalarField=F>,
+    {
         Transcript::append_protocol_name(
             transcript,
             DerefsEvalProof::<E, PC>::protocol_name(),
         );
         let mut evals = eval_row_ops_val_vec.to_owned();
         evals.extend(eval_col_ops_val_vec);
-        evals.resize(evals.len().next_power_of_two(), E::ScalarField::zero());
+        evals.resize(evals.len().next_power_of_two(), F::zero());
 
         DerefsEvalProof::<E, PC>::verify_single(
             &self.proof_derefs,
@@ -219,7 +238,10 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> DerefsEvalProof<E, PC> {
     }
 }
 
-impl<E: Pairing, PC: PolyCommitmentScheme<E>> AppendToTranscript<E::ScalarField> for DerefsCommitment<E, PC> {
+impl<E: Pairing, PC: PolyCommitmentScheme<E>> AppendToTranscript<E::ScalarField> for DerefsCommitment<E, PC>
+where
+    <E as Pairing>::ScalarField: Absorb,
+{
     fn append_to_transcript(&self, label: &'static [u8], transcript: &mut Transcript<E::ScalarField>) {
         transcript.append_message(b"derefs_commitment", b"begin_derefs_commitment");
         self.comm_ops_val.append_to_transcript(label, transcript);
@@ -230,7 +252,7 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> AppendToTranscript<E::ScalarField>
 #[derive(CanonicalDeserialize, CanonicalSerialize)]
 struct AddrTimestamps<F>
 where
-    F: Sync + CanonicalSerialize + CanonicalDeserialize + PrimeField,
+    F: Sync + CanonicalSerialize + CanonicalDeserialize + PrimeField + Absorb,
 {
     ops_addr_usize: Vec<Vec<usize>>,
     ops_addr: Vec<MultilinearPolynomial<F>>,
@@ -238,7 +260,7 @@ where
     audit_ts: MultilinearPolynomial<F>,
 }
 
-impl<F: PrimeField> AddrTimestamps<F> {
+impl<F: PrimeField + Absorb> AddrTimestamps<F> {
     pub fn new(num_cells: usize, num_ops: usize, ops_addr: Vec<Vec<usize>>) -> Self {
         for item in ops_addr.iter() {
             assert_eq!(item.len(), num_ops);
@@ -295,7 +317,7 @@ impl<F: PrimeField> AddrTimestamps<F> {
 #[derive(CanonicalDeserialize, CanonicalSerialize)]
 pub struct MultiSparseMatPolynomialAsDense<F>
 where
-    F: Sync + CanonicalSerialize + CanonicalDeserialize + PrimeField,
+    F: Sync + CanonicalSerialize + CanonicalDeserialize + PrimeField + Absorb,
 {
     batch_size: usize,
     val: Vec<MultilinearPolynomial<F>>,
@@ -310,13 +332,17 @@ pub struct SparseMatPolyCommitmentKey<E, PC>
 where
     E: Pairing,
     PC: PolyCommitmentScheme<E>,
+    E::ScalarField: Absorb,
 {
     gens_ops: PCSKeys<E, PC>,
     gens_mem: PCSKeys<E, PC>,
     gens_derefs: PCSKeys<E, PC>,
 }
 
-impl<E: Pairing, PC: PolyCommitmentScheme<E>> SparseMatPolyCommitmentKey<E, PC> {
+impl<E: Pairing, PC: PolyCommitmentScheme<E>> SparseMatPolyCommitmentKey<E, PC>
+where
+    <E as Pairing>::ScalarField: Absorb,
+{
     pub fn new(
         SRS: &PC::SRS,
         num_vars_x: usize,
@@ -366,7 +392,10 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> SparseMatPolyCommitmentKey<E, PC> 
 }
 
 #[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
-pub struct SparseMatPolyCommitment<E: Pairing, PC: PolyCommitmentScheme<E>> {
+pub struct SparseMatPolyCommitment<E: Pairing, PC: PolyCommitmentScheme<E>>
+where
+    <E as Pairing>::ScalarField: Absorb,
+{
     batch_size: usize,
     num_ops: usize,
     num_mem_cells: usize,
@@ -376,8 +405,13 @@ pub struct SparseMatPolyCommitment<E: Pairing, PC: PolyCommitmentScheme<E>> {
 
 impl<E: Pairing, PC: PolyCommitmentScheme<E>> AppendToTranscript<E::ScalarField>
 for SparseMatPolyCommitment<E, PC>
+where
+    <E as Pairing>::ScalarField: Absorb,
 {
-    fn append_to_transcript(&self, _label: &'static [u8], transcript: &mut Transcript<E::ScalarField>) {
+    fn append_to_transcript(&self, _label: &'static [u8], transcript: &mut Transcript<E::ScalarField>)
+    where
+        <E as Pairing>::ScalarField: Absorb,
+    {
         transcript.append_u64(b"batch_size", self.batch_size as u64);
         transcript.append_u64(b"num_ops", self.num_ops as u64);
         transcript.append_u64(b"num_mem_cells", self.num_mem_cells as u64);
@@ -390,7 +424,7 @@ for SparseMatPolyCommitment<E, PC>
     }
 }
 
-impl<F: PrimeField> SparseMatPolynomial<F> {
+impl<F: PrimeField + Absorb> SparseMatPolynomial<F> {
     pub fn new(num_vars_x: usize, num_vars_y: usize, M: Vec<SparseMatEntry<F>>) -> Self {
         SparseMatPolynomial {
             num_vars_x,
@@ -529,7 +563,7 @@ impl<F: PrimeField> SparseMatPolynomial<F> {
         M_evals
     }
 
-    pub fn multi_commit<E: Pairing<ScalarField = F>, PC: PolyCommitmentScheme<E>>(
+    pub fn multi_commit<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>>(
         sparse_polys: &[&SparseMatPolynomial<F>],
         gens: &SparseMatPolyCommitmentKey<E, PC>,
     ) -> (
@@ -555,7 +589,7 @@ impl<F: PrimeField> SparseMatPolynomial<F> {
     }
 }
 
-impl<F: PrimeField> MultiSparseMatPolynomialAsDense<F> {
+impl<F: PrimeField + Absorb> MultiSparseMatPolynomialAsDense<F> {
     pub fn deref(&self, row_mem_val: &[F], col_mem_val: &[F]) -> Derefs<F> {
         let row_ops_val = self.row.deref(row_mem_val);
         let col_ops_val = self.col.deref(col_mem_val);
@@ -567,7 +601,7 @@ impl<F: PrimeField> MultiSparseMatPolynomialAsDense<F> {
 #[derive(Debug)]
 struct ProductLayer<F>
 where
-    F: Sync + CanonicalSerialize + CanonicalDeserialize + PrimeField,
+    F: Sync + CanonicalSerialize + CanonicalDeserialize + PrimeField + Absorb,
 {
     init: ProductCircuit<F>,
     read_vec: Vec<ProductCircuit<F>>,
@@ -578,12 +612,12 @@ where
 #[derive(Debug)]
 struct Layers<F>
 where
-    F: Sync + CanonicalSerialize + CanonicalDeserialize + PrimeField,
+    F: Sync + CanonicalSerialize + CanonicalDeserialize + PrimeField + Absorb,
 {
     prod_layer: ProductLayer<F>,
 }
 
-impl<F: PrimeField> Layers<F> {
+impl<F: PrimeField + Absorb> Layers<F> {
     fn build_hash_layer(
         eval_table: &[F],
         addrs_vec: &[MultilinearPolynomial<F>],
@@ -712,13 +746,13 @@ impl<F: PrimeField> Layers<F> {
 #[derive(Debug)]
 struct PolyEvalNetwork<F>
 where
-    F: Sync + CanonicalDeserialize + CanonicalSerialize + PrimeField,
+    F: Sync + CanonicalDeserialize + CanonicalSerialize + PrimeField + Absorb,
 {
     row_layers: Layers<F>,
     col_layers: Layers<F>,
 }
 
-impl<F: PrimeField> PolyEvalNetwork<F> {
+impl<F: PrimeField + Absorb> PolyEvalNetwork<F> {
     pub fn new(
         dense: &MultiSparseMatPolynomialAsDense<F>,
         derefs: &Derefs<F>,
@@ -737,7 +771,10 @@ impl<F: PrimeField> PolyEvalNetwork<F> {
 }
 
 #[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
-struct HashLayerProof<E: Pairing, PC: PolyCommitmentScheme<E>> {
+struct HashLayerProof<E: Pairing, PC: PolyCommitmentScheme<E>>
+where
+    <E as Pairing>::ScalarField: Absorb,
+{
     eval_row: (Vec<E::ScalarField>, Vec<E::ScalarField>, E::ScalarField),
     eval_col: (Vec<E::ScalarField>, Vec<E::ScalarField>, E::ScalarField),
     eval_val: Vec<E::ScalarField>,
@@ -747,26 +784,31 @@ struct HashLayerProof<E: Pairing, PC: PolyCommitmentScheme<E>> {
     proof_derefs: DerefsEvalProof<E, PC>,
 }
 
-impl<E: Pairing, PC: PolyCommitmentScheme<E>> HashLayerProof<E, PC> {
+impl<E: Pairing, PC: PolyCommitmentScheme<E>> HashLayerProof<E, PC>
+where
+    <E as Pairing>::ScalarField: Absorb,
+{
     fn protocol_name() -> &'static [u8] {
         b"Sparse polynomial hash layer proof"
     }
 
-    fn prove_helper(
-        rand: (&Vec<E::ScalarField>, &Vec<E::ScalarField>),
-        addr_timestamps: &AddrTimestamps<E::ScalarField>,
-    ) -> (Vec<E::ScalarField>, Vec<E::ScalarField>, E::ScalarField) {
+    fn prove_helper<F: PrimeField + Absorb>(
+        rand: (&Vec<F>, &Vec<F>),
+        addr_timestamps: &AddrTimestamps<F>,
+    ) -> (Vec<F>, Vec<F>, F) where
+        E: Pairing<ScalarField=F>,
+    {
         let (rand_mem, rand_ops) = rand;
 
         // decommit ops-addr at rand_ops
-        let mut eval_ops_addr_vec: Vec<E::ScalarField> = Vec::new();
+        let mut eval_ops_addr_vec: Vec<F> = Vec::new();
         for i in 0..addr_timestamps.ops_addr.len() {
             let eval_ops_addr = addr_timestamps.ops_addr[i].evaluate(rand_ops);
             eval_ops_addr_vec.push(eval_ops_addr);
         }
 
         // decommit read_ts at rand_ops
-        let mut eval_read_ts_vec: Vec<E::ScalarField> = Vec::new();
+        let mut eval_read_ts_vec: Vec<F> = Vec::new();
         for i in 0..addr_timestamps.read_ts.len() {
             let eval_read_ts = addr_timestamps.read_ts[i].evaluate(rand_ops);
             eval_read_ts_vec.push(eval_read_ts);
@@ -778,13 +820,15 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> HashLayerProof<E, PC> {
         (eval_ops_addr_vec, eval_read_ts_vec, eval_audit_ts)
     }
 
-    fn prove(
-        rand: (&Vec<E::ScalarField>, &Vec<E::ScalarField>),
-        dense: &MultiSparseMatPolynomialAsDense<E::ScalarField>,
-        derefs: &Derefs<E::ScalarField>,
+    fn prove<F: PrimeField + Absorb>(
+        rand: (&Vec<F>, &Vec<F>),
+        dense: &MultiSparseMatPolynomialAsDense<F>,
+        derefs: &Derefs<F>,
         gens: &SparseMatPolyCommitmentKey<E, PC>,
-        transcript: &mut Transcript<E::ScalarField>,
-    ) -> Self {
+        transcript: &mut Transcript<F>,
+    ) -> Self where
+        E: Pairing<ScalarField=F>,
+    {
         Transcript::append_protocol_name(
             transcript,
             HashLayerProof::<E, PC>::protocol_name(),
@@ -795,10 +839,10 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> HashLayerProof<E, PC> {
         // decommit derefs at rand_ops
         let eval_row_ops_val = (0..derefs.row_ops_val.len())
             .map(|i| derefs.row_ops_val[i].evaluate(rand_ops))
-            .collect::<Vec<E::ScalarField>>();
+            .collect::<Vec<F>>();
         let eval_col_ops_val = (0..derefs.col_ops_val.len())
             .map(|i| derefs.col_ops_val[i].evaluate(rand_ops))
-            .collect::<Vec<E::ScalarField>>();
+            .collect::<Vec<F>>();
         let proof_derefs = DerefsEvalProof::prove(
             derefs,
             &eval_row_ops_val,
@@ -907,27 +951,27 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> HashLayerProof<E, PC> {
         }
     }
 
-    fn verify_helper(
-        rand: &(&Vec<E::ScalarField>, &Vec<E::ScalarField>),
+    fn verify_helper<F: PrimeField + Absorb>(
+        rand: &(&Vec<F>, &Vec<F>),
         claims: &(
-            E::ScalarField,
-            Vec<E::ScalarField>,
-            Vec<E::ScalarField>,
-            E::ScalarField,
+            F,
+            Vec<F>,
+            Vec<F>,
+            F,
         ),
-        eval_ops_val: &[E::ScalarField],
-        eval_ops_addr: &[E::ScalarField],
-        eval_read_ts: &[E::ScalarField],
-        eval_audit_ts: &E::ScalarField,
-        r: &[E::ScalarField],
-        r_hash: &E::ScalarField,
-        r_multiset_check: &E::ScalarField,
+        eval_ops_val: &[F],
+        eval_ops_addr: &[F],
+        eval_read_ts: &[F],
+        eval_audit_ts: &F,
+        r: &[F],
+        r_hash: &F,
+        r_multiset_check: &F,
     ) -> Result<(), ProofVerifyError> {
         let r_hash_sqr = r_hash.square();
-        let hash_func = |addr: &E::ScalarField,
-                         val: &E::ScalarField,
-                         ts: &E::ScalarField|
-                         -> E::ScalarField { *ts * r_hash_sqr + *val * *r_hash + *addr };
+        let hash_func = |addr: &F,
+                         val: &F,
+                         ts: &F|
+                         -> F { *ts * r_hash_sqr + *val * *r_hash + *addr };
 
         let (rand_mem, _rand_ops) = rand;
         let (claim_init, claim_read, claim_write, claim_audit) = claims;
@@ -936,7 +980,7 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> HashLayerProof<E, PC> {
         let eval_init_addr = IdentityPolynomial::new(rand_mem.len()).evaluate(rand_mem);
         let eval_init_val = EqPolynomial::new(r.to_vec()).evaluate(rand_mem);
         let hash_init_at_rand_mem =
-            hash_func(&eval_init_addr, &eval_init_val, &E::ScalarField::zero()) - r_multiset_check; // verify the claim_last of init chunk
+            hash_func(&eval_init_addr, &eval_init_val, &F::zero()) - r_multiset_check; // verify the claim_last of init chunk
         assert_eq!(&hash_init_at_rand_mem, claim_init);
 
         // read
@@ -948,7 +992,7 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> HashLayerProof<E, PC> {
 
         // write: shares addr, val component; only decommit write_ts
         for i in 0..eval_ops_addr.len() {
-            let eval_write_ts = eval_read_ts[i] + E::ScalarField::one();
+            let eval_write_ts = eval_read_ts[i] + F::one();
             let hash_write_at_rand_ops =
                 hash_func(&eval_ops_addr[i], &eval_ops_val[i], &eval_write_ts) - r_multiset_check; // verify the claim_last of init chunk
             assert_eq!(&hash_write_at_rand_ops, &claim_write[i]);
@@ -964,31 +1008,33 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> HashLayerProof<E, PC> {
         Ok(())
     }
 
-    fn verify(
+    fn verify<F: PrimeField + Absorb>(
         &self,
-        rand: (&Vec<E::ScalarField>, &Vec<E::ScalarField>),
+        rand: (&Vec<F>, &Vec<F>),
         claims_row: &(
-            E::ScalarField,
-            Vec<E::ScalarField>,
-            Vec<E::ScalarField>,
-            E::ScalarField,
+            F,
+            Vec<F>,
+            Vec<F>,
+            F,
         ),
         claims_col: &(
-            E::ScalarField,
-            Vec<E::ScalarField>,
-            Vec<E::ScalarField>,
-            E::ScalarField,
+            F,
+            Vec<F>,
+            Vec<F>,
+            F,
         ),
-        claims_dotp: &[E::ScalarField],
+        claims_dotp: &[F],
         comm: &SparseMatPolyCommitment<E, PC>,
         gens: &SparseMatPolyCommitmentKey<E, PC>,
         comm_derefs: &DerefsCommitment<E, PC>,
-        rx: &[E::ScalarField],
-        ry: &[E::ScalarField],
-        r_hash: &E::ScalarField,
-        r_multiset_check: &E::ScalarField,
-        transcript: &mut Transcript<E::ScalarField>,
-    ) -> Result<(), ProofVerifyError> {
+        rx: &[F],
+        ry: &[F],
+        r_hash: &F,
+        r_multiset_check: &F,
+        transcript: &mut Transcript<F>,
+    ) -> Result<(), ProofVerifyError> where
+        E: Pairing<ScalarField=F>,
+    {
         let timer = Timer::new("verify_hash_proof");
         Transcript::append_protocol_name(
             transcript,
@@ -1065,7 +1111,7 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> HashLayerProof<E, PC> {
 
         // verify proof-mem using comm_comb_mem at rand_mem
         // form a single decommitment using comb_comb_mem at rand_mem
-        let evals_mem: Vec<E::ScalarField> = vec![*eval_row_audit_ts, *eval_col_audit_ts];
+        let evals_mem: Vec<F> = vec![*eval_row_audit_ts, *eval_col_audit_ts];
         Transcript::append_scalars(transcript, b"claim_evals_mem", &evals_mem);
         let challenges_mem = Transcript::challenge_vector(
             transcript,
@@ -1127,7 +1173,7 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> HashLayerProof<E, PC> {
 }
 
 #[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
-struct ProductLayerProof<F: PrimeField> {
+struct ProductLayerProof<F: PrimeField + Absorb> {
     eval_row: (F, Vec<F>, Vec<F>, F),
     eval_col: (F, Vec<F>, Vec<F>, F),
     eval_val: (Vec<F>, Vec<F>),
@@ -1135,7 +1181,7 @@ struct ProductLayerProof<F: PrimeField> {
     proof_ops: ProductCircuitEvalProofBatched<F>,
 }
 
-impl<F: PrimeField> ProductLayerProof<F> {
+impl<F: PrimeField + Absorb> ProductLayerProof<F> {
     fn protocol_name() -> &'static [u8] {
         b"Sparse polynomial product layer proof"
     }
@@ -1149,7 +1195,7 @@ impl<F: PrimeField> ProductLayerProof<F> {
         transcript: &mut Transcript<F>,
     ) -> (Self, Vec<F>, Vec<F>)
     where
-        E: Pairing<ScalarField = F>,
+        E: Pairing<ScalarField=F>,
     {
         Transcript::append_protocol_name(
             transcript,
@@ -1380,7 +1426,7 @@ impl<F: PrimeField> ProductLayerProof<F> {
         transcript: &mut Transcript<F>,
     ) -> Result<(Vec<F>, Vec<F>, Vec<F>, Vec<F>, Vec<F>), ProofVerifyError>
     where
-        E: Pairing<ScalarField = F>,
+        E: Pairing<ScalarField=F>,
     {
         Transcript::append_protocol_name(
             transcript,
@@ -1508,30 +1554,38 @@ impl<F: PrimeField> ProductLayerProof<F> {
 }
 
 #[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
-struct PolyEvalNetworkProof<E: Pairing, PC: PolyCommitmentScheme<E>> {
+struct PolyEvalNetworkProof<E: Pairing, PC: PolyCommitmentScheme<E>>
+where
+    <E as Pairing>::ScalarField: Absorb,
+{
     proof_prod_layer: ProductLayerProof<E::ScalarField>,
     proof_hash_layer: HashLayerProof<E, PC>,
 }
 
-impl<E: Pairing, PC: PolyCommitmentScheme<E>> PolyEvalNetworkProof<E, PC> {
+impl<E: Pairing, PC: PolyCommitmentScheme<E>> PolyEvalNetworkProof<E, PC>
+where
+    <E as Pairing>::ScalarField: Absorb,
+{
     fn protocol_name() -> &'static [u8] {
         b"Sparse polynomial evaluation proof"
     }
 
-    pub fn prove(
-        network: &mut PolyEvalNetwork<E::ScalarField>,
-        dense: &MultiSparseMatPolynomialAsDense<E::ScalarField>,
-        derefs: &Derefs<E::ScalarField>,
-        evals: &[E::ScalarField],
+    pub fn prove<F: PrimeField + Absorb>(
+        network: &mut PolyEvalNetwork<F>,
+        dense: &MultiSparseMatPolynomialAsDense<F>,
+        derefs: &Derefs<F>,
+        evals: &[F],
         gens: &SparseMatPolyCommitmentKey<E, PC>,
-        transcript: &mut Transcript<E::ScalarField>,
-    ) -> Self {
+        transcript: &mut Transcript<F>,
+    ) -> Self where
+        E: Pairing<ScalarField=F>,
+    {
         Transcript::append_protocol_name(
             transcript,
             PolyEvalNetworkProof::<E, PC>::protocol_name(),
         );
 
-        let (proof_prod_layer, rand_mem, rand_ops) = ProductLayerProof::<E::ScalarField>::prove::<E>(
+        let (proof_prod_layer, rand_mem, rand_ops) = ProductLayerProof::<F>::prove::<E>(
             &mut network.row_layers.prod_layer,
             &mut network.col_layers.prod_layer,
             dense,
@@ -1618,23 +1672,23 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> PolyEvalNetworkProof<E, PC> {
 }
 
 
-pub struct SparsePolyEntry<F> {
+pub struct SparsePolyEntry<F: Absorb> {
     idx: usize,
     val: F,
 }
 
-impl<F> SparsePolyEntry<F> {
+impl<F: Absorb> SparsePolyEntry<F> {
     pub fn new(idx: usize, val: F) -> Self {
         SparsePolyEntry { idx, val }
     }
 }
 
-pub struct SparsePolynomial<F> {
+pub struct SparsePolynomial<F: Absorb> {
     num_vars: usize,
     Z: Vec<SparsePolyEntry<F>>,
 }
 
-impl<F: PrimeField> SparsePolynomial<F> {
+impl<F: PrimeField + Absorb> SparsePolynomial<F> {
     pub fn new(num_vars: usize, Z: Vec<SparsePolyEntry<F>>) -> Self {
         SparsePolynomial { num_vars, Z }
     }

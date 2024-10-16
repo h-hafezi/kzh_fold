@@ -1,9 +1,9 @@
-use core::fmt::Debug;
-
+use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
 use ark_poly_commit::Error;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use ark_std::{rand::RngCore};
+use ark_std::rand::RngCore;
+use core::fmt::Debug;
 use derivative::Derivative;
 
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
@@ -12,7 +12,10 @@ use crate::transcript::transcript::AppendToTranscript;
 pub mod error;
 pub mod kzh;
 
-pub trait VectorCommitmentScheme<E: Pairing> {
+pub trait VectorCommitmentScheme<E: Pairing>
+where
+    <E as Pairing>::ScalarField: Absorb,
+{
     type VectorCommitment: AppendToTranscript<E::ScalarField>
     + Sized
     + Sync
@@ -29,13 +32,16 @@ pub trait VectorCommitmentScheme<E: Pairing> {
 pub struct PCSKeys<E, PC>
 where
     PC: PolyCommitmentScheme<E> + ?Sized,
-    E: Pairing,
+    E: Pairing, <E as Pairing>::ScalarField: Absorb
 {
     pub ck: PC::PolyCommitmentKey,
     pub vk: PC::EvalVerifierKey,
 }
 
-pub trait PolyCommitmentScheme<E: Pairing>: Send + Sync {
+pub trait PolyCommitmentScheme<E: Pairing>: Send + Sync
+where
+    <E as Pairing>::ScalarField: Absorb,
+{
     type SRS: CanonicalSerialize + CanonicalDeserialize + Clone;
 
     type PolyCommitmentKey: CanonicalSerialize + CanonicalDeserialize + Clone;
@@ -43,12 +49,12 @@ pub trait PolyCommitmentScheme<E: Pairing>: Send + Sync {
     type EvalVerifierKey: CanonicalSerialize + CanonicalDeserialize + Clone;
 
     type Commitment: AppendToTranscript<E::ScalarField>
-        + Debug
-        + CanonicalSerialize
-        + CanonicalDeserialize
-        + PartialEq
-        + Eq
-        + Clone;
+    + Debug
+    + CanonicalSerialize
+    + CanonicalDeserialize
+    + PartialEq
+    + Eq
+    + Clone;
 
     // The commitments should be compatible with a homomorphic vector commitment valued in G
     type PolyCommitmentProof: Sync + CanonicalSerialize + CanonicalDeserialize + Debug;
@@ -85,7 +91,10 @@ pub trait PolyCommitmentScheme<E: Pairing>: Send + Sync {
     fn trim(srs: &Self::SRS) -> PCSKeys<E, Self>;
 }
 
-impl<E: Pairing, PC: PolyCommitmentScheme<E>> VectorCommitmentScheme<E> for PC {
+impl<E: Pairing, PC: PolyCommitmentScheme<E>> VectorCommitmentScheme<E> for PC
+where
+    <E as Pairing>::ScalarField: Absorb,
+{
     type VectorCommitment = PC::Commitment;
     type CommitmentKey = PC::PolyCommitmentKey;
     fn commit(vec: &[<E>::ScalarField], ck: &Self::CommitmentKey) -> Self::VectorCommitment {

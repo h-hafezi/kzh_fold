@@ -1,4 +1,6 @@
 #![allow(dead_code)]
+
+use ark_crypto_primitives::sponge::Absorb;
 use crate::math::Math;
 use super::sumcheck::SumcheckInstanceProof;
 use ark_ec::pairing::Pairing;
@@ -11,13 +13,13 @@ use crate::transcript::transcript::Transcript;
 #[derive(Debug)]
 pub struct ProductCircuit<F>
 where
-    F: Sync + CanonicalDeserialize + CanonicalSerialize + PrimeField,
+    F: Sync + CanonicalDeserialize + CanonicalSerialize + PrimeField + Absorb,
 {
     left_vec: Vec<MultilinearPolynomial<F>>,
     right_vec: Vec<MultilinearPolynomial<F>>,
 }
 
-impl<F: PrimeField> ProductCircuit<F> {
+impl<F: PrimeField + Absorb> ProductCircuit<F> {
     fn compute_layer(
         inp_left: &MultilinearPolynomial<F>,
         inp_right: &MultilinearPolynomial<F>,
@@ -68,14 +70,14 @@ impl<F: PrimeField> ProductCircuit<F> {
 
 pub struct DotProductCircuit<F>
 where
-    F: Sync + CanonicalDeserialize + CanonicalSerialize + PrimeField,
+    F: Sync + CanonicalDeserialize + CanonicalSerialize + PrimeField + Absorb,
 {
     left: MultilinearPolynomial<F>,
     right: MultilinearPolynomial<F>,
     weight: MultilinearPolynomial<F>,
 }
 
-impl<F: PrimeField> DotProductCircuit<F> {
+impl<F: PrimeField + Absorb> DotProductCircuit<F> {
     pub fn new(
         left: MultilinearPolynomial<F>,
         right: MultilinearPolynomial<F>,
@@ -119,13 +121,13 @@ impl<F: PrimeField> DotProductCircuit<F> {
 
 #[allow(dead_code)]
 #[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
-pub struct LayerProof<F: PrimeField> {
+pub struct LayerProof<F: PrimeField + Absorb> {
     pub proof: SumcheckInstanceProof<F>,
     pub claims: Vec<F>,
 }
 
 #[allow(dead_code)]
-impl<F: PrimeField> LayerProof<F> {
+impl<F: PrimeField + Absorb> LayerProof<F> {
     pub fn verify<E>(
         &self,
         claim: F,
@@ -145,14 +147,14 @@ impl<F: PrimeField> LayerProof<F> {
 
 #[allow(dead_code)]
 #[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
-pub struct LayerProofBatched<F: PrimeField> {
+pub struct LayerProofBatched<F: PrimeField + Absorb> {
     pub proof: SumcheckInstanceProof<F>,
     pub claims_prod_left: Vec<F>,
     pub claims_prod_right: Vec<F>,
 }
 
 #[allow(dead_code)]
-impl<F: PrimeField> LayerProofBatched<F> {
+impl<F: PrimeField + Absorb> LayerProofBatched<F> {
     pub fn verify<E>(
         &self,
         claim: F,
@@ -171,17 +173,17 @@ impl<F: PrimeField> LayerProofBatched<F> {
 }
 
 #[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
-pub struct ProductCircuitEvalProof<F: PrimeField> {
+pub struct ProductCircuitEvalProof<F: PrimeField + Absorb> {
     proof: Vec<LayerProof<F>>,
 }
 
 #[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
-pub struct ProductCircuitEvalProofBatched<F: PrimeField> {
+pub struct ProductCircuitEvalProofBatched<F: PrimeField + Absorb> {
     proof: Vec<LayerProofBatched<F>>,
     claims_dotp: (Vec<F>, Vec<F>, Vec<F>),
 }
 
-impl<F: PrimeField> ProductCircuitEvalProof<F> {
+impl<F: PrimeField+ Absorb> ProductCircuitEvalProof<F> {
     #![allow(dead_code)]
     pub fn prove<E>(circuit: &mut ProductCircuit<F>, transcript: &mut Transcript<F>) -> (Self, F, Vec<F>)
     where
@@ -284,7 +286,7 @@ impl<F: PrimeField> ProductCircuitEvalProof<F> {
     }
 }
 
-impl<F: PrimeField> ProductCircuitEvalProofBatched<F> {
+impl<F: PrimeField + Absorb> ProductCircuitEvalProofBatched<F> {
     pub fn prove<E>(
         prod_circuit_vec: &mut [&mut ProductCircuit<F>],
         dotp_circuit_vec: &mut [&mut DotProductCircuit<F>],

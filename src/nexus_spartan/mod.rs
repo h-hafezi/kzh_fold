@@ -19,11 +19,12 @@ mod unipoly;
 mod conversion;
 mod sumcheck_circuit;
 
+use ark_crypto_primitives::sponge::Absorb;
+use ark_ec::pairing::Pairing;
 use ark_ff::PrimeField;
 use ark_serialize::*;
 use core::cmp::max;
-use ark_ec::pairing::Pairing;
-use errors::{R1CSError};
+use errors::R1CSError;
 use polycommitments::PolyCommitmentScheme;
 use r1csinstance::{
     R1CSCommitment, R1CSDecommitment, R1CSInstance,
@@ -31,7 +32,10 @@ use r1csinstance::{
 
 /// `ComputationCommitment` holds a public preprocessed NP statement (e.g., R1CS)
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
-pub struct ComputationCommitment<E: Pairing, PC: PolyCommitmentScheme<E>> {
+pub struct ComputationCommitment<E: Pairing, PC: PolyCommitmentScheme<E>>
+where
+    <E as Pairing>::ScalarField: Absorb,
+{
     comm: R1CSCommitment<E, PC>,
 }
 
@@ -39,7 +43,7 @@ pub struct ComputationCommitment<E: Pairing, PC: PolyCommitmentScheme<E>> {
 #[derive(CanonicalDeserialize, CanonicalSerialize)]
 pub struct ComputationDecommitment<F>
 where
-    F: Sync + CanonicalDeserialize + CanonicalSerialize + PrimeField,
+    F: Sync + CanonicalDeserialize + CanonicalSerialize + PrimeField + Absorb,
 {
     decomm: R1CSDecommitment<F>,
 }
@@ -50,7 +54,7 @@ pub struct Assignment<F> {
     pub assignment: Vec<F>,
 }
 
-impl<F: PrimeField> Assignment<F> {
+impl<F: PrimeField + Absorb> Assignment<F> {
     /// Constructs a new `Assignment` from a vector
     pub fn new(assignment: &[F]) -> Result<Self, R1CSError> {
         let bytes_to_scalar = |vec: &[F]| -> Result<Vec<F>, R1CSError> {
@@ -93,11 +97,11 @@ pub type InputsAssignment<F> = Assignment<F>;
 
 /// `Instance` holds the description of R1CS matrices
 #[derive(CanonicalDeserialize, CanonicalSerialize)]
-pub struct Instance<F: PrimeField> {
+pub struct Instance<F: PrimeField + Absorb> {
     pub inst: R1CSInstance<F>,
 }
 
-impl<F: PrimeField> Instance<F> {
+impl<F: PrimeField + Absorb> Instance<F> {
     /// Constructs a new `Instance` and an associated satisfying assignment
     pub fn new(
         num_cons: usize,

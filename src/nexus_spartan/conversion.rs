@@ -1,19 +1,20 @@
 #![allow(warnings)]
 
 use crate::commitment::CommitmentScheme;
-use crate::gadgets::r1cs::{R1CSInstance, R1CSShape, R1CSWitness};
+use crate::gadgets::r1cs::R1CSShape;
 use crate::gadgets::sparse::SparseMatrix;
-use crate::nexus_spartan::crr1cs::{CRR1CSInstance, CRR1CSKey, CRR1CSShape, CRR1CSWitness};
+use crate::nexus_spartan::crr1cs::{CRR1CSInstance, CRR1CSShape, CRR1CSWitness};
 use crate::nexus_spartan::errors::R1CSError;
 use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
 use crate::nexus_spartan::{Assignment, Instance};
-use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 use ark_ec::pairing::Pairing;
-use ark_ec::short_weierstrass::{Affine, Projective, SWCurveConfig};
+use ark_ec::short_weierstrass::{Affine, SWCurveConfig};
 use ark_ff::PrimeField;
 use ark_relations::r1cs::ConstraintSystemRef;
 use std::error::Error;
 use std::fmt::Display;
+use ark_crypto_primitives::sponge::Absorb;
+use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 
 #[derive(Debug)]
 pub enum ConversionError {
@@ -42,8 +43,8 @@ impl Display for ConversionError {
     }
 }
 
-impl<F: PrimeField> CRR1CSShape<F> {
-    pub(crate) fn convert<G: SWCurveConfig<ScalarField=F>>(cs: ConstraintSystemRef<F>) -> Self{
+impl<F: PrimeField + Absorb> CRR1CSShape<F> {
+    pub(crate) fn convert<G: SWCurveConfig<ScalarField=F>>(cs: ConstraintSystemRef<F>) -> Self {
         // convert constraint system into R1CS shape
         let shape: R1CSShape<G> = R1CSShape::from(cs);
         // extract R1CS field
@@ -86,6 +87,7 @@ impl<PC, E> CRR1CSInstance<E, PC>
 where
     E: Pairing,
     PC: PolyCommitmentScheme<E>,
+    <E as Pairing>::ScalarField: Absorb,
 {
     pub(crate) fn convert<G: SWCurveConfig>(
         cs: ConstraintSystemRef<G::ScalarField>,
@@ -109,8 +111,8 @@ where
     }
 }
 
-impl<F: PrimeField> CRR1CSWitness<F> {
-    pub(crate) fn convert(cs: ConstraintSystemRef<F>, ) -> Self {
+impl<F: PrimeField + Absorb> CRR1CSWitness<F> {
+    pub(crate) fn convert(cs: ConstraintSystemRef<F>) -> Self {
         let cs_borrow = cs.borrow().unwrap();
         let witness = cs_borrow.witness_assignment.clone();
         CRR1CSWitness { W: Assignment::new(&witness).unwrap() }
@@ -120,10 +122,7 @@ impl<F: PrimeField> CRR1CSWitness<F> {
 
 #[cfg(test)]
 mod tests {
-    use crate::commitment::CommitmentScheme;
     use crate::constant_for_curves::{ScalarField, E, G1};
-    use crate::gadgets::r1cs::r1cs::{R1CSInstance, R1CSWitness};
-    use crate::gadgets::r1cs::R1CSShape;
     use crate::hash::pederson::PedersenCommitment;
     use crate::nexus_spartan::crr1cs::{is_sat, CRR1CSInstance, CRR1CSKey, CRR1CSShape, CRR1CSWitness};
     use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
@@ -132,10 +131,9 @@ mod tests {
     use ark_ec::short_weierstrass::Projective;
     use ark_ec::CurveConfig;
     use ark_ff::PrimeField;
-    use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
+    use ark_r1cs_std::alloc::AllocVar;
     use ark_r1cs_std::eq::EqGadget;
     use ark_r1cs_std::fields::fp::FpVar;
-    use ark_relations::ns;
     use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef, SynthesisError, SynthesisMode};
     use rand::thread_rng;
 
