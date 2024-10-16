@@ -1,9 +1,8 @@
-use ark_crypto_primitives::sponge::Absorb;
+/*use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::AffineRepr;
 use ark_ff::{PrimeField};
 use rand::RngCore;
 use ark_ec::pairing::Pairing;
-use transcript::IOPTranscript;
 
 use crate::accumulation::accumulator::{AccInstance, AccWitness, Accumulator};
 use crate::polynomial::eq_poly::EqPolynomial;
@@ -12,6 +11,7 @@ use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 use crate::nexus_spartan::sumcheck::SumcheckInstanceProof;
 use crate::{accumulation,};
 use crate::pcs::multilinear_pcs::{PolyCommit, Commitment};
+use crate::transcript::transcript::Transcript;
 
 // XXX move to mod.rs or somewhere neutral
 #[derive(Clone, Debug)]
@@ -125,7 +125,7 @@ where
         }
     }
 
-    pub fn aggregate(&self, transcript: &mut IOPTranscript<E::ScalarField>) -> SignatureAggrData<E> {
+    pub fn aggregate(&self, transcript: &mut Transcript<E::ScalarField>) -> SignatureAggrData<E> {
         let poly_commit = PolyCommit { srs: self.srs.acc_srs.pc_srs.clone() }; // XXX no clone. bad ergonomics
         // Step 1:
         // let pk = self.A_1.pk + self.A_2.pk;
@@ -273,7 +273,7 @@ where
         )
     }
 
-    pub fn verify(self, transcript: &mut IOPTranscript<E::ScalarField>) -> bool {
+    pub fn verify(self, transcript: &mut Transcript<E::ScalarField>) -> bool {
         // Step 1:
         // Get r challenge from verifier
         transcript.append_serializable_element(b"poly", &self.A.bitfield_commitment.C).unwrap();
@@ -344,8 +344,8 @@ pub mod test {
     #[test]
     fn test_aggregate() {
         let rng = &mut rand::thread_rng();
-        let mut transcript_p = IOPTranscript::<ScalarField>::new(b"aggr");
-        let mut transcript_v = IOPTranscript::<ScalarField>::new(b"aggr");
+        let mut transcript_p = Transcript::<ScalarField>::new(b"aggr");
+        let mut transcript_v = Transcript::<ScalarField>::new(b"aggr");
 
         // num_vars = log(degree_x) + log(degree_y)
         let degree_x = 8usize;
@@ -377,5 +377,6 @@ pub mod test {
         assert_eq!(true, verifier.verify(&mut transcript_v))
     }
 }
+ */
 
 

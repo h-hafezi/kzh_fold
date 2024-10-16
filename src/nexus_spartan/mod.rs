@@ -1,6 +1,5 @@
 extern crate core;
 extern crate digest;
-extern crate merlin;
 extern crate rand;
 extern crate sha3;
 
@@ -16,7 +15,6 @@ mod random;
 pub mod sparse_mlpoly;
 pub mod sumcheck;
 mod timer;
-mod transcript;
 mod unipoly;
 mod conversion;
 mod sumcheck_circuit;

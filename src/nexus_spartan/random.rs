@@ -1,14 +1,12 @@
 use std::marker::PhantomData;
 
-use super::transcript::ProofTranscript;
 use ark_ec::pairing::Pairing;
-use ark_ff::UniformRand;
+use ark_ff::{PrimeField, UniformRand};
 use ark_std::test_rng;
-use merlin::Transcript;
+use crate::transcript::transcript::Transcript;
 
-pub struct RandomTape<E> {
-    pub(crate) tape: Transcript,
-    phantom: PhantomData<E>,
+pub struct RandomTape<E: Pairing> {
+    pub tape: Transcript<E::ScalarField>,
 }
 
 impl<E: Pairing> RandomTape<E> {
@@ -16,7 +14,7 @@ impl<E: Pairing> RandomTape<E> {
         let tape = {
             let mut prng = test_rng();
             let mut tape = Transcript::new(name);
-            <Transcript as ProofTranscript<E>>::append_scalar(
+            Transcript::append_scalar(
                 &mut tape,
                 b"init_randomness",
                 &E::ScalarField::rand(&mut prng),
@@ -25,15 +23,14 @@ impl<E: Pairing> RandomTape<E> {
         };
         Self {
             tape,
-            phantom: PhantomData,
         }
     }
 
     pub fn random_scalar(&mut self, label: &'static [u8]) -> E::ScalarField {
-        <Transcript as ProofTranscript<E>>::challenge_scalar(&mut self.tape, label)
+        Transcript::challenge_scalar(&mut self.tape, label)
     }
 
     pub fn random_vector(&mut self, label: &'static [u8], len: usize) -> Vec<E::ScalarField> {
-        <Transcript as ProofTranscript<E>>::challenge_vector(&mut self.tape, label, len)
+        Transcript::challenge_vector(&mut self.tape, label, len)
     }
 }

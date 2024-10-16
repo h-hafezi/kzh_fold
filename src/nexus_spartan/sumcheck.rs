@@ -1,7 +1,6 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::type_complexity)]
 use super::errors::ProofVerifyError;
-use super::transcript::{AppendToTranscript, ProofTranscript};
 use super::unipoly::{CompressedUniPoly, UniPoly};
 use ark_ec::CurveGroup;
 use ark_ec::pairing::Pairing;
@@ -9,9 +8,8 @@ use ark_ff::PrimeField;
 use ark_serialize::*;
 
 use itertools::izip;
-use merlin::Transcript;  // original nexus transcript
-use transcript::IOPTranscript; // our own transcript
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
+use crate::transcript::transcript::{AppendToTranscript, Transcript};
 
 #[derive(CanonicalSerialize, CanonicalDeserialize, Debug, Clone)]
 pub struct SumcheckInstanceProof<F: PrimeField> {
@@ -28,7 +26,7 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
         claim: F,
         num_rounds: usize,
         degree_bound: usize,
-        transcript: &mut Transcript,
+        transcript: &mut Transcript<F>,
     ) -> Result<(F, Vec<F>), ProofVerifyError>
     where
         E: Pairing<ScalarField = F>,
@@ -48,11 +46,10 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
             assert_eq!(poly.eval_at_zero() + poly.eval_at_one(), e);
 
             // append the prover's message to the transcript
-            <UniPoly<F> as AppendToTranscript<E>>::append_to_transcript(&poly, b"poly", transcript);
+            <UniPoly<F> as AppendToTranscript<F>>::append_to_transcript(&poly, b"poly", transcript);
 
             //derive the verifier's challenge for the next round
-            let r_i =
-                <Transcript as ProofTranscript<E>>::challenge_scalar(transcript, b"challenge_nextround");
+            let r_i = Transcript::challenge_scalar(transcript, b"challenge_nextround");
 
             r.push(r_i);
 
@@ -72,7 +69,7 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
         poly_B: &mut MultilinearPolynomial<F>,
         poly_C: &mut MultilinearPolynomial<F>,
         comb_func: Func,
-        transcript: &mut Transcript,
+        transcript: &mut Transcript<F>,
     ) -> (Self, Vec<F>, Vec<F>)
     where
         Func: Fn(&F, &F, &F) -> F,
@@ -117,11 +114,10 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
             let poly = UniPoly::from_evals(&evals);
 
             // append the prover's message to the transcript
-            <UniPoly<F> as AppendToTranscript<E>>::append_to_transcript(&poly, b"poly", transcript);
+            <UniPoly<F> as AppendToTranscript<F>>::append_to_transcript(&poly, b"poly", transcript);
 
             //derive the verifier's challenge for the next round
-            let r_j =
-                <Transcript as ProofTranscript<E>>::challenge_scalar(transcript, b"challenge_nextround");
+            let r_j = Transcript::challenge_scalar(transcript, b"challenge_nextround");
 
             r.push(r_j);
             // bound all tables to the verifier's challenege
@@ -154,7 +150,7 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
         ),
         coeffs: &[F],
         comb_func: Func,
-        transcript: &mut Transcript,
+        transcript: &mut Transcript<F>,
     ) -> (Self, Vec<F>, (Vec<F>, Vec<F>, F), (Vec<F>, Vec<F>, Vec<F>))
     where
         Func: Fn(&F, &F, &F) -> F,
@@ -253,11 +249,10 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
             let poly = UniPoly::from_evals(&evals);
 
             // append the prover's message to the transcript
-            <UniPoly<F> as AppendToTranscript<E>>::append_to_transcript(&poly, b"poly", transcript);
+            <UniPoly<F> as AppendToTranscript<F>>::append_to_transcript(&poly, b"poly", transcript);
 
             //derive the verifier's challenge for the next round
-            let r_j =
-                <Transcript as ProofTranscript<E>>::challenge_scalar(transcript, b"challenge_nextround");
+            let r_j = Transcript::challenge_scalar(transcript, b"challenge_nextround");
             r.push(r_j);
 
             // bound all tables to the verifier's challenege
@@ -310,7 +305,7 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
 }
 
 
-// XXX: This is used for the signature aggregation protocol!!!
+/*// XXX: This is used for the signature aggregation protocol!!!
 impl<F: PrimeField> SumcheckInstanceProof<F> {
     pub fn prove_cubic_four_terms<Func, G>(
         claim: &F,
@@ -320,7 +315,7 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
         poly_C: &mut MultilinearPolynomial<F>,
         poly_D: &mut MultilinearPolynomial<F>,
         comb_func: Func,
-        transcript: &mut IOPTranscript<F>,
+        transcript: &mut Transcript<F>,
     ) -> (Self, Vec<F>, Vec<F>)
     where
         Func: Fn(&F, &F, &F, &F) -> F,
@@ -397,7 +392,7 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
         claim: F,
         num_rounds: usize,
         degree_bound: usize,
-        transcript: &mut IOPTranscript<F>,
+        transcript: &mut Transcript<F>,
     ) -> Result<(F, Vec<F>), ProofVerifyError>
     where
         G: CurveGroup<ScalarField=F>,
@@ -436,3 +431,5 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
         Ok((e, r))
     }
 }
+
+ */

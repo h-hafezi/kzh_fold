@@ -1,10 +1,9 @@
 use super::commitments::{Commitments, MultiCommitGens};
-use super::transcript::{AppendToTranscript, ProofTranscript};
-use ark_ec::CurveGroup;
+use crate::transcript::transcript::{AppendToTranscript, Transcript};
 use ark_ec::pairing::Pairing;
+use ark_ec::CurveGroup;
 use ark_ff::PrimeField;
 use ark_serialize::*;
-use merlin::Transcript;
 
 // ax^2 + bx + c stored as vec![c,b,a]
 // ax^3 + bx^2 + cx + d stored as vec![d,c,b,a]
@@ -88,7 +87,7 @@ impl<F: PrimeField> UniPoly<F> {
         }
     }
 
-    pub fn commit<G: CurveGroup<ScalarField = F>>(&self, gens: &MultiCommitGens<G>, blind: &F) -> G {
+    pub fn commit<G: CurveGroup<ScalarField=F>>(&self, gens: &MultiCommitGens<G>, blind: &F) -> G {
         Commitments::batch_commit(&self.coeffs, blind, gens)
     }
 }
@@ -110,11 +109,11 @@ impl<F: PrimeField> CompressedUniPoly<F> {
     }
 }
 
-impl<E: Pairing> AppendToTranscript<E> for UniPoly<E::ScalarField> {
-    fn append_to_transcript(&self, label: &'static [u8], transcript: &mut Transcript) {
+impl<F: PrimeField> AppendToTranscript<F> for UniPoly<F> {
+    fn append_to_transcript(&self, label: &'static [u8], transcript: &mut Transcript<F>) {
         transcript.append_message(label, b"UniPoly_begin");
         for i in 0..self.coeffs.len() {
-            <Transcript as ProofTranscript<E>>::append_scalar(transcript, b"coeff", &self.coeffs[i]);
+            Transcript::append_scalar(transcript, b"coeff", &self.coeffs[i]);
         }
         transcript.append_message(label, b"UniPoly_end");
     }
@@ -122,7 +121,6 @@ impl<E: Pairing> AppendToTranscript<E> for UniPoly<E::ScalarField> {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
     use ark_bls12_381::Fr;
 

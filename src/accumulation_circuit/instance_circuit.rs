@@ -34,6 +34,7 @@ where
     pub C_var: NonNativeAffineVar<G1>,
     pub T_var: NonNativeAffineVar<G1>,
     pub E_var: NonNativeAffineVar<G1>,
+
     // the field elements G1::ScalarField
     pub x_var: Vec<FpVar<G1::ScalarField>>,
     pub y_var: Vec<FpVar<G1::ScalarField>>,

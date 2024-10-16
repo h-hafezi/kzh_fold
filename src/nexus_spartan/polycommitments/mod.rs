@@ -6,14 +6,14 @@ use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::{rand::RngCore};
 use derivative::Derivative;
 
-use crate::nexus_spartan::transcript::AppendToTranscript;
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
+use crate::transcript::transcript::AppendToTranscript;
 
 pub mod error;
 pub mod kzh;
 
 pub trait VectorCommitmentScheme<E: Pairing> {
-    type VectorCommitment: AppendToTranscript<E>
+    type VectorCommitment: AppendToTranscript<E::ScalarField>
     + Sized
     + Sync
     + CanonicalSerialize
@@ -42,7 +42,7 @@ pub trait PolyCommitmentScheme<E: Pairing>: Send + Sync {
 
     type EvalVerifierKey: CanonicalSerialize + CanonicalDeserialize + Clone;
 
-    type Commitment: AppendToTranscript<E>
+    type Commitment: AppendToTranscript<E::ScalarField>
         + Debug
         + CanonicalSerialize
         + CanonicalDeserialize

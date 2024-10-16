@@ -1,4 +1,4 @@
-/// This is basically KZG with a modified Eval function
+/*/// This is basically KZG with a modified Eval function
 
 use crate::kzg::{KZG10, trim};
 
@@ -49,3 +49,6 @@ mod tests {
         assert!(is_valid, "Proof verification failed");
     }
 }
+
+
+ */

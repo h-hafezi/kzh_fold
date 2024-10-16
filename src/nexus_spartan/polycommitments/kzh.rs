@@ -1,18 +1,17 @@
 use ark_ec::pairing::Pairing;
 use ark_ff::PrimeField;
 use ark_poly_commit::Error;
-use merlin::Transcript;
 use rand::RngCore;
 
 use crate::nexus_spartan::polycommitments::{PCSKeys, PolyCommitmentScheme};
 use crate::nexus_spartan::polycommitments::error::PCSError;
-use crate::nexus_spartan::transcript::{AppendToTranscript, ProofTranscript};
 use crate::pcs::multilinear_pcs::{Commitment, OpeningProof, PolyCommit, SRS};
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
+use crate::transcript::transcript::{AppendToTranscript, Transcript};
 
-impl<E: Pairing> AppendToTranscript<E> for Commitment<E> {
-    fn append_to_transcript(&self, label: &'static [u8], transcript: &mut Transcript) {
-        <Transcript as ProofTranscript<E>>::append_point(transcript, label, &self.C);
+impl<E: Pairing> AppendToTranscript<E::ScalarField> for Commitment<E> {
+    fn append_to_transcript(&self, label: &'static [u8], transcript: &mut Transcript<E::ScalarField>) {
+        Transcript ::append_point::<E>(transcript, label, &self.C);
     }
 }
 

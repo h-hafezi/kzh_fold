@@ -5,13 +5,12 @@ use super::sparse_mlpoly::{
     SparseMatPolyCommitmentKey, SparseMatPolynomial,
 };
 use super::timer::Timer;
-use super::transcript::AppendToTranscript;
 use ark_ec::pairing::Pairing;
 use ark_ff::PrimeField;
 use ark_serialize::*;
 use ark_std::test_rng;
-use merlin::Transcript;
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
+use crate::transcript::transcript::{AppendToTranscript, Transcript};
 
 #[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
 pub struct R1CSInstance<F: PrimeField> {
@@ -68,8 +67,8 @@ pub struct R1CSCommitment<E: Pairing, PC: PolyCommitmentScheme<E>> {
     comm: SparseMatPolyCommitment<E, PC>,
 }
 
-impl<E: Pairing, PC: PolyCommitmentScheme<E>> AppendToTranscript<E> for R1CSCommitment<E, PC> {
-    fn append_to_transcript(&self, _label: &'static [u8], transcript: &mut Transcript) {
+impl<E: Pairing, PC: PolyCommitmentScheme<E>> AppendToTranscript<E::ScalarField> for R1CSCommitment<E, PC> {
+    fn append_to_transcript(&self, _label: &'static [u8], transcript: &mut Transcript<E::ScalarField>) {
         transcript.append_u64(b"num_cons", self.num_cons as u64);
         transcript.append_u64(b"num_vars", self.num_vars as u64);
         transcript.append_u64(b"num_inputs", self.num_inputs as u64);

@@ -6,15 +6,14 @@ use crate::math::Math;
 use super::polycommitments::{PCSKeys, PolyCommitmentScheme};
 use super::product_tree::{DotProductCircuit, ProductCircuit, ProductCircuitEvalProofBatched};
 use super::timer::Timer;
-use super::transcript::{AppendToTranscript, ProofTranscript};
 use ark_ff::{Field, PrimeField};
 use ark_serialize::*;
 use ark_std::{cmp::max, One, Zero};
 use ark_ec::pairing::Pairing;
-use merlin::Transcript;
 use crate::polynomial::eq_poly::EqPolynomial;
 use crate::polynomial::identity::IdentityPolynomial;
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
+use crate::transcript::transcript::{AppendToTranscript, Transcript};
 
 #[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
 pub struct SparseMatEntry<F: PrimeField> {
@@ -96,16 +95,16 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> DerefsEvalProof<E, PC> {
         r: &[E::ScalarField],
         evals: Vec<E::ScalarField>,
         ck: &PC::PolyCommitmentKey,
-        transcript: &mut Transcript,
+        transcript: &mut Transcript<E::ScalarField>,
     ) -> PC::PolyCommitmentProof {
         assert_eq!(joint_poly.get_num_vars(), r.len() + evals.len().log_2());
 
         // append the claimed evaluations to transcript
-        <Transcript as ProofTranscript<E>>::append_scalars(transcript, b"evals_ops_val", &evals);
+        Transcript::append_scalars(transcript, b"evals_ops_val", &evals);
 
         // n-to-1 reduction
         let (r_joint, eval_joint) = {
-            let challenges = <Transcript as ProofTranscript<E>>::challenge_vector(
+            let challenges = Transcript::challenge_vector(
                 transcript,
                 b"challenge_combine_n_to_one",
                 evals.len().log_2(),
@@ -124,7 +123,7 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> DerefsEvalProof<E, PC> {
             (r_joint, joint_claim_eval)
         };
         // decommit the joint polynomial at r_joint
-        <Transcript as ProofTranscript<E>>::append_scalar(transcript, b"joint_claim_eval", &eval_joint);
+        Transcript::append_scalar(transcript, b"joint_claim_eval", &eval_joint);
 
         PC::prove(None, joint_poly, &r_joint, ck)
     }
@@ -136,9 +135,9 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> DerefsEvalProof<E, PC> {
         eval_col_ops_val_vec: &[E::ScalarField],
         r: &[E::ScalarField],
         ck: &PC::PolyCommitmentKey,
-        transcript: &mut Transcript,
+        transcript: &mut Transcript<E::ScalarField>,
     ) -> Self {
-        <Transcript as ProofTranscript<E>>::append_protocol_name(
+        Transcript::append_protocol_name(
             transcript,
             DerefsEvalProof::<E, PC>::protocol_name(),
         );
@@ -161,13 +160,13 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> DerefsEvalProof<E, PC> {
         r: &[E::ScalarField],
         evals: Vec<E::ScalarField>,
         vk: &PC::EvalVerifierKey,
-        transcript: &mut Transcript,
+        transcript: &mut Transcript<E::ScalarField>,
     ) -> Result<(), ProofVerifyError> {
         // append the claimed evaluations to transcript
-        <Transcript as ProofTranscript<E>>::append_scalars(transcript, b"evals_ops_val", &evals);
+        Transcript::append_scalars(transcript, b"evals_ops_val", &evals);
 
         // n-to-1 reduction
-        let challenges = <Transcript as ProofTranscript<E>>::challenge_vector(
+        let challenges = Transcript::challenge_vector(
             transcript,
             b"challenge_combine_n_to_one",
             evals.len().log_2(),
@@ -182,7 +181,7 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> DerefsEvalProof<E, PC> {
         r_joint.extend(r);
 
         // decommit the joint polynomial at r_joint
-        <Transcript as ProofTranscript<E>>::append_scalar(
+        Transcript::append_scalar(
             transcript,
             b"joint_claim_eval",
             &joint_claim_eval,
@@ -199,9 +198,9 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> DerefsEvalProof<E, PC> {
         eval_col_ops_val_vec: &[E::ScalarField],
         vk: &PC::EvalVerifierKey,
         comm: &DerefsCommitment<E, PC>,
-        transcript: &mut Transcript,
+        transcript: &mut Transcript<E::ScalarField>,
     ) -> Result<(), ProofVerifyError> {
-        <Transcript as ProofTranscript<E>>::append_protocol_name(
+        Transcript::append_protocol_name(
             transcript,
             DerefsEvalProof::<E, PC>::protocol_name(),
         );
@@ -220,8 +219,8 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> DerefsEvalProof<E, PC> {
     }
 }
 
-impl<E: Pairing, PC: PolyCommitmentScheme<E>> AppendToTranscript<E> for DerefsCommitment<E, PC> {
-    fn append_to_transcript(&self, label: &'static [u8], transcript: &mut Transcript) {
+impl<E: Pairing, PC: PolyCommitmentScheme<E>> AppendToTranscript<E::ScalarField> for DerefsCommitment<E, PC> {
+    fn append_to_transcript(&self, label: &'static [u8], transcript: &mut Transcript<E::ScalarField>) {
         transcript.append_message(b"derefs_commitment", b"begin_derefs_commitment");
         self.comm_ops_val.append_to_transcript(label, transcript);
         transcript.append_message(b"derefs_commitment", b"end_derefs_commitment");
@@ -375,10 +374,10 @@ pub struct SparseMatPolyCommitment<E: Pairing, PC: PolyCommitmentScheme<E>> {
     comm_comb_mem: PC::Commitment,
 }
 
-impl<E: Pairing, PC: PolyCommitmentScheme<E>> AppendToTranscript<E>
+impl<E: Pairing, PC: PolyCommitmentScheme<E>> AppendToTranscript<E::ScalarField>
 for SparseMatPolyCommitment<E, PC>
 {
-    fn append_to_transcript(&self, _label: &'static [u8], transcript: &mut Transcript) {
+    fn append_to_transcript(&self, _label: &'static [u8], transcript: &mut Transcript<E::ScalarField>) {
         transcript.append_u64(b"batch_size", self.batch_size as u64);
         transcript.append_u64(b"num_ops", self.num_ops as u64);
         transcript.append_u64(b"num_mem_cells", self.num_mem_cells as u64);
@@ -784,9 +783,9 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> HashLayerProof<E, PC> {
         dense: &MultiSparseMatPolynomialAsDense<E::ScalarField>,
         derefs: &Derefs<E::ScalarField>,
         gens: &SparseMatPolyCommitmentKey<E, PC>,
-        transcript: &mut Transcript,
+        transcript: &mut Transcript<E::ScalarField>,
     ) -> Self {
-        <Transcript as ProofTranscript<E>>::append_protocol_name(
+        Transcript::append_protocol_name(
             transcript,
             HashLayerProof::<E, PC>::protocol_name(),
         );
@@ -829,9 +828,9 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> HashLayerProof<E, PC> {
         evals_ops.extend(&eval_val_vec);
         evals_ops.resize(evals_ops.len().next_power_of_two(), E::ScalarField::zero());
 
-        <Transcript as ProofTranscript<E>>::append_scalars(transcript, b"claim_evals_ops", &evals_ops);
+        Transcript::append_scalars(transcript, b"claim_evals_ops", &evals_ops);
 
-        let challenges_ops = <Transcript as ProofTranscript<E>>::challenge_vector(
+        let challenges_ops = Transcript::challenge_vector(
             transcript,
             b"challenge_combine_n_to_one",
             evals_ops.len().log_2(),
@@ -849,7 +848,7 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> HashLayerProof<E, PC> {
             dense.comb_ops.evaluate(&r_joint_ops),
             joint_claim_eval_ops
         );
-        <Transcript as ProofTranscript<E>>::append_scalar(
+        Transcript::append_scalar(
             transcript,
             b"joint_claim_eval_ops",
             &joint_claim_eval_ops,
@@ -865,8 +864,8 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> HashLayerProof<E, PC> {
         // form a single decommitment using comb_comb_mem at rand_mem
         let evals_mem: Vec<E::ScalarField> = vec![eval_row_audit_ts, eval_col_audit_ts];
 
-        <Transcript as ProofTranscript<E>>::append_scalars(transcript, b"claim_evals_mem", &evals_mem);
-        let challenges_mem = <Transcript as ProofTranscript<E>>::challenge_vector(
+        Transcript::append_scalars(transcript, b"claim_evals_mem", &evals_mem);
+        let challenges_mem = Transcript::challenge_vector(
             transcript,
             b"challenge_combine_two_to_one",
             evals_mem.len().log_2(),
@@ -884,7 +883,7 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> HashLayerProof<E, PC> {
             dense.comb_mem.evaluate(&r_joint_mem),
             joint_claim_eval_mem
         );
-        <Transcript as ProofTranscript<E>>::append_scalar(
+        Transcript::append_scalar(
             transcript,
             b"joint_claim_eval_mem",
             &joint_claim_eval_mem,
@@ -988,10 +987,10 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> HashLayerProof<E, PC> {
         ry: &[E::ScalarField],
         r_hash: &E::ScalarField,
         r_multiset_check: &E::ScalarField,
-        transcript: &mut Transcript,
+        transcript: &mut Transcript<E::ScalarField>,
     ) -> Result<(), ProofVerifyError> {
         let timer = Timer::new("verify_hash_proof");
-        <Transcript as ProofTranscript<E>>::append_protocol_name(
+        Transcript::append_protocol_name(
             transcript,
             HashLayerProof::<E, PC>::protocol_name(),
         );
@@ -1035,9 +1034,9 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> HashLayerProof<E, PC> {
         evals_ops.extend(eval_val_vec);
         evals_ops.resize(evals_ops.len().next_power_of_two(), E::ScalarField::zero());
 
-        <Transcript as ProofTranscript<E>>::append_scalars(transcript, b"claim_evals_ops", &evals_ops);
+        Transcript::append_scalars(transcript, b"claim_evals_ops", &evals_ops);
 
-        let challenges_ops = <Transcript as ProofTranscript<E>>::challenge_vector(
+        let challenges_ops = Transcript::challenge_vector(
             transcript,
             b"challenge_combine_n_to_one",
             evals_ops.len().log_2(),
@@ -1051,7 +1050,7 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> HashLayerProof<E, PC> {
         let joint_claim_eval_ops = poly_evals_ops[0];
         let mut r_joint_ops = challenges_ops;
         r_joint_ops.extend(rand_ops);
-        <Transcript as ProofTranscript<E>>::append_scalar(
+        Transcript::append_scalar(
             transcript,
             b"joint_claim_eval_ops",
             &joint_claim_eval_ops,
@@ -1067,8 +1066,8 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> HashLayerProof<E, PC> {
         // verify proof-mem using comm_comb_mem at rand_mem
         // form a single decommitment using comb_comb_mem at rand_mem
         let evals_mem: Vec<E::ScalarField> = vec![*eval_row_audit_ts, *eval_col_audit_ts];
-        <Transcript as ProofTranscript<E>>::append_scalars(transcript, b"claim_evals_mem", &evals_mem);
-        let challenges_mem = <Transcript as ProofTranscript<E>>::challenge_vector(
+        Transcript::append_scalars(transcript, b"claim_evals_mem", &evals_mem);
+        let challenges_mem = Transcript::challenge_vector(
             transcript,
             b"challenge_combine_two_to_one",
             evals_mem.len().log_2(),
@@ -1082,7 +1081,7 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> HashLayerProof<E, PC> {
         let joint_claim_eval_mem = poly_evals_mem[0];
         let mut r_joint_mem = challenges_mem;
         r_joint_mem.extend(rand_mem);
-        <Transcript as ProofTranscript<E>>::append_scalar(
+        Transcript::append_scalar(
             transcript,
             b"joint_claim_eval_mem",
             &joint_claim_eval_mem,
@@ -1147,12 +1146,12 @@ impl<F: PrimeField> ProductLayerProof<F> {
         dense: &MultiSparseMatPolynomialAsDense<F>,
         derefs: &Derefs<F>,
         eval: &[F],
-        transcript: &mut Transcript,
+        transcript: &mut Transcript<F>,
     ) -> (Self, Vec<F>, Vec<F>)
     where
         E: Pairing<ScalarField = F>,
     {
-        <Transcript as ProofTranscript<E>>::append_protocol_name(
+        Transcript::append_protocol_name(
             transcript,
             ProductLayerProof::<F>::protocol_name(),
         );
@@ -1173,22 +1172,22 @@ impl<F: PrimeField> ProductLayerProof<F> {
         let rs: F = (0..row_eval_read.len()).map(|i| row_eval_read[i]).product();
         assert_eq!(row_eval_init * ws, rs * row_eval_audit);
 
-        <Transcript as ProofTranscript<E>>::append_scalar(
+        Transcript::append_scalar(
             transcript,
             b"claim_row_eval_init",
             &row_eval_init,
         );
-        <Transcript as ProofTranscript<E>>::append_scalars(
+        Transcript::append_scalars(
             transcript,
             b"claim_row_eval_read",
             &row_eval_read,
         );
-        <Transcript as ProofTranscript<E>>::append_scalars(
+        Transcript::append_scalars(
             transcript,
             b"claim_row_eval_write",
             &row_eval_write,
         );
-        <Transcript as ProofTranscript<E>>::append_scalar(
+        Transcript::append_scalar(
             transcript,
             b"claim_row_eval_audit",
             &row_eval_audit,
@@ -1210,22 +1209,22 @@ impl<F: PrimeField> ProductLayerProof<F> {
         let rs: F = (0..col_eval_read.len()).map(|i| col_eval_read[i]).product();
         assert_eq!(col_eval_init * ws, rs * col_eval_audit);
 
-        <Transcript as ProofTranscript<E>>::append_scalar(
+        Transcript::append_scalar(
             transcript,
             b"claim_col_eval_init",
             &col_eval_init,
         );
-        <Transcript as ProofTranscript<E>>::append_scalars(
+        Transcript::append_scalars(
             transcript,
             b"claim_col_eval_read",
             &col_eval_read,
         );
-        <Transcript as ProofTranscript<E>>::append_scalars(
+        Transcript::append_scalars(
             transcript,
             b"claim_col_eval_write",
             &col_eval_write,
         );
-        <Transcript as ProofTranscript<E>>::append_scalar(
+        Transcript::append_scalar(
             transcript,
             b"claim_col_eval_audit",
             &col_eval_audit,
@@ -1252,13 +1251,13 @@ impl<F: PrimeField> ProductLayerProof<F> {
             let (eval_dotp_left, eval_dotp_right) =
                 (dotp_circuit_left.evaluate(), dotp_circuit_right.evaluate());
 
-            <Transcript as ProofTranscript<E>>::append_scalar(
+            Transcript::append_scalar(
                 transcript,
                 b"claim_eval_dotp_left",
                 &eval_dotp_left,
             );
 
-            <Transcript as ProofTranscript<E>>::append_scalar(
+            Transcript::append_scalar(
                 transcript,
                 b"claim_eval_dotp_right",
                 &eval_dotp_right,
@@ -1378,12 +1377,12 @@ impl<F: PrimeField> ProductLayerProof<F> {
         num_ops: usize,
         num_cells: usize,
         eval: &[F],
-        transcript: &mut Transcript,
+        transcript: &mut Transcript<F>,
     ) -> Result<(Vec<F>, Vec<F>, Vec<F>, Vec<F>, Vec<F>), ProofVerifyError>
     where
         E: Pairing<ScalarField = F>,
     {
-        <Transcript as ProofTranscript<E>>::append_protocol_name(
+        Transcript::append_protocol_name(
             transcript,
             ProductLayerProof::<F>::protocol_name(),
         );
@@ -1401,22 +1400,22 @@ impl<F: PrimeField> ProductLayerProof<F> {
         let rs: F = (0..row_eval_read.len()).map(|i| row_eval_read[i]).product();
         assert_eq!(*row_eval_init * ws, rs * row_eval_audit);
 
-        <Transcript as ProofTranscript<E>>::append_scalar(
+        Transcript::append_scalar(
             transcript,
             b"claim_row_eval_init",
             row_eval_init,
         );
-        <Transcript as ProofTranscript<E>>::append_scalars(
+        Transcript::append_scalars(
             transcript,
             b"claim_row_eval_read",
             row_eval_read,
         );
-        <Transcript as ProofTranscript<E>>::append_scalars(
+        Transcript::append_scalars(
             transcript,
             b"claim_row_eval_write",
             row_eval_write,
         );
-        <Transcript as ProofTranscript<E>>::append_scalar(
+        Transcript::append_scalar(
             transcript,
             b"claim_row_eval_audit",
             row_eval_audit,
@@ -1432,22 +1431,22 @@ impl<F: PrimeField> ProductLayerProof<F> {
         let rs: F = (0..col_eval_read.len()).map(|i| col_eval_read[i]).product();
         assert_eq!(*col_eval_init * ws, rs * col_eval_audit);
 
-        <Transcript as ProofTranscript<E>>::append_scalar(
+        Transcript::append_scalar(
             transcript,
             b"claim_col_eval_init",
             col_eval_init,
         );
-        <Transcript as ProofTranscript<E>>::append_scalars(
+        Transcript::append_scalars(
             transcript,
             b"claim_col_eval_read",
             col_eval_read,
         );
-        <Transcript as ProofTranscript<E>>::append_scalars(
+        Transcript::append_scalars(
             transcript,
             b"claim_col_eval_write",
             col_eval_write,
         );
-        <Transcript as ProofTranscript<E>>::append_scalar(
+        Transcript::append_scalar(
             transcript,
             b"claim_col_eval_audit",
             col_eval_audit,
@@ -1461,13 +1460,13 @@ impl<F: PrimeField> ProductLayerProof<F> {
         for i in 0..num_instances {
             assert_eq!(eval_dotp_left[i] + eval_dotp_right[i], eval[i]);
 
-            <Transcript as ProofTranscript<E>>::append_scalar(
+            Transcript::append_scalar(
                 transcript,
                 b"claim_eval_dotp_left",
                 &eval_dotp_left[i],
             );
 
-            <Transcript as ProofTranscript<E>>::append_scalar(
+            Transcript::append_scalar(
                 transcript,
                 b"claim_eval_dotp_right",
                 &eval_dotp_right[i],
@@ -1525,9 +1524,9 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> PolyEvalNetworkProof<E, PC> {
         derefs: &Derefs<E::ScalarField>,
         evals: &[E::ScalarField],
         gens: &SparseMatPolyCommitmentKey<E, PC>,
-        transcript: &mut Transcript,
+        transcript: &mut Transcript<E::ScalarField>,
     ) -> Self {
-        <Transcript as ProofTranscript<E>>::append_protocol_name(
+        Transcript::append_protocol_name(
             transcript,
             PolyEvalNetworkProof::<E, PC>::protocol_name(),
         );
@@ -1561,10 +1560,10 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> PolyEvalNetworkProof<E, PC> {
         ry: &[E::ScalarField],
         r_mem_check: &(E::ScalarField, E::ScalarField),
         nz: usize,
-        transcript: &mut Transcript,
+        transcript: &mut Transcript<E::ScalarField>,
     ) -> Result<(), ProofVerifyError> {
         let timer = Timer::new("verify_polyeval_proof");
-        <Transcript as ProofTranscript<E>>::append_protocol_name(
+        Transcript::append_protocol_name(
             transcript,
             PolyEvalNetworkProof::<E, PC>::protocol_name(),
         );

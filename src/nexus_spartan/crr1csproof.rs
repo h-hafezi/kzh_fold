@@ -8,14 +8,13 @@ use crate::math::Math;
 use super::sparse_mlpoly::{SparsePolyEntry, SparsePolynomial};
 use super::sumcheck::SumcheckInstanceProof;
 use super::timer::Timer;
-use super::transcript::{AppendToTranscript, ProofTranscript};
 use ark_ec::pairing::Pairing;
 use ark_ff::{Field, PrimeField};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::{One, Zero};
-use merlin::Transcript;
 use crate::polynomial::eq_poly::EqPolynomial;
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
+use crate::transcript::transcript::{AppendToTranscript, Transcript};
 pub use super::crr1cs::*;
 
 // todo: what is the point of r_x and r_y
@@ -41,7 +40,7 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
         poly_A: &mut MultilinearPolynomial<F>,
         poly_B: &mut MultilinearPolynomial<F>,
         comb_func: Func,
-        transcript: &mut Transcript,
+        transcript: &mut Transcript<F>,
     ) -> (Self, Vec<F>, Vec<F>)
     where
         Func: Fn(&F, &F) -> F,
@@ -70,11 +69,10 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
             let poly = UniPoly::from_evals(&evals);
 
             // append the prover's message to the transcript
-            <UniPoly<F> as AppendToTranscript<E>>::append_to_transcript(&poly, b"poly", transcript);
+            <UniPoly<F> as AppendToTranscript<F>>::append_to_transcript(&poly, b"poly", transcript);
 
             //derive the verifier's challenge for the next round
-            let r_j =
-                <Transcript as ProofTranscript<E>>::challenge_scalar(transcript, b"challenge_nextround");
+            let r_j = Transcript::challenge_scalar(transcript, b"challenge_nextround");
 
             r.push(r_j);
             // bound all tables to the verifier's challenege
@@ -98,7 +96,7 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
         poly_C: &mut MultilinearPolynomial<F>,
         poly_D: &mut MultilinearPolynomial<F>,
         comb_func: Func,
-        transcript: &mut Transcript,
+        transcript: &mut Transcript<F>,
     ) -> (Self, Vec<F>, Vec<F>)
     where
         Func: Fn(&F, &F, &F, &F) -> F,
@@ -148,11 +146,10 @@ impl<F: PrimeField> SumcheckInstanceProof<F> {
             let poly = UniPoly::from_evals(&evals);
 
             // append the prover's message to the transcript
-            <UniPoly<F> as AppendToTranscript<E>>::append_to_transcript(&poly, b"poly", transcript);
+            <UniPoly<F> as AppendToTranscript<F>>::append_to_transcript(&poly, b"poly", transcript);
 
             //derive the verifier's challenge for the next round
-            let r_j =
-                <Transcript as ProofTranscript<E>>::challenge_scalar(transcript, b"challenge_nextround");
+            let r_j = Transcript::challenge_scalar(transcript, b"challenge_nextround");
 
             r.push(r_j);
             // bound all tables to the verifier's challenege
@@ -181,7 +178,7 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> CRR1CSProof<E, PC> {
         evals_Az: &mut MultilinearPolynomial<E::ScalarField>,
         evals_Bz: &mut MultilinearPolynomial<E::ScalarField>,
         evals_Cz: &mut MultilinearPolynomial<E::ScalarField>,
-        transcript: &mut Transcript,
+        transcript: &mut Transcript<E::ScalarField>,
     ) -> (
         SumcheckInstanceProof<E::ScalarField>,
         Vec<E::ScalarField>,
@@ -215,7 +212,7 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> CRR1CSProof<E, PC> {
         claim: &E::ScalarField,
         evals_z: &mut MultilinearPolynomial<E::ScalarField>,
         evals_ABC: &mut MultilinearPolynomial<E::ScalarField>,
-        transcript: &mut Transcript,
+        transcript: &mut Transcript<E::ScalarField>,
     ) -> (
         SumcheckInstanceProof<E::ScalarField>,
         Vec<E::ScalarField>,
@@ -240,10 +237,10 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> CRR1CSProof<E, PC> {
         instance: &CRR1CSInstance<E, PC>,
         witness: CRR1CSWitness<E::ScalarField>,
         key: &CRR1CSKey<E, PC>,
-        transcript: &mut Transcript,
+        transcript: &mut Transcript<E::ScalarField>,
     ) -> (CRR1CSProof<E, PC>, Vec<E::ScalarField>, Vec<E::ScalarField>) {
         let timer_prove = Timer::new("CRR1CSProof::prove");
-        <Transcript as ProofTranscript<E>>::append_protocol_name(
+        Transcript::append_protocol_name(
             transcript,
             CRR1CSProof::<E, PC>::protocol_name(),
         );
@@ -260,7 +257,7 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> CRR1CSProof<E, PC> {
 
         // we currently require the number of |inputs| + 1 to be at most number of vars
         assert!(input.len() < vars.len());
-        <Transcript as ProofTranscript<E>>::append_scalars(transcript, b"input", input);
+        Transcript::append_scalars(transcript, b"input", input);
         comm_W.append_to_transcript(b"comm_W", transcript);
         // create a multilinear polynomial using the supplied assignment for variables
         let poly_vars = MultilinearPolynomial::<E::ScalarField>::new(vars.clone());
@@ -280,7 +277,7 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> CRR1CSProof<E, PC> {
 
         // derive the verifier's challenge tau
         let (num_rounds_x, num_rounds_y) = (inst.get_num_cons().log_2(), z.len().log_2());
-        let tau = <Transcript as ProofTranscript<E>>::challenge_vector(
+        let tau = Transcript::challenge_vector(
             transcript,
             b"challenge_tau",
             num_rounds_x,
@@ -312,15 +309,15 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> CRR1CSProof<E, PC> {
             &poly_Cz[0],
         );
 
-        <Transcript as ProofTranscript<E>>::append_scalar(transcript, b"Az_claim", Az_claim);
-        <Transcript as ProofTranscript<E>>::append_scalar(transcript, b"Bz_claim", Bz_claim);
-        <Transcript as ProofTranscript<E>>::append_scalar(transcript, b"Cz_claim", Cz_claim);
+        Transcript::append_scalar(transcript, b"Az_claim", Az_claim);
+        Transcript::append_scalar(transcript, b"Bz_claim", Bz_claim);
+        Transcript::append_scalar(transcript, b"Cz_claim", Cz_claim);
 
         let timer_sc_proof_phase2 = Timer::new("prove_sc_phase_two");
         // combine the three claims into a single claim
-        let r_A = <Transcript as ProofTranscript<E>>::challenge_scalar(transcript, b"challenege_Az");
-        let r_B = <Transcript as ProofTranscript<E>>::challenge_scalar(transcript, b"challenege_Bz");
-        let r_C = <Transcript as ProofTranscript<E>>::challenge_scalar(transcript, b"challenege_Cz");
+        let r_A = Transcript::challenge_scalar(transcript, b"challenege_Az");
+        let r_B = Transcript::challenge_scalar(transcript, b"challenege_Bz");
+        let r_C = Transcript::challenge_scalar(transcript, b"challenege_Cz");
         let claim_phase2 = r_A * Az_claim + r_B * Bz_claim + r_C * Cz_claim;
 
         let evals_ABC = {
@@ -385,10 +382,10 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> CRR1CSProof<E, PC> {
         num_cons: usize,
         instance: &CRR1CSInstance<E, PC>,
         evals: &(E::ScalarField, E::ScalarField, E::ScalarField),
-        transcript: &mut Transcript,
+        transcript: &mut Transcript<E::ScalarField>,
         key: &PC::EvalVerifierKey,
     ) -> Result<(Vec<E::ScalarField>, Vec<E::ScalarField>), ProofVerifyError> {
-        <Transcript as ProofTranscript<E>>::append_protocol_name(
+        Transcript::append_protocol_name(
             transcript,
             CRR1CSProof::<E, PC>::protocol_name(),
         );
@@ -400,7 +397,7 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> CRR1CSProof<E, PC> {
 
         let input = _input.assignment.as_slice();
 
-        <Transcript as ProofTranscript<E>>::append_scalars(transcript, b"input", input);
+        Transcript::append_scalars(transcript, b"input", input);
         comm_W.append_to_transcript(b"comm_W", transcript);
 
         let n = num_vars;
@@ -408,7 +405,7 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> CRR1CSProof<E, PC> {
         let (num_rounds_x, num_rounds_y) = (num_cons.log_2(), (2 * num_vars).log_2());
 
         // derive the verifier's challenge tau
-        let tau = <Transcript as ProofTranscript<E>>::challenge_vector(
+        let tau = Transcript::challenge_vector(
             transcript,
             b"challenge_tau",
             num_rounds_x,
@@ -424,9 +421,9 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> CRR1CSProof<E, PC> {
         // perform the intermediate sum-check test with claimed Az, Bz, Cz, and E
         let (Az_claim, Bz_claim, Cz_claim) = self.claims_phase2;
 
-        <Transcript as ProofTranscript<E>>::append_scalar(transcript, b"Az_claim", &Az_claim);
-        <Transcript as ProofTranscript<E>>::append_scalar(transcript, b"Bz_claim", &Bz_claim);
-        <Transcript as ProofTranscript<E>>::append_scalar(transcript, b"Cz_claim", &Cz_claim);
+        Transcript::append_scalar(transcript, b"Az_claim", &Az_claim);
+        Transcript::append_scalar(transcript, b"Bz_claim", &Bz_claim);
+        Transcript::append_scalar(transcript, b"Cz_claim", &Cz_claim);
 
         let taus_bound_rx: E::ScalarField = (0..rx.len())
             .map(|i| rx[i] * tau[i] + (E::ScalarField::one() - rx[i]) * (E::ScalarField::one() - tau[i]))
@@ -437,9 +434,9 @@ impl<E: Pairing, PC: PolyCommitmentScheme<E>> CRR1CSProof<E, PC> {
         assert_eq!(expected_claim_post_phase1, claim_post_phase1);
 
         // derive three public challenges and then derive a joint claim
-        let r_A = <Transcript as ProofTranscript<E>>::challenge_scalar(transcript, b"challenege_Az");
-        let r_B = <Transcript as ProofTranscript<E>>::challenge_scalar(transcript, b"challenege_Bz");
-        let r_C = <Transcript as ProofTranscript<E>>::challenge_scalar(transcript, b"challenege_Cz");
+        let r_A = Transcript::challenge_scalar(transcript, b"challenege_Az");
+        let r_B = Transcript::challenge_scalar(transcript, b"challenege_Bz");
+        let r_C = Transcript::challenge_scalar(transcript, b"challenege_Cz");
 
         // r_A * Az_claim + r_B * Bz_claim + r_C * Cz_claim;
         let claim_phase2 = r_A * Az_claim + r_B * Bz_claim + r_C * Cz_claim;
