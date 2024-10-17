@@ -44,6 +44,7 @@ impl<F: PrimeField + Absorb> Transcript<F> {
     pub fn challenge_scalar(&mut self, _label: &'static [u8]) -> F {
         let new_state = self.poseidon_hash.output();
         self.state = new_state;
+        self.append_scalar(_label, &new_state);
         new_state
     }
 
@@ -58,9 +59,7 @@ impl<F: PrimeField + Absorb> Transcript<F> {
     pub(crate) fn append_protocol_name(&mut self, _protocol_name: &'static [u8]) {
         // I'm not sure if it's important to implement this
     }
-}
 
-impl<F: PrimeField + Absorb> Transcript<F> {
     pub fn append_point<E: Pairing<ScalarField=F>>(&mut self, label: &'static [u8], point: &E::G1Affine)
     where
         <<E as Pairing>::G1Affine as ark_ec::AffineRepr>::BaseField: PrimeField,
