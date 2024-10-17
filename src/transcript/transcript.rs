@@ -6,7 +6,7 @@ use ark_ff::PrimeField;
 
 pub struct Transcript<F: PrimeField + Absorb> {
     // This will hold the current state of the transcript
-    state: F,
+    pub state: F,
     // the poseidon hash
     poseidon_hash: PoseidonHash<F>,
 }
