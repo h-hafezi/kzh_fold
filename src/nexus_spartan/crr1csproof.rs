@@ -447,6 +447,7 @@ impl<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>, F: PrimeField + Abs
             .sc_proof_phase2
             .verify::<E>(claim_phase2, num_rounds_y, 2, transcript)?;
 
+        // TODO: this has to move into decider (KZH aggregation)
         // verify Z(ry) proof against the initial commitment `comm_W`
         PC::verify(
             comm_W,
@@ -454,9 +455,9 @@ impl<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>, F: PrimeField + Abs
             key,
             &ry[1..],
             &self.eval_vars_at_ry,
-        )
-            .map_err(|_| ProofVerifyError::InternalError)?;
+        ).map_err(|_| ProofVerifyError::InternalError)?;
 
+        // TODO: this has to move into decider too, poly_input_eval will be given as an input (A B C aggregation)
         let poly_input_eval = {
             // constant term
             let mut input_as_sparse_poly_entries = vec![SparsePolyEntry::new(0, F::ONE)];
