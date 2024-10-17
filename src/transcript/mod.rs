@@ -1,2 +1,2 @@
 pub mod transcript;
-mod transcript_var;
+pub mod transcript_var;

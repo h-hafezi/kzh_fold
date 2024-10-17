@@ -1,5 +1,5 @@
 use ark_crypto_primitives::sponge::Absorb;
-use crate::nexus_spartan::unipoly::CompressedUniPoly;
+use crate::nexus_spartan::unipoly::unipoly::CompressedUniPoly;
 use ark_ff::PrimeField;
 use crate::nexus_spartan::errors::ProofVerifyError;
 use crate::nexus_spartan::sumcheck::SumcheckInstanceProof;

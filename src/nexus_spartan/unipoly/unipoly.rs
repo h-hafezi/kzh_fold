@@ -1,6 +1,6 @@
-use ark_crypto_primitives::sponge::Absorb;
-use super::commitments::{Commitments, MultiCommitGens};
+use crate::nexus_spartan::commitments::{Commitments, MultiCommitGens};
 use crate::transcript::transcript::{AppendToTranscript, Transcript};
+use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
 use ark_ec::CurveGroup;
 use ark_ff::PrimeField;
@@ -10,14 +10,14 @@ use ark_serialize::*;
 // ax^3 + bx^2 + cx + d stored as vec![d,c,b,a]
 #[derive(CanonicalSerialize, Debug)]
 pub struct UniPoly<F: PrimeField + Absorb> {
-    coeffs: Vec<F>,
+    pub coeffs: Vec<F>,
 }
 
 // ax^2 + bx + c stored as vec![c,a]
 // ax^3 + bx^2 + cx + d stored as vec![d,b,a]
 #[derive(CanonicalSerialize, CanonicalDeserialize, Debug, Clone)]
 pub struct CompressedUniPoly<F: PrimeField + Absorb> {
-    coeffs_except_linear_term: Vec<F>,
+    pub coeffs_except_linear_term: Vec<F>,
 }
 
 impl<F: PrimeField + Absorb> UniPoly<F> {
@@ -112,11 +112,9 @@ impl<F: PrimeField + Absorb> CompressedUniPoly<F> {
 
 impl<F: PrimeField + Absorb> AppendToTranscript<F> for UniPoly<F> {
     fn append_to_transcript(&self, label: &'static [u8], transcript: &mut Transcript<F>) {
-        transcript.append_message(label, b"UniPoly_begin");
         for i in 0..self.coeffs.len() {
-            Transcript::append_scalar(transcript, b"coeff", &self.coeffs[i]);
+            Transcript::append_scalar(transcript, label, &self.coeffs[i]);
         }
-        transcript.append_message(label, b"UniPoly_end");
     }
 }
 

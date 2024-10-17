@@ -2,7 +2,7 @@
 #![allow(dead_code)]
 
 use super::polycommitments::PolyCommitmentScheme;
-use super::unipoly::{CompressedUniPoly, UniPoly};
+use super::unipoly::unipoly::{CompressedUniPoly, UniPoly};
 use ark_crypto_primitives::sponge::Absorb;
 
 pub use super::crr1cs::*;

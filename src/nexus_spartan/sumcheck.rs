@@ -3,7 +3,7 @@
 
 use ark_crypto_primitives::sponge::Absorb;
 use super::errors::ProofVerifyError;
-use super::unipoly::{CompressedUniPoly, UniPoly};
+use crate::nexus_spartan::unipoly::unipoly::{CompressedUniPoly, UniPoly};
 use ark_ec::CurveGroup;
 use ark_ec::pairing::Pairing;
 use ark_ff::PrimeField;
