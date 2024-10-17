@@ -1,10 +1,10 @@
 use crate::nexus_spartan::unipoly::unipoly::{CompressedUniPoly, UniPoly};
-use crate::transcript::transcript::Transcript;
 use crate::transcript::transcript_var::{AppendToTranscriptVar, TranscriptVar};
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ff::PrimeField;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::fields::fp::FpVar;
+use ark_r1cs_std::fields::FieldVar;
 use ark_relations::r1cs::ConstraintSystemRef;
 
 #[derive(Clone)]
@@ -31,6 +31,31 @@ impl<F: PrimeField + Absorb> UniPolyVar<F> {
                 coeffs
             },
         }
+    }
+
+    pub fn eval_at_zero(&self) -> FpVar<F> {
+        self.coeffs[0].clone()
+    }
+
+    pub fn eval_at_one(&self) -> FpVar<F> {
+        let mut result = FpVar::<F>::zero();
+        for i in 0..self.coeffs.len() {
+            result += self.coeffs[i].clone();
+        }
+        result
+    }
+
+    pub fn degree(&self) -> usize {
+        self.coeffs.len() - 1
+    }
+    pub fn evaluate(&self, r: &FpVar<F>) -> FpVar<F> {
+        let mut eval = self.coeffs[0].clone();
+        let mut power = r.clone();
+        for i in 1..self.coeffs.len() {
+            eval += power.clone() * self.coeffs[i].clone();
+            power *= r;
+        }
+        eval
     }
 }
 
@@ -80,13 +105,13 @@ impl<F: PrimeField + Absorb> AppendToTranscriptVar<F> for UniPolyVar<F> {
 
 #[cfg(test)]
 mod tests {
-    use ark_r1cs_std::alloc::AllocVar;
-use crate::constant_for_curves::ScalarField;
+    use crate::constant_for_curves::ScalarField;
     use crate::nexus_spartan::unipoly::unipoly::{CompressedUniPoly, UniPoly};
     use crate::nexus_spartan::unipoly::unipoly_var::{CompressedUniPolyVar, UniPolyVar};
     use crate::transcript::transcript::{AppendToTranscript, Transcript};
     use crate::transcript::transcript_var::{AppendToTranscriptVar, TranscriptVar};
     use ark_ff::UniformRand;
+    use ark_r1cs_std::alloc::AllocVar;
     use ark_r1cs_std::alloc::AllocationMode;
     use ark_r1cs_std::fields::fp::FpVar;
     use ark_r1cs_std::R1CSVar;
@@ -165,5 +190,4 @@ use crate::constant_for_curves::ScalarField;
             assert_eq!(coeff, &coeff_var.value().unwrap());
         }
     }
-
 }
