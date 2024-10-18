@@ -51,6 +51,7 @@ impl<F: PrimeField + Absorb> SumcheckInstanceProof<F> {
         let mut e = *claim;
         let mut r: Vec<F> = Vec::new();
         let mut quad_polys: Vec<CompressedUniPoly<F>> = Vec::new();
+        assert_eq!(poly_A.num_variables, poly_B.num_variables);
         for _j in 0..num_rounds {
             let mut eval_point_0 = F::zero();
             let mut eval_point_2 = F::zero();
@@ -90,6 +91,7 @@ impl<F: PrimeField + Absorb> SumcheckInstanceProof<F> {
             vec![poly_A[0], poly_B[0]],
         )
     }
+
     pub fn prove_cubic_five_terms<Func, E>(
         claim: &F,
         num_rounds: usize,
@@ -286,11 +288,11 @@ impl<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>, F: PrimeField + Abs
             b"challenge_tau",
             num_rounds_x,
         );
+
         // compute the initial evaluation table for R(\tau, x)
         let mut poly_tau = MultilinearPolynomial::new(EqPolynomial::new(tau).evals());
         let (mut poly_Az, mut poly_Bz, mut poly_Cz) =
             inst.multiply_vec(inst.get_num_cons(), z.len(), &z);
-
 
         let (sc_proof_phase1, rx, _claims_phase1) = CRR1CSProof::<E, PC, F>::prove_phase_one(
             num_rounds_x,
@@ -300,6 +302,7 @@ impl<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>, F: PrimeField + Abs
             &mut poly_Cz,
             transcript,
         );
+
         assert_eq!(poly_tau.len(), 1);
         assert_eq!(poly_Az.len(), 1);
         assert_eq!(poly_Bz.len(), 1);
@@ -318,6 +321,7 @@ impl<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>, F: PrimeField + Abs
         Transcript::append_scalar(transcript, b"Cz_claim", Cz_claim);
 
         let timer_sc_proof_phase2 = Timer::new("prove_sc_phase_two");
+
         // combine the three claims into a single claim
         let r_A = Transcript::challenge_scalar(transcript, b"challenege_Az");
         let r_B = Transcript::challenge_scalar(transcript, b"challenege_Bz");
@@ -327,8 +331,7 @@ impl<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>, F: PrimeField + Abs
         let evals_ABC = {
             // compute the initial evaluation table for R(\tau, x)
             let evals_rx = EqPolynomial::new(rx.clone()).evals();
-            let (evals_A, evals_B, evals_C) =
-                inst.compute_eval_table_sparse(inst.get_num_cons(), z.len(), &evals_rx);
+            let (evals_A, evals_B, evals_C) = inst.compute_eval_table_sparse(inst.get_num_cons(), z.len(), &evals_rx);
 
             assert_eq!(evals_A.len(), evals_B.len());
             assert_eq!(evals_A.len(), evals_C.len());
@@ -337,12 +340,16 @@ impl<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>, F: PrimeField + Abs
                 .collect::<Vec<F>>()
         };
 
+        assert!(z.len().is_power_of_two(), "z must be a power of two");
+        assert!(evals_ABC.len().is_power_of_two(), "eval_ABC must be a power of two");
+        assert_eq!(z.len(), evals_ABC.len(), "vector z and eval_ABC should have equal length");
+
         // another instance of the sum-check protocol
         let (sc_proof_phase2, ry, _claims_phase2) = CRR1CSProof::<E, PC, F>::prove_phase_two(
             num_rounds_y,
             &claim_phase2,
-            &mut MultilinearPolynomial::new(z),
-            &mut MultilinearPolynomial::new(evals_ABC),
+            &mut MultilinearPolynomial::new(z.clone()),
+            &mut MultilinearPolynomial::new(evals_ABC.clone()),
             transcript,
         );
         timer_sc_proof_phase2.stop();
@@ -566,7 +573,7 @@ mod tests {
         test_synthetic_r1cs_helper::<Fr>()
     }
 
-    fn test_synthetic_r1cs_helper<F: PrimeField+ Absorb>() {
+    fn test_synthetic_r1cs_helper<F: PrimeField + Absorb>() {
         let (inst, vars, input) = R1CSInstance::<F>::produce_synthetic_r1cs(1024, 1024, 10);
         let is_sat = inst.is_sat(&vars, &input);
         assert!(is_sat);

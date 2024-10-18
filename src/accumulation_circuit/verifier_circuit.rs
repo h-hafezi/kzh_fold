@@ -360,7 +360,7 @@ where
 
         // Non-native scalar multiplication: linear combination E'' = E_{temp} + (1-beta) * beta * Q
         let (flag,
-            r,
+            _r,
             g1,
             g2,
             E_var
@@ -372,7 +372,7 @@ where
         // enforce flag to be true
         flag.enforce_equal(&NonNativeFieldVar::one()).expect("error while enforcing equality");
         // check r to be equal to beta
-        let beta_times_beta_minus_one = self.beta_var_non_native.clone() - self.beta_var_non_native.square().unwrap();
+        let _beta_times_beta_minus_one = self.beta_var_non_native.clone() - self.beta_var_non_native.square().unwrap();
         //r.enforce_equal(&beta_times_beta_minus_one).expect("error while enforcing equality");
         // check out the result E_var is consistent with result_acc
         E_var.enforce_equal(&self.final_accumulator_instance_var.E_var).expect("error while enforcing equality");
@@ -410,6 +410,11 @@ where
         self.final_cycle_fold_instance_var.X.enforce_equal(&final_instance.X).expect("XXX: panic message");
         self.final_cycle_fold_instance_var.commitment_E.enforce_equal(&final_instance.commitment_E).expect("XXX: panic message");
         self.final_cycle_fold_instance_var.commitment_W.enforce_equal(&final_instance.commitment_W).expect("XXX: panic message");
+
+        // pad witness to have a length of power of two
+        for _ in 0..6817{
+            let _ = Boolean::new_witness(self.beta_var.cs().clone(), || Ok(false));
+        }
     }
 }
 
@@ -441,44 +446,44 @@ where
         let current_accumulator_instance_var = AccumulatorInstanceVar::new_variable(
             ns!(cs, "current accumulator instance var"),
             || Ok(prover.get_current_acc_instance().clone()),
-            AllocationMode::Witness,
+            AllocationMode::Input,
         ).unwrap();
 
         let running_accumulator_instance_var = AccumulatorInstanceVar::new_variable(
             ns!(cs, "running accumulator instance var"),
             || Ok(prover.get_running_acc_instance().clone()),
-            AllocationMode::Witness,
+            AllocationMode::Input,
         ).unwrap();
 
         let final_accumulator_instance_var = AccumulatorInstanceVar::new_variable(
             ns!(cs, "final accumulator instance var"),
             || Ok(prover.compute_result_accumulator_instance()),
-            AllocationMode::Witness,
+            AllocationMode::Input,
         ).unwrap();
 
         // initialise auxiliary input variables
         let auxiliary_input_C_var = R1CSInstanceVar::new_variable(
             ns!(cs, "auxiliary input C var"),
             || Ok(prover.compute_auxiliary_input_C().0),
-            AllocationMode::Witness,
+            AllocationMode::Input,
         ).unwrap();
 
         let auxiliary_input_T_var = R1CSInstanceVar::new_variable(
             ns!(cs, "auxiliary input T var"),
             || Ok(prover.compute_auxiliary_input_T().0),
-            AllocationMode::Witness,
+            AllocationMode::Input,
         ).unwrap();
 
         let auxiliary_input_E_1_var = R1CSInstanceVar::new_variable(
             ns!(cs, "auxiliary input E_1 var"),
             || Ok(prover.compute_auxiliary_input_E_1().0),
-            AllocationMode::Witness,
+            AllocationMode::Input,
         ).unwrap();
 
         let auxiliary_input_E_2_var = R1CSInstanceVar::new_variable(
             ns!(cs, "auxiliary input E_2 var"),
             || Ok(prover.compute_auxiliary_input_E_2().0),
-            AllocationMode::Witness,
+            AllocationMode::Input,
         ).unwrap();
 
 
@@ -486,7 +491,7 @@ where
         let Q_var = NonNativeAffineVar::new_variable(
             ns!(cs, "Q var"),
             || Ok(prover.compute_proof_Q()),
-            AllocationMode::Witness,
+            AllocationMode::Input,
         ).unwrap();
 
         let cycle_fold_proof = prover.compute_cycle_fold_proofs_and_final_instance();
@@ -494,25 +499,25 @@ where
         let com_C_var = ProjectiveVar::new_variable(
             ns!(cs, "com_C_var"),
             || Ok(cycle_fold_proof.0),
-            AllocationMode::Witness,
+            AllocationMode::Input,
         ).unwrap();
 
         let com_T_var = ProjectiveVar::new_variable(
             ns!(cs, "com_T_var"),
             || Ok(cycle_fold_proof.1),
-            AllocationMode::Witness,
+            AllocationMode::Input,
         ).unwrap();
 
         let com_E_1_var = ProjectiveVar::new_variable(
             ns!(cs, "com_E_1_var"),
             || Ok(cycle_fold_proof.2),
-            AllocationMode::Witness,
+            AllocationMode::Input,
         ).unwrap();
 
         let com_E_2_var = ProjectiveVar::new_variable(
             ns!(cs, "com_E_2_var"),
             || Ok(cycle_fold_proof.3),
-            AllocationMode::Witness,
+            AllocationMode::Input,
         ).unwrap();
 
 
@@ -520,14 +525,14 @@ where
         let running_cycle_fold_instance_var = RelaxedR1CSInstanceVar::new_variable(
             ns!(cs, "running cycle fold instance var"),
             || Ok(prover.running_cycle_fold_instance),
-            AllocationMode::Witness,
+            AllocationMode::Input,
         ).unwrap();
 
         // initialise cycle fold running instance var
         let final_cycle_fold_instance_var = RelaxedR1CSInstanceVar::new_variable(
             ns!(cs, "final cycle fold instance var"),
             || Ok(cycle_fold_proof.4),
-            AllocationMode::Witness,
+            AllocationMode::Input,
         ).unwrap();
 
 
@@ -574,10 +579,11 @@ pub mod tests {
     use crate::commitment::CommitmentScheme;
     use crate::constant_for_curves::{E, G1, G2, ScalarField};
     use crate::hash::pederson::PedersenCommitment;
-    use crate::nexus_spartan::crr1csproof::{is_sat, CRR1CSInstance, CRR1CSKey, CRR1CSShape, CRR1CSWitness};
+    use crate::nexus_spartan::crr1csproof::{is_sat, CRR1CSInstance, CRR1CSKey, CRR1CSProof, CRR1CSShape, CRR1CSWitness};
     use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
     use crate::pcs::multilinear_pcs::{PolyCommit, SRS};
     use crate::polynomial::multilinear_poly::MultilinearPolynomial;
+    use crate::transcript::transcript::Transcript;
 
     type C2 = PedersenCommitment<Projective<G2>>;
 
@@ -596,12 +602,17 @@ pub mod tests {
         // a constraint system
         let cs = ConstraintSystem::<ScalarField>::new_ref();
 
+        // initialise the accumulate verifier circuit
         let verifier = AccumulatorVerifierVar::<G1, G2, C2>::rand(&srs, cs.clone());
-        //cs.clone().to_matrices().unwrap();
 
         println!("number of constraint for initialisation: {}", cs.num_constraints());
+
+        // run the accumulation
         verifier.accumulate();
+
         println!("number of constraint after accumulation: {}", cs.num_constraints());
+
+        // assert the constraint system is satisfied
         assert!(cs.is_satisfied().unwrap());
 
         // these are required to called CRR1CSShape::convert
@@ -610,13 +621,46 @@ pub mod tests {
 
         // convert to the corresponding Spartan types
         let shape = CRR1CSShape::<ScalarField>::convert::<G1>(cs.clone());
-        let SRS: SRS<E> = MultilinearPolynomial::setup(17, &mut thread_rng()).unwrap();
+        let SRS: SRS<E> = MultilinearPolynomial::setup(18, &mut thread_rng()).unwrap();
         let key: CRR1CSKey<E, MultilinearPolynomial<ScalarField>> = CRR1CSKey::new(&SRS, shape.get_num_cons(), shape.get_num_vars());
         let instance: CRR1CSInstance<E, MultilinearPolynomial<ScalarField>> = CRR1CSInstance::convert(cs.clone(), &key.keys.ck);
         let witness = CRR1CSWitness::<ScalarField>::convert(cs.clone());
 
         // check that the Spartan instance-witness pair is still satisfying
         assert!(is_sat(&shape, &instance, &witness, &key).unwrap());
+
+        let (num_cons, num_vars, _num_inputs) = (
+            shape.get_num_cons(),
+            shape.get_num_vars(),
+            shape.get_num_inputs(),
+        );
+
+        // run Spartan prover
+        let mut prover_transcript = Transcript::new(b"example");
+
+        let (proof, rx, ry) = CRR1CSProof::prove(
+            &shape,
+            &instance,
+            witness,
+            &key,
+            &mut prover_transcript,
+        );
+
+        // evaluate matrices A B C
+        let inst_evals = shape.inst.inst.evaluate(&rx, &ry);
+
+        // run Spartan verifier
+        let mut verifier_transcript = Transcript::new(b"example");
+        assert!(proof
+            .verify(
+                num_vars,
+                num_cons,
+                &instance,
+                &inst_evals,
+                &mut verifier_transcript,
+                &key.keys.vk,
+            )
+            .is_ok());
 
         /*
         // write the witness into a file

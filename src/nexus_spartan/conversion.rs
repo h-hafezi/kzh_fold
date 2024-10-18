@@ -7,14 +7,14 @@ use crate::nexus_spartan::crr1cs::{CRR1CSInstance, CRR1CSShape, CRR1CSWitness};
 use crate::nexus_spartan::errors::R1CSError;
 use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
 use crate::nexus_spartan::{Assignment, Instance};
+use crate::polynomial::multilinear_poly::MultilinearPolynomial;
+use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
 use ark_ec::short_weierstrass::{Affine, SWCurveConfig};
 use ark_ff::PrimeField;
 use ark_relations::r1cs::ConstraintSystemRef;
 use std::error::Error;
 use std::fmt::Display;
-use ark_crypto_primitives::sponge::Absorb;
-use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 
 #[derive(Debug)]
 pub enum ConversionError {
@@ -125,13 +125,16 @@ mod tests {
     use crate::constant_for_curves::{ScalarField, E, G1};
     use crate::hash::pederson::PedersenCommitment;
     use crate::nexus_spartan::crr1cs::{is_sat, CRR1CSInstance, CRR1CSKey, CRR1CSShape, CRR1CSWitness};
+    use crate::nexus_spartan::crr1csproof::CRR1CSProof;
     use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
     use crate::pcs::multilinear_pcs::SRS;
     use crate::polynomial::multilinear_poly::MultilinearPolynomial;
+    use crate::transcript::transcript::Transcript;
     use ark_ec::short_weierstrass::Projective;
     use ark_ec::CurveConfig;
     use ark_ff::PrimeField;
     use ark_r1cs_std::alloc::AllocVar;
+    use ark_r1cs_std::boolean::Boolean;
     use ark_r1cs_std::eq::EqGadget;
     use ark_r1cs_std::fields::fp::FpVar;
     use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef, SynthesisError, SynthesisMode};
@@ -160,7 +163,17 @@ mod tests {
 
             // Add a constraint: a + b == a^2
             let a_squared = &a_var * &a_var;
+            let a_squared = &a_var * &a_var;
+            let a_squared = &a_var * &a_var;
+            let a_squared = &a_var * &a_var;
+            for i in 0..12 {
+                let _ = Boolean::new_witness(cs.clone(), || Ok(false));
+            }
 
+            sum.enforce_equal(&a_squared).expect("OMG");
+            sum.enforce_equal(&a_squared).expect("OMG");
+            sum.enforce_equal(&a_squared).expect("OMG");
+            sum.enforce_equal(&a_squared).expect("OMG");
             sum.enforce_equal(&a_squared).expect("OMG");
 
             Ok(())
@@ -191,12 +204,42 @@ mod tests {
 
         // convert to the corresponding Spartan types
         let shape = CRR1CSShape::<ScalarField>::convert::<G1>(cs.clone());
-        let SRS: SRS<E> = MultilinearPolynomial::setup(5, &mut thread_rng()).unwrap();
+        let SRS: SRS<E> = MultilinearPolynomial::setup(4, &mut thread_rng()).unwrap();
         let key: CRR1CSKey<E, MultilinearPolynomial<ScalarField>> = CRR1CSKey::new(&SRS, shape.get_num_cons(), shape.get_num_vars());
         let instance: CRR1CSInstance<E, MultilinearPolynomial<ScalarField>> = CRR1CSInstance::convert(cs.clone(), &key.keys.ck);
         let witness = CRR1CSWitness::<ScalarField>::convert(cs.clone());
 
         // check that the Spartan instance-witness pair is still satisfying
         assert!(is_sat(&shape, &instance, &witness, &key).unwrap());
+
+        let (num_cons, num_vars, _num_inputs) = (
+            shape.get_num_cons(),
+            shape.get_num_vars(),
+            shape.get_num_inputs(),
+        );
+
+        let mut prover_transcript = Transcript::new(b"example");
+
+        let (proof, rx, ry) = CRR1CSProof::prove(
+            &shape,
+            &instance,
+            witness,
+            &key,
+            &mut prover_transcript,
+        );
+
+        let inst_evals = shape.inst.inst.evaluate(&rx, &ry);
+
+        let mut verifier_transcript = Transcript::new(b"example");
+        assert!(proof
+            .verify(
+                num_vars,
+                num_cons,
+                &instance,
+                &inst_evals,
+                &mut verifier_transcript,
+                &key.keys.vk,
+            )
+            .is_ok());
     }
 }
