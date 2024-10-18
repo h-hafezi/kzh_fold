@@ -1,6 +1,5 @@
 /// This is basically KZG with a modified Eval function
 
-use crate::kzg::{KZG10, trim};
 
 /// Prover for PCS:
 /// Step 1) Run the HPI protocol

@@ -16,7 +16,7 @@ use crate::transcript::transcript::{AppendToTranscript, Transcript};
 
 #[derive(CanonicalSerialize, CanonicalDeserialize, Debug, Clone)]
 pub struct SumcheckInstanceProof<F: PrimeField + Absorb> {
-    compressed_polys: Vec<CompressedUniPoly<F>>,
+    pub compressed_polys: Vec<CompressedUniPoly<F>>,
 }
 
 impl<F: PrimeField + Absorb> SumcheckInstanceProof<F> {

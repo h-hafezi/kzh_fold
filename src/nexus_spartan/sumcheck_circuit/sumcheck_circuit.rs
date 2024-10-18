@@ -11,10 +11,10 @@ use ark_r1cs_std::fields::fp::FpVar;
 
 pub struct SumcheckCircuit<F: PrimeField + Absorb> {
     pub compressed_polys: Vec<CompressedUniPoly<F>>,
-    claim: F,
-    num_rounds: usize,
-    degree_bound: usize,
-    transcript: Transcript<F>,
+    pub claim: F,
+    pub num_rounds: usize,
+    pub degree_bound: usize,
+    pub transcript: Transcript<F>,
 }
 
 impl<F: PrimeField + Absorb> SumcheckCircuit<F> {

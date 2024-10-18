@@ -22,16 +22,16 @@ use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 #[derive(CanonicalSerialize, CanonicalDeserialize, Debug)]
 pub struct CRR1CSProof<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>, F: PrimeField + Absorb> {
     /// Sumcheck proof for the polynomial g(x) = \sum eq(tau,x) * (~Az~(x) * ~Bz~(x) - u * ~Cz~(x) - ~E~(x))
-    sc_proof_phase1: SumcheckInstanceProof<F>,
+    pub sc_proof_phase1: SumcheckInstanceProof<F>,
     /// Evaluation claims for ~Az~(rx), ~Bz~(rx), and ~Cz~(rx).
-    claims_phase2: (F, F, F),
+    pub claims_phase2: (F, F, F),
     /// Sumcheck proof for the polynomial F(x) = ~Z(x)~ * ~ABC~(x), where ABC(x) = \sum_t ~M~(t,x) eq(r,t)
     /// for M a random linear combination of A, B, and C.
-    sc_proof_phase2: SumcheckInstanceProof<F>,
+    pub sc_proof_phase2: SumcheckInstanceProof<F>,
     /// The claimed evaluation ~Z~(ry)
-    eval_vars_at_ry: F,
+    pub eval_vars_at_ry: F,
     /// A polynomial evaluation proof of the claimed evaluation ~Z~(ry) with respect to the commitment comm_W.
-    proof_eval_vars_at_ry: PC::PolyCommitmentProof,
+    pub proof_eval_vars_at_ry: PC::PolyCommitmentProof,
 }
 
 impl<F: PrimeField + Absorb> SumcheckInstanceProof<F> {
@@ -245,10 +245,6 @@ impl<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>, F: PrimeField + Abs
         transcript: &mut Transcript<F>,
     ) -> (CRR1CSProof<E, PC, F>, Vec<F>, Vec<F>) {
         let timer_prove = Timer::new("CRR1CSProof::prove");
-        Transcript::append_protocol_name(
-            transcript,
-            CRR1CSProof::<E, PC, F>::protocol_name(),
-        );
 
         let _inst = &shape.inst.inst;
         let CRR1CSInstance {
@@ -263,7 +259,10 @@ impl<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>, F: PrimeField + Abs
         // we currently require the number of |inputs| + 1 to be at most number of vars
         assert!(input.len() < vars.len());
         Transcript::append_scalars(transcript, b"input", input);
-        comm_W.append_to_transcript(b"comm_W", transcript);
+
+        // todo: has to be removed for the decider
+        // comm_W.append_to_transcript(b"comm_W", transcript);
+
         // create a multilinear polynomial using the supplied assignment for variables
         let poly_vars = MultilinearPolynomial::<F>::new(vars.clone());
 
@@ -394,11 +393,6 @@ impl<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>, F: PrimeField + Abs
         transcript: &mut Transcript<F>,
         key: &PC::EvalVerifierKey,
     ) -> Result<(Vec<F>, Vec<F>), ProofVerifyError> {
-        Transcript::append_protocol_name(
-            transcript,
-            CRR1CSProof::<E, PC, F>::protocol_name(),
-        );
-
         let CRR1CSInstance {
             input: _input,
             comm_W,
@@ -407,7 +401,9 @@ impl<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>, F: PrimeField + Abs
         let input = _input.assignment.as_slice();
 
         Transcript::append_scalars(transcript, b"input", input);
-        comm_W.append_to_transcript(b"comm_W", transcript);
+
+        // todo: has to be removed for decider
+        // comm_W.append_to_transcript(b"comm_W", transcript);
 
         let n = num_vars;
 
@@ -590,9 +586,9 @@ mod tests {
         let num_vars = 1024;
         let num_cons = num_vars;
         let num_inputs = 10;
-        let (shape, instance, witness, gens) =
-            produce_synthetic_crr1cs::<E, PC>(num_cons, num_vars, num_inputs);
+        let (shape, instance, witness, gens) = produce_synthetic_crr1cs::<E, PC>(num_cons, num_vars, num_inputs);
         assert!(is_sat(&shape, &instance, &witness, &gens.gens_r1cs_sat).unwrap());
+
         let (num_cons, num_vars, _num_inputs) = (
             shape.get_num_cons(),
             shape.get_num_vars(),

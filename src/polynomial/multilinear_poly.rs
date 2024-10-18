@@ -4,7 +4,6 @@
 use core::ops::{Add, Index};
 use std::fmt::Debug;
 
-use ark_ec::pairing::Pairing;
 use ark_ff::{Field, PrimeField};
 use ark_serialize::*;
 use rand::{Rng, RngCore};
