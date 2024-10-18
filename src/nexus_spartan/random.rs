@@ -1,7 +1,7 @@
 use crate::transcript::transcript::Transcript;
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
-use ark_ff::{PrimeField, UniformRand};
+use ark_ff::{PrimeField};
 use ark_std::test_rng;
 
 pub struct RandomTape<E: Pairing>

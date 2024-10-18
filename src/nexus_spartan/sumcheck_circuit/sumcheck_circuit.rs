@@ -1,7 +1,7 @@
 use crate::nexus_spartan::sumcheck::SumcheckInstanceProof;
 use crate::nexus_spartan::unipoly::unipoly::CompressedUniPoly;
 use crate::nexus_spartan::unipoly::unipoly_var::{CompressedUniPolyVar, UniPolyVar};
-use crate::transcript::transcript::{AppendToTranscript, Transcript};
+use crate::transcript::transcript::{Transcript};
 use crate::transcript::transcript_var::{AppendToTranscriptVar, TranscriptVar};
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;

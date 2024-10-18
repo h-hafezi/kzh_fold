@@ -80,7 +80,6 @@ where
 
 #[cfg(test)]
 pub mod test {
-    use ark_ec::pairing::Pairing;
     use ark_std::UniformRand;
     use rand::thread_rng;
 

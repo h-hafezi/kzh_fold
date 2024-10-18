@@ -1,7 +1,6 @@
 use crate::nexus_spartan::commitments::{Commitments, MultiCommitGens};
 use crate::transcript::transcript::{AppendToTranscript, Transcript};
 use ark_crypto_primitives::sponge::Absorb;
-use ark_ec::pairing::Pairing;
 use ark_ec::CurveGroup;
 use ark_ff::PrimeField;
 use ark_serialize::*;
