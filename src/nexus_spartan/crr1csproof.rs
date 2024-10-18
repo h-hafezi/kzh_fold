@@ -457,7 +457,7 @@ impl<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>, F: PrimeField + Abs
             &self.eval_vars_at_ry,
         ).map_err(|_| ProofVerifyError::InternalError)?;
 
-        // TODO: this has to move into decider too, poly_input_eval will be given as an input (A B C aggregation)
+        // Compute (io,1)(r_y) so that we can use it to compute Z(r_y)
         let poly_input_eval = {
             // constant term
             let mut input_as_sparse_poly_entries = vec![SparsePolyEntry::new(0, F::ONE)];
@@ -470,7 +470,7 @@ impl<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>, F: PrimeField + Abs
             SparsePolynomial::new(n.log_2(), input_as_sparse_poly_entries).evaluate(&ry[1..])
         };
 
-        // compute eval_Z_at_ry = (F::one() - ry[0]) * self.eval_vars_at_ry + ry[0] * poly_input_eval
+        // compute Z(r_y): eval_Z_at_ry = (F::one() - ry[0]) * self.eval_vars_at_ry + ry[0] * poly_input_eval
         let eval_Z_at_ry = (F::one() - ry[0]) * self.eval_vars_at_ry + ry[0] * poly_input_eval;
 
         // perform the final check in the second sum-check protocol
