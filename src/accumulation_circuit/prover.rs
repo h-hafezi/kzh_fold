@@ -294,7 +294,6 @@ where
 #[cfg(test)]
 pub mod tests {
     use ark_ec::CurveConfig;
-    use ark_ec::short_weierstrass::Projective;
     use ark_ff::Field;
     use rand::thread_rng;
 
@@ -303,10 +302,7 @@ pub mod tests {
     use crate::commitment::CommitmentScheme;
     use crate::constant_for_curves::{BaseField, E, G1, G2, ScalarField};
     use crate::gadgets::non_native::util::convert_field_one_to_field_two;
-    use crate::gadgets::r1cs::r1cs::RelaxedR1CSInstance;
-    use crate::gadgets::r1cs::RelaxedR1CSWitness;
     use crate::hash::pederson::PedersenCommitment;
-    use crate::nova::cycle_fold::coprocessor::setup_shape;
     use crate::pcs::multilinear_pcs::{PolyCommit, SRS};
 
     type GrumpkinCurveGroup = ark_grumpkin::Projective;

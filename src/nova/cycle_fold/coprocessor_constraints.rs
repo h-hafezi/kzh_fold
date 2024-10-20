@@ -263,10 +263,7 @@ where
     pub fn fold(
         &self,
         instances: &[(
-            (
-                &OvaInstanceVar<G2, C2>,
-                Option<&ProjectiveVar<G2, FpVar<G2::BaseField>>>,
-            ),
+            &'_ OvaInstanceVar<G2, C2>,
             &'_ ProjectiveVar<G2, FpVar<G2::BaseField>>,
             &'_ NonNativeFieldVar<G2::ScalarField, G2::BaseField>,
             &'_ [Boolean<G2::BaseField>],
@@ -279,8 +276,9 @@ where
             .map(NonNativeFieldMulResultVar::from)
             .collect();
 
-        for ((U, comm_E), commitment_T, r, r_bits) in instances {
-            commitment += U.commitment.scalar_mul_le(r_bits.iter()).unwrap() + *commitment_T;
+        for (U, commitment_T, r, r_bits) in instances {
+            let res = U.commitment.clone() + *commitment_T;
+            commitment += res.scalar_mul_le(r_bits.iter())?;
             for (x1, x2) in X.iter_mut().zip(&U.X) {
                 *x1 += x2.mul_without_reduce(r)?;
             }
@@ -290,6 +288,7 @@ where
             .iter()
             .map(NonNativeFieldMulResultVar::reduce)
             .collect::<Result<_, _>>()?;
+
         Ok(Self {
             commitment,
             X,

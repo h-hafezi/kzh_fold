@@ -1,4 +1,4 @@
-/*use crate::commitment;
+use crate::commitment;
 use std::borrow::Borrow;
 use std::marker::PhantomData;
 use std::ops::Add;
@@ -30,10 +30,10 @@ use crate::accumulation_circuit::randomness_different_formats;
 use crate::commitment::CommitmentScheme;
 use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
 use crate::gadgets::non_native::util::{convert_field_one_to_field_two, non_native_to_fpvar};
-use crate::gadgets::r1cs::{R1CSInstance, RelaxedR1CSInstance};
+use crate::gadgets::r1cs::{OvaInstance, RelaxedOvaInstance};
 use crate::hash::poseidon::{PoseidonHashVar};
 use crate::nova::cycle_fold::coprocessor::{SecondaryCircuit as SecondaryCircuit, synthesize};
-use crate::nova::cycle_fold::coprocessor_constraints::{R1CSInstanceVar, RelaxedR1CSInstanceVar};
+use crate::nova::cycle_fold::coprocessor_constraints::{OvaInstanceVar, RelaxedOvaInstanceVar};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AccumulatorVerifier<G1, G2, C2, E>
@@ -51,13 +51,13 @@ where
     pub beta: G1::ScalarField,
 
     /// auxiliary input which helps to have C'' = (1-beta) * C + beta * C' without scalar multiplication
-    pub auxiliary_input_C: R1CSInstance<G2, C2>,
+    pub auxiliary_input_C: OvaInstance<G2, C2>,
     /// auxiliary input which helps to have T'' = (1-beta) * T + beta * T' without scalar multiplication
-    pub auxiliary_input_T: R1CSInstance<G2, C2>,
+    pub auxiliary_input_T: OvaInstance<G2, C2>,
     /// auxiliary input which helps to have E_{temp} = (1-beta) * E + beta * E' without scalar multiplication
-    pub auxiliary_input_E_1: R1CSInstance<G2, C2>,
+    pub auxiliary_input_E_1: OvaInstance<G2, C2>,
     /// auxiliary input which helps to have E'' = E_{temp} + beta * (1-beta) * Q without scalar multiplication
-    pub auxiliary_input_E_2: R1CSInstance<G2, C2>,
+    pub auxiliary_input_E_2: OvaInstance<G2, C2>,
 
     /// accumulation proof for accumulators
     pub Q: Projective<G1>,
@@ -76,8 +76,8 @@ where
     pub final_accumulator_instance: AccInstance<E>,
 
     /// running cycle fold instance
-    pub running_cycle_fold_instance: RelaxedR1CSInstance<G2, C2>,
-    pub final_cycle_fold_instance: RelaxedR1CSInstance<G2, C2>,
+    pub running_cycle_fold_instance: RelaxedOvaInstance<G2, C2>,
+    pub final_cycle_fold_instance: RelaxedOvaInstance<G2, C2>,
 
     // these are constant values
     pub n: u32,
@@ -97,13 +97,13 @@ where
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField>,
 {
     /// auxiliary input which helps to have C'' = (1-beta) * C + beta * C' without scalar multiplication
-    pub auxiliary_input_C_var: R1CSInstanceVar<G2, C2>,
+    pub auxiliary_input_C_var: OvaInstanceVar<G2, C2>,
     /// auxiliary input which helps to have T'' = (1-beta) * T + beta * T' without scalar multiplication
-    pub auxiliary_input_T_var: R1CSInstanceVar<G2, C2>,
+    pub auxiliary_input_T_var: OvaInstanceVar<G2, C2>,
     /// auxiliary input which helps to have E_{temp} = (1-beta) * E + beta * E' without scalar multiplication
-    pub auxiliary_input_E_1_var: R1CSInstanceVar<G2, C2>,
+    pub auxiliary_input_E_1_var: OvaInstanceVar<G2, C2>,
     /// auxiliary input which helps to have E'' = E_{temp} + beta * (1-beta) * Q without scalar multiplication
-    pub auxiliary_input_E_2_var: R1CSInstanceVar<G2, C2>,
+    pub auxiliary_input_E_2_var: OvaInstanceVar<G2, C2>,
 
     /// the randomness used for taking linear combination and its non-native counterpart
     pub beta_var: FpVar<G1::ScalarField>,
@@ -122,8 +122,8 @@ where
     pub running_accumulator_instance_var: AccumulatorInstanceVar<G1>,
     pub final_accumulator_instance_var: AccumulatorInstanceVar<G1>,
 
-    pub running_cycle_fold_instance_var: RelaxedR1CSInstanceVar<G2, C2>,
-    pub final_cycle_fold_instance_var: RelaxedR1CSInstanceVar<G2, C2>,
+    pub running_cycle_fold_instance_var: RelaxedOvaInstanceVar<G2, C2>,
+    pub final_cycle_fold_instance_var: RelaxedOvaInstanceVar<G2, C2>,
 
     // these are constant values
     pub n: u32,
@@ -149,25 +149,25 @@ where
         let circuit = res.as_ref().map(|e| e.borrow()).map_err(|err| *err);
 
         // auxiliary inputs
-        let auxiliary_input_C_var = R1CSInstanceVar::new_variable(
+        let auxiliary_input_C_var = OvaInstanceVar::new_variable(
             ns!(cs, "auxiliary_input_C"),
             || Ok(circuit.map(|e| e.auxiliary_input_C.clone()).unwrap()),
             mode,
         ).unwrap();
 
-        let auxiliary_input_T_var = R1CSInstanceVar::new_variable(
+        let auxiliary_input_T_var = OvaInstanceVar::new_variable(
             ns!(cs, "auxiliary_input_T"),
             || Ok(circuit.map(|e| e.auxiliary_input_T.clone()).unwrap()),
             mode,
         ).unwrap();
 
-        let auxiliary_input_E_1_var = R1CSInstanceVar::new_variable(
+        let auxiliary_input_E_1_var = OvaInstanceVar::new_variable(
             ns!(cs, "auxiliary_input_E_1"),
             || Ok(circuit.map(|e| e.auxiliary_input_E_1.clone()).unwrap()),
             mode,
         ).unwrap();
 
-        let auxiliary_input_E_2_var = R1CSInstanceVar::new_variable(
+        let auxiliary_input_E_2_var = OvaInstanceVar::new_variable(
             ns!(cs, "auxiliary_input_E_2"),
             || Ok(circuit.map(|e| e.auxiliary_input_E_2.clone()).unwrap()),
             mode,
@@ -194,13 +194,13 @@ where
         ).unwrap();
 
         // cycle fold instances
-        let running_cycle_fold_instance_var = RelaxedR1CSInstanceVar::new_variable(
+        let running_cycle_fold_instance_var = RelaxedOvaInstanceVar::new_variable(
             ns!(cs, "cycle fold running instance"),
             || circuit.map(|e| e.running_cycle_fold_instance.clone()),
             mode,
         ).unwrap();
 
-        let final_cycle_fold_instance_var = RelaxedR1CSInstanceVar::new_variable(
+        let final_cycle_fold_instance_var = RelaxedOvaInstanceVar::new_variable(
             ns!(cs, "cycle fold running instance"),
             || circuit.map(|e| e.final_cycle_fold_instance.clone()),
             mode,
@@ -400,20 +400,19 @@ where
         z_var.enforce_equal(&self.final_accumulator_instance_var.z_var).expect("error while enforcing equality");
 
         let final_instance = self.running_cycle_fold_instance_var.fold(
-            &[((&self.auxiliary_input_C_var, None), &self.com_C_var, &self.beta_var_non_native, &beta_bits),
-                ((&self.auxiliary_input_T_var, None), &self.com_T_var, &self.beta_var_non_native, &beta_bits),
-                ((&self.auxiliary_input_E_1_var, None), &self.com_E_1_var, &self.beta_var_non_native, &beta_bits),
-                ((&self.auxiliary_input_E_2_var, None), &self.com_E_2_var, &self.beta_var_non_native, &beta_bits),
+            &[(&self.auxiliary_input_C_var, &self.com_C_var, &self.beta_var_non_native, &beta_bits),
+                (&self.auxiliary_input_T_var, &self.com_T_var, &self.beta_var_non_native, &beta_bits),
+                (&self.auxiliary_input_E_1_var, &self.com_E_1_var, &self.beta_var_non_native, &beta_bits),
+                (&self.auxiliary_input_E_2_var, &self.com_E_2_var, &self.beta_var_non_native, &beta_bits),
             ]
         ).unwrap();
 
         self.final_cycle_fold_instance_var.X.enforce_equal(&final_instance.X).expect("XXX: panic message");
-        self.final_cycle_fold_instance_var.commitment_E.enforce_equal(&final_instance.commitment_E).expect("XXX: panic message");
-        self.final_cycle_fold_instance_var.commitment_W.enforce_equal(&final_instance.commitment_W).expect("XXX: panic message");
+        self.final_cycle_fold_instance_var.commitment.enforce_equal(&final_instance.commitment).expect("XXX: panic message");
 
         // pad witness to have a length of power of two
         for _ in 0..6817{
-            let _ = Boolean::new_witness(self.beta_var.cs().clone(), || Ok(false));
+            // let _ = Boolean::new_witness(self.beta_var.cs().clone(), || Ok(false));
         }
     }
 }
@@ -462,25 +461,25 @@ where
         ).unwrap();
 
         // initialise auxiliary input variables
-        let auxiliary_input_C_var = R1CSInstanceVar::new_variable(
+        let auxiliary_input_C_var = OvaInstanceVar::new_variable(
             ns!(cs, "auxiliary input C var"),
             || Ok(prover.compute_auxiliary_input_C().0),
             AllocationMode::Input,
         ).unwrap();
 
-        let auxiliary_input_T_var = R1CSInstanceVar::new_variable(
+        let auxiliary_input_T_var = OvaInstanceVar::new_variable(
             ns!(cs, "auxiliary input T var"),
             || Ok(prover.compute_auxiliary_input_T().0),
             AllocationMode::Input,
         ).unwrap();
 
-        let auxiliary_input_E_1_var = R1CSInstanceVar::new_variable(
+        let auxiliary_input_E_1_var = OvaInstanceVar::new_variable(
             ns!(cs, "auxiliary input E_1 var"),
             || Ok(prover.compute_auxiliary_input_E_1().0),
             AllocationMode::Input,
         ).unwrap();
 
-        let auxiliary_input_E_2_var = R1CSInstanceVar::new_variable(
+        let auxiliary_input_E_2_var = OvaInstanceVar::new_variable(
             ns!(cs, "auxiliary input E_2 var"),
             || Ok(prover.compute_auxiliary_input_E_2().0),
             AllocationMode::Input,
@@ -522,14 +521,14 @@ where
 
 
         // initialise cycle fold running instance var
-        let running_cycle_fold_instance_var = RelaxedR1CSInstanceVar::new_variable(
+        let running_cycle_fold_instance_var = RelaxedOvaInstanceVar::new_variable(
             ns!(cs, "running cycle fold instance var"),
             || Ok(prover.running_cycle_fold_instance),
             AllocationMode::Input,
         ).unwrap();
 
         // initialise cycle fold running instance var
-        let final_cycle_fold_instance_var = RelaxedR1CSInstanceVar::new_variable(
+        let final_cycle_fold_instance_var = RelaxedOvaInstanceVar::new_variable(
             ns!(cs, "final cycle fold instance var"),
             || Ok(cycle_fold_proof.4),
             AllocationMode::Input,
@@ -565,9 +564,9 @@ where
 #[cfg(test)]
 pub mod tests {
     use std::fmt::Debug;
-    use std::fs::File;
-    use std::io::BufWriter;
-    use std::io::Write;
+    // use std::fs::File;
+    // use std::io::BufWriter;
+    // use std::io::Write;
 
     use ark_ec::short_weierstrass::Projective;
     use ark_ff::PrimeField;
@@ -619,6 +618,7 @@ pub mod tests {
         cs.set_mode(SynthesisMode::Prove { construct_matrices: true });
         cs.finalize();
 
+        /*
         // convert to the corresponding Spartan types
         let shape = CRR1CSShape::<ScalarField>::convert::<G1>(cs.clone());
         let SRS: SRS<E> = MultilinearPolynomial::setup(18, &mut thread_rng()).unwrap();
@@ -661,6 +661,7 @@ pub mod tests {
                 &key.keys.vk,
             )
             .is_ok());
+         */
 
         /*
         // write the witness into a file
@@ -677,4 +678,4 @@ pub mod tests {
          */
     }
 }
- */
+
