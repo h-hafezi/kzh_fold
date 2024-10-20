@@ -1,4 +1,4 @@
-use crate::commitment;
+/*use crate::commitment;
 use std::borrow::Borrow;
 use std::marker::PhantomData;
 use std::ops::Add;
@@ -677,3 +677,4 @@ pub mod tests {
          */
     }
 }
+ */

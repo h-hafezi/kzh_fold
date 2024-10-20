@@ -25,9 +25,8 @@ use ark_relations::r1cs::{
     ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef, SynthesisError, SynthesisMode,
 };
 use ark_std::Zero;
-
-use crate::gadgets::r1cs::*;
-use crate::commitment::CommitmentScheme;
+use crate::commitment::{CommitmentScheme, Len};
+use crate::gadgets::r1cs::{OvaInstance, OvaWitness, R1CSShape};
 
 /// Leading One + 3 curve points + 1 scalar + 1 flag.
 const SECONDARY_NUM_IO: usize = 12;
@@ -128,7 +127,7 @@ where
 pub fn synthesize<G1, G2, C2>(
     circuit: SecondaryCircuit<G1>,
     pp_secondary: &C2::PP,
-) -> Result<(R1CSInstance<G2, C2>, R1CSWitness<G2>), SynthesisError>
+) -> Result<(OvaInstance<G2, C2>, OvaWitness<G2>), SynthesisError>
 where
     G1: SWCurveConfig,
     G1::BaseField: PrimeField,
@@ -137,19 +136,19 @@ where
 {
     let cs = ConstraintSystem::<G1::BaseField>::new_ref();
     cs.set_mode(SynthesisMode::Prove { construct_matrices: false });
-
     circuit.generate_constraints(cs.clone())?;
-
     cs.finalize();
     let cs_borrow = cs.borrow().unwrap();
 
     let witness = cs_borrow.witness_assignment.clone();
     let pub_io = cs_borrow.instance_assignment.clone();
 
-    let W = R1CSWitness::<G2> { W: witness };
+    let W = OvaWitness::<G2> { W: witness };
 
-    let commitment_W = W.commit::<C2>(pp_secondary);
-    let U = R1CSInstance::<G2, C2> { commitment_W, X: pub_io };
+    assert_eq!(pp_secondary.len(), W.W.len());
+    let commitment = C2::commit(pp_secondary, W.W.as_slice());
+
+    let U = OvaInstance::<G2, C2> { commitment, X: pub_io };
 
     Ok((U, W))
 }
@@ -170,7 +169,7 @@ macro_rules! parse_projective {
     };
 }
 
-impl<G2, C2> R1CSInstance<G2, C2>
+impl<G2, C2> OvaInstance<G2, C2>
 where
     G2: SWCurveConfig,
     C2: CommitmentScheme<Projective<G2>>,
@@ -239,8 +238,8 @@ mod tests {
 
         assert_eq!(X.len(), SECONDARY_NUM_IO);
 
-        let r1cs = R1CSInstance::<VestaConfig, PedersenCommitment<ark_vesta::Projective>> {
-            commitment_W: Default::default(),
+        let r1cs = OvaInstance::<VestaConfig, PedersenCommitment<ark_vesta::Projective>> {
+            commitment: Default::default(),
             X: X.into(),
         };
 
@@ -254,8 +253,8 @@ mod tests {
 
         // incorrect length
         let _X = &X[..10];
-        let r1cs = R1CSInstance::<VestaConfig, PedersenCommitment<ark_vesta::Projective>> {
-            commitment_W: Default::default(),
+        let r1cs = OvaInstance::<VestaConfig, PedersenCommitment<ark_vesta::Projective>> {
+            commitment: Default::default(),
             X: _X.into(),
         };
         assert!(r1cs.parse_secondary_io::<PallasConfig>().is_none());
@@ -263,8 +262,8 @@ mod tests {
         // not on curve
         let mut _X = X.to_vec();
         _X[1] -= Fq::ONE;
-        let r1cs = R1CSInstance::<VestaConfig, PedersenCommitment<ark_vesta::Projective>> {
-            commitment_W: Default::default(),
+        let r1cs = OvaInstance::<VestaConfig, PedersenCommitment<ark_vesta::Projective>> {
+            commitment: Default::default(),
             X: _X,
         };
         assert!(r1cs.parse_secondary_io::<PallasConfig>().is_none());

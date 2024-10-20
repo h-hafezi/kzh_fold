@@ -22,68 +22,68 @@ use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 
 use crate::commitment::CommitmentScheme;
 use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
-use crate::gadgets::r1cs::{R1CSInstance, RelaxedR1CSInstance};
+use crate::gadgets::r1cs::{OvaInstance, RelaxedOvaInstance};
 use crate::nova::cycle_fold::coprocessor::SecondaryCircuit as SecondaryCircuit;
 
 #[must_use]
 #[derive(Debug)]
 /// Struct native on G2::BaseField = G1::ScalarField, hence native on primary curve
-pub struct R1CSInstanceVar<G2, C2>
+pub struct OvaInstanceVar<G2, C2>
 where
     G2: SWCurveConfig,
     G2::BaseField: PrimeField,
 {
     /// Commitment to witness.
-    pub commitment_W: ProjectiveVar<G2, FpVar<G2::BaseField>>,
+    pub commitment: ProjectiveVar<G2, FpVar<G2::BaseField>>,
     /// Public input of non-relaxed instance.
     pub X: Vec<NonNativeFieldVar<G2::ScalarField, G2::BaseField>>,
 
     _commitment_scheme: PhantomData<C2>,
 }
 
-impl<G2, C2> Clone for R1CSInstanceVar<G2, C2>
+impl<G2, C2> Clone for OvaInstanceVar<G2, C2>
 where
     G2: SWCurveConfig,
     G2::BaseField: PrimeField,
 {
     fn clone(&self) -> Self {
         Self {
-            commitment_W: self.commitment_W.clone(),
+            commitment: self.commitment.clone(),
             X: self.X.clone(),
             _commitment_scheme: self._commitment_scheme,
         }
     }
 }
 
-impl<G2, C2> R1CSVar<G2::BaseField> for R1CSInstanceVar<G2, C2>
+impl<G2, C2> R1CSVar<G2::BaseField> for OvaInstanceVar<G2, C2>
 where
     G2: SWCurveConfig,
     G2::BaseField: PrimeField,
     C2: CommitmentScheme<Projective<G2>>,
 {
-    type Value = R1CSInstance<G2, C2>;
+    type Value = OvaInstance<G2, C2>;
 
     fn cs(&self) -> ConstraintSystemRef<G2::BaseField> {
         self.X
             .iter()
             .fold(ConstraintSystemRef::None, |cs, x| cs.or(x.cs()))
-            .or(self.commitment_W.cs())
+            .or(self.commitment.cs())
     }
 
     fn value(&self) -> Result<Self::Value, SynthesisError> {
-        let commitment_W = self.commitment_W.value()?.into();
+        let commitment = self.commitment.value()?.into();
         let X = self.X.value()?;
-        Ok(R1CSInstance { commitment_W, X })
+        Ok(OvaInstance { commitment, X })
     }
 }
 
-impl<G2, C2> AllocVar<R1CSInstance<G2, C2>, G2::BaseField> for R1CSInstanceVar<G2, C2>
+impl<G2, C2> AllocVar<OvaInstance<G2, C2>, G2::BaseField> for OvaInstanceVar<G2, C2>
 where
     G2: SWCurveConfig,
     G2::BaseField: PrimeField,
     C2: CommitmentScheme<Projective<G2>>,
 {
-    fn new_variable<T: Borrow<R1CSInstance<G2, C2>>>(
+    fn new_variable<T: Borrow<OvaInstance<G2, C2>>>(
         cs: impl Into<Namespace<G2::BaseField>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
@@ -91,14 +91,14 @@ where
         let ns = cs.into();
         let cs = ns.cs();
 
-        let r1cs = f()?;
-        let X = &r1cs.borrow().X;
+        let ova_instance = f()?;
+        let X = &ova_instance.borrow().X;
         // Only allocate valid instance, which starts with F::ONE.
         assert_eq!(X[0], G2::ScalarField::ONE);
 
-        let commitment_W = ProjectiveVar::<G2, FpVar<G2::BaseField>>::new_variable(
+        let commitment = ProjectiveVar::<G2, FpVar<G2::BaseField>>::new_variable(
             cs.clone(),
-            || Ok(r1cs.borrow().commitment_W.into()),
+            || Ok(ova_instance.borrow().commitment.into()),
             mode,
         )?;
         let alloc_X = X[1..]
@@ -110,21 +110,21 @@ where
             .collect::<Result<_, _>>()?;
 
         Ok(Self {
-            commitment_W,
+            commitment,
             X,
             _commitment_scheme: PhantomData,
         })
     }
 }
 
-impl<G2, C2> From<&RelaxedR1CSInstanceVar<G2, C2>> for R1CSInstanceVar<G2, C2>
+impl<G2, C2> From<&RelaxedOvaInstanceVar<G2, C2>> for OvaInstanceVar<G2, C2>
 where
     G2: SWCurveConfig,
     G2::BaseField: PrimeField,
 {
-    fn from(U: &RelaxedR1CSInstanceVar<G2, C2>) -> Self {
+    fn from(U: &RelaxedOvaInstanceVar<G2, C2>) -> Self {
         Self {
-            commitment_W: U.commitment_W.clone(),
+            commitment: U.commitment.clone(),
             X: U.X.clone(),
             _commitment_scheme: PhantomData,
         }
@@ -133,68 +133,63 @@ where
 
 #[must_use]
 #[derive(Debug)]
-pub struct RelaxedR1CSInstanceVar<G2, C2>
+pub struct RelaxedOvaInstanceVar<G2, C2>
 where
     G2: SWCurveConfig,
     G2::BaseField: PrimeField,
 {
     /// Commitment to witness.
-    pub commitment_W: ProjectiveVar<G2, FpVar<G2::BaseField>>,
-    /// Commitment to error vector.
-    pub commitment_E: ProjectiveVar<G2, FpVar<G2::BaseField>>,
+    pub commitment: ProjectiveVar<G2, FpVar<G2::BaseField>>,
     /// Public input of relaxed instance.
     pub X: Vec<NonNativeFieldVar<G2::ScalarField, G2::BaseField>>,
 
     _commitment_scheme: PhantomData<C2>,
 }
 
-impl<G2, C2> Clone for RelaxedR1CSInstanceVar<G2, C2>
+impl<G2, C2> Clone for RelaxedOvaInstanceVar<G2, C2>
 where
     G2: SWCurveConfig,
     G2::BaseField: PrimeField,
 {
     fn clone(&self) -> Self {
         Self {
-            commitment_W: self.commitment_W.clone(),
-            commitment_E: self.commitment_E.clone(),
+            commitment: self.commitment.clone(),
             X: self.X.clone(),
             _commitment_scheme: self._commitment_scheme,
         }
     }
 }
 
-impl<G2, C2> R1CSVar<G2::BaseField> for RelaxedR1CSInstanceVar<G2, C2>
+impl<G2, C2> R1CSVar<G2::BaseField> for RelaxedOvaInstanceVar<G2, C2>
 where
     G2: SWCurveConfig,
     G2::BaseField: PrimeField,
     C2: CommitmentScheme<Projective<G2>>,
 {
-    type Value = RelaxedR1CSInstance<G2, C2>;
+    type Value = RelaxedOvaInstance<G2, C2>;
 
     fn cs(&self) -> ConstraintSystemRef<G2::BaseField> {
         self.X
             .iter()
             .fold(ConstraintSystemRef::None, |cs, x| cs.or(x.cs()))
-            .or(self.commitment_W.cs())
-            .or(self.commitment_E.cs())
+            .or(self.commitment.cs())
     }
 
     fn value(&self) -> Result<Self::Value, SynthesisError> {
-        let commitment_W = self.commitment_W.value()?.into();
-        let commitment_E = self.commitment_E.value()?.into();
+        let commitment = self.commitment.value()?.into();
         let X = self.X.value()?;
 
-        Ok(RelaxedR1CSInstance { commitment_W, commitment_E, X })
+        Ok(RelaxedOvaInstance { commitment, X })
     }
 }
 
-impl<G2, C2> AllocVar<RelaxedR1CSInstance<G2, C2>, G2::BaseField> for RelaxedR1CSInstanceVar<G2, C2>
+impl<G2, C2> AllocVar<RelaxedOvaInstance<G2, C2>, G2::BaseField> for RelaxedOvaInstanceVar<G2, C2>
 where
     G2: SWCurveConfig,
     G2::BaseField: PrimeField,
     C2: CommitmentScheme<Projective<G2>>,
 {
-    fn new_variable<T: Borrow<RelaxedR1CSInstance<G2, C2>>>(
+    fn new_variable<T: Borrow<RelaxedOvaInstance<G2, C2>>>(
         cs: impl Into<Namespace<G2::BaseField>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
@@ -202,17 +197,12 @@ where
         let ns = cs.into();
         let cs = ns.cs();
 
-        let r1cs = f()?;
-        let X = &r1cs.borrow().X;
+        let relaxed_ova_instance = f()?;
+        let X = &relaxed_ova_instance.borrow().X;
 
-        let commitment_W = ProjectiveVar::<G2, FpVar<G2::BaseField>>::new_variable(
+        let commitment = ProjectiveVar::<G2, FpVar<G2::BaseField>>::new_variable(
             cs.clone(),
-            || Ok(r1cs.borrow().commitment_W.into()),
-            mode,
-        )?;
-        let commitment_E = ProjectiveVar::<G2, FpVar<G2::BaseField>>::new_variable(
-            cs.clone(),
-            || Ok(r1cs.borrow().commitment_E.into()),
+            || Ok(relaxed_ova_instance.borrow().commitment.into()),
             mode,
         )?;
 
@@ -228,8 +218,7 @@ where
             .collect::<Result<_, _>>()?;
 
         Ok(Self {
-            commitment_W,
-            commitment_E,
+            commitment,
             X,
             _commitment_scheme: PhantomData,
         })
@@ -237,7 +226,7 @@ where
 }
 
 
-impl<G2, C2> CondSelectGadget<G2::BaseField> for RelaxedR1CSInstanceVar<G2, C2>
+impl<G2, C2> CondSelectGadget<G2::BaseField> for RelaxedOvaInstanceVar<G2, C2>
 where
     G2: SWCurveConfig,
     G2::BaseField: PrimeField,
@@ -248,8 +237,7 @@ where
         true_value: &Self,
         false_value: &Self,
     ) -> Result<Self, SynthesisError> {
-        let commitment_W = cond.select(&true_value.commitment_W, &false_value.commitment_W)?;
-        let commitment_E = cond.select(&true_value.commitment_E, &false_value.commitment_E)?;
+        let commitment = cond.select(&true_value.commitment, &false_value.commitment)?;
 
         let X = true_value
             .X
@@ -259,15 +247,14 @@ where
             .collect::<Result<_, _>>()?;
 
         Ok(Self {
-            commitment_W,
-            commitment_E,
+            commitment,
             X,
             _commitment_scheme: PhantomData,
         })
     }
 }
 
-impl<G2, C2> RelaxedR1CSInstanceVar<G2, C2>
+impl<G2, C2> RelaxedOvaInstanceVar<G2, C2>
 where
     G2: SWCurveConfig,
     G2::BaseField: PrimeField,
@@ -277,7 +264,7 @@ where
         &self,
         instances: &[(
             (
-                &R1CSInstanceVar<G2, C2>,
+                &OvaInstanceVar<G2, C2>,
                 Option<&ProjectiveVar<G2, FpVar<G2::BaseField>>>,
             ),
             &'_ ProjectiveVar<G2, FpVar<G2::BaseField>>,
@@ -285,8 +272,7 @@ where
             &'_ [Boolean<G2::BaseField>],
         )],
     ) -> Result<Self, SynthesisError> {
-        let mut commitment_W = self.commitment_W.clone();
-        let mut commitment_E = self.commitment_E.clone();
+        let mut commitment = self.commitment.clone();
         let mut X: Vec<NonNativeFieldMulResultVar<_, _>> = self
             .X
             .iter()
@@ -294,15 +280,9 @@ where
             .collect();
 
         for ((U, comm_E), commitment_T, r, r_bits) in instances {
-            commitment_W += U.commitment_W.scalar_mul_le(r_bits.iter())?;
-            commitment_E += commitment_T.scalar_mul_le(r_bits.iter())?;
+            commitment += U.commitment.scalar_mul_le(r_bits.iter()).unwrap() + *commitment_T;
             for (x1, x2) in X.iter_mut().zip(&U.X) {
                 *x1 += x2.mul_without_reduce(r)?;
-            }
-
-            if let Some(comm_E) = comm_E {
-                let r_square_bits = r.square()?.to_bits_le()?;
-                commitment_E += comm_E.scalar_mul_le(r_square_bits.iter())?;
             }
         }
 
@@ -311,8 +291,7 @@ where
             .map(NonNativeFieldMulResultVar::reduce)
             .collect::<Result<_, _>>()?;
         Ok(Self {
-            commitment_W,
-            commitment_E,
+            commitment,
             X,
             _commitment_scheme: PhantomData,
         })
@@ -341,7 +320,7 @@ macro_rules! parse_projective {
     };
 }
 
-impl<G2, C2> R1CSInstanceVar<G2, C2>
+impl<G2, C2> OvaInstanceVar<G2, C2>
 where
     G2: SWCurveConfig,
     G2::BaseField: PrimeField,
@@ -389,7 +368,7 @@ mod tests {
     use crate::commitment::*;
     use crate::hash::pederson::PedersenCommitment;
     use crate::nova::cycle_fold::coprocessor::{setup_shape, synthesize};
-    use crate::nova::cycle_fold::coprocessor_constraints::{R1CSInstanceVar};
+    use crate::nova::cycle_fold::coprocessor_constraints::{OvaInstanceVar};
     use crate::nova::cycle_fold::test::tests::get_random_circuit;
 
     #[test]
@@ -414,7 +393,7 @@ mod tests {
             PedersenCommitment<ark_vesta::Projective>,
         >(c.clone(), &pp).unwrap();
 
-        let U_var = R1CSInstanceVar::new_variable(
+        let U_var = OvaInstanceVar::new_variable(
             cs,
             || Ok(U.clone()),
             AllocationMode::Constant,
@@ -433,3 +412,4 @@ mod tests {
         assert_eq!(g_out.value().unwrap(), c.g_out);
     }
 }
+

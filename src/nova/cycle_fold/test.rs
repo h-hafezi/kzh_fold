@@ -1,18 +1,17 @@
-
 #[cfg(test)]
 pub(crate) mod tests {
+    use crate::commitment::CommitmentScheme;
+    use crate::gadgets::r1cs::{RelaxedOvaInstance, RelaxedOvaWitness};
+    pub use crate::hash::pederson::PedersenCommitment;
+    use crate::nova::cycle_fold::coprocessor::{setup_shape, synthesize, SecondaryCircuit};
+    use crate::utils::cast_field_element;
     use ark_ff::PrimeField;
     use ark_pallas::{Fq, Fr, PallasConfig, Projective};
     use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystem};
     use ark_std::UniformRand;
     use ark_vesta::VestaConfig;
     use rand::thread_rng;
-    pub use crate::hash::pederson::PedersenCommitment;
-    use crate::commitment::CommitmentScheme;
-    use crate::nova::cycle_fold::coprocessor::{SecondaryCircuit, setup_shape, synthesize};
-    use crate::gadgets::r1cs::r1cs::{commit_T, RelaxedR1CSWitness};
-    use crate::gadgets::r1cs::RelaxedR1CSInstance;
-    use crate::utils::cast_field_element;
+    use crate::gadgets::r1cs::ova::commit_T;
 
     pub fn get_random_circuit() -> SecondaryCircuit<PallasConfig> {
         let mut rng = ark_std::test_rng();
@@ -23,7 +22,7 @@ pub(crate) mod tests {
         let r = <Fq as PrimeField>::BigInt::from(val).into();
         let r_scalar = unsafe { cast_field_element::<Fq, Fr>(&r) };
 
-        let g_out = g1 * r_scalar + g2 ;
+        let g_out = g1 * r_scalar + g2;
 
         SecondaryCircuit {
             g1,
@@ -43,7 +42,7 @@ pub(crate) mod tests {
         let shape = setup_shape::<PallasConfig, VestaConfig>().unwrap();
 
         // pp which is Pederson's pp
-        let pp = PedersenCommitment::<ark_vesta::Projective>::setup(shape.num_vars, b"test", &());
+        let pp = PedersenCommitment::<ark_vesta::Projective>::setup(shape.num_vars + shape.num_constraints, b"test", &());
 
         // random challenge r
         let r: Fq = Fq::rand(&mut thread_rng());
@@ -58,21 +57,21 @@ pub(crate) mod tests {
             PallasConfig,
             VestaConfig,
             PedersenCommitment<ark_vesta::Projective>,
-        >(c1.clone(), &pp).unwrap();
+        >(c1.clone(), &pp[0..shape.num_vars].to_vec()).unwrap();
 
         // turn it into relaxed instances
-        let running_U = RelaxedR1CSInstance::from(&running_U);
-        let running_W = RelaxedR1CSWitness::from_r1cs_witness(&shape, &running_W);
+        let running_U = RelaxedOvaInstance::from(&running_U);
+        let running_W = RelaxedOvaWitness::from(&shape, &running_W);
 
         // make sure it's satisfying
-        shape.is_relaxed_satisfied(&running_U, &running_W, &pp).unwrap();
+        shape.is_relaxed_ova_satisfied(&running_U, &running_W, &pp).unwrap();
 
         // a new satisfying pair (u, w)
         let (u, w) = synthesize::<
             PallasConfig,
             VestaConfig,
             PedersenCommitment<ark_vesta::Projective>,
-        >(c2, &pp).unwrap();
+        >(c2, &pp[0..shape.num_vars].to_vec()).unwrap();
 
         // compute multi_folding proof T, commitment_T
         let (T, commitment_T) = commit_T(&shape, &pp, &running_U, &running_W, &u, &w).unwrap();
@@ -82,7 +81,7 @@ pub(crate) mod tests {
         let folded_W = running_W.fold(&w, &T, &r).unwrap();
 
         // check if they are satisfied
-        shape.is_relaxed_satisfied(&folded_U, &folded_W, &pp).unwrap();
+        shape.is_relaxed_ova_satisfied(&folded_U, &folded_W, &pp).unwrap();
     }
 }
 
