@@ -197,7 +197,8 @@ impl<G: CurveGroup, C: CommitmentScheme<G>> RelaxedOvaInstance<G, C> {
             .zip(X2)
             .map(|(a, b)| *a + *r * *b)
             .collect();
-        let commitment_W = comm_W1 + *comm_W2 * *r + *com_T;
+        let res = *comm_W2 + *com_T;
+        let commitment_W = comm_W1 + res * *r;
 
         Ok(Self { commitment: commitment_W, X })
     }

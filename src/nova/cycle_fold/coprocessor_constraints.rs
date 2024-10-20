@@ -279,8 +279,9 @@ where
             .map(NonNativeFieldMulResultVar::from)
             .collect();
 
-        for ((U, comm_E), commitment_T, r, r_bits) in instances {
-            commitment += U.commitment.scalar_mul_le(r_bits.iter()).unwrap() + *commitment_T;
+        for ((U, _), commitment_T, r, r_bits) in instances {
+            let res = U.commitment.clone() + *commitment_T;
+            commitment += res.scalar_mul_le(r_bits.iter()).unwrap();
             for (x1, x2) in X.iter_mut().zip(&U.X) {
                 *x1 += x2.mul_without_reduce(r)?;
             }

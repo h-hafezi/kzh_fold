@@ -1,23 +1,23 @@
-/*use crate::commitment;
+use crate::commitment;
 use std::borrow::Borrow;
 use std::marker::PhantomData;
 use std::ops::Add;
 
-use ark_crypto_primitives::sponge::Absorb;
 use ark_crypto_primitives::sponge::constraints::AbsorbGadget;
-use ark_ec::CurveConfig;
+use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
 use ark_ec::short_weierstrass::{Affine, Projective, SWCurveConfig};
+use ark_ec::CurveConfig;
 use ark_ff::{BigInteger64, Field, PrimeField};
-use ark_r1cs_std::{R1CSVar, ToBitsGadget};
-use ark_r1cs_std::alloc::{AllocationMode, AllocVar};
+use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::boolean::Boolean;
 use ark_r1cs_std::eq::EqGadget;
-use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
+use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::curves::short_weierstrass::ProjectiveVar;
 use ark_r1cs_std::groups::CurveVar;
+use ark_r1cs_std::{R1CSVar, ToBitsGadget};
 use ark_relations::ns;
 use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 use ark_std::UniformRand;
@@ -30,10 +30,10 @@ use crate::accumulation_circuit::randomness_different_formats;
 use crate::commitment::CommitmentScheme;
 use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
 use crate::gadgets::non_native::util::{convert_field_one_to_field_two, non_native_to_fpvar};
-use crate::gadgets::r1cs::{R1CSInstance, RelaxedR1CSInstance};
-use crate::hash::poseidon::{PoseidonHashVar};
-use crate::nova::cycle_fold::coprocessor::{SecondaryCircuit as SecondaryCircuit, synthesize};
-use crate::nova::cycle_fold::coprocessor_constraints::{R1CSInstanceVar, RelaxedR1CSInstanceVar};
+use crate::gadgets::r1cs::{OvaInstance, RelaxedOvaInstance};
+use crate::hash::poseidon::PoseidonHashVar;
+use crate::nova::cycle_fold::coprocessor::{synthesize, SecondaryCircuit as SecondaryCircuit};
+use crate::nova::cycle_fold::coprocessor_constraints::{OvaInstanceVar, RelaxedOvaInstanceVar};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AccumulatorVerifier<G1, G2, C2, E>
@@ -51,13 +51,13 @@ where
     pub beta: G1::ScalarField,
 
     /// auxiliary input which helps to have C'' = (1-beta) * C + beta * C' without scalar multiplication
-    pub auxiliary_input_C: R1CSInstance<G2, C2>,
+    pub auxiliary_input_C: OvaInstance<G2, C2>,
     /// auxiliary input which helps to have T'' = (1-beta) * T + beta * T' without scalar multiplication
-    pub auxiliary_input_T: R1CSInstance<G2, C2>,
+    pub auxiliary_input_T: OvaInstance<G2, C2>,
     /// auxiliary input which helps to have E_{temp} = (1-beta) * E + beta * E' without scalar multiplication
-    pub auxiliary_input_E_1: R1CSInstance<G2, C2>,
+    pub auxiliary_input_E_1: OvaInstance<G2, C2>,
     /// auxiliary input which helps to have E'' = E_{temp} + beta * (1-beta) * Q without scalar multiplication
-    pub auxiliary_input_E_2: R1CSInstance<G2, C2>,
+    pub auxiliary_input_E_2: OvaInstance<G2, C2>,
 
     /// accumulation proof for accumulators
     pub Q: Projective<G1>,
@@ -76,8 +76,8 @@ where
     pub final_accumulator_instance: AccInstance<E>,
 
     /// running cycle fold instance
-    pub running_cycle_fold_instance: RelaxedR1CSInstance<G2, C2>,
-    pub final_cycle_fold_instance: RelaxedR1CSInstance<G2, C2>,
+    pub running_cycle_fold_instance: RelaxedOvaInstance<G2, C2>,
+    pub final_cycle_fold_instance: RelaxedOvaInstance<G2, C2>,
 
     // these are constant values
     pub n: u32,
@@ -97,13 +97,13 @@ where
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField>,
 {
     /// auxiliary input which helps to have C'' = (1-beta) * C + beta * C' without scalar multiplication
-    pub auxiliary_input_C_var: R1CSInstanceVar<G2, C2>,
+    pub auxiliary_input_C_var: OvaInstanceVar<G2, C2>,
     /// auxiliary input which helps to have T'' = (1-beta) * T + beta * T' without scalar multiplication
-    pub auxiliary_input_T_var: R1CSInstanceVar<G2, C2>,
+    pub auxiliary_input_T_var: OvaInstanceVar<G2, C2>,
     /// auxiliary input which helps to have E_{temp} = (1-beta) * E + beta * E' without scalar multiplication
-    pub auxiliary_input_E_1_var: R1CSInstanceVar<G2, C2>,
+    pub auxiliary_input_E_1_var: OvaInstanceVar<G2, C2>,
     /// auxiliary input which helps to have E'' = E_{temp} + beta * (1-beta) * Q without scalar multiplication
-    pub auxiliary_input_E_2_var: R1CSInstanceVar<G2, C2>,
+    pub auxiliary_input_E_2_var: OvaInstanceVar<G2, C2>,
 
     /// the randomness used for taking linear combination and its non-native counterpart
     pub beta_var: FpVar<G1::ScalarField>,
@@ -122,8 +122,8 @@ where
     pub running_accumulator_instance_var: AccumulatorInstanceVar<G1>,
     pub final_accumulator_instance_var: AccumulatorInstanceVar<G1>,
 
-    pub running_cycle_fold_instance_var: RelaxedR1CSInstanceVar<G2, C2>,
-    pub final_cycle_fold_instance_var: RelaxedR1CSInstanceVar<G2, C2>,
+    pub running_cycle_fold_instance_var: RelaxedOvaInstanceVar<G2, C2>,
+    pub final_cycle_fold_instance_var: RelaxedOvaInstanceVar<G2, C2>,
 
     // these are constant values
     pub n: u32,
@@ -149,25 +149,25 @@ where
         let circuit = res.as_ref().map(|e| e.borrow()).map_err(|err| *err);
 
         // auxiliary inputs
-        let auxiliary_input_C_var = R1CSInstanceVar::new_variable(
+        let auxiliary_input_C_var = OvaInstanceVar::new_variable(
             ns!(cs, "auxiliary_input_C"),
             || Ok(circuit.map(|e| e.auxiliary_input_C.clone()).unwrap()),
             mode,
         ).unwrap();
 
-        let auxiliary_input_T_var = R1CSInstanceVar::new_variable(
+        let auxiliary_input_T_var = OvaInstanceVar::new_variable(
             ns!(cs, "auxiliary_input_T"),
             || Ok(circuit.map(|e| e.auxiliary_input_T.clone()).unwrap()),
             mode,
         ).unwrap();
 
-        let auxiliary_input_E_1_var = R1CSInstanceVar::new_variable(
+        let auxiliary_input_E_1_var = OvaInstanceVar::new_variable(
             ns!(cs, "auxiliary_input_E_1"),
             || Ok(circuit.map(|e| e.auxiliary_input_E_1.clone()).unwrap()),
             mode,
         ).unwrap();
 
-        let auxiliary_input_E_2_var = R1CSInstanceVar::new_variable(
+        let auxiliary_input_E_2_var = OvaInstanceVar::new_variable(
             ns!(cs, "auxiliary_input_E_2"),
             || Ok(circuit.map(|e| e.auxiliary_input_E_2.clone()).unwrap()),
             mode,
@@ -194,13 +194,13 @@ where
         ).unwrap();
 
         // cycle fold instances
-        let running_cycle_fold_instance_var = RelaxedR1CSInstanceVar::new_variable(
+        let running_cycle_fold_instance_var = RelaxedOvaInstanceVar::new_variable(
             ns!(cs, "cycle fold running instance"),
             || circuit.map(|e| e.running_cycle_fold_instance.clone()),
             mode,
         ).unwrap();
 
-        let final_cycle_fold_instance_var = RelaxedR1CSInstanceVar::new_variable(
+        let final_cycle_fold_instance_var = RelaxedOvaInstanceVar::new_variable(
             ns!(cs, "cycle fold running instance"),
             || circuit.map(|e| e.final_cycle_fold_instance.clone()),
             mode,
@@ -408,13 +408,7 @@ where
         ).unwrap();
 
         self.final_cycle_fold_instance_var.X.enforce_equal(&final_instance.X).expect("XXX: panic message");
-        self.final_cycle_fold_instance_var.commitment_E.enforce_equal(&final_instance.commitment_E).expect("XXX: panic message");
-        self.final_cycle_fold_instance_var.commitment_W.enforce_equal(&final_instance.commitment_W).expect("XXX: panic message");
-
-        // pad witness to have a length of power of two
-        for _ in 0..6817{
-            let _ = Boolean::new_witness(self.beta_var.cs().clone(), || Ok(false));
-        }
+        self.final_cycle_fold_instance_var.commitment.enforce_equal(&final_instance.commitment).expect("XXX: panic message");
     }
 }
 
@@ -425,15 +419,15 @@ where
     G1::ScalarField: PrimeField,
     G2: SWCurveConfig,
     G2::BaseField: PrimeField,
-    C2: CommitmentScheme<Projective<G2>, PP = Vec<Affine<G2>>>,
+    C2: CommitmentScheme<Projective<G2>, PP=Vec<Affine<G2>>>,
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField>,
-    ProjectiveVar<G2, FpVar<<G2 as CurveConfig>::BaseField>>: AllocVar<<C2 as CommitmentScheme<Projective<G2>>>::Commitment, <G2 as CurveConfig>::BaseField>
+    ProjectiveVar<G2, FpVar<<G2 as CurveConfig>::BaseField>>: AllocVar<<C2 as CommitmentScheme<Projective<G2>>>::Commitment, <G2 as CurveConfig>::BaseField>,
 {
     pub fn rand<E: Pairing>(srs: &AccSRS<E>, cs: ConstraintSystemRef<G1::ScalarField>) -> AccumulatorVerifierVar<G1, G2, C2>
     where
         E: Pairing<G1Affine=Affine<G1>, ScalarField=<G1 as CurveConfig>::ScalarField, BaseField=<G1 as CurveConfig>::BaseField>,
         <G2 as CurveConfig>::BaseField: Absorb,
-        <G2 as CurveConfig>::ScalarField: Absorb
+        <G2 as CurveConfig>::ScalarField: Absorb,
     {
         // get the prover
         let prover = AccumulatorVerifierCircuitProver::rand(&srs);
@@ -462,25 +456,25 @@ where
         ).unwrap();
 
         // initialise auxiliary input variables
-        let auxiliary_input_C_var = R1CSInstanceVar::new_variable(
+        let auxiliary_input_C_var = OvaInstanceVar::new_variable(
             ns!(cs, "auxiliary input C var"),
             || Ok(prover.compute_auxiliary_input_C().0),
             AllocationMode::Input,
         ).unwrap();
 
-        let auxiliary_input_T_var = R1CSInstanceVar::new_variable(
+        let auxiliary_input_T_var = OvaInstanceVar::new_variable(
             ns!(cs, "auxiliary input T var"),
             || Ok(prover.compute_auxiliary_input_T().0),
             AllocationMode::Input,
         ).unwrap();
 
-        let auxiliary_input_E_1_var = R1CSInstanceVar::new_variable(
+        let auxiliary_input_E_1_var = OvaInstanceVar::new_variable(
             ns!(cs, "auxiliary input E_1 var"),
             || Ok(prover.compute_auxiliary_input_E_1().0),
             AllocationMode::Input,
         ).unwrap();
 
-        let auxiliary_input_E_2_var = R1CSInstanceVar::new_variable(
+        let auxiliary_input_E_2_var = OvaInstanceVar::new_variable(
             ns!(cs, "auxiliary input E_2 var"),
             || Ok(prover.compute_auxiliary_input_E_2().0),
             AllocationMode::Input,
@@ -522,14 +516,14 @@ where
 
 
         // initialise cycle fold running instance var
-        let running_cycle_fold_instance_var = RelaxedR1CSInstanceVar::new_variable(
+        let running_cycle_fold_instance_var = RelaxedOvaInstanceVar::new_variable(
             ns!(cs, "running cycle fold instance var"),
             || Ok(prover.running_cycle_fold_instance),
             AllocationMode::Input,
         ).unwrap();
 
         // initialise cycle fold running instance var
-        let final_cycle_fold_instance_var = RelaxedR1CSInstanceVar::new_variable(
+        let final_cycle_fold_instance_var = RelaxedOvaInstanceVar::new_variable(
             ns!(cs, "final cycle fold instance var"),
             || Ok(cycle_fold_proof.4),
             AllocationMode::Input,
@@ -565,19 +559,17 @@ where
 #[cfg(test)]
 pub mod tests {
     use std::fmt::Debug;
-    use std::fs::File;
-    use std::io::BufWriter;
-    use std::io::Write;
 
     use ark_ec::short_weierstrass::Projective;
-    use ark_ff::PrimeField;
-    use ark_relations::r1cs::{ConstraintSystem, LinearCombination, SynthesisMode};
+    use ark_r1cs_std::alloc::AllocVar;
+    use ark_r1cs_std::boolean::Boolean;
+    use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef, SynthesisMode};
     use rand::thread_rng;
 
     use crate::accumulation::accumulator::Accumulator;
     use crate::accumulation_circuit::verifier_circuit::AccumulatorVerifierVar;
     use crate::commitment::CommitmentScheme;
-    use crate::constant_for_curves::{E, G1, G2, ScalarField};
+    use crate::constant_for_curves::{ScalarField, E, G1, G2};
     use crate::hash::pederson::PedersenCommitment;
     use crate::nexus_spartan::crr1csproof::{is_sat, CRR1CSInstance, CRR1CSKey, CRR1CSProof, CRR1CSShape, CRR1CSWitness};
     use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
@@ -587,8 +579,7 @@ pub mod tests {
 
     type C2 = PedersenCommitment<Projective<G2>>;
 
-    #[test]
-    fn kzh_acc_verifier_circuit_initialisation_test() {
+    pub fn get_initiliase_cs() -> ConstraintSystemRef<ScalarField> {
         // specifying degrees of polynomials
         let n = 4;
         let m = 4;
@@ -618,6 +609,18 @@ pub mod tests {
         // these are required to called CRR1CSShape::convert
         cs.set_mode(SynthesisMode::Prove { construct_matrices: true });
         cs.finalize();
+
+        cs
+    }
+
+    #[test]
+    fn kzh_acc_verifier_circuit_initialisation_test() {
+        let cs = get_initiliase_cs();
+
+        // pad witness to have a length of power of two
+        for _ in 0..((1 << 16) - cs.num_constraints() + 5019) {
+             let _ = Boolean::new_witness(cs.clone(), || Ok(false));
+        }
 
         // convert to the corresponding Spartan types
         let shape = CRR1CSShape::<ScalarField>::convert::<G1>(cs.clone());
@@ -677,4 +680,4 @@ pub mod tests {
          */
     }
 }
- */
+
