@@ -1,4 +1,4 @@
-/*use ark_crypto_primitives::sponge::Absorb;
+use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::{CurveConfig, CurveGroup};
 use ark_ec::pairing::Pairing;
 use ark_ec::short_weierstrass::{Affine, Projective, SWCurveConfig};
@@ -9,8 +9,8 @@ use crate::accumulation::accumulator::{AccInstance, AccSRS, Accumulator};
 use crate::accumulation_circuit::affine_to_projective;
 use crate::commitment::CommitmentScheme;
 use crate::gadgets::non_native::util::convert_field_one_to_field_two;
-use crate::gadgets::r1cs::{R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness};
-use crate::gadgets::r1cs::r1cs::commit_T;
+use crate::gadgets::r1cs::{OvaInstance, OvaWitness, R1CSShape, RelaxedOvaInstance, RelaxedOvaWitness};
+use crate::gadgets::r1cs::ova::commit_T;
 use crate::hash::pederson::PedersenCommitment;
 use crate::nova::cycle_fold::coprocessor::{SecondaryCircuit, setup_shape, synthesize};
 
@@ -39,8 +39,8 @@ where
     /// running cycle fold instance
     pub shape: R1CSShape<G2>,
     pub commitment_pp: <C2 as CommitmentScheme<Projective<G2>>>::PP,
-    pub running_cycle_fold_instance: RelaxedR1CSInstance<G2, C2>,
-    pub running_cycle_fold_witness: RelaxedR1CSWitness<G2>,
+    pub running_cycle_fold_instance: RelaxedOvaInstance<G2, C2>,
+    pub running_cycle_fold_witness: RelaxedOvaWitness<G2>,
 
     // these are constant values
     pub n: u32,
@@ -87,14 +87,14 @@ where
     {
         assert!(Accumulator::decide(&self.srs, &self.running_accumulator));
         assert!(Accumulator::decide(&self.srs, &self.current_accumulator));
-        self.shape.is_relaxed_satisfied(
+        self.shape.is_relaxed_ova_satisfied(
             &self.running_cycle_fold_instance,
             &self.running_cycle_fold_witness,
             &self.commitment_pp,
         ).expect("panic!");
     }
 
-    pub fn compute_auxiliary_input_C(&self) -> (R1CSInstance<G2, C2>, R1CSWitness<G2>) {
+    pub fn compute_auxiliary_input_C(&self) -> (OvaInstance<G2, C2>, OvaWitness<G2>) {
         let g1 = affine_to_projective(self.running_accumulator.instance.C.clone());
         let g2 = affine_to_projective(self.current_accumulator.instance.C.clone());
 
@@ -107,10 +107,10 @@ where
             g_out,
             r: convert_field_one_to_field_two::<G1::ScalarField, G1::BaseField>(self.beta),
             flag: false,
-        }, &self.commitment_pp).unwrap()
+        }, &self.commitment_pp[0..self.shape.num_vars].to_vec()).unwrap()
     }
 
-    pub fn compute_auxiliary_input_T(&self) -> (R1CSInstance<G2, C2>, R1CSWitness<G2>) {
+    pub fn compute_auxiliary_input_T(&self) -> (OvaInstance<G2, C2>, OvaWitness<G2>) {
         let g1 = affine_to_projective(self.running_accumulator.instance.T.clone());
         let g2 = affine_to_projective(self.current_accumulator.instance.T.clone());
 
@@ -123,10 +123,10 @@ where
             g_out,
             r: convert_field_one_to_field_two::<G1::ScalarField, G1::BaseField>(self.beta),
             flag: false,
-        }, &self.commitment_pp).unwrap()
+        }, &self.commitment_pp[0..self.shape.num_vars].to_vec()).unwrap()
     }
 
-    pub fn compute_auxiliary_input_E_1(&self) -> (R1CSInstance<G2, C2>, R1CSWitness<G2>) {
+    pub fn compute_auxiliary_input_E_1(&self) -> (OvaInstance<G2, C2>, OvaWitness<G2>) {
         let g1 = affine_to_projective(self.running_accumulator.instance.E.clone());
         let g2 = affine_to_projective(self.current_accumulator.instance.E.clone());
 
@@ -139,10 +139,10 @@ where
             g_out,
             r: convert_field_one_to_field_two::<G1::ScalarField, G1::BaseField>(self.beta),
             flag: false,
-        }, &self.commitment_pp).unwrap()
+        }, &self.commitment_pp[0..self.shape.num_vars].to_vec()).unwrap()
     }
 
-    pub fn compute_auxiliary_input_E_2(&self) -> (R1CSInstance<G2, C2>, R1CSWitness<G2>) {
+    pub fn compute_auxiliary_input_E_2(&self) -> (OvaInstance<G2, C2>, OvaWitness<G2>) {
         let e1 = affine_to_projective(self.running_accumulator.instance.E.clone());
         let e2 = affine_to_projective(self.current_accumulator.instance.E.clone());
 
@@ -157,7 +157,7 @@ where
             g_out,
             r: convert_field_one_to_field_two::<G1::ScalarField, G1::BaseField>(self.beta * (G1::ScalarField::ONE - self.beta)),
             flag: true,
-        }, &self.commitment_pp).unwrap()
+        }, &self.commitment_pp[0..self.shape.num_vars].to_vec()).unwrap()
     }
 
     pub fn compute_proof_Q(&self) -> Projective<G1> {
@@ -174,15 +174,15 @@ where
         C2::Commitment,
         C2::Commitment,
         C2::Commitment,
-        RelaxedR1CSInstance<G2, C2>
+        RelaxedOvaInstance<G2, C2>
     ) {
         let compute_commit_and_fold =
-            |running_witness: &RelaxedR1CSWitness<G2>,
-             running_instance: &RelaxedR1CSInstance<G2, C2>,
-             witness: &R1CSWitness<G2>,
-             instance: &R1CSInstance<G2, C2>,
+            |running_witness: &RelaxedOvaWitness<G2>,
+             running_instance: &RelaxedOvaInstance<G2, C2>,
+             witness: &OvaWitness<G2>,
+             instance: &OvaInstance<G2, C2>,
              beta: &G2::ScalarField,
-            | -> (C2::Commitment, RelaxedR1CSWitness<G2>, RelaxedR1CSInstance<G2, C2>) {
+            | -> (C2::Commitment, RelaxedOvaWitness<G2>, RelaxedOvaInstance<G2, C2>) {
                 let (T, com_T) = commit_T(
                     &self.shape,
                     &self.commitment_pp,
@@ -211,8 +211,8 @@ where
             &beta_non_native,
         );
 
-        self.shape.is_satisfied(&instance_C, &witness_C, &self.commitment_pp).unwrap();
-        self.shape.is_relaxed_satisfied(&new_running_instance, &new_running_witness, &self.commitment_pp).unwrap();
+        self.shape.is_ova_satisfied(&instance_C, &witness_C, &self.commitment_pp).unwrap();
+        self.shape.is_relaxed_ova_satisfied(&new_running_instance, &new_running_witness, &self.commitment_pp).unwrap();
 
 
         // first fold auxiliary_input_T with the running instance
@@ -225,8 +225,8 @@ where
             &beta_non_native,
         );
 
-        self.shape.is_satisfied(&instance_T, &witness_T, &self.commitment_pp).unwrap();
-        self.shape.is_relaxed_satisfied(&new_running_instance, &new_running_witness, &self.commitment_pp).unwrap();
+        self.shape.is_ova_satisfied(&instance_T, &witness_T, &self.commitment_pp).unwrap();
+        self.shape.is_relaxed_ova_satisfied(&new_running_instance, &new_running_witness, &self.commitment_pp).unwrap();
 
         // first fold auxiliary_input_E_1 with the running instance
         let (instance_E_1, witness_E_1) = self.compute_auxiliary_input_E_1();
@@ -238,8 +238,8 @@ where
             &beta_non_native,
         );
 
-        self.shape.is_satisfied(&instance_E_1, &witness_E_1, &self.commitment_pp).unwrap();
-        self.shape.is_relaxed_satisfied(&new_running_instance, &new_running_witness, &self.commitment_pp).unwrap();
+        self.shape.is_ova_satisfied(&instance_E_1, &witness_E_1, &self.commitment_pp).unwrap();
+        self.shape.is_relaxed_ova_satisfied(&new_running_instance, &new_running_witness, &self.commitment_pp).unwrap();
 
         // first fold auxiliary_input_E_1 with the running instance
         let (instance_E_2, witness_E_2) = self.compute_auxiliary_input_E_2();
@@ -251,8 +251,8 @@ where
             &beta_non_native,
         );
 
-        self.shape.is_satisfied(&instance_E_2, &witness_E_2, &self.commitment_pp).unwrap();
-        self.shape.is_relaxed_satisfied(&new_running_instance, &new_running_witness, &self.commitment_pp).unwrap();
+        self.shape.is_ova_satisfied(&instance_E_2, &witness_E_2, &self.commitment_pp).unwrap();
+        self.shape.is_relaxed_ova_satisfied(&new_running_instance, &new_running_witness, &self.commitment_pp).unwrap();
 
         (com_C, com_T, com_E_1, com_E_2, new_running_instance)
     }
@@ -269,10 +269,10 @@ where
         let shape = setup_shape::<G1, G2>().unwrap();
 
         // public parameters of Pedersen
-        let commitment_pp: Vec<Affine<G2>> = PedersenCommitment::<Projective<G2>>::setup(shape.num_vars, b"test", &());
+        let commitment_pp: Vec<Affine<G2>> = PedersenCommitment::<Projective<G2>>::setup(shape.num_vars + shape.num_constraints, b"test", &());
 
-        let cycle_fold_running_instance = RelaxedR1CSInstance::new(&shape);
-        let cycle_fold_running_witness = RelaxedR1CSWitness::zero(&shape);
+        let cycle_fold_running_instance = RelaxedOvaInstance::new(&shape);
+        let cycle_fold_running_witness = RelaxedOvaWitness::zero(&shape);
 
         let beta = Accumulator::compute_fiat_shamir_challenge(srs, &current_accumulator.instance, &running_accumulator.instance, Q);
 
@@ -439,4 +439,4 @@ pub mod tests {
         let _ = prover.compute_cycle_fold_proofs_and_final_instance();
     }
 }
- */
+
