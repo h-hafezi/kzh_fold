@@ -5,12 +5,18 @@ use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::rand::SeedableRng;
 use sha3::digest::{ExtendableOutput, Update, XofReader};
 
-use crate::commitment::CommitmentScheme;
+use crate::commitment::{CommitmentScheme, Len};
 
 pub(crate) const LOG_TARGET: &str = "nexus-nova";
 
 #[derive(Debug)]
 pub struct PedersenCommitment<G>(PhantomData<G>);
+
+impl<T> Len for Vec<T> {
+    fn len(&self) -> usize {
+        Vec::len(self)
+    }
+}
 
 impl<G> CommitmentScheme<G> for PedersenCommitment<G>
 where

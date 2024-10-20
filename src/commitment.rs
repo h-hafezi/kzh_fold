@@ -2,7 +2,7 @@ use std::{
     fmt::Debug,
     ops::{Add, AddAssign, Mul, MulAssign},
 };
-
+use std::ops::{Index, Range};
 use ark_ec::CurveGroup;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 
@@ -23,6 +23,10 @@ impl<T, Rhs, Output> ScalarMul<Rhs, Output> for T
 where
     T: Mul<Rhs, Output=Output> + MulAssign<Rhs>,
 {}
+
+pub trait Len {
+    fn len(&self) -> usize;
+}
 
 pub trait Commitment<G: CurveGroup>:
 Default
@@ -66,7 +70,7 @@ where
 
 pub trait CommitmentScheme<G: CurveGroup>: Send + Sync {
     /// Commitment scheme public parameters.
-    type PP: CanonicalSerialize + CanonicalDeserialize + Sync + Clone + Debug + PartialEq + Eq;
+    type PP: CanonicalSerialize + CanonicalDeserialize + Sync + Clone + Debug + PartialEq + Eq + Len + Index<Range<usize>>;
 
     /// Auxiliary data used for setup (such as an SRS)
     type SetupAux;

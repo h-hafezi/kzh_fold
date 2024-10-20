@@ -17,7 +17,7 @@ mod tests {
     use ark_poly::{DenseUVPolynomial, Polynomial};
     use ark_poly::univariate::DensePolynomial;
     use ark_std::{test_rng, UniformRand};
-
+    use crate::kzg::{trim, KZG10};
     use super::*;
 
     type F = Fr;

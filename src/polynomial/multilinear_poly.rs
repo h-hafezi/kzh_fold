@@ -258,7 +258,8 @@ impl<F: PrimeField> Add for MultilinearPolynomial<F> {
 
 #[cfg(test)]
 mod tests {
-    use ark_ff::AdditiveGroup;
+    use ark_ec::pairing::Pairing;
+use ark_ff::AdditiveGroup;
     use ark_std::One;
     use ark_std::test_rng;
     use ark_std::UniformRand;
