@@ -185,7 +185,7 @@ where
             | -> (C2::Commitment, RelaxedOvaWitness<G2>, RelaxedOvaInstance<G2, C2>) {
                 let (T, com_T) = commit_T(
                     &self.shape,
-                    &self.commitment_pp,
+                    &self.commitment_pp[self.shape.num_vars..].to_vec(),
                     running_instance,
                     running_witness,
                     instance,

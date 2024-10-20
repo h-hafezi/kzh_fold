@@ -211,7 +211,7 @@ pub fn commit_T<G: CurveGroup, C: CommitmentScheme<G>>(
     U2: &OvaInstance<G, C>,
     W2: &OvaWitness<G>,
 ) -> Result<(Vec<G::ScalarField>, C::Commitment), Error> {
-    assert_eq!(pp.len(), shape.num_vars + shape.num_constraints);
+    assert_eq!(pp.len(), shape.num_constraints);
 
     let z1 = [&U1.X, &W1.W[..]].concat();
     let Az1 = shape.A.multiply_vec(&z1);
@@ -243,16 +243,7 @@ pub fn commit_T<G: CurveGroup, C: CommitmentScheme<G>>(
         .map(|i| Az1_Bz2[i] + Az2_Bz1[i] - u1_Cz2[i] - Cz1[i])
         .collect();
 
-
-    let concat = {
-        let mut res = Vec::new();
-        res.extend(vec![G::ScalarField::ZERO; shape.num_vars]);
-        res.extend(T.clone());
-        res
-    };
-    assert_eq!(concat.len(), pp.len());
-
-    let comm_T = C::commit(pp, concat.as_slice());
+    let comm_T = C::commit(pp, T.as_slice());
 
     Ok((T, comm_T))
 }
@@ -410,7 +401,7 @@ pub(crate) mod tests {
         for _ in 0..3 {
             let (T, com_T) = commit_T(
                 &shape,
-                &pp,
+                &pp[shape.num_vars..].to_vec(),
                 &relaxed_ova_instance,
                 &relaxed_ova_witness,
                 &ova_instance,

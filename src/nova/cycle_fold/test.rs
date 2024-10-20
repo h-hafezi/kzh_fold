@@ -74,7 +74,7 @@ pub(crate) mod tests {
         >(c2, &pp[0..shape.num_vars].to_vec()).unwrap();
 
         // compute multi_folding proof T, commitment_T
-        let (T, commitment_T) = commit_T(&shape, &pp, &running_U, &running_W, &u, &w).unwrap();
+        let (T, commitment_T) = commit_T(&shape, &pp[shape.num_vars..].to_vec(), &running_U, &running_W, &u, &w).unwrap();
 
         // fold instance/witnesses
         let folded_U = running_U.fold(&u, &commitment_T, &r).unwrap();
