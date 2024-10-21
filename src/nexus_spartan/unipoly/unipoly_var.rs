@@ -5,7 +5,9 @@ use ark_ff::PrimeField;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
-use ark_relations::r1cs::ConstraintSystemRef;
+use ark_r1cs_std::R1CSVar;
+use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
+use std::borrow::Borrow;
 
 #[derive(Clone)]
 pub struct UniPolyVar<F: PrimeField + Absorb> {
@@ -19,20 +21,53 @@ pub struct CompressedUniPolyVar<F: PrimeField + Absorb> {
     coeffs_except_linear_term: Vec<FpVar<F>>,
 }
 
-impl<F: PrimeField + Absorb> UniPolyVar<F> {
-    pub fn new(cs: ConstraintSystemRef<F>, poly: UniPoly<F>, allocation_mode: AllocationMode) -> Self {
-        UniPolyVar {
-            coeffs: {
-                let mut coeffs = Vec::new();
-                for fp in poly.coeffs {
-                    let fpvar = FpVar::new_variable(cs.clone(), || Ok(fp), allocation_mode).unwrap();
-                    coeffs.push(fpvar);
-                }
-                coeffs
-            },
+impl<F: PrimeField + Absorb> AllocVar<UniPoly<F>, F> for UniPolyVar<F> {
+    fn new_variable<T: Borrow<UniPoly<F>>>(
+        cs: impl Into<Namespace<F>>,
+        f: impl FnOnce() -> Result<T, SynthesisError>,
+        mode: AllocationMode,
+    ) -> Result<Self, SynthesisError> {
+        let ns = cs.into();
+        let cs = ns.cs();
+
+        // Fetch the vector of coefficients to allocate as FpVars
+        let binding = f()?;
+        let values = binding.borrow();
+
+        // Allocate each coefficient as an FpVar
+        let coeffs = values
+            .coeffs
+            .iter()
+            .map(|v| FpVar::new_variable(cs.clone(), || Ok(v), mode))
+            .collect::<Result<Vec<_>, SynthesisError>>()?;
+
+        Ok(UniPolyVar { coeffs })
+    }
+}
+
+impl<F: PrimeField + Absorb> R1CSVar<F> for UniPolyVar<F> {
+    type Value = UniPoly<F>;
+
+    // This method returns the constraint system that the variables are attached to
+    fn cs(&self) -> ConstraintSystemRef<F> {
+        let mut result = ConstraintSystemRef::None;
+        for coeff in &self.coeffs {
+            result = coeff.cs().or(result);
         }
+        result
     }
 
+    // This method returns the underlying values of the variables, if available
+    fn value(&self) -> Result<Self::Value, SynthesisError> {
+        let mut coeffs = Vec::new();
+        for c in &self.coeffs {
+            coeffs.push(c.value()?);
+        }
+        Ok(UniPoly { coeffs })
+    }
+}
+
+impl<F: PrimeField + Absorb> UniPolyVar<F> {
     pub fn eval_at_zero(&self) -> FpVar<F> {
         self.coeffs[0].clone()
     }
@@ -143,7 +178,14 @@ mod tests {
         let cs = ConstraintSystem::<F>::new_ref();
 
         // Generate the UniPolyVar version from the UniPoly
-        let random_unipoly_var = UniPolyVar::new(cs.clone(), random_unipoly, AllocationMode::Witness);
+        let random_unipoly_var = UniPolyVar::new_variable(
+            cs.clone(),
+            || Ok(random_unipoly.clone()),
+            AllocationMode::Witness,
+        ).unwrap();
+
+        // test value function
+        assert_eq!(random_unipoly, random_unipoly_var.value().unwrap());
 
         // Create the transcript var and append the UniPolyVar
         let mut transcript_var = TranscriptVar::new(cs.clone(), label);

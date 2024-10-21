@@ -17,7 +17,6 @@ use crate::transcript::transcript::{AppendToTranscript, Transcript};
 use ark_ec::pairing::Pairing;
 use ark_ff::{PrimeField};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use crate::nexus_spartan::partial_verifier_circuit::PartialVerifierCircuit;
 use crate::nexus_spartan::sumcheck_circuit::sumcheck_circuit::SumcheckCircuit;
 
 #[derive(CanonicalSerialize, CanonicalDeserialize, Debug)]
