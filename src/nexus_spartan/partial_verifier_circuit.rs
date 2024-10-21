@@ -12,8 +12,6 @@ use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 pub struct PartialVerifierCircuit<F: PrimeField + Absorb> {
     /// io input, equivalent with
     /// let CRR1CSInstance { input: _input, comm_W, } = instance;
-    /// let input = _input.assignment.as_slice();
-    /// in crr1csproof.rs
     input: Vec<F>,
     /// Sumcheck proof for the polynomial g(x) = \sum eq(tau,x) * (~Az~(x) * ~Bz~(x) - u * ~Cz~(x) - ~E~(x))
     sc_proof_phase1: SumcheckCircuit<F>,
@@ -97,7 +95,6 @@ impl<F: PrimeField + Absorb> PartialVerifierCircuit<F> {
             );
             SparsePoly::new(n.log_2(), input_as_sparse_poly_entries).evaluate(&ry[1..])
         };
-        // now `input_as_sparse_poly_entries is: (1, io)
 
         // compute Z(r_y): eval_Z_at_ry = (F::one() - ry[0]) * self.eval_vars_at_ry + ry[0] * poly_input_eval
         let eval_Z_at_ry = (F::one() - ry[0]) * self.eval_vars_at_ry + ry[0] * poly_input_eval;

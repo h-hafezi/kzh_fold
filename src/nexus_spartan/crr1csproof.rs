@@ -403,9 +403,6 @@ impl<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>, F: PrimeField + Abs
 
         Transcript::append_scalars(transcript, b"input", input);
 
-        // todo: has to be removed for decider
-        // comm_W.append_to_transcript(b"comm_W", transcript);
-
         let n = num_vars;
 
         let (num_rounds_x, num_rounds_y) = (num_cons.log_2(), (2 * num_vars).log_2());

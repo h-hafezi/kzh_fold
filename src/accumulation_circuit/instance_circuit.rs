@@ -254,10 +254,12 @@ pub mod tests {
 
         // make a circuit_var
         let instance_var = AccumulatorInstanceVar::new_variable(
-            cs,
+            cs.clone(),
             || Ok(instance.clone()),
-            AllocationMode::Constant,
+            AllocationMode::Witness,
         ).unwrap();
+
+        println!("{}", cs.num_constraints());
 
         let sponge = instance.to_sponge_field_elements();
         let sponge_var = instance_var.to_sponge_field_elements().unwrap();
