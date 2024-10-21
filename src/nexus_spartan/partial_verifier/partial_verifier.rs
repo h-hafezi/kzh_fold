@@ -68,7 +68,6 @@ impl<F: PrimeField + Absorb> PartialVerifier<F> {
             claim: claim_phase1,
             num_rounds: num_rounds_x,
             degree_bound: 3,
-            transcript: start_transcript,
         };
 
         // perform the intermediate sum-check test with claimed Az, Bz, Cz, and E
@@ -104,7 +103,6 @@ impl<F: PrimeField + Absorb> PartialVerifier<F> {
             claim: claim_phase2,
             num_rounds: num_rounds_y,
             degree_bound: 2,
-            transcript: start_transcript,
         };
 
         // Compute (1,io)(r_y) so that we can use it to compute Z(r_y)
@@ -163,11 +161,9 @@ impl<F: PrimeField + Absorb> PartialVerifier<F> {
         );
 
         // consistency check for sc_proof_phase1
-        assert_eq!(self.sc_proof_phase1.transcript.state, self.transcript.state);
         assert_eq!(self.sc_proof_phase1.degree_bound, 3);
         assert_eq!(self.sc_proof_phase1.claim, F::zero());
-        let (claim_post_phase1, rx) = self.sc_proof_phase1.verify::<E>();
-        self.transcript = self.sc_proof_phase1.transcript.clone();
+        let (claim_post_phase1, rx) = self.sc_proof_phase1.verify::<E>(&mut self.transcript);
 
         // perform the intermediate sum-check test with claimed Az, Bz, Cz, and E
         let (Az_claim, Bz_claim, Cz_claim) = self.claims_phase2;
@@ -192,11 +188,9 @@ impl<F: PrimeField + Absorb> PartialVerifier<F> {
         let claim_phase2 = r_A * Az_claim + r_B * Bz_claim + r_C * Cz_claim;
 
         // consistency check for sc_proof_phase1
-        assert_eq!(self.sc_proof_phase2.transcript.state, self.transcript.state);
         assert_eq!(self.sc_proof_phase2.degree_bound, 2);
         assert_eq!(self.sc_proof_phase2.claim, claim_phase2);
-        let (claim_post_phase2, ry) = self.sc_proof_phase2.verify::<E>();
-        self.transcript = self.sc_proof_phase2.transcript.clone();
+        let (claim_post_phase2, ry) = self.sc_proof_phase2.verify::<E>(&mut self.transcript);
 
         // Compute (1, io)(r_y) so that we can use it to compute Z(r_y)
         let poly_input_eval = {

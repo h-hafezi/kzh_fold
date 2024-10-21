@@ -19,13 +19,12 @@ pub struct SumcheckCircuit<F: PrimeField + Absorb> {
     pub claim: F,
     pub num_rounds: usize,
     pub degree_bound: usize,
-    pub transcript: Transcript<F>,
 }
 
 impl<F: PrimeField + Absorb> SumcheckCircuit<F> {
-    pub fn verify<E: Pairing<ScalarField=F>>(&mut self) -> (F, Vec<F>) {
+    pub fn verify<E: Pairing<ScalarField=F>>(&self, transcript: &mut Transcript<F>) -> (F, Vec<F>) {
         let proof = SumcheckInstanceProof::new(self.compressed_polys.clone());
-        proof.verify::<E>(self.claim, self.num_rounds, self.degree_bound, &mut self.transcript).unwrap()
+        proof.verify::<E>(self.claim, self.num_rounds, self.degree_bound, transcript).unwrap()
     }
 }
 
@@ -34,11 +33,10 @@ pub struct SumcheckCircuitVar<F: PrimeField + Absorb> {
     claim: FpVar<F>,
     num_rounds: usize,
     degree_bound: usize,
-    transcript: TranscriptVar<F>,
 }
 
 impl<F: PrimeField + Absorb> SumcheckCircuitVar<F> {
-    pub fn verify(&mut self) -> (FpVar<F>, Vec<FpVar<F>>) {
+    pub fn verify(&mut self, transcript: &mut TranscriptVar<F>) -> (FpVar<F>, Vec<FpVar<F>>) {
         let mut e = self.claim.clone();
         let mut r: Vec<FpVar<F>> = Vec::new();
 
@@ -54,10 +52,10 @@ impl<F: PrimeField + Absorb> SumcheckCircuitVar<F> {
             (poly.eval_at_zero() + poly.eval_at_one()).enforce_equal(&e).expect("equality error");
 
             // append the prover's message to the transcript
-            UniPolyVar::append_to_transcript(&poly, b"poly", &mut self.transcript);
+            UniPolyVar::append_to_transcript(&poly, b"poly", transcript);
 
             //derive the verifier's challenge for the next round
-            let r_i = TranscriptVar::challenge_scalar(&mut self.transcript, b"challenge_nextround");
+            let r_i = TranscriptVar::challenge_scalar(transcript, b"challenge_nextround");
 
             r.push(r_i.clone());
 
@@ -109,7 +107,7 @@ mod tests {
             .collect();
 
         // Initialize a fresh transcript for both circuits
-        let transcript = Transcript::<F>::new(label);
+        let mut transcript = Transcript::<F>::new(label);
 
         // Initialize the SumcheckCircuit with random values
         let mut sumcheck_circuit = SumcheckCircuit {
@@ -117,11 +115,10 @@ mod tests {
             claim: claim.clone(),
             num_rounds,
             degree_bound,
-            transcript,
         };
 
         // Run the verification on the normal SumcheckCircuit
-        let (e1, r1) = sumcheck_circuit.verify::<E>();
+        let (e1, r1) = sumcheck_circuit.verify::<E>(&mut transcript);
 
         // Initialize the constraint system
         let cs: ConstraintSystemRef<F> = ConstraintSystem::new_ref();
@@ -136,7 +133,7 @@ mod tests {
         let claim_var = FpVar::new_witness(cs.clone(), || Ok(claim)).unwrap();
 
         // Initialize a fresh variable transcript for the variable circuit
-        let transcript_var = TranscriptVar::<F>::new(cs.clone(), label);
+        let mut transcript_var = TranscriptVar::<F>::new(cs.clone(), label);
 
         // Initialize the SumCheckCircuitVar with the same values
         let mut sumcheck_circuit_var = SumcheckCircuitVar {
@@ -144,11 +141,10 @@ mod tests {
             claim: claim_var,
             num_rounds,
             degree_bound,
-            transcript: transcript_var,
         };
 
         // Run the verification on the SumCheckCircuitVar
-        let (e2, r2) = sumcheck_circuit_var.verify();
+        let (e2, r2) = sumcheck_circuit_var.verify(&mut transcript_var);
 
         // Compare the results between the normal and variable circuits
         assert_eq!(e1, e2.value().unwrap());
