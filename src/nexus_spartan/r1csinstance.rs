@@ -1,5 +1,5 @@
 use super::polycommitments::PolyCommitmentScheme;
-use super::sparse_mlpoly::{
+use super::sparse_mlpoly::sparse_mlpoly::{
     MultiSparseMatPolynomialAsDense, SparseMatEntry, SparseMatPolyCommitment,
     SparseMatPolyCommitmentKey, SparseMatPolynomial,
 };

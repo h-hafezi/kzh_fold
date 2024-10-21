@@ -2,10 +2,10 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::needless_range_loop)]
 
-use super::errors::ProofVerifyError;
-use super::polycommitments::{PCSKeys, PolyCommitmentScheme};
-use super::product_tree::{DotProductCircuit, ProductCircuit, ProductCircuitEvalProofBatched};
-use super::timer::Timer;
+use crate::nexus_spartan::errors::ProofVerifyError;
+use crate::nexus_spartan::polycommitments::{PCSKeys, PolyCommitmentScheme};
+use crate::nexus_spartan::product_tree::{DotProductCircuit, ProductCircuit, ProductCircuitEvalProofBatched};
+use crate::nexus_spartan::timer::Timer;
 use crate::math::Math;
 use crate::polynomial::eq_poly::EqPolynomial;
 use crate::polynomial::identity::IdentityPolynomial;
@@ -1668,41 +1668,5 @@ where
         timer.stop();
 
         Ok(())
-    }
-}
-
-pub struct SparsePolynomialXXX<F: Absorb> {
-    num_vars: usize,
-    evals: Vec<F>,
-}
-
-impl<F: PrimeField + Absorb> SparsePolynomialXXX<F> {
-    pub fn new(num_vars: usize, evals: Vec<F>) -> Self {
-        SparsePolynomialXXX { num_vars, evals }
-    }
-
-    fn compute_chi(a: &[bool], r: &[F]) -> F {
-        assert_eq!(a.len(), r.len());
-        let mut chi_i = F::one();
-        for j in 0..r.len() {
-            if a[j] {
-                chi_i *= r[j];
-            } else {
-                chi_i *= F::one() - r[j];
-            }
-        }
-        chi_i
-    }
-
-    // Takes O(n log n). TODO: do this in O(n) where n is the number of entries in Z
-    pub fn evaluate(&self, r: &[F]) -> F {
-        assert_eq!(self.num_vars, r.len());
-
-        (0..self.evals.len())
-            .map(|i| {
-                let bits = i.get_bits_canonical_order(r.len());
-                SparsePolynomialXXX::compute_chi(&bits, r) * self.evals[i]
-            })
-            .sum()
     }
 }

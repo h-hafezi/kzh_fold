@@ -1,5 +1,5 @@
 use crate::math::Math;
-use crate::nexus_spartan::sparse_mlpoly::{SparsePolynomialXXX};
+use crate::nexus_spartan::sparse_mlpoly::{SparsePoly};
 use crate::nexus_spartan::sumcheck_circuit::sumcheck_circuit::SumcheckCircuit;
 use crate::transcript::transcript::Transcript;
 use ark_crypto_primitives::sponge::Absorb;
@@ -95,7 +95,7 @@ impl<F: PrimeField + Absorb> PartialVerifierCircuit<F> {
                     .map(|i| self.input[i])
                     .collect::<Vec<F>>(),
             );
-            SparsePolynomialXXX::new(n.log_2(), input_as_sparse_poly_entries).evaluate(&ry[1..])
+            SparsePoly::new(n.log_2(), input_as_sparse_poly_entries).evaluate(&ry[1..])
         };
         // now `input_as_sparse_poly_entries is: (1, io)
 

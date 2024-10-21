@@ -7,7 +7,7 @@ use ark_crypto_primitives::sponge::Absorb;
 
 pub use super::crr1cs::*;
 use super::errors::ProofVerifyError;
-use super::sparse_mlpoly::{SparsePolynomialXXX};
+use super::sparse_mlpoly::{SparsePoly};
 use super::sumcheck::SumcheckInstanceProof;
 use super::timer::Timer;
 use crate::math::Math;
@@ -470,7 +470,8 @@ impl<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>, F: PrimeField + Abs
                     .map(|i| input[i])
                     .collect::<Vec<F>>(),
             );
-            SparsePolynomialXXX::new(n.log_2(), input_as_sparse_poly_entries).evaluate(&ry[1..])
+            println!("{} {}", input.len(), n);
+            SparsePoly::new(n.log_2(), input_as_sparse_poly_entries).evaluate(&ry[1..])
         };
         // now `input_as_sparse_poly_entries is: (1, io)
 
