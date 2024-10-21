@@ -1,5 +1,5 @@
 use crate::math::Math;
-use crate::nexus_spartan::sparse_mlpoly::{SparsePolyEntry, SparsePolynomial};
+use crate::nexus_spartan::sparse_mlpoly::{SparsePolynomialXXX};
 use crate::nexus_spartan::sumcheck_circuit::sumcheck_circuit::SumcheckCircuit;
 use crate::transcript::transcript::Transcript;
 use ark_crypto_primitives::sponge::Absorb;
@@ -85,18 +85,19 @@ impl<F: PrimeField + Absorb> PartialVerifierCircuit<F> {
         assert_eq!(self.sc_proof_phase2.claim, claim_phase2);
         let (claim_post_phase2, ry) = self.sc_proof_phase2.verify::<E>();
 
-        // Compute (io,1)(r_y) so that we can use it to compute Z(r_y)
+        // Compute (1, io)(r_y) so that we can use it to compute Z(r_y)
         let poly_input_eval = {
-            // constant term
-            let mut input_as_sparse_poly_entries = vec![SparsePolyEntry::new(0, F::ONE)];
-            //remaining inputs
+            // constant term: one
+            let mut input_as_sparse_poly_entries = vec![F::ONE];
+            // remaining inputs:
             input_as_sparse_poly_entries.extend(
                 (0..self.input.len())
-                    .map(|i| SparsePolyEntry::new(i + 1, self.input[i]))
-                    .collect::<Vec<SparsePolyEntry<F>>>(),
+                    .map(|i| self.input[i])
+                    .collect::<Vec<F>>(),
             );
-            SparsePolynomial::new(n.log_2(), input_as_sparse_poly_entries).evaluate(&ry[1..])
+            SparsePolynomialXXX::new(n.log_2(), input_as_sparse_poly_entries).evaluate(&ry[1..])
         };
+        // now `input_as_sparse_poly_entries is: (1, io)
 
         // compute Z(r_y): eval_Z_at_ry = (F::one() - ry[0]) * self.eval_vars_at_ry + ry[0] * poly_input_eval
         let eval_Z_at_ry = (F::one() - ry[0]) * self.eval_vars_at_ry + ry[0] * poly_input_eval;

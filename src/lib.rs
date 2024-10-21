@@ -1,3 +1,4 @@
+#![allow(unused_imports)]
 #![allow(dead_code)]
 #![allow(non_snake_case)]
 /// TODO removes these allows ^ when the code matures

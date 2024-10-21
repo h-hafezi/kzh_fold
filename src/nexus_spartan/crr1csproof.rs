@@ -7,7 +7,7 @@ use ark_crypto_primitives::sponge::Absorb;
 
 pub use super::crr1cs::*;
 use super::errors::ProofVerifyError;
-use super::sparse_mlpoly::{SparsePolyEntry, SparsePolynomial};
+use super::sparse_mlpoly::{SparsePolynomialXXX};
 use super::sumcheck::SumcheckInstanceProof;
 use super::timer::Timer;
 use crate::math::Math;
@@ -460,18 +460,21 @@ impl<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>, F: PrimeField + Abs
             &self.eval_vars_at_ry,
         ).map_err(|_| ProofVerifyError::InternalError)?;
 
-        // Compute (io,1)(r_y) so that we can use it to compute Z(r_y)
+        // Compute (1,io)(r_y) so that we can use it to compute Z(r_y)
         let poly_input_eval = {
-            // constant term
-            let mut input_as_sparse_poly_entries = vec![SparsePolyEntry::new(0, F::ONE)];
-            //remaining inputs
+            // constant term: one
+            let mut input_as_sparse_poly_entries = vec![F::ONE];
+            // remaining inputs:
             input_as_sparse_poly_entries.extend(
                 (0..input.len())
-                    .map(|i| SparsePolyEntry::new(i + 1, input[i]))
-                    .collect::<Vec<SparsePolyEntry<F>>>(),
+                    .map(|i| input[i])
+                    .collect::<Vec<F>>(),
             );
-            SparsePolynomial::new(n.log_2(), input_as_sparse_poly_entries).evaluate(&ry[1..])
+            SparsePolynomialXXX::new(n.log_2(), input_as_sparse_poly_entries).evaluate(&ry[1..])
         };
+        // now `input_as_sparse_poly_entries is: (1, io)
+
+        // poly_input-eval is: (1, io)(r_y[1..])
 
         // compute Z(r_y): eval_Z_at_ry = (F::one() - ry[0]) * self.eval_vars_at_ry + ry[0] * poly_input_eval
         let eval_Z_at_ry = (F::one() - ry[0]) * self.eval_vars_at_ry + ry[0] * poly_input_eval;

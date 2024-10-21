@@ -1671,26 +1671,14 @@ where
     }
 }
 
-
-pub struct SparsePolyEntry<F: Absorb> {
-    idx: usize,
-    val: F,
-}
-
-impl<F: Absorb> SparsePolyEntry<F> {
-    pub fn new(idx: usize, val: F) -> Self {
-        SparsePolyEntry { idx, val }
-    }
-}
-
-pub struct SparsePolynomial<F: Absorb> {
+pub struct SparsePolynomialXXX<F: Absorb> {
     num_vars: usize,
-    Z: Vec<SparsePolyEntry<F>>,
+    evals: Vec<F>,
 }
 
-impl<F: PrimeField + Absorb> SparsePolynomial<F> {
-    pub fn new(num_vars: usize, Z: Vec<SparsePolyEntry<F>>) -> Self {
-        SparsePolynomial { num_vars, Z }
+impl<F: PrimeField + Absorb> SparsePolynomialXXX<F> {
+    pub fn new(num_vars: usize, evals: Vec<F>) -> Self {
+        SparsePolynomialXXX { num_vars, evals }
     }
 
     fn compute_chi(a: &[bool], r: &[F]) -> F {
@@ -1710,10 +1698,10 @@ impl<F: PrimeField + Absorb> SparsePolynomial<F> {
     pub fn evaluate(&self, r: &[F]) -> F {
         assert_eq!(self.num_vars, r.len());
 
-        (0..self.Z.len())
+        (0..self.evals.len())
             .map(|i| {
-                let bits = self.Z[i].idx.get_bits_canonical_order(r.len());
-                SparsePolynomial::compute_chi(&bits, r) * self.Z[i].val
+                let bits = i.get_bits_canonical_order(r.len());
+                SparsePolynomialXXX::compute_chi(&bits, r) * self.evals[i]
             })
             .sum()
     }
