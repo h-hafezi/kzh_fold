@@ -67,6 +67,53 @@ impl<F: PrimeField + Absorb> R1CSVar<F> for UniPolyVar<F> {
     }
 }
 
+impl<F: PrimeField + Absorb> AllocVar<CompressedUniPoly<F>, F> for CompressedUniPolyVar<F> {
+    fn new_variable<T: Borrow<CompressedUniPoly<F>>>(
+        cs: impl Into<Namespace<F>>,
+        f: impl FnOnce() -> Result<T, SynthesisError>,
+        mode: AllocationMode,
+    ) -> Result<Self, SynthesisError> {
+        let ns = cs.into();
+        let cs = ns.cs();
+
+        // Fetch the vector of coefficients to allocate as FpVars
+        let binding = f()?;
+        let values = binding.borrow();
+
+        // Allocate each coefficient as an FpVar
+        let coeffs_except_linear_term = values
+            .coeffs_except_linear_term
+            .iter()
+            .map(|v| FpVar::new_variable(cs.clone(), || Ok(v), mode))
+            .collect::<Result<Vec<_>, SynthesisError>>()?;
+
+        Ok(CompressedUniPolyVar { coeffs_except_linear_term })
+    }
+}
+
+impl<F: PrimeField + Absorb> R1CSVar<F> for CompressedUniPolyVar<F> {
+    type Value = CompressedUniPoly<F>;
+
+    // This method returns the constraint system that the variables are attached to
+    fn cs(&self) -> ConstraintSystemRef<F> {
+        let mut result = ConstraintSystemRef::None;
+        for coeff in &self.coeffs_except_linear_term {
+            result = coeff.cs().or(result);
+        }
+        result
+    }
+
+    // This method returns the underlying values of the variables, if available
+    fn value(&self) -> Result<Self::Value, SynthesisError> {
+        let mut coeffs_except_linear_term = Vec::new();
+        for c in &self.coeffs_except_linear_term {
+            coeffs_except_linear_term.push(c.value()?);
+        }
+        Ok(CompressedUniPoly { coeffs_except_linear_term })
+    }
+}
+
+
 impl<F: PrimeField + Absorb> UniPolyVar<F> {
     pub fn eval_at_zero(&self) -> FpVar<F> {
         self.coeffs[0].clone()
@@ -91,21 +138,6 @@ impl<F: PrimeField + Absorb> UniPolyVar<F> {
             power *= r;
         }
         eval
-    }
-}
-
-impl<F: PrimeField + Absorb> CompressedUniPolyVar<F> {
-    pub fn new(cs: ConstraintSystemRef<F>, poly: CompressedUniPoly<F>, allocation_mode: AllocationMode) -> Self {
-        CompressedUniPolyVar {
-            coeffs_except_linear_term: {
-                let mut coeffs = Vec::new();
-                for fp in poly.coeffs_except_linear_term {
-                    let fpvar = FpVar::new_variable(cs.clone(), || Ok(fp.clone()), allocation_mode).unwrap();
-                    coeffs.push(fpvar);
-                }
-                coeffs
-            },
-        }
     }
 }
 
@@ -219,7 +251,14 @@ mod tests {
         let cs = ConstraintSystem::<F>::new_ref();
 
         // Create the CompressedUniPolyVar version from the CompressedUniPoly
-        let random_compressed_unipoly_var = CompressedUniPolyVar::new(cs.clone(), random_compressed_unipoly.clone(), AllocationMode::Witness);
+        let random_compressed_unipoly_var = CompressedUniPolyVar::new_variable(
+            cs.clone(),
+            || Ok(random_compressed_unipoly.clone()),
+            AllocationMode::Witness
+        ).unwrap();
+
+        // test value function
+        assert_eq!(random_compressed_unipoly, random_compressed_unipoly_var.value().unwrap());
 
         // Generate a variable for the hint
         let hint_var = FpVar::new_input(cs.clone(), || Ok(hint)).unwrap();

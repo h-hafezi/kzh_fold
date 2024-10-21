@@ -58,7 +58,6 @@ impl<F: PrimeField + Absorb> PartialVerifier<F> {
 
         // verify the first sum-check instance
         let claim_phase1 = F::zero();
-        let start_transcript = transcript.clone();
         let (claim_post_phase1, rx) = proof
             .sc_proof_phase1
             .verify::<E>(claim_phase1, num_rounds_x, 3, transcript).unwrap();
@@ -91,7 +90,6 @@ impl<F: PrimeField + Absorb> PartialVerifier<F> {
 
         // r_A * Az_claim + r_B * Bz_claim + r_C * Cz_claim;
         let claim_phase2 = r_A * Az_claim + r_B * Bz_claim + r_C * Cz_claim;
-        let start_transcript = transcript.clone();
 
         // verify the joint claim with a sum-check protocol
         let (claim_post_phase2, ry) = proof

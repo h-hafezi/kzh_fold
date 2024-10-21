@@ -14,7 +14,7 @@ pub struct UniPoly<F: PrimeField + Absorb> {
 
 // ax^2 + bx + c stored as vec![c,a]
 // ax^3 + bx^2 + cx + d stored as vec![d,b,a]
-#[derive(CanonicalSerialize, CanonicalDeserialize, Debug, Clone)]
+#[derive(CanonicalSerialize, CanonicalDeserialize, Debug, PartialEq, Eq, Clone)]
 pub struct CompressedUniPoly<F: PrimeField + Absorb> {
     pub coeffs_except_linear_term: Vec<F>,
 }

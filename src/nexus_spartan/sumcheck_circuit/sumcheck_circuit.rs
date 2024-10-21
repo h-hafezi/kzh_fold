@@ -1,8 +1,7 @@
-use std::borrow::Borrow;
 use crate::nexus_spartan::sumcheck::SumcheckInstanceProof;
 use crate::nexus_spartan::unipoly::unipoly::CompressedUniPoly;
 use crate::nexus_spartan::unipoly::unipoly_var::{CompressedUniPolyVar, UniPolyVar};
-use crate::transcript::transcript::{Transcript};
+use crate::transcript::transcript::Transcript;
 use crate::transcript::transcript_var::{AppendToTranscriptVar, TranscriptVar};
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
@@ -10,9 +9,7 @@ use ark_ff::PrimeField;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::fp::FpVar;
-use ark_relations::ns;
-use ark_relations::r1cs::{Namespace, SynthesisError};
-use crate::nexus_spartan::sparse_mlpoly::{SparsePoly, SparsePolyVar};
+use std::borrow::Borrow;
 
 pub struct SumcheckCircuit<F: PrimeField + Absorb> {
     pub compressed_polys: Vec<CompressedUniPoly<F>>,
@@ -126,8 +123,11 @@ mod tests {
         // Create random compressed univariate polynomial vars for the SumCheckCircuitVar
         let compressed_polys_var: Vec<CompressedUniPolyVar<F>> = compressed_polys
             .iter()
-            .map(|poly| CompressedUniPolyVar::new(cs.clone(), poly.clone(), AllocationMode::Witness))
-            .collect();
+            .map(|poly| CompressedUniPolyVar::new_variable(
+                cs.clone(),
+                || Ok(poly.clone()),
+                AllocationMode::Witness,
+            ).unwrap()).collect();
 
         // Initialize the claim variable as a witness
         let claim_var = FpVar::new_witness(cs.clone(), || Ok(claim)).unwrap();
