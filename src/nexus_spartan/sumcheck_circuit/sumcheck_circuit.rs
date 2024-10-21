@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 use crate::nexus_spartan::sumcheck::SumcheckInstanceProof;
 use crate::nexus_spartan::unipoly::unipoly::CompressedUniPoly;
 use crate::nexus_spartan::unipoly::unipoly_var::{CompressedUniPolyVar, UniPolyVar};
@@ -6,8 +7,12 @@ use crate::transcript::transcript_var::{AppendToTranscriptVar, TranscriptVar};
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
 use ark_ff::PrimeField;
+use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::fp::FpVar;
+use ark_relations::ns;
+use ark_relations::r1cs::{Namespace, SynthesisError};
+use crate::nexus_spartan::sparse_mlpoly::{SparsePoly, SparsePolyVar};
 
 pub struct SumcheckCircuit<F: PrimeField + Absorb> {
     pub compressed_polys: Vec<CompressedUniPoly<F>>,
@@ -24,7 +29,7 @@ impl<F: PrimeField + Absorb> SumcheckCircuit<F> {
     }
 }
 
-pub struct SumCheckCircuitVar<F: PrimeField + Absorb> {
+pub struct SumcheckCircuitVar<F: PrimeField + Absorb> {
     pub compressed_polys: Vec<CompressedUniPolyVar<F>>,
     claim: FpVar<F>,
     num_rounds: usize,
@@ -32,7 +37,7 @@ pub struct SumCheckCircuitVar<F: PrimeField + Absorb> {
     transcript: TranscriptVar<F>,
 }
 
-impl<F: PrimeField + Absorb> SumCheckCircuitVar<F> {
+impl<F: PrimeField + Absorb> SumcheckCircuitVar<F> {
     pub fn verify(&mut self) -> (FpVar<F>, Vec<FpVar<F>>) {
         let mut e = self.claim.clone();
         let mut r: Vec<FpVar<F>> = Vec::new();
@@ -134,7 +139,7 @@ mod tests {
         let transcript_var = TranscriptVar::<F>::new(cs.clone(), label);
 
         // Initialize the SumCheckCircuitVar with the same values
-        let mut sumcheck_circuit_var = SumCheckCircuitVar {
+        let mut sumcheck_circuit_var = SumcheckCircuitVar {
             compressed_polys: compressed_polys_var,
             claim: claim_var,
             num_rounds,

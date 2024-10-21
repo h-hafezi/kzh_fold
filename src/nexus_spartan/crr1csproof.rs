@@ -17,8 +17,9 @@ use crate::transcript::transcript::{AppendToTranscript, Transcript};
 use ark_ec::pairing::Pairing;
 use ark_ff::{PrimeField};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
+use crate::nexus_spartan::partial_verifier_circuit::PartialVerifierCircuit;
+use crate::nexus_spartan::sumcheck_circuit::sumcheck_circuit::SumcheckCircuit;
 
-// todo: what is the point of r_x and r_y
 #[derive(CanonicalSerialize, CanonicalDeserialize, Debug)]
 pub struct CRR1CSProof<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>, F: PrimeField + Absorb> {
     /// Sumcheck proof for the polynomial g(x) = \sum eq(tau,x) * (~Az~(x) * ~Bz~(x) - u * ~Cz~(x) - ~E~(x))
@@ -470,9 +471,6 @@ impl<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>, F: PrimeField + Abs
             println!("{} {}", input.len(), n);
             SparsePoly::new(n.log_2(), input_as_sparse_poly_entries).evaluate(&ry[1..])
         };
-        // now `input_as_sparse_poly_entries is: (1, io)
-
-        // poly_input-eval is: (1, io)(r_y[1..])
 
         // compute Z(r_y): eval_Z_at_ry = (F::one() - ry[0]) * self.eval_vars_at_ry + ry[0] * poly_input_eval
         let eval_Z_at_ry = (F::one() - ry[0]) * self.eval_vars_at_ry + ry[0] * poly_input_eval;

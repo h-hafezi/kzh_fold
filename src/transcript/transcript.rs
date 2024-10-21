@@ -4,6 +4,7 @@ use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
 use ark_ff::PrimeField;
 
+#[derive(Clone)]
 pub struct Transcript<F: PrimeField + Absorb> {
     // This will hold the current state of the transcript
     pub state: F,

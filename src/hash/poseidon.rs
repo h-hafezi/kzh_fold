@@ -10,6 +10,7 @@ use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_relations::r1cs::ConstraintSystemRef;
 
+#[derive(Clone)]
 pub struct PoseidonHash<F: Absorb + PrimeField> {
     pub(crate) poseidon_params: PoseidonConfig<F>,
     sponge: PoseidonSponge<F>,
