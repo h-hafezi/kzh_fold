@@ -567,7 +567,6 @@ pub mod tests {
     use rand::thread_rng;
 
     use crate::accumulation::accumulator::Accumulator;
-    use crate::accumulation_circuit::verifier_circuit::AccumulatorVerifierVar;
     use crate::commitment::CommitmentScheme;
     use crate::constant_for_curves::{ScalarField, E, G1, G2};
     use crate::hash::pederson::PedersenCommitment;
@@ -576,6 +575,8 @@ pub mod tests {
     use crate::pcs::multilinear_pcs::{PolyCommit, SRS};
     use crate::polynomial::multilinear_poly::MultilinearPolynomial;
     use crate::transcript::transcript::Transcript;
+
+    use super::*;
 
     type C2 = PedersenCommitment<Projective<G2>>;
 

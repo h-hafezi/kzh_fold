@@ -56,7 +56,8 @@ where
     b_1_at_rho: Option<E::ScalarField>, // b_1(rho)
     b_2_at_rho: Option<E::ScalarField>, // b_2(rho)
     c_at_rho: Option<E::ScalarField>, // c(rho)
-    // ivc_proof: IVCProof<E>
+    // ivc_proof: Option<IVCProof<E>>
+    // state_acc_witness: Option<AccWitness<E>>
 }
 
 impl<E: Pairing> SignatureAggrData<E>
@@ -227,11 +228,14 @@ where
             &sumcheck_challenges,
         );
 
-        // Hossein: At this point we will also have two more accumulators from the IVC proofs of Bob and Charlie
-        // Hossein: Accumulate the three accumulators into one
-        // let bob_accumulator = self.A_1.ivc_proof.acc_witness;
-        // let charlie_accumulator = self.A_1.ivc_proof.acc_witness;
-        // let (ivc_proof, final_accumulator) = self.accumulate_everything(sumcheck_eval_accumulator, bob_accumulator, charlie_accumulator);
+        // Hossein: At this point we will also have four more accumulators from the IVC proofs of Bob and Charlie
+        // Hossein: Accumulate the five accumulators into one
+        // let bob_accumulator_ivc = self.A_1.ivc_proof.acc_witness;
+        // let bob_accumulator_state = self.A_1.state_acc_witness;
+        // let charlie_accumulator_ivc = self.A_2.ivc_proof.acc_witness;
+        // let charlie_accumulator_state = self.A_2.state_acc_witness;
+        // let (ivc_proof, state_accumulator) = self.accumulate_everything(sumcheck_eval_accumulator, bob_accumulator_ivc, bob_accumulator_state,
+        //                                                                 charlie_accumulator_ivc, charlie_accumulator_state);
 
         SignatureAggrData {
             B_1_commitment: Some(self.A_1.bitfield_commitment.clone()),
@@ -244,6 +248,7 @@ where
             b_2_at_rho: Some(b_2_at_rho),
             c_at_rho: Some(c_at_rho),
             // ivc_proof: ivc_proof
+            // state_acc_witness: state_acc_witness
         }
     }
 }
