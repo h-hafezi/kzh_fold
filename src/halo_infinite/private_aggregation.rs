@@ -1,31 +1,33 @@
 #![allow(unused)]
-use itertools::izip;
-use ark_poly::{DenseUVPolynomial, Polynomial};
-use ark_ec::AffineRepr;
-use ark_ec::VariableBaseMSM;
-use ark_ec::pairing::Pairing;
-use ark_ff::{Field, One, batch_inversion};
-use ark_ff::{FftField};
-use ark_ff::Zero;
-use ark_std::{end_timer, start_timer};
-use ark_ec::CurveGroup;
-use ark_poly::{univariate::DensePolynomial, GeneralEvaluationDomain, EvaluationDomain};
 use crate::kzg::KZGProof;
 use crate::kzg::{KZGCommitment, KZGPowers, KZGVerifierKey, KZG10};
+use ark_ec::pairing::Pairing;
+use ark_ec::AffineRepr;
+use ark_ec::CurveGroup;
+use ark_ec::VariableBaseMSM;
+use ark_ff::FftField;
+use ark_ff::Zero;
+use ark_ff::{Field, One, PrimeField};
+use ark_poly::{univariate::DensePolynomial, EvaluationDomain, GeneralEvaluationDomain};
+use ark_poly::{DenseUVPolynomial, Polynomial};
+use ark_std::{end_timer, start_timer};
+use itertools::izip;
 
-use std::ops::{Div, Mul, Add, Sub, Neg};
-
-use transcript::IOPTranscript;
-
-use crate::halo_infinite::errors::ProofError;
+use crate::transcript::transcript::Transcript;
 use crate::utils::compute_powers;
+use ark_crypto_primitives::sponge::Absorb;
+use std::ops::{Add, Div, Mul, Neg, Sub};
 
 /// The polynomial in \\(\FF\\) that vanishes in all the points `points`.
-pub fn vanishing_polynomial<E: Pairing>(points: &[E::ScalarField]) -> DensePolynomial<E::ScalarField> {
-    let one = DensePolynomial::from_coefficients_vec(vec![E::ScalarField::one()]);
+pub fn vanishing_polynomial<E, F>(points: &[F]) -> DensePolynomial<F>
+where
+    E: Pairing<ScalarField=F>,
+    F: PrimeField,
+{
+    let one = DensePolynomial::from_coefficients_vec(vec![F::one()]);
     points
         .iter()
-        .map(|&point| DensePolynomial::from_coefficients_vec(vec![-point, E::ScalarField::one()]))
+        .map(|&point| DensePolynomial::from_coefficients_vec(vec![-point, F::one()]))
         .fold(one, |x, y| x.naive_mul(&y))
 }
 
@@ -33,7 +35,7 @@ pub fn vanishing_polynomial<E: Pairing>(points: &[E::ScalarField]) -> DensePolyn
 /// Remove `element` from the set behind `iter`
 fn remove_from_set<I, T>(iter: I, element: &T) -> Vec<T>
 where
-    I: IntoIterator<Item = T>,
+    I: IntoIterator<Item=T>,
     T: PartialEq,
 {
     iter.into_iter()
@@ -49,40 +51,47 @@ pub struct PrivateAggregationProof<E: Pairing> {
 
 /// Prove that f_i(w_i) = 0
 /// Simplification over paper: omega_i is a single element
-pub fn prove<E: Pairing>(
-    vec_f: &Vec<DensePolynomial<E::ScalarField>>,
-    vec_omega: &Vec<E::ScalarField>,
-    entire_domain: &GeneralEvaluationDomain<E::ScalarField>,
-    transcript: &mut IOPTranscript<E::ScalarField>,
+pub fn prove<E, F>(
+    vec_f: &Vec<DensePolynomial<F>>,
+    vec_omega: &Vec<F>,
+    entire_domain: &GeneralEvaluationDomain<F>,
+    transcript: &mut Transcript<F>,
     ck: &KZGPowers<E>,
 ) -> PrivateAggregationProof<E>
 where
-    E::ScalarField: FftField, // FFTField is needed to do poly mul with FFTs
+    E: Pairing<ScalarField=F>,
+    F: PrimeField + FftField + Absorb,    // FFTField is needed to do poly mul with FFTs
+    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
 {
     // Step 1: Compute z(x) and z_i(x) polys
-    let z_poly = vanishing_polynomial::<E>(&vec_omega);
+    let z_poly = vanishing_polynomial::<E, F>(&vec_omega);
 
     // This is a vector of Omega_i
     let mut vec_omega_complements = vec![];
     for omega in vec_omega {
-        let vec_omega_complement_i:Vec<E::ScalarField> = remove_from_set(vec_omega.clone(), omega);
+        let vec_omega_complement_i: Vec<E::ScalarField> = remove_from_set(vec_omega.clone(), omega);
         vec_omega_complements.push(vec_omega_complement_i);
     }
 
     // Compute z_i(x) = \prod (x - w_i)
-    let vec_z_i_time = start_timer!(|| format!("vec_z_i time"));
+    let vec_z_i_time = start_timer!(|| "vec_z_i time".to_string());
     let mut vec_z_i = vec![];
     for vec_omega_complement in &vec_omega_complements {
-        let z_i_poly = vanishing_polynomial::<E>(&vec_omega_complement);
+        let z_i_poly = vanishing_polynomial::<E, F>(&vec_omega_complement);
         vec_z_i.push(z_i_poly);
     }
     end_timer!(vec_z_i_time);
 
     // Step 2: Get a challenge from the verifier
-    transcript.append_serializable_element(b"z_x", &z_poly).unwrap();
-    transcript.append_serializable_element(b"z_more", &vec_omega_complements).unwrap();
-    transcript.append_serializable_element(b"z_moremore", &vec_z_i).unwrap();
-    let rho: E::ScalarField = transcript.get_and_append_challenge(b"rho").unwrap();
+    transcript.append_scalars(b"z_x", &z_poly.coeffs);
+    for poly in vec_omega_complements {
+        transcript.append_scalars(b"z_more", poly.as_slice());
+    }
+    for poly in &vec_z_i {
+        transcript.append_scalars(b"z_more", poly.coeffs.as_slice());
+    }
+
+    let rho: F = transcript.challenge_scalar(b"rho");
 
     // Compute powers of rho
     let vec_rho = compute_powers(&rho, vec_f.len());
@@ -91,15 +100,15 @@ where
     assert_eq!(vec_f.len(), vec_z_i.len());
 
     // Step 3: Compute q(x)
-    let step3_time = start_timer!(|| format!("Step3 time"));
-    let mut q_x = DensePolynomial::from_coefficients_vec(vec![E::ScalarField::zero()]);
-    for (rho_i, f_i, z_i) in izip!(vec_rho.clone(), vec_f.clone(), vec_z_i.clone()) { // XXX loose the clone
+    let step3_time = start_timer!(|| "Step3 time".to_string());
+    let mut q_x = DensePolynomial::from_coefficients_vec(vec![F::zero()]);
+    for (rho_i, f_i, z_i) in izip!(&vec_rho, vec_f, &vec_z_i) { // XXX loose the clone
         // Compute rho^{i-1}*f_i
         let mut numerator = DensePolynomial::from_coefficients_vec(
             f_i.coeffs.iter().map(|f| *f * rho_i).collect(),
         );
         // Compute the entire numerator
-        numerator = numerator.mul(&z_i);
+        numerator = numerator.mul(z_i);
 
         q_x = q_x.add(numerator);
     }
@@ -107,17 +116,17 @@ where
     end_timer!(step3_time);
 
     // Step 4: Commit to q(x)
-    let step4_time = start_timer!(|| format!("Step4 time"));
-    let (q_commitment, q_blinder) = KZG10::<E,DensePolynomial<<E as Pairing>::ScalarField>>::commit(&ck, &q_x, None, None).expect("q commitment failed");
+    let step4_time = start_timer!(|| "Step4 time".to_string());
+    let (q_commitment, q_blinder) = KZG10::<E, DensePolynomial<F>>::commit(&ck, &q_x, None, None).expect("q commitment failed");
     end_timer!(step4_time);
 
     // Step 5: Get r from verifier
-    transcript.append_serializable_element(b"q_comm", &q_commitment.0).unwrap();
-    let r: E::ScalarField = transcript.get_and_append_challenge(b"r").unwrap();
+    transcript.append_point::<E>(b"q_comm", &q_commitment.0);
+    let r: F = transcript.challenge_scalar(b"r");
 
     // Step 6: Compute g(x)
-    let step6_time = start_timer!(|| format!("Step6 time"));
-    let mut g_x  = DensePolynomial::from_coefficients_vec(vec![E::ScalarField::zero()]);
+    let step6_time = start_timer!(|| "Step6 time".to_string());
+    let mut g_x = DensePolynomial::from_coefficients_vec(vec![F::zero()]);
     for (rho_i, f_i, z_i) in izip!(vec_rho, vec_f, vec_z_i) {
         let z_i_r = z_i.evaluate(&r);
         let f_i_times_z_i_r = DensePolynomial::from_coefficients_vec(
@@ -150,18 +159,21 @@ where
 
 /// Prove that f_i(w_i) = 0
 /// Simplification over paper: omega_i is a single element
-pub fn verify<E: Pairing>(
+pub fn verify<E: Pairing<ScalarField=F>, F: PrimeField + Absorb>(
     proof: &PrivateAggregationProof<E>,
     vec_f_commitments: &Vec<KZGCommitment<E>>,
-    vec_omega: &Vec<E::ScalarField>,
-    entire_domain: &GeneralEvaluationDomain<E::ScalarField>,
-    transcript: &mut IOPTranscript<E::ScalarField>,
-    vk: &KZGVerifierKey<E>
-) -> bool {
+    vec_omega: &Vec<F>,
+    entire_domain: &GeneralEvaluationDomain<F>,
+    transcript: &mut Transcript<F>,
+    vk: &KZGVerifierKey<E>,
+) -> bool where
+    E: Pairing<ScalarField=F>, F: PrimeField + Absorb,
+    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
+{
     let n = vec_f_commitments.len();
 
     // Step 1: Compute all the domains and polys
-    let z_poly = vanishing_polynomial::<E>(&vec_omega);
+    let z_poly = vanishing_polynomial::<E, F>(&vec_omega);
 
     // This is a vector of Omega_i
     let mut vec_omega_complements = vec![];
@@ -173,15 +185,19 @@ pub fn verify<E: Pairing>(
     // Compute z_i(x) = \prod (x - w_i)
     let mut vec_z_i = vec![];
     for vec_omega_complement in &vec_omega_complements {
-        let z_i_poly = vanishing_polynomial::<E>(&vec_omega_complement);
+        let z_i_poly = vanishing_polynomial::<E, F>(&vec_omega_complement);
         vec_z_i.push(z_i_poly);
     }
 
     // Step 2: Get a challenge from the verifier
-    transcript.append_serializable_element(b"z_x", &z_poly).unwrap();
-    transcript.append_serializable_element(b"z_more", &vec_omega_complements).unwrap();
-    transcript.append_serializable_element(b"z_moremore", &vec_z_i).unwrap();
-    let rho: E::ScalarField = transcript.get_and_append_challenge(b"rho").unwrap();
+    transcript.append_scalars(b"z_x", z_poly.coeffs.as_slice());
+    for poly in vec_omega_complements {
+        transcript.append_scalars(b"z_more", poly.as_slice());
+    }
+    for poly in &vec_z_i {
+        transcript.append_scalars(b"z_moremore", poly.coeffs.as_slice());
+    }
+    let rho: F = transcript.challenge_scalar(b"rho");
 
     // Compute powers of rho
     let vec_rho = compute_powers(&rho, n);
@@ -190,11 +206,11 @@ pub fn verify<E: Pairing>(
     assert_eq!(n, vec_z_i.len());
 
     // Step 2: Get r from verifier
-    transcript.append_serializable_element(b"q_comm", &proof.q_commitment.0).unwrap();
-    let r: E::ScalarField = transcript.get_and_append_challenge(b"r").unwrap();
+    transcript.append_point::<E>(b"q_comm", &proof.q_commitment.0);
+    let r: F = transcript.challenge_scalar(b"r");
 
     let mut C_prime = E::G1Affine::zero();
-    for (rho_i, z_i, C_i) in izip!(vec_rho.clone(), vec_z_i.clone(), vec_f_commitments.clone()) { // XXX loose the clone
+    for (rho_i, z_i, C_i) in izip!(&vec_rho, &vec_z_i, vec_f_commitments) {
         let z_i_at_r = z_i.evaluate(&r);
         C_prime = (C_prime + C_i.0.mul(z_i_at_r * rho_i)).into();
     }
@@ -219,36 +235,36 @@ pub fn verify<E: Pairing>(
 }
 
 pub mod tests {
-    use crate::kzg::{trim};
+    use crate::kzg::trim;
 
     use super::*;
-    use ark_bn254::{Bn254, Fr};
+    use crate::constant_for_curves::{ScalarField, E};
     use ark_poly::DenseUVPolynomial;
+    use rand::{rngs::StdRng, SeedableRng};
     use std::ops::Sub;
-    use rand::{rngs::StdRng, thread_rng, SeedableRng};
 
-    type E = Bn254;
+    type F = ScalarField;
 
     pub fn prepare_polynomials_and_srs(
         N: usize,
         d: usize,
         rng: &mut StdRng,
     ) -> (
-        Vec<DensePolynomial<Fr>>,
+        Vec<DensePolynomial<F>>,
         Vec<KZGCommitment<E>>,
-        Vec<Fr>,
-        GeneralEvaluationDomain<Fr>,
+        Vec<F>,
+        GeneralEvaluationDomain<F>,
         KZGPowers<E>,
         KZGVerifierKey<E>,
     ) {
-        let mut vec_f: Vec<DensePolynomial<Fr>> = vec![];
+        let mut vec_f: Vec<DensePolynomial<F>> = vec![];
         let mut vec_f_commitments: Vec<KZGCommitment<E>> = vec![];
         let mut vec_omega = vec![];
 
         let params = KZG10::<E, DensePolynomial<<E as Pairing>::ScalarField>>::setup(2 * d, false, rng).expect("Setup failed");
         let (ck, vk) = trim(&params, 2 * d);
 
-        let domain = GeneralEvaluationDomain::<Fr>::new(d).unwrap();
+        let domain = GeneralEvaluationDomain::<F>::new(d).unwrap();
         for i in 0..N {
             vec_omega.push(domain.element(i));
         }
@@ -257,7 +273,7 @@ pub mod tests {
             let p_poly = DensePolynomial::rand(d, rng);
             let p_poly_at_w_i = p_poly.evaluate(&vec_omega[i]);
             let f_poly = p_poly.sub(&DensePolynomial::from_coefficients_slice(&[p_poly_at_w_i]));
-            assert_eq!(Fr::zero(), f_poly.evaluate(&vec_omega[i]));
+            assert_eq!(F::zero(), f_poly.evaluate(&vec_omega[i]));
             vec_f.push(f_poly.clone());
 
             let (f_commitment, _) = KZG10::<E, DensePolynomial<<E as Pairing>::ScalarField>>::commit(&ck, &f_poly, None, None).expect("f commitment failed");
@@ -274,13 +290,13 @@ pub mod tests {
         let N = 2;
         let d = 8192;
 
-        let mut transcript_prover = IOPTranscript::<Fr>::new(b"pa");
-        let mut transcript_verifier = IOPTranscript::<Fr>::new(b"pa");
+        let mut transcript_prover = Transcript::<F>::new(b"pa");
+        let mut transcript_verifier = Transcript::<F>::new(b"pa");
 
         let (vec_f, vec_f_commitments, vec_omega, domain, ck, vk) = prepare_polynomials_and_srs(N, d, &mut rng);
 
-        let proof = prove::<Bn254>(&vec_f, &vec_omega, &domain, &mut transcript_prover, &ck);
-        let is_valid = verify::<Bn254>(&proof, &vec_f_commitments, &vec_omega, &domain, &mut transcript_verifier, &vk);
+        let proof = prove::<E, F>(&vec_f, &vec_omega, &domain, &mut transcript_prover, &ck);
+        let is_valid = verify::<E, F>(&proof, &vec_f_commitments, &vec_omega, &domain, &mut transcript_verifier, &vk);
         assert!(is_valid);
     }
 }

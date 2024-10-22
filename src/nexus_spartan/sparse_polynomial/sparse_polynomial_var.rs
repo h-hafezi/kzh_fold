@@ -14,14 +14,14 @@ use crate::nexus_spartan::sparse_polynomial::uint32::Unsigned32Var;
 
 pub struct SparsePolyVar<F: Absorb + PrimeField> {
     num_vars: usize,
-    evals: Vec<FpVar<F>>,
+    evaluations: Vec<FpVar<F>>,
 }
 
 impl<F: PrimeField + Absorb> SparsePolyVar<F> {
-    pub fn new(num_vars: usize, evals: Vec<FpVar<F>>) -> SparsePolyVar<F> {
+    pub fn new(num_vars: usize, evaluations: Vec<FpVar<F>>) -> SparsePolyVar<F> {
         SparsePolyVar {
             num_vars,
-            evals,
+            evaluations,
         }
     }
 }
@@ -41,12 +41,12 @@ impl<F: PrimeField + Absorb> AllocVar<SparsePoly<F>, F> for SparsePolyVar<F> {
         let res = f();
         let sparse_poly = res.as_ref().map(|e| e.borrow()).map_err(|err| *err);
 
-        // Allocate each field element in the `evals` as circuit variables
-        let mut evals_var = Vec::new();
-        for i in 0..sparse_poly?.evals.len() {
-            evals_var.push(FpVar::new_variable(
+        // Allocate each field element in the `evaluations` as circuit variables
+        let mut evaluation_var = Vec::new();
+        for i in 0..sparse_poly?.evaluations.len() {
+            evaluation_var.push(FpVar::new_variable(
                 ns!(cs, "y"),
-                || Ok(sparse_poly?.evals[i]),
+                || Ok(sparse_poly?.evaluations[i]),
                 mode,
             )?);
         }
@@ -54,7 +54,7 @@ impl<F: PrimeField + Absorb> AllocVar<SparsePoly<F>, F> for SparsePolyVar<F> {
         // Return the allocated SparsePolyVar
         Ok(SparsePolyVar {
             num_vars: sparse_poly?.num_vars,
-            evals: evals_var,
+            evaluations: evaluation_var,
         })
     }
 }
@@ -64,7 +64,7 @@ impl<F: PrimeField + Absorb> R1CSVar<F> for SparsePolyVar<F> {
 
     // Return the constraint system associated with the variable
     fn cs(&self) -> ConstraintSystemRef<F> {
-        self.evals
+        self.evaluations
             .iter()
             .fold(ConstraintSystemRef::None, |cs, eval| cs.or(eval.cs()))
     }
@@ -73,7 +73,7 @@ impl<F: PrimeField + Absorb> R1CSVar<F> for SparsePolyVar<F> {
     fn value(&self) -> Result<Self::Value, SynthesisError> {
         // Retrieve the values of the evals (they are Option<F> inside FpVar<F>)
         let evals = self
-            .evals
+            .evaluations
             .iter()
             .map(|eval_var| eval_var.value()) // Extract value for each eval_var
             .collect::<Result<Vec<_>, SynthesisError>>()?; // Collect them into a Vec<F>
@@ -81,7 +81,7 @@ impl<F: PrimeField + Absorb> R1CSVar<F> for SparsePolyVar<F> {
         // Return a new SparsePoly<F> with the same number of variables
         Ok(SparsePoly {
             num_vars: self.num_vars,
-            evals,
+            evaluations: evals,
         })
     }
 }
@@ -104,10 +104,10 @@ impl<F: PrimeField + Absorb> SparsePolyVar<F> {
         let mut res = FpVar::<F>::zero();
         let cs = r[0].cs();
         let mut counter = Unsigned32Var::new(cs);
-        for i in 0..self.evals.len() {
+        for i in 0..self.evaluations.len() {
             let bits = counter.get_bits_canonical_order(r.len());
             counter.increment_inplace();
-            res += SparsePolyVar::compute_chi(&bits, r) * &self.evals[i];
+            res += SparsePolyVar::compute_chi(&bits, r) * &self.evaluations[i];
         }
         res
     }

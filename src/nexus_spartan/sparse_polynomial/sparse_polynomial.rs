@@ -5,12 +5,12 @@ use crate::math::Math;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SparsePoly<F: Absorb> {
     pub num_vars: usize,
-    pub evals: Vec<F>,
+    pub evaluations: Vec<F>,
 }
 
 impl<F: PrimeField + Absorb> SparsePoly<F> {
-    pub fn new(num_vars: usize, evals: Vec<F>) -> Self {
-        SparsePoly { num_vars, evals }
+    pub fn new(num_vars: usize, evaluations: Vec<F>) -> Self {
+        SparsePoly { num_vars, evaluations }
     }
 
     pub(crate) fn compute_chi(a: &[bool], r: &[F]) -> F {
@@ -29,10 +29,10 @@ impl<F: PrimeField + Absorb> SparsePoly<F> {
     pub fn evaluate(&self, r: &[F]) -> F {
         assert_eq!(self.num_vars, r.len());
 
-        (0..self.evals.len())
+        (0..self.evaluations.len())
             .map(|i| {
                 let bits = i.get_bits_canonical_order(r.len());
-                SparsePoly::compute_chi(&bits, r) * self.evals[i]
+                SparsePoly::compute_chi(&bits, r) * self.evaluations[i]
             })
             .sum()
     }

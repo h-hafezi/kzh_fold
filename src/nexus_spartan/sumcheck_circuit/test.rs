@@ -62,7 +62,7 @@ mod tests {
         let label = b"test label";
         let mut transcript = Transcript::<F>::new(label);
         // Initialize the SumcheckCircuit
-        let mut sumcheck_circuit = test_sumcheck_circuit_helper();
+        let sumcheck_circuit = test_sumcheck_circuit_helper();
 
         // Run the verification on the normal SumcheckCircuit
         let (e1, r1) = sumcheck_circuit.verify::<E>(&mut transcript);

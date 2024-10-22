@@ -2,7 +2,7 @@
 use ark_ec::pairing::Pairing;
 use ark_std::marker::PhantomData;
 
-/// The polynomial f(x) behind the commiment C, evaluates to f(x) = y
+/// The polynomial f(x) behind the commitment C, evaluates to f(x) = y
 pub struct Instance<E: Pairing> {
     pub C: E::G1Affine,
     pub x: E::ScalarField,

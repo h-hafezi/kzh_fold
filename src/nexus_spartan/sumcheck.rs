@@ -10,7 +10,6 @@ use ark_ff::PrimeField;
 use ark_serialize::*;
 
 use itertools::izip;
-use transcript::IOPTranscript;
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript::{AppendToTranscript, Transcript};
 
@@ -307,7 +306,7 @@ impl<F: PrimeField + Absorb> SumcheckInstanceProof<F> {
     }
 }
 
-
+/*
 // XXX: This is used for the signature aggregation protocol!!!
 impl<F: PrimeField + Absorb> SumcheckInstanceProof<F> {
     pub fn prove_cubic_four_terms<Func, G>(
@@ -434,3 +433,4 @@ impl<F: PrimeField + Absorb> SumcheckInstanceProof<F> {
         Ok((e, r))
     }
 }
+ */

@@ -21,7 +21,6 @@ ark-relations = "0.4.0"
 ark-pallas = "0.4.0"
 ark-r1cs-std = "0.4.0"
 ark-grumpkin = "0.4.0"
-transcript = { git = "https://github.com/EspressoSystems/hyperplonk" }
 num = "0.4.3"
 lazy_static = "1.5.0"
 sha3 = { version = "0.10", default-features = false }
