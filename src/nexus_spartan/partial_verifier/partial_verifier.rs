@@ -136,7 +136,7 @@ impl<F: PrimeField + Absorb> PartialVerifier<F> {
     }
 
 
-    pub fn verify<E: Pairing<ScalarField=F>>(&mut self, transcript: &mut Transcript<F>) -> (Vec<F>, Vec<F>) {
+    pub fn verify<E: Pairing<ScalarField=F>>(&self, transcript: &mut Transcript<F>) -> (Vec<F>, Vec<F>) {
         Transcript::append_scalars(transcript, b"input", self.input.as_slice());
 
         let n = self.num_vars;
@@ -213,7 +213,7 @@ impl<F: PrimeField + Absorb> PartialVerifier<F> {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use crate::nexus_spartan::crr1cs::produce_synthetic_crr1cs;
 
     use super::*;
@@ -221,12 +221,14 @@ mod tests {
 
     #[test]
     pub fn check_verification_proof() {
-        check_verification_proof_helper::<E, MultilinearPolynomial<ScalarField>>()
+        partial_verifier_test_helper::<E, MultilinearPolynomial<ScalarField>, ScalarField>();
     }
 
-    fn check_verification_proof_helper<E: Pairing, PC: PolyCommitmentScheme<E>>()
+    pub fn partial_verifier_test_helper<E, PC, F>() -> (PartialVerifier<F>, Transcript<F>)
     where
-        <E as Pairing>::ScalarField: Absorb,
+        F: PrimeField + Absorb,
+        PC: PolyCommitmentScheme<E>,
+        E: Pairing<ScalarField=F>,
     {
         let num_vars = 1024;
         let num_cons = num_vars;
@@ -253,16 +255,19 @@ mod tests {
         let inst_evals = shape.inst.inst.evaluate(&rx, &ry);
 
         let mut verifier_transcript = Transcript::new(b"example");
-        let mut verifier_transcript_clone = verifier_transcript.clone();
-        let mut partial_verifier_circuit = PartialVerifier::initialise(
+        let mut verifier_transcript_clone1 = verifier_transcript.clone();
+        let mut verifier_transcript_clone2 = verifier_transcript.clone();
+        let mut partial_verifier = PartialVerifier::initialise(
             proof,
             num_vars,
             num_cons,
             instance.input.assignment,
             &inst_evals,
-            &mut verifier_transcript
+            &mut verifier_transcript,
         );
 
-        partial_verifier_circuit.verify::<E>(&mut verifier_transcript_clone);
+        partial_verifier.verify::<E>(&mut verifier_transcript_clone1);
+
+        (partial_verifier, verifier_transcript_clone2)
     }
 }

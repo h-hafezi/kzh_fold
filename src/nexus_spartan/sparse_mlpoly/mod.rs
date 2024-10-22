@@ -2,6 +2,7 @@ pub mod sparse_mlpoly;
 mod util;
 
 use crate::math::Math;
+use crate::nexus_spartan::sparse_mlpoly::util::get_bits_canonical_order;
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::CurveConfig;
 use ark_ff::PrimeField;
@@ -15,7 +16,6 @@ use ark_relations::ns;
 use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 use ark_serialize::CanonicalSerialize;
 use std::borrow::Borrow;
-use crate::nexus_spartan::sparse_mlpoly::util::get_bits_canonical_order;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SparsePoly<F: Absorb> {
@@ -56,6 +56,15 @@ impl<F: PrimeField + Absorb> SparsePoly<F> {
 pub struct SparsePolyVar<F: Absorb + PrimeField> {
     num_vars: usize,
     evals: Vec<FpVar<F>>,
+}
+
+impl<F: PrimeField + Absorb> SparsePolyVar<F> {
+    pub fn new(num_vars: usize, evals: Vec<FpVar<F>>) -> SparsePolyVar<F> {
+        SparsePolyVar {
+            num_vars,
+            evals,
+        }
+    }
 }
 
 // Implement AllocVar for SparsePoly
@@ -148,9 +157,8 @@ mod test {
     use crate::constant_for_curves::ScalarField;
     use ark_ff::UniformRand;
     use ark_r1cs_std::prelude::*;
-    use ark_relations::r1cs::{ConstraintSystem, SynthesisError};
+    use ark_relations::r1cs::ConstraintSystem;
     use rand::thread_rng;
-    use crate::pcs::multilinear_pcs::Commitment;
 
     type F = ScalarField;
 
@@ -212,7 +220,7 @@ mod test {
 
         let t_var = SparsePolyVar::compute_chi(
             &[a1_var, a2_var, a3_var],
-            &[r1_var.clone(), r2_var.clone(), r3_var.clone()]
+            &[r1_var.clone(), r2_var.clone(), r3_var.clone()],
         );
 
         assert_eq!(t, t_var.value().unwrap());

@@ -30,9 +30,9 @@ impl<F: PrimeField + Absorb> SumcheckCircuit<F> {
 
 pub struct SumcheckCircuitVar<F: PrimeField + Absorb> {
     pub compressed_polys: Vec<CompressedUniPolyVar<F>>,
-    claim: FpVar<F>,
-    num_rounds: usize,
-    degree_bound: usize,
+    pub claim: FpVar<F>,
+    pub num_rounds: usize,
+    pub degree_bound: usize,
 }
 
 // Implement the R1CSVar trait for SumcheckCircuitVar
@@ -122,7 +122,7 @@ impl<F: PrimeField + Absorb> AllocVar<SumcheckCircuit<F>, F> for SumcheckCircuit
 
 
 impl<F: PrimeField + Absorb> SumcheckCircuitVar<F> {
-    pub fn verify(&mut self, transcript: &mut TranscriptVar<F>) -> (FpVar<F>, Vec<FpVar<F>>) {
+    pub fn verify(&self, transcript: &mut TranscriptVar<F>) -> (FpVar<F>, Vec<FpVar<F>>) {
         let mut e = self.claim.clone();
         let mut r: Vec<FpVar<F>> = Vec::new();
 
