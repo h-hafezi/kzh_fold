@@ -1,18 +1,18 @@
-use crate::nexus_spartan::partial_verifier::partial_verifier::PartialVerifier;
-use crate::nexus_spartan::sumcheck_circuit::sumcheck_circuit::SumcheckCircuitVar;
-use ark_crypto_primitives::sponge::Absorb;
-use ark_ff::PrimeField;
-use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
-use ark_r1cs_std::fields::fp::FpVar;
-use ark_r1cs_std::R1CSVar;
-use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
-use std::borrow::Borrow;
-use ark_r1cs_std::eq::EqGadget;
-use ark_r1cs_std::fields::FieldVar;
 use crate::math::Math;
+use crate::nexus_spartan::partial_verifier::partial_verifier::PartialVerifier;
 use crate::nexus_spartan::sparse_mlpoly::SparsePolyVar;
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript_var::TranscriptVar;
+use ark_crypto_primitives::sponge::Absorb;
+use ark_ff::PrimeField;
+use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
+use ark_r1cs_std::eq::EqGadget;
+use ark_r1cs_std::fields::fp::FpVar;
+use ark_r1cs_std::fields::FieldVar;
+use ark_r1cs_std::R1CSVar;
+use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
+use std::borrow::Borrow;
+use crate::nexus_spartan::sumcheck_circuit::sumcheck_circuit_var::SumcheckCircuitVar;
 
 pub struct PartialVerifierVar<F: PrimeField + Absorb> {
     /// io input, equivalent with
@@ -252,7 +252,6 @@ impl<F: PrimeField + Absorb> R1CSVar<F> for PartialVerifierVar<F> {
 #[cfg(test)]
 mod tests {
     use ark_relations::r1cs::ConstraintSystem;
-    use crate::nexus_spartan::crr1cs::produce_synthetic_crr1cs;
 
     use super::*;
     use crate::constant_for_curves::{ScalarField, E};
@@ -267,11 +266,15 @@ mod tests {
             || Ok(partial_verifier.clone()),
             AllocationMode::Witness,
         ).unwrap();
+
+        // todo: write a TranscriptVar::from(Transcript) function
+        // this has to be consistent with the test in partial_verifier.rs
         let mut transcript = TranscriptVar::new(cs.clone(), b"example");
 
         assert_eq!(partial_verifier, partial_verifier_var.value().unwrap());
 
         partial_verifier_var.verify(&mut transcript);
+        println!("constraint count: {} {}", cs.num_instance_variables(), cs.num_witness_variables());
     }
 }
 

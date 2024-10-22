@@ -257,7 +257,7 @@ pub mod tests {
         let mut verifier_transcript = Transcript::new(b"example");
         let mut verifier_transcript_clone1 = verifier_transcript.clone();
         let mut verifier_transcript_clone2 = verifier_transcript.clone();
-        let mut partial_verifier = PartialVerifier::initialise(
+        let partial_verifier = PartialVerifier::initialise(
             proof,
             num_vars,
             num_cons,
