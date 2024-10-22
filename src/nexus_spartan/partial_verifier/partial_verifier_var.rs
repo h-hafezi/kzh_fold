@@ -254,7 +254,7 @@ mod tests {
     use crate::nexus_spartan::partial_verifier::partial_verifier::tests::partial_verifier_test_helper;
 
     #[test]
-    pub fn test() {
+    pub fn test_partial_verifier_circuit() {
         let (partial_verifier, _transcript) = partial_verifier_test_helper::<E, MultilinearPolynomial<ScalarField>, ScalarField>();
         let cs = ConstraintSystem::<ScalarField>::new_ref();
         let partial_verifier_var = PartialVerifierVar::new_variable(
@@ -269,8 +269,9 @@ mod tests {
 
         assert_eq!(partial_verifier, partial_verifier_var.value().unwrap());
 
-        partial_verifier_var.verify(&mut transcript);
+        let (_r_x, _r_y) = partial_verifier_var.verify(&mut transcript);
         println!("constraint count: {} {}", cs.num_instance_variables(), cs.num_witness_variables());
+        assert!(cs.is_satisfied().unwrap());
     }
 }
 

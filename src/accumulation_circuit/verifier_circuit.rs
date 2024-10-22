@@ -662,7 +662,6 @@ pub mod tests {
                 &instance,
                 &inst_evals,
                 &mut verifier_transcript,
-                &key.keys.vk,
             )
             .is_ok());
 

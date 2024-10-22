@@ -392,14 +392,13 @@ impl<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>, F: PrimeField + Abs
         instance: &CRR1CSInstance<E, PC>,
         evals: &(F, F, F),
         transcript: &mut Transcript<F>,
-        key: &PC::EvalVerifierKey,
     ) -> Result<(Vec<F>, Vec<F>), ProofVerifyError> {
         let CRR1CSInstance {
-            input: _input,
-            comm_W,
+            input,
+            comm_W: _comm_W,
         } = instance;
 
-        let input = _input.assignment.as_slice();
+        let input = input.assignment.as_slice();
 
         Transcript::append_scalars(transcript, b"input", input);
 
@@ -447,15 +446,6 @@ impl<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>, F: PrimeField + Abs
             .sc_proof_phase2
             .verify::<E>(claim_phase2, num_rounds_y, 2, transcript)?;
 
-        // TODO: this has to move into decider (KZH aggregation)
-        // verify Z(ry) proof against the initial commitment `comm_W`
-        PC::verify(
-            comm_W,
-            &self.proof_eval_vars_at_ry,
-            key,
-            &ry[1..],
-            &self.eval_vars_at_ry,
-        ).map_err(|_| ProofVerifyError::InternalError)?;
 
         // Compute (1,io)(r_y) so that we can use it to compute Z(r_y)
         let poly_input_eval = {
@@ -467,7 +457,6 @@ impl<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>, F: PrimeField + Abs
                     .map(|i| input[i])
                     .collect::<Vec<F>>(),
             );
-            println!("{} {}", input.len(), n);
             SparsePoly::new(n.log_2(), input_as_sparse_poly_entries).evaluate(&ry[1..])
         };
 
@@ -481,6 +470,22 @@ impl<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>, F: PrimeField + Abs
         assert_eq!(expected_claim_post_phase2, claim_post_phase2);
 
         Ok((rx, ry))
+    }
+
+    pub fn decide(&self,
+                  comm_W: &PC::Commitment,
+                  key: &PC::EvalVerifierKey,
+                  ry: Vec<F>) -> Result<(), ProofVerifyError> {
+        // verify Z(ry) proof against the initial commitment `comm_W`
+        PC::verify(
+            comm_W,
+            &self.proof_eval_vars_at_ry,
+            key,
+            &ry[1..],
+            &self.eval_vars_at_ry,
+        ).map_err(|_| ProofVerifyError::InternalError)?;
+
+        Ok(())
     }
 }
 
@@ -614,8 +619,9 @@ mod tests {
                 &instance,
                 &inst_evals,
                 &mut verifier_transcript,
-                &gens.gens_r1cs_sat.keys.vk,
             )
             .is_ok());
+
+        assert!(proof.decide(&instance.comm_W, &gens.gens_r1cs_sat.keys.vk, ry).is_ok());
     }
 }

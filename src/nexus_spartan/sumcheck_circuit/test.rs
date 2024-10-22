@@ -74,7 +74,7 @@ mod tests {
         let mut transcript_var = TranscriptVar::<F>::new(cs.clone(), label);
 
         // Initialize the SumCheckCircuitVar with the same values
-        let mut sumcheck_circuit_var = SumcheckCircuitVar::new_variable(
+        let sumcheck_circuit_var = SumcheckCircuitVar::new_variable(
             cs.clone(),
             || Ok(sumcheck_circuit.clone()),
             AllocationMode::Witness,
