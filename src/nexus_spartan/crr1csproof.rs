@@ -7,7 +7,6 @@ use ark_crypto_primitives::sponge::Absorb;
 
 pub use super::crr1cs::*;
 use super::errors::ProofVerifyError;
-use super::sparse_mlpoly::{SparsePoly};
 use super::sumcheck::SumcheckInstanceProof;
 use super::timer::Timer;
 use crate::math::Math;
@@ -17,6 +16,7 @@ use crate::transcript::transcript::{AppendToTranscript, Transcript};
 use ark_ec::pairing::Pairing;
 use ark_ff::{PrimeField};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
+use crate::nexus_spartan::sparse_polynomial::sparse_polynomial::SparsePoly;
 use crate::nexus_spartan::sumcheck_circuit::sumcheck_circuit::SumcheckCircuit;
 
 #[derive(CanonicalSerialize, CanonicalDeserialize, Debug)]

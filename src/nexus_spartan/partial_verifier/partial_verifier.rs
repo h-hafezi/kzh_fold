@@ -2,7 +2,7 @@ use crate::math::Math;
 use crate::nexus_spartan::crr1cs::is_sat;
 use crate::nexus_spartan::crr1csproof::CRR1CSProof;
 use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
-use crate::nexus_spartan::sparse_mlpoly::SparsePoly;
+use crate::nexus_spartan::sparse_polynomial::sparse_polynomial::SparsePoly;
 use crate::nexus_spartan::sumcheck_circuit::sumcheck_circuit::SumcheckCircuit;
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript::Transcript;
@@ -110,9 +110,6 @@ impl<F: PrimeField + Absorb> PartialVerifier<F> {
             );
             SparsePoly::new(n.log_2(), input_as_sparse_poly_entries).evaluate(&ry[1..])
         };
-        // now `input_as_sparse_poly_entries is: (1, io)
-
-        // poly_input-eval is: (1, io)(r_y[1..])
 
         // compute Z(r_y): eval_Z_at_ry = (F::one() - ry[0]) * self.eval_vars_at_ry + ry[0] * poly_input_eval
         let eval_Z_at_ry = (F::one() - ry[0]) * proof.eval_vars_at_ry + ry[0] * poly_input_eval;

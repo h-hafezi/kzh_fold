@@ -12,13 +12,14 @@ pub mod polycommitments;
 mod product_tree;
 pub mod r1csinstance;
 mod random;
-pub mod sparse_mlpoly;
+pub mod sparse_polynomial;
 pub mod sumcheck;
 mod timer;
 mod unipoly;
 mod conversion;
 mod sumcheck_circuit;
 mod partial_verifier;
+mod sparse_mlpoly;
 
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;

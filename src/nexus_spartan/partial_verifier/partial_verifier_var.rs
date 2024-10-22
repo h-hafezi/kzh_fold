@@ -1,6 +1,6 @@
 use crate::math::Math;
 use crate::nexus_spartan::partial_verifier::partial_verifier::PartialVerifier;
-use crate::nexus_spartan::sparse_mlpoly::SparsePolyVar;
+use crate::nexus_spartan::sparse_polynomial::sparse_polynomial_var::SparsePolyVar;
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript_var::TranscriptVar;
 use ark_crypto_primitives::sponge::Absorb;
@@ -15,8 +15,7 @@ use std::borrow::Borrow;
 use crate::nexus_spartan::sumcheck_circuit::sumcheck_circuit_var::SumcheckCircuitVar;
 
 pub struct PartialVerifierVar<F: PrimeField + Absorb> {
-    /// io input, equivalent with
-    /// let CRR1CSInstance { input: _input, comm_W, } = instance;
+    /// io input, equivalent with, CRR1CSInstance { input: _input, comm_W, } = instance;
     pub input: Vec<FpVar<F>>,
     /// Sumcheck proof for the polynomial g(x) = \sum eq(tau,x) * (~Az~(x) * ~Bz~(x) - u * ~Cz~(x) - ~E~(x))
     pub sc_proof_phase1: SumcheckCircuitVar<F>,
@@ -185,11 +184,9 @@ impl<F: PrimeField + Absorb> AllocVar<PartialVerifier<F>, F> for PartialVerifier
     }
 }
 
-// Implement the R1CSVar trait for PartialVerifierVar
 impl<F: PrimeField + Absorb> R1CSVar<F> for PartialVerifierVar<F> {
     type Value = PartialVerifier<F>;
 
-    // Combine the constraint systems of all the components
     fn cs(&self) -> ConstraintSystemRef<F> {
         let mut cs_ref = ConstraintSystemRef::None;
 
@@ -218,7 +215,6 @@ impl<F: PrimeField + Absorb> R1CSVar<F> for PartialVerifierVar<F> {
         cs_ref
     }
 
-    // Extract the value of all components
     fn value(&self) -> Result<Self::Value, SynthesisError> {
         let input_val = self.input.iter().map(|var| var.value().unwrap()).collect();
         let sc_proof_phase1_val = self.sc_proof_phase1.value()?;
