@@ -10,6 +10,7 @@ use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
 use ark_ff::PrimeField;
 
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PartialVerifier<F: PrimeField + Absorb> {
     /// io input, equivalent with
     /// let CRR1CSInstance { input: _input, comm_W, } = instance;
@@ -23,8 +24,6 @@ pub struct PartialVerifier<F: PrimeField + Absorb> {
     pub sc_proof_phase2: SumcheckCircuit<F>,
     /// The claimed evaluation ~Z~(ry)
     pub eval_vars_at_ry: F,
-    /// the transcript
-    pub transcript: Transcript<F>,
     /// matrix evaluations
     pub evals: (F, F, F),
     /// shape
@@ -41,8 +40,6 @@ impl<F: PrimeField + Absorb> PartialVerifier<F> {
         evals: &(F, F, F),
         transcript: &mut Transcript<F>,
     ) -> Self {
-        let transcript_copy = transcript.clone();
-
         Transcript::append_scalars(transcript, b"input", input.as_slice());
 
         let n = num_vars;
@@ -132,7 +129,6 @@ impl<F: PrimeField + Absorb> PartialVerifier<F> {
             claims_phase2: proof.claims_phase2,
             sc_proof_phase2: sc_proof_phase2_circuit,
             eval_vars_at_ry: proof.eval_vars_at_ry,
-            transcript: transcript_copy,
             evals: *evals,
             num_vars,
             num_cons,
@@ -140,8 +136,8 @@ impl<F: PrimeField + Absorb> PartialVerifier<F> {
     }
 
 
-    pub fn verify<E: Pairing<ScalarField=F>>(&mut self) -> (Vec<F>, Vec<F>) {
-        Transcript::append_scalars(&mut self.transcript, b"input", self.input.as_slice());
+    pub fn verify<E: Pairing<ScalarField=F>>(&mut self, transcript: &mut Transcript<F>) -> (Vec<F>, Vec<F>) {
+        Transcript::append_scalars(transcript, b"input", self.input.as_slice());
 
         let n = self.num_vars;
 
@@ -153,7 +149,7 @@ impl<F: PrimeField + Absorb> PartialVerifier<F> {
 
         // derive the verifier's challenge tau
         let tau = Transcript::challenge_vector(
-            &mut self.transcript,
+            transcript,
             b"challenge_tau",
             num_rounds_x,
         );
@@ -161,14 +157,14 @@ impl<F: PrimeField + Absorb> PartialVerifier<F> {
         // consistency check for sc_proof_phase1
         assert_eq!(self.sc_proof_phase1.degree_bound, 3);
         assert_eq!(self.sc_proof_phase1.claim, F::zero());
-        let (claim_post_phase1, rx) = self.sc_proof_phase1.verify::<E>(&mut self.transcript);
+        let (claim_post_phase1, rx) = self.sc_proof_phase1.verify::<E>(transcript);
 
         // perform the intermediate sum-check test with claimed Az, Bz, Cz, and E
         let (Az_claim, Bz_claim, Cz_claim) = self.claims_phase2;
 
-        Transcript::append_scalar(&mut self.transcript, b"Az_claim", &Az_claim);
-        Transcript::append_scalar(&mut self.transcript, b"Bz_claim", &Bz_claim);
-        Transcript::append_scalar(&mut self.transcript, b"Cz_claim", &Cz_claim);
+        Transcript::append_scalar(transcript, b"Az_claim", &Az_claim);
+        Transcript::append_scalar(transcript, b"Bz_claim", &Bz_claim);
+        Transcript::append_scalar(transcript, b"Cz_claim", &Cz_claim);
 
         let taus_bound_rx: F = (0..rx.len())
             .map(|i| rx[i] * tau[i] + (F::one() - rx[i]) * (F::one() - tau[i]))
@@ -178,9 +174,9 @@ impl<F: PrimeField + Absorb> PartialVerifier<F> {
         assert_eq!(expected_claim_post_phase1, claim_post_phase1);
 
         // derive three public challenges and then derive a joint claim
-        let r_A = Transcript::challenge_scalar(&mut self.transcript, b"challenege_Az");
-        let r_B = Transcript::challenge_scalar(&mut self.transcript, b"challenege_Bz");
-        let r_C = Transcript::challenge_scalar(&mut self.transcript, b"challenege_Cz");
+        let r_A = Transcript::challenge_scalar(transcript, b"challenege_Az");
+        let r_B = Transcript::challenge_scalar(transcript, b"challenege_Bz");
+        let r_C = Transcript::challenge_scalar(transcript, b"challenege_Cz");
 
         // r_A * Az_claim + r_B * Bz_claim + r_C * Cz_claim;
         let claim_phase2 = r_A * Az_claim + r_B * Bz_claim + r_C * Cz_claim;
@@ -188,7 +184,7 @@ impl<F: PrimeField + Absorb> PartialVerifier<F> {
         // consistency check for sc_proof_phase1
         assert_eq!(self.sc_proof_phase2.degree_bound, 2);
         assert_eq!(self.sc_proof_phase2.claim, claim_phase2);
-        let (claim_post_phase2, ry) = self.sc_proof_phase2.verify::<E>(&mut self.transcript);
+        let (claim_post_phase2, ry) = self.sc_proof_phase2.verify::<E>(transcript);
 
         // Compute (1, io)(r_y) so that we can use it to compute Z(r_y)
         let poly_input_eval = {
@@ -257,6 +253,7 @@ mod tests {
         let inst_evals = shape.inst.inst.evaluate(&rx, &ry);
 
         let mut verifier_transcript = Transcript::new(b"example");
+        let mut verifier_transcript_clone = verifier_transcript.clone();
         let mut partial_verifier_circuit = PartialVerifier::initialise(
             proof,
             num_vars,
@@ -266,6 +263,6 @@ mod tests {
             &mut verifier_transcript
         );
 
-        partial_verifier_circuit.verify::<E>();
+        partial_verifier_circuit.verify::<E>(&mut verifier_transcript_clone);
     }
 }
