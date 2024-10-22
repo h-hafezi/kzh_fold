@@ -62,7 +62,7 @@ mod tests {
         let label = b"test label";
         let mut transcript = Transcript::<F>::new(label);
         // Initialize the SumcheckCircuit
-        let mut sumcheck_circuit = test_sumcheck_circuit_helper();
+        let sumcheck_circuit = test_sumcheck_circuit_helper();
 
         // Run the verification on the normal SumcheckCircuit
         let (e1, r1) = sumcheck_circuit.verify::<E>(&mut transcript);
@@ -74,7 +74,7 @@ mod tests {
         let mut transcript_var = TranscriptVar::<F>::new(cs.clone(), label);
 
         // Initialize the SumCheckCircuitVar with the same values
-        let mut sumcheck_circuit_var = SumcheckCircuitVar::new_variable(
+        let sumcheck_circuit_var = SumcheckCircuitVar::new_variable(
             cs.clone(),
             || Ok(sumcheck_circuit.clone()),
             AllocationMode::Witness,

@@ -336,7 +336,7 @@ pub(crate) mod tests {
             &(),
         );
 
-        let pp_r1cs = pp[0..NUM_WITNESS].to_vec();
+        // let pp_r1cs = pp[0..NUM_WITNESS].to_vec();
 
         let shape = R1CSShape::<G>::new(
             NUM_CONSTRAINTS,
