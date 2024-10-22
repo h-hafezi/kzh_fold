@@ -255,7 +255,7 @@ mod tests {
 
     #[test]
     pub fn test() {
-        let (partial_verifier, transcript) = partial_verifier_test_helper::<E, MultilinearPolynomial<ScalarField>, ScalarField>();
+        let (partial_verifier, _transcript) = partial_verifier_test_helper::<E, MultilinearPolynomial<ScalarField>, ScalarField>();
         let cs = ConstraintSystem::<ScalarField>::new_ref();
         let partial_verifier_var = PartialVerifierVar::new_variable(
             cs.clone(),

@@ -6,9 +6,9 @@ use ark_r1cs_std::ToBitsGadget;
 pub mod sparse_polynomial;
 pub mod sparse_polynomial_var;
 mod test;
+mod uint32;
 
-
-// todo: optimise this through custom version of UInt32
+/*
 /// it's the zk version of get_bits_canonical_order in Math trait for usize
 pub fn get_bits_canonical_order<F: PrimeField>(fp: &FpVar<F>, n: usize) -> Vec<Boolean<F>> {
     let new_vector: Vec<Boolean<F>> = fp.to_bits_be().unwrap();
@@ -45,3 +45,4 @@ mod tests {
         println!("{}", cs.num_constraints());
     }
 }
+ */

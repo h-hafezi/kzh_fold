@@ -10,7 +10,7 @@ use ark_r1cs_std::select::CondSelectGadget;
 use ark_relations::ns;
 use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 use crate::nexus_spartan::sparse_polynomial::sparse_polynomial::SparsePoly;
-use crate::nexus_spartan::sparse_polynomial::get_bits_canonical_order;
+use crate::nexus_spartan::sparse_polynomial::uint32::Unsigned32Var;
 
 pub struct SparsePolyVar<F: Absorb + PrimeField> {
     num_vars: usize,
@@ -97,13 +97,16 @@ impl<F: PrimeField + Absorb> SparsePolyVar<F> {
         chi_i
     }
 
+    /// It's currently using the optimised version Unsigned32Var which takes 60 constraints
+    /// to for each call of get_bits_canonical_order which FpVar counterpart takes 600 constraints
     pub fn evaluate(&self, r: &[FpVar<F>]) -> FpVar<F> {
         assert_eq!(self.num_vars, r.len());
         let mut res = FpVar::<F>::zero();
-        let mut counter = FpVar::<F>::zero();
+        let cs = r[0].cs();
+        let mut counter = Unsigned32Var::new(cs);
         for i in 0..self.evals.len() {
-            let bits = get_bits_canonical_order(&counter, r.len());
-            counter = counter + FpVar::one();
+            let bits = counter.get_bits_canonical_order(r.len());
+            counter.increment_inplace();
             res += SparsePolyVar::compute_chi(&bits, r) * &self.evals[i];
         }
         res
