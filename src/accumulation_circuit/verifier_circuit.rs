@@ -437,98 +437,82 @@ where
         let (_, beta_var, beta_var_non_native) = randomness_different_formats::<E>(cs.clone(), beta_scalar);
 
         // initialise accumulator variables
-        let current_accumulator_instance_var = AccumulatorInstanceVar::new_variable(
-            ns!(cs, "current accumulator instance var"),
-            || Ok(prover.get_current_acc_instance().clone()),
-            AllocationMode::Input,
+        let current_accumulator_instance_var = AccumulatorInstanceVar::new_input(
+            cs.clone(),
+            || Ok(prover.get_current_acc_instance())
         ).unwrap();
 
-        let running_accumulator_instance_var = AccumulatorInstanceVar::new_variable(
-            ns!(cs, "running accumulator instance var"),
-            || Ok(prover.get_running_acc_instance().clone()),
-            AllocationMode::Input,
+        let running_accumulator_instance_var = AccumulatorInstanceVar::new_input(
+            cs.clone(),
+            || Ok(prover.get_running_acc_instance()),
         ).unwrap();
 
-        let final_accumulator_instance_var = AccumulatorInstanceVar::new_variable(
-            ns!(cs, "final accumulator instance var"),
+        let final_accumulator_instance_var = AccumulatorInstanceVar::new_input(
+            cs.clone(),
             || Ok(prover.compute_result_accumulator_instance()),
-            AllocationMode::Input,
         ).unwrap();
 
         // initialise auxiliary input variables
-        let auxiliary_input_C_var = OvaInstanceVar::new_variable(
-            ns!(cs, "auxiliary input C var"),
+        let auxiliary_input_C_var = OvaInstanceVar::new_input(
+            cs.clone(),
             || Ok(prover.compute_auxiliary_input_C().0),
-            AllocationMode::Input,
         ).unwrap();
 
-        let auxiliary_input_T_var = OvaInstanceVar::new_variable(
-            ns!(cs, "auxiliary input T var"),
+        let auxiliary_input_T_var = OvaInstanceVar::new_input(
+            cs.clone(),
             || Ok(prover.compute_auxiliary_input_T().0),
-            AllocationMode::Input,
         ).unwrap();
 
-        let auxiliary_input_E_1_var = OvaInstanceVar::new_variable(
-            ns!(cs, "auxiliary input E_1 var"),
+        let auxiliary_input_E_1_var = OvaInstanceVar::new_input(
+            cs.clone(),
             || Ok(prover.compute_auxiliary_input_E_1().0),
-            AllocationMode::Input,
         ).unwrap();
 
-        let auxiliary_input_E_2_var = OvaInstanceVar::new_variable(
-            ns!(cs, "auxiliary input E_2 var"),
+        let auxiliary_input_E_2_var = OvaInstanceVar::new_input(
+            cs.clone(),
             || Ok(prover.compute_auxiliary_input_E_2().0),
-            AllocationMode::Input,
         ).unwrap();
 
 
         // initialise Q variables
-        let Q_var = NonNativeAffineVar::new_variable(
-            ns!(cs, "Q var"),
+        let Q_var = NonNativeAffineVar::new_input(
+            cs.clone(),
             || Ok(prover.compute_proof_Q()),
-            AllocationMode::Input,
         ).unwrap();
 
         let cycle_fold_proof = prover.compute_cycle_fold_proofs_and_final_instance();
 
-        let com_C_var = ProjectiveVar::new_variable(
-            ns!(cs, "com_C_var"),
+        let com_C_var = ProjectiveVar::new_input(
+            cs.clone(),
             || Ok(cycle_fold_proof.0),
-            AllocationMode::Input,
         ).unwrap();
 
-        let com_T_var = ProjectiveVar::new_variable(
-            ns!(cs, "com_T_var"),
+        let com_T_var = ProjectiveVar::new_input(
+            cs.clone(),
             || Ok(cycle_fold_proof.1),
-            AllocationMode::Input,
         ).unwrap();
 
-        let com_E_1_var = ProjectiveVar::new_variable(
-            ns!(cs, "com_E_1_var"),
+        let com_E_1_var = ProjectiveVar::new_input(
+            cs.clone(),
             || Ok(cycle_fold_proof.2),
-            AllocationMode::Input,
         ).unwrap();
 
-        let com_E_2_var = ProjectiveVar::new_variable(
-            ns!(cs, "com_E_2_var"),
+        let com_E_2_var = ProjectiveVar::new_input(
+            cs.clone(),
             || Ok(cycle_fold_proof.3),
-            AllocationMode::Input,
         ).unwrap();
 
-
         // initialise cycle fold running instance var
-        let running_cycle_fold_instance_var = RelaxedOvaInstanceVar::new_variable(
-            ns!(cs, "running cycle fold instance var"),
+        let running_cycle_fold_instance_var = RelaxedOvaInstanceVar::new_input(
+            cs.clone(),
             || Ok(prover.running_cycle_fold_instance),
-            AllocationMode::Input,
         ).unwrap();
 
         // initialise cycle fold running instance var
-        let final_cycle_fold_instance_var = RelaxedOvaInstanceVar::new_variable(
-            ns!(cs, "final cycle fold instance var"),
+        let final_cycle_fold_instance_var = RelaxedOvaInstanceVar::new_input(
+            cs.clone(),
             || Ok(cycle_fold_proof.4),
-            AllocationMode::Input,
         ).unwrap();
-
 
         let verifier = AccumulatorVerifierVar {
             auxiliary_input_C_var,
