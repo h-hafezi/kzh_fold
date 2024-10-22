@@ -269,7 +269,7 @@ mod tests {
 
         assert_eq!(partial_verifier, partial_verifier_var.value().unwrap());
 
-        partial_verifier_var.verify(&mut transcript);
+        let (_r_x, _r_y) = partial_verifier_var.verify(&mut transcript);
         println!("constraint count: {} {}", cs.num_instance_variables(), cs.num_witness_variables());
         assert!(cs.is_satisfied().unwrap());
     }

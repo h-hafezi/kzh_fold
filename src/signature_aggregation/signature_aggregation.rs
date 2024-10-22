@@ -228,6 +228,7 @@ where
             &sumcheck_challenges,
         );
 
+        // Step 6: Aggregate accumulators 5-to-1:
         // Hossein: At this point we will also have four more accumulators from the IVC proofs of Bob and Charlie
         // Hossein: Accumulate the five accumulators into one
         // let bob_accumulator_ivc = self.A_1.ivc_proof.acc_witness;
@@ -236,6 +237,11 @@ where
         // let charlie_accumulator_state = self.A_2.state_acc_witness;
         // let (ivc_proof, state_accumulator) = self.accumulate_everything(sumcheck_eval_accumulator, bob_accumulator_ivc, bob_accumulator_state,
         //                                                                 charlie_accumulator_ivc, charlie_accumulator_state);
+
+        // Step 7: Accumulate forward the evaluations of A, B, C from the IVC proofs
+        // let A_eval_1 = self.A_1.ivc_proof.A_eval;
+        // let A_eval_2 = self.A_2.ivc_proof.A_eval;
+        // let A_eval_3 = ivc_proof.A_eval;
 
         SignatureAggrData {
             B_1_commitment: Some(self.A_1.bitfield_commitment.clone()),
@@ -290,7 +296,7 @@ where
         )
     }
 
-    pub fn verify(self, transcript: &mut IOPTranscript<E::ScalarField>) -> bool {
+    pub fn verify(&self, transcript: &mut IOPTranscript<E::ScalarField>) -> (bool, Vec<E::ScalarField>) {
         // Step 1:
         // Get r challenge from verifier
         transcript.append_serializable_element(b"poly", &self.A.bitfield_commitment.C).unwrap();
@@ -318,9 +324,15 @@ where
 
         // Step 5: Verify the BLS signature
 
-        // Step ???: Run the decider!
-        // Verify the accumulator
+        (true, sumcheck_challenges)
+    }
 
+    pub fn decide(&self, transcript: &mut IOPTranscript<E::ScalarField>, sumcheck_challenges: Vec<E::ScalarField>) -> bool {
+        let b_1_at_rho = self.A.b_1_at_rho.unwrap();
+        let b_2_at_rho = self.A.b_2_at_rho.unwrap();
+        let c_at_rho = self.A.c_at_rho.unwrap();
+
+        // Verify the accumulator
         // Get c_1 and c_2 (XXX could also get just c and then compute c^2)
         let vec_c: Vec<E::ScalarField> = transcript.get_and_append_challenge_vectors(b"vec_c", 2).unwrap();
 
@@ -343,11 +355,11 @@ where
         // Compute the full accumulator using the witness from the prover
         let accumulator = Accumulator {
             instance: acc_instance,
-            witness: self.A.sumcheck_eval_acc_witness.unwrap(),
+            witness: self.A.sumcheck_eval_acc_witness.clone().unwrap(),
         };
 
         // Decide the accumulator!
-        assert_eq!(Accumulator::decide(&self.srs.acc_srs, &accumulator), true);
+        assert!(Accumulator::decide(&self.srs.acc_srs, &accumulator));
 
         true
     }
@@ -391,7 +403,10 @@ pub mod test {
             A: agg_data,
         };
 
-        assert_eq!(true, verifier.verify(&mut transcript_v))
+        let (is_valid, sumcheck_challenges) = verifier.verify(&mut transcript_v);
+        assert!(is_valid);
+
+        assert!(verifier.decide(&mut transcript_v, sumcheck_challenges));
     }
 }
 
