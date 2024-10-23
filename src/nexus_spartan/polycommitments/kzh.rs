@@ -8,7 +8,7 @@ use rand::RngCore;
 use crate::nexus_spartan::polycommitments::error::PCSError;
 use crate::nexus_spartan::polycommitments::{PCSKeys, PolyCommitmentScheme};
 use crate::pcs::multilinear_pcs::{Commitment, OpeningProof, PolyCommit, SRS};
-use crate::polynomial::multilinear_poly::MultilinearPolynomial;
+use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript::{AppendToTranscript, Transcript};
 
 impl<E: Pairing, F: PrimeField + Absorb> AppendToTranscript<F> for Commitment<E>
@@ -86,7 +86,7 @@ pub mod test {
     use crate::constant_for_curves::{ScalarField, E};
     use crate::nexus_spartan::polycommitments::{PCSKeys, PolyCommitmentScheme};
     use crate::pcs::multilinear_pcs::SRS;
-    use crate::polynomial::multilinear_poly::MultilinearPolynomial;
+    use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 
     #[test]
     fn test_end_to_end() {

@@ -7,7 +7,7 @@ use crate::nexus_spartan::crr1cs::{CRR1CSInstance, CRR1CSShape, CRR1CSWitness};
 use crate::nexus_spartan::errors::R1CSError;
 use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
 use crate::nexus_spartan::{Assignment, Instance};
-use crate::polynomial::multilinear_poly::MultilinearPolynomial;
+use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
 use ark_ec::short_weierstrass::{Affine, SWCurveConfig};
@@ -128,7 +128,7 @@ mod tests {
     use crate::nexus_spartan::crr1csproof::CRR1CSProof;
     use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
     use crate::pcs::multilinear_pcs::SRS;
-    use crate::polynomial::multilinear_poly::MultilinearPolynomial;
+    use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
     use crate::transcript::transcript::Transcript;
     use ark_ec::short_weierstrass::Projective;
     use ark_ec::CurveConfig;

@@ -7,7 +7,7 @@ use ark_ec::pairing::Pairing;
 use ark_ff::PrimeField;
 use ark_serialize::*;
 use crate::polynomial::eq_poly::eq_poly::EqPolynomial;
-use crate::polynomial::multilinear_poly::MultilinearPolynomial;
+use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript::Transcript;
 
 #[derive(Debug)]

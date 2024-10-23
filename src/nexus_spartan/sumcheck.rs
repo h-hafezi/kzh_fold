@@ -10,7 +10,7 @@ use ark_ff::PrimeField;
 use ark_serialize::*;
 
 use itertools::izip;
-use crate::polynomial::multilinear_poly::MultilinearPolynomial;
+use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript::{AppendToTranscript, Transcript};
 
 #[derive(CanonicalSerialize, CanonicalDeserialize, Debug, Clone)]

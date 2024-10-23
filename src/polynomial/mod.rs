@@ -1,16 +1,15 @@
-use ark_ff::{Field, PrimeField};
 use crate::math::Math;
+use ark_ff::{Field, PrimeField};
+use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
+use ark_r1cs_std::fields::fp::FpVar;
+use ark_relations::r1cs::ConstraintSystemRef;
+use rand::{thread_rng, RngCore};
 
 pub mod eq_poly;
 
 pub mod identity;
 
 pub mod multilinear_poly;
-
-pub fn compute_dot_product<F: PrimeField>(a: &[F], b: &[F]) -> F {
-    assert_eq!(a.len(), b.len());
-    (0..a.len()).map(|i| a[i] * b[i]).sum()
-}
 
 pub fn boolean_vector_to_decimal<F: Field>(r: &[F]) -> usize {
     // Ensure that every entry in the vector is either F::ONE or F::ZERO
@@ -36,6 +35,20 @@ pub fn decimal_to_boolean_vector<F: Field>(d: usize, length: usize) -> Vec<F> {
         output.push(if b { F::ONE } else { F::ZERO });
     }
     output
+}
+
+pub fn get_random_vector<F: PrimeField, T: RngCore>(n: usize, rng: &mut T) -> Vec<F> {
+    (0..n).map(|_| F::rand(rng)).collect()
+}
+
+pub fn field_vector_into_fpvar<F: PrimeField>(cs: ConstraintSystemRef<F>, input: &[F]) -> Vec<FpVar<F>> {
+    input.iter()
+        .map(|i| FpVar::new_variable(
+                cs.clone(),
+                || Ok(i.clone()),
+                AllocationMode::Witness,
+            ).unwrap()
+        ).collect()
 }
 
 #[cfg(test)]

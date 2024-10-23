@@ -10,7 +10,7 @@ use crate::constant_for_curves::ScalarField;
 use crate::nexus_spartan::sumcheck::SumcheckInstanceProof;
 use crate::pcs::multilinear_pcs::{Commitment, PolyCommit};
 use crate::polynomial::eq_poly::eq_poly::EqPolynomial;
-use crate::polynomial::multilinear_poly::MultilinearPolynomial;
+use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript::Transcript;
 use ark_ff::Zero;
 

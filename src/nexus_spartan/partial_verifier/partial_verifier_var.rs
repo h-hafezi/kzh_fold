@@ -1,7 +1,7 @@
 use crate::math::Math;
 use crate::nexus_spartan::partial_verifier::partial_verifier::PartialVerifier;
 use crate::nexus_spartan::sparse_polynomial::sparse_polynomial_var::SparsePolyVar;
-use crate::polynomial::multilinear_poly::MultilinearPolynomial;
+use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript_var::TranscriptVar;
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ff::PrimeField;

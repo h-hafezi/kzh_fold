@@ -13,7 +13,7 @@ use rayon::iter::ParallelIterator;
 
 use crate::math::Math;
 use crate::polynomial::eq_poly::eq_poly::EqPolynomial;
-use crate::polynomial::multilinear_poly::MultilinearPolynomial;
+use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize, Derivative)]
 pub struct SRS<E: Pairing> {
@@ -269,7 +269,7 @@ pub mod test {
 
     use crate::constant_for_curves::{ScalarField, E};
     use crate::pcs::multilinear_pcs::{PolyCommit, SRS};
-    use crate::polynomial::multilinear_poly::MultilinearPolynomial;
+    use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 
     #[test]
     fn test_setup() {

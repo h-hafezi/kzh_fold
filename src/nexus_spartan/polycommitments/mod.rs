@@ -6,7 +6,7 @@ use ark_std::rand::RngCore;
 use core::fmt::Debug;
 use derivative::Derivative;
 
-use crate::polynomial::multilinear_poly::MultilinearPolynomial;
+use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript::AppendToTranscript;
 
 pub mod error;

@@ -11,16 +11,17 @@ use rand::{Rng, RngCore};
 #[cfg(feature = "parallel")]
 use crate::polynomial::eq_poly::eq_poly::EqPolynomial;
 use crate::math::Math;
+use crate::polynomial::get_random_vector;
 use crate::utils::inner_product;
 
 #[derive(Debug, Clone, PartialEq, Eq, CanonicalDeserialize, CanonicalSerialize)]
 pub struct MultilinearPolynomial<F: PrimeField> {
     /// the number of variables in the multilinear polynomial
-    pub(crate) num_variables: usize,
+    pub num_variables: usize,
     /// evaluations of the polynomial in all the 2^num_vars Boolean inputs
-    pub(crate) evaluation_over_boolean_hypercube: Vec<F>,
+    pub evaluation_over_boolean_hypercube: Vec<F>,
     /// length of Z = 2^num_vars
-    pub(crate) len: usize,
+    pub len: usize,
 }
 
 impl<F: PrimeField> MultilinearPolynomial<F> {
@@ -191,14 +192,7 @@ impl<F: PrimeField> MultilinearPolynomial<F> {
     pub fn rand<T: RngCore>(num_variables: usize, rng: &mut T) -> MultilinearPolynomial<F> {
         MultilinearPolynomial {
             num_variables,
-            evaluation_over_boolean_hypercube: {
-                let size = 1 << num_variables;
-                let mut vector = Vec::with_capacity(size);
-                for _ in 0..size {
-                    vector.push(F::rand(rng));
-                }
-                vector
-            },
+            evaluation_over_boolean_hypercube: get_random_vector::<F, T>(1 << num_variables, rng),
             len: 1 << num_variables,
         }
     }
@@ -259,16 +253,17 @@ impl<F: PrimeField> Add for MultilinearPolynomial<F> {
 #[cfg(test)]
 mod tests {
     use ark_ec::pairing::Pairing;
-use ark_ff::AdditiveGroup;
+use ark_ff::{AdditiveGroup, Field, PrimeField};
     use ark_std::One;
     use ark_std::test_rng;
     use ark_std::UniformRand;
     use rand::thread_rng;
 
     use crate::constant_for_curves::{E, ScalarField};
-    use crate::polynomial::multilinear_poly::EqPolynomial;
-
-    use super::*;
+    use crate::math::Math;
+    use crate::polynomial::eq_poly::eq_poly::EqPolynomial;
+    use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
+    use crate::utils::inner_product;
 
     #[test]
     fn extend_test() {

@@ -14,9 +14,9 @@ use crate::gadgets::non_native::util::convert_affine_to_scalars;
 use crate::hash::poseidon::{PoseidonHash, get_poseidon_config};
 use ark_crypto_primitives::sponge::poseidon::PoseidonConfig;
 use crate::pcs::multilinear_pcs::{OpeningProof, PolyCommit, SRS};
-use crate::polynomial::compute_dot_product;
 use crate::math::Math;
-use crate::polynomial::multilinear_poly::MultilinearPolynomial;
+use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
+use crate::utils::inner_product;
 
 #[derive(Clone, Debug)]
 pub struct AccSRS<E: Pairing> {
@@ -367,7 +367,7 @@ where
         let instance = &acc.instance;
         let witness = &acc.witness;
 
-        let e_prime: E::ScalarField = compute_dot_product(
+        let e_prime: E::ScalarField = inner_product(
             &witness.f_star_poly.evaluation_over_boolean_hypercube,
             &acc.witness.tree_y.get_leaves(),
         ) - instance.z;

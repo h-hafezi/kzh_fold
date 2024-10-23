@@ -103,6 +103,7 @@ mod tests {
     use crate::constant_for_curves::ScalarField;
     use crate::polynomial::eq_poly::eq_poly::EqPolynomial;
     use crate::polynomial::eq_poly::eq_poly_var::EqPolynomialVar;
+    use crate::polynomial::{field_vector_into_fpvar, get_random_vector};
     use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
     use ark_r1cs_std::fields::fp::FpVar;
     use ark_r1cs_std::R1CSVar;
@@ -132,17 +133,9 @@ mod tests {
         // test .value() function works correctly
         assert_eq!(eq_poly, eq_poly_var.value().unwrap());
 
-        let r = vec![
-            F::rand(&mut thread_rng()),
-            F::rand(&mut thread_rng()),
-            F::rand(&mut thread_rng())
-        ];
+        let r: Vec<F> = get_random_vector(3, &mut thread_rng());
 
-        let r_var = vec![
-            FpVar::new_variable(cs.clone(), || Ok(r[0].clone()), AllocationMode::Witness).unwrap(),
-            FpVar::new_variable(cs.clone(), || Ok(r[1].clone()), AllocationMode::Witness).unwrap(),
-            FpVar::new_variable(cs.clone(), || Ok(r[2].clone()), AllocationMode::Witness).unwrap(),
-        ];
+        let r_var = field_vector_into_fpvar(cs, r.as_slice());
 
         // assert that evaluate function works correctly
         assert_eq!(

@@ -9,7 +9,7 @@ use crate::nexus_spartan::timer::Timer;
 use crate::math::Math;
 use crate::polynomial::eq_poly::eq_poly::EqPolynomial;
 use crate::polynomial::identity::IdentityPolynomial;
-use crate::polynomial::multilinear_poly::MultilinearPolynomial;
+use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript::{AppendToTranscript, Transcript};
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
