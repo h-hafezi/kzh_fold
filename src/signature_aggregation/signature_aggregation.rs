@@ -311,8 +311,15 @@ where
         // Step 2: Verify the sumcheck proof
         let zero = F::zero();
         let num_rounds = self.A.bitfield_poly.num_variables;
-        let (tensorcheck_claim, sumcheck_challenges) = self.A.sumcheck_proof.clone().unwrap().
-            verify_with_ioptranscript_xxx::<E::G1>(zero, num_rounds, 3, transcript).unwrap();
+        let (tensorcheck_claim, sumcheck_challenges) =
+            self.A.sumcheck_proof.clone()
+                .unwrap()
+                .verify::<E>(
+                    zero,
+                    num_rounds,
+                    3,
+                    transcript,
+                ).unwrap();
 
         // Step 3: Verify the sumcheck tensor check (the random evaluation at the end of the protocol)
         // We need to check: p(rho) = tensor check_claim

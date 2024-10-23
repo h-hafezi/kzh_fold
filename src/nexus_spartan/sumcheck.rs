@@ -307,7 +307,7 @@ impl<F: PrimeField + Absorb> SumcheckInstanceProof<F> {
 }
 
 
-// XXX: This is used for the signature aggregation protocol!!!
+// This is used for the signature aggregation protocol!!!
 impl<F: PrimeField + Absorb> SumcheckInstanceProof<F> {
     pub fn prove_cubic_four_terms<Func, G>(
         claim: &F,
@@ -363,8 +363,8 @@ impl<F: PrimeField + Absorb> SumcheckInstanceProof<F> {
                 );
             }
 
-            let evals = vec![eval_point_0, e - eval_point_0, eval_point_2, eval_point_3];
-            let poly = UniPoly::from_evals(&evals);
+            let evaluations = vec![eval_point_0, e - eval_point_0, eval_point_2, eval_point_3];
+            let poly = UniPoly::from_evals(&evaluations);
 
             // append the prover's message to the transcript
             transcript.append_scalars(b"poly", poly.coeffs.as_slice());
@@ -386,50 +386,5 @@ impl<F: PrimeField + Absorb> SumcheckInstanceProof<F> {
             r,
             vec![poly_A[0], poly_B[0], poly_C[0], poly_D[0]],
         )
-    }
-
-    // XXX this is a copy of the above verify with IOPTranscript
-    pub fn verify_with_ioptranscript_xxx<G>(
-        &self,
-        claim: F,
-        num_rounds: usize,
-        degree_bound: usize,
-        transcript: &mut Transcript<F>,
-    ) -> Result<(F, Vec<F>), ProofVerifyError>
-    where
-        G: CurveGroup<ScalarField=F>,
-    {
-        let mut e = claim;
-
-        // the set of fiat-shamir challenges
-        let mut r: Vec<F> = Vec::new();
-
-        // verify that there is a univariate polynomial for each round
-        assert_eq!(self.compressed_polys.len(), num_rounds);
-
-        // go through the rounds
-        for i in 0..self.compressed_polys.len() {
-            // todo: understand how decompress works that just gets a claimed value
-            let poly = self.compressed_polys[i].decompress(&e);
-
-            // verify degree bound
-            assert_eq!(poly.degree(), degree_bound);
-
-            // check if G_k(0) + G_k(1) = e
-            assert_eq!(poly.eval_at_zero() + poly.eval_at_one(), e);
-
-            // append the prover's message to the transcript
-            transcript.append_scalars(b"poly", poly.coeffs.as_slice());
-
-            //derive the verifier's challenge for the next round
-            let r_i: F = transcript.challenge_scalar(b"challenge_nextround");
-
-            r.push(r_i);
-
-            // evaluate the claimed degree-ell polynomial at r_i
-            e = poly.evaluate(&r_i);
-        }
-
-        Ok((e, r))
     }
 }
