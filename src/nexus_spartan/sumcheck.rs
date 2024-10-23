@@ -306,7 +306,7 @@ impl<F: PrimeField + Absorb> SumcheckInstanceProof<F> {
     }
 }
 
-/*
+
 // XXX: This is used for the signature aggregation protocol!!!
 impl<F: PrimeField + Absorb> SumcheckInstanceProof<F> {
     pub fn prove_cubic_four_terms<Func, G>(
@@ -317,7 +317,7 @@ impl<F: PrimeField + Absorb> SumcheckInstanceProof<F> {
         poly_C: &mut MultilinearPolynomial<F>,
         poly_D: &mut MultilinearPolynomial<F>,
         comb_func: Func,
-        transcript: &mut IOPTranscript<F>,
+        transcript: &mut Transcript<F>,
     ) -> (Self, Vec<F>, Vec<F>)
     where
         Func: Fn(&F, &F, &F, &F) -> F,
@@ -367,13 +367,13 @@ impl<F: PrimeField + Absorb> SumcheckInstanceProof<F> {
             let poly = UniPoly::from_evals(&evals);
 
             // append the prover's message to the transcript
-            transcript.append_serializable_element(b"poly", &poly).unwrap();
+            transcript.append_scalars(b"poly", poly.coeffs.as_slice());
 
             //derive the verifier's challenge for the next round
-            let r_j: F = transcript.get_and_append_challenge(b"challenge_nextround").unwrap();
+            let r_j: F = transcript.challenge_scalar(b"challenge_nextround");
 
             r.push(r_j);
-            // bound all tables to the verifier's challenege
+            // bound all tables to the verifier's challenge
             poly_A.bound_poly_var_top(&r_j);
             poly_B.bound_poly_var_top(&r_j);
             poly_C.bound_poly_var_top(&r_j);
@@ -394,7 +394,7 @@ impl<F: PrimeField + Absorb> SumcheckInstanceProof<F> {
         claim: F,
         num_rounds: usize,
         degree_bound: usize,
-        transcript: &mut IOPTranscript<F>,
+        transcript: &mut Transcript<F>,
     ) -> Result<(F, Vec<F>), ProofVerifyError>
     where
         G: CurveGroup<ScalarField=F>,
@@ -419,10 +419,10 @@ impl<F: PrimeField + Absorb> SumcheckInstanceProof<F> {
             assert_eq!(poly.eval_at_zero() + poly.eval_at_one(), e);
 
             // append the prover's message to the transcript
-            transcript.append_serializable_element(b"poly", &poly).unwrap();
+            transcript.append_scalars(b"poly", poly.coeffs.as_slice());
 
             //derive the verifier's challenge for the next round
-            let r_i: F = transcript.get_and_append_challenge(b"challenge_nextround").unwrap();
+            let r_i: F = transcript.challenge_scalar(b"challenge_nextround");
 
             r.push(r_i);
 
@@ -433,4 +433,3 @@ impl<F: PrimeField + Absorb> SumcheckInstanceProof<F> {
         Ok((e, r))
     }
 }
- */
