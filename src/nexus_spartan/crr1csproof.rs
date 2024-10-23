@@ -10,7 +10,7 @@ use super::errors::ProofVerifyError;
 use super::sumcheck::SumcheckInstanceProof;
 use super::timer::Timer;
 use crate::math::Math;
-use crate::polynomial::eq_poly::EqPolynomial;
+use crate::polynomial::eq_poly::eq_poly::EqPolynomial;
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript::{AppendToTranscript, Transcript};
 use ark_ec::pairing::Pairing;

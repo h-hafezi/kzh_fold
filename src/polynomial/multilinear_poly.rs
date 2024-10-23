@@ -9,7 +9,7 @@ use ark_serialize::*;
 use rand::{Rng, RngCore};
 
 #[cfg(feature = "parallel")]
-use crate::polynomial::eq_poly::EqPolynomial;
+use crate::polynomial::eq_poly::eq_poly::EqPolynomial;
 use crate::math::Math;
 use crate::utils::inner_product;
 
@@ -266,7 +266,7 @@ use ark_ff::AdditiveGroup;
     use rand::thread_rng;
 
     use crate::constant_for_curves::{E, ScalarField};
-    use crate::polynomial::eq_poly::EqPolynomial;
+    use crate::polynomial::multilinear_poly::EqPolynomial;
 
     use super::*;
 

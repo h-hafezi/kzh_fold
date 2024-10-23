@@ -119,7 +119,7 @@ mod tests {
     use rand::thread_rng;
 
     use crate::constant_for_curves::ScalarField;
-    use crate::polynomial::eq_poly::EqPolynomial;
+    use crate::polynomial::eq_poly::eq_poly::EqPolynomial;
 
     use super::*;
 

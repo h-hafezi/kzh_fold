@@ -7,7 +7,7 @@ use crate::nexus_spartan::polycommitments::{PCSKeys, PolyCommitmentScheme};
 use crate::nexus_spartan::product_tree::{DotProductCircuit, ProductCircuit, ProductCircuitEvalProofBatched};
 use crate::nexus_spartan::timer::Timer;
 use crate::math::Math;
-use crate::polynomial::eq_poly::EqPolynomial;
+use crate::polynomial::eq_poly::eq_poly::EqPolynomial;
 use crate::polynomial::identity::IdentityPolynomial;
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript::{AppendToTranscript, Transcript};

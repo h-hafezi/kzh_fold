@@ -4,7 +4,7 @@ use crate::math::Math;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EqPolynomial<F: Field + Copy> {
-    r: Vec<F>,
+    pub r: Vec<F>,
 }
 
 impl<F: Field + Copy> EqPolynomial<F> {
@@ -56,11 +56,10 @@ impl<F: Field + Copy> EqPolynomial<F> {
 
 #[cfg(test)]
 mod tests {
-    use ark_ff::AdditiveGroup;
+    use ark_ff::{AdditiveGroup, Field};
 
     use crate::constant_for_curves::{ScalarField};
-
-    use super::*;
+    use crate::polynomial::eq_poly::eq_poly::EqPolynomial;
 
     type F = ScalarField;
 
