@@ -339,7 +339,7 @@ where
         (true, sumcheck_challenges)
     }
 
-    pub fn decide(&self, transcript: &mut Transcript<E::ScalarField>, sumcheck_challenges: Vec<E::ScalarField>) -> bool {
+    pub fn decide(&self, transcript: &mut Transcript<F>, sumcheck_challenges: Vec<F>) -> bool {
         let b_1_at_rho = self.A.b_1_at_rho.unwrap();
         let b_2_at_rho = self.A.b_2_at_rho.unwrap();
         let c_at_rho = self.A.c_at_rho.unwrap();
