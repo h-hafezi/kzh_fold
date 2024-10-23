@@ -1,16 +1,17 @@
-/*use ark_crypto_primitives::sponge::Absorb;
+use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
 use ark_ec::AffineRepr;
 use ark_ff::PrimeField;
 use rand::RngCore;
-use transcript::IOPTranscript;
 
 use crate::accumulation;
 use crate::accumulation::accumulator::{AccInstance, AccWitness, Accumulator};
+use crate::constant_for_curves::ScalarField;
 use crate::nexus_spartan::sumcheck::SumcheckInstanceProof;
 use crate::pcs::multilinear_pcs::{Commitment, PolyCommit};
 use crate::polynomial::eq_poly::EqPolynomial;
 use crate::polynomial::multilinear_poly::MultilinearPolynomial;
+use crate::transcript::transcript::Transcript;
 use ark_ff::Zero;
 
 // XXX move to mod.rs or somewhere neutral
@@ -84,26 +85,28 @@ where
 
 /// This struct represents an aggregator on the network that receives data from two parties and needs to aggregate them
 /// into one. After aggregation, the aggregator forwards the aggregated data.
-pub struct Aggregator<E: Pairing>
+pub struct Aggregator<E, F>
 where
-    <E as Pairing>::ScalarField: Absorb,
+    E: Pairing<ScalarField=F>,
+    F: PrimeField + Absorb,
 {
     srs: SRS<E>,
     A_1: SignatureAggrData<E>,
     A_2: SignatureAggrData<E>,
 }
 
-impl<E: Pairing> Aggregator<E>
+impl<E, F> Aggregator<E, F>
 where
+    E: Pairing<ScalarField=F>,
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
-    <E as Pairing>::ScalarField: Absorb,
+    F: PrimeField + Absorb,
 {
     /// Return (A.X, A.W) given f(x), and z and y such that f(z) = y
     fn get_accumulator_from_evaluation(&self,
-                                       bitfield_poly: &MultilinearPolynomial<E::ScalarField>,
+                                       bitfield_poly: &MultilinearPolynomial<F>,
                                        bitfield_commitment: &Commitment<E>,
-                                       eval_result: &E::ScalarField,
-                                       eval_point: &Vec<E::ScalarField>,
+                                       eval_result: &F,
+                                       eval_point: &Vec<F>,
     ) -> Accumulator<E> {
         let poly_commit = PolyCommit { srs: self.srs.acc_srs.pc_srs.clone() }; // XXX no clone. bad ergonomics
 
@@ -135,7 +138,7 @@ where
         }
     }
 
-    pub fn aggregate(&self, transcript: &mut IOPTranscript<E::ScalarField>) -> SignatureAggrData<E> {
+    pub fn aggregate(&self, transcript: &mut Transcript<F>) -> SignatureAggrData<E> {
         let poly_commit = PolyCommit { srs: self.srs.acc_srs.pc_srs.clone() }; // XXX no clone. bad ergonomics
         // Step 1:
         // let pk = self.A_1.pk + self.A_2.pk;
@@ -149,14 +152,14 @@ where
         let C_commitment = poly_commit.commit(&c_poly);
 
         // Step 3: Get r from verifier: it's the evaluation point challenge (for the zerocheck)
-        transcript.append_serializable_element(b"poly", &C_commitment.C).unwrap();
-        let vec_r = transcript.get_and_append_challenge_vectors(b"vec_r", b_1_poly.num_variables).unwrap();
+        transcript.append_point::<E>(b"poly", &C_commitment.C);
+        let vec_r = transcript.challenge_vector(b"vec_r", b_1_poly.num_variables);
 
         // Step 4: Do the sumcheck for the following polynomial:
         // eq(r,x) * (b_1 + b_2 - b_1 * b_2 - c)
         let union_comb_func =
-            |eq_poly: &E::ScalarField, b_1_poly: &E::ScalarField, b_2_poly: &E::ScalarField, c_poly: &E::ScalarField|
-             -> E::ScalarField { *eq_poly * (*b_1_poly + *b_2_poly - *b_1_poly * *b_2_poly - *c_poly) };
+            |eq_poly: &F, b_1_poly: &F, b_2_poly: &F, c_poly: &F|
+             -> F { *eq_poly * (*b_1_poly + *b_2_poly - *b_1_poly * *b_2_poly - *c_poly) };
 
         // Start preparing for the sumcheck
         let num_rounds = c_poly.num_variables;
@@ -169,7 +172,7 @@ where
 
         // Run the sumcheck and get back the verifier's challenge (random eval point rho)
         let (sumcheck_proof, sumcheck_challenges, _) =
-            SumcheckInstanceProof::prove_cubic_four_terms::<_, E::G1>(&E::ScalarField::zero(),
+            SumcheckInstanceProof::prove_cubic_four_terms::<_, E::G1>(&F::zero(),
                                                                       num_rounds,
                                                                       &mut eq_at_r.clone(), // eq(r, x)
                                                                       &mut b_1_poly.clone(), // b_1(x)
@@ -184,19 +187,21 @@ where
         // where rho are the sumcheck challenges.
         //
         // Instead of sending three KZH proofs to the verifier, we ask the verifier for challenges c_1 and c_2
-        // then we combine three three polys into a single polynomial using a random linear combination, and send a
+        // then we combine three polys into a single polynomial using a random linear combination, and send a
         // proof for the resulting polynomial p(x) where p(x) = b_1(x) + c_1 * b_2(x) + c_2 * c(x)
 
         // Get c_1 and c_2 (XXX could also get just c and then compute c^2)
-        let vec_c: Vec<E::ScalarField> = transcript.get_and_append_challenge_vectors(b"vec_c", 2).unwrap();
+        let vec_c: Vec<E::ScalarField> = transcript.challenge_vector(b"vec_c", 2);
 
         // Step 5.1: First compute p(x):
         // Get c_1 * b_2(x)
         let mut c_1_times_b_2_poly = b_2_poly.clone();
         c_1_times_b_2_poly.scalar_mul(&vec_c[0]);
+
         // Get c_2 * c(x)
         let mut c_2_times_c_poly = c_poly.clone();
         c_2_times_c_poly.scalar_mul(&vec_c[1]);
+
         // Now combine everything to p(x)
         let p_x = b_1_poly.clone() + c_1_times_b_2_poly + c_2_times_c_poly;
 
@@ -262,23 +267,25 @@ where
 /// This struct represents a network node that just received an aggregate signature. The verifier needs to verify the
 /// aggregate signature (and later aggregate it with more signatures herself).
 /// For the purposes of this module, we will only do the verification.
-pub struct Verifier<E: Pairing>
+pub struct Verifier<E, F>
 where
-    <E as Pairing>::ScalarField: Absorb,
+    F: PrimeField + Absorb,
+    E: Pairing<ScalarField=F>,
 {
     pub srs: SRS<E>,
     pub A: SignatureAggrData<E>,
 }
 
-impl<E: Pairing> Verifier<E>
+impl<E, F> Verifier<E, F>
 where
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
-    <E as Pairing>::ScalarField: Absorb,
+    F: PrimeField + Absorb,
+    E: Pairing<ScalarField=F>,
 {
     fn get_acc_instance_from_evaluation(&self,
                                         bitfield_commitment: &Commitment<E>,
-                                        eval_result: &E::ScalarField,
-                                        eval_point: &Vec<E::ScalarField>,
+                                        eval_result: &F,
+                                        eval_point: &Vec<F>,
     ) -> AccInstance<E> {
         // Split the evaluation point in half since open() just needs the first half
         // XXX ergonomics
@@ -296,20 +303,19 @@ where
         )
     }
 
-    pub fn verify(&self, transcript: &mut IOPTranscript<E::ScalarField>) -> (bool, Vec<E::ScalarField>) {
-        // Step 1:
-        // Get r challenge from verifier
-        transcript.append_serializable_element(b"poly", &self.A.bitfield_commitment.C).unwrap();
-        let vec_r = transcript.get_and_append_challenge_vectors(b"vec_r", self.A.bitfield_poly.num_variables).unwrap();
+    pub fn verify(&self, transcript: &mut Transcript<F>) -> (bool, Vec<F>) {
+        // Step 1: Get r challenge from verifier
+        transcript.append_point::<E>(b"poly", &self.A.bitfield_commitment.C);
+        let vec_r = transcript.challenge_vector(b"vec_r", self.A.bitfield_poly.num_variables);
 
         // Step 2: Verify the sumcheck proof
-        let zero = E::ScalarField::zero();
+        let zero = F::zero();
         let num_rounds = self.A.bitfield_poly.num_variables;
         let (tensorcheck_claim, sumcheck_challenges) = self.A.sumcheck_proof.clone().unwrap().
             verify_with_ioptranscript_xxx::<E::G1>(zero, num_rounds, 3, transcript).unwrap();
 
-        // Step 3: Verify the sumcheck tensorcheck (the random evaluation at the end of the protocol)
-        // We need to check: p(rho) = tensorcheck_claim
+        // Step 3: Verify the sumcheck tensor check (the random evaluation at the end of the protocol)
+        // We need to check: p(rho) = tensor check_claim
         // where rho are the sumcheck challenges and
         // where p(x) = eq(r,x) (b_1(x) + b_2(x) - b_1(x) * b_2(x) - c(x))
         let eq_at_r = MultilinearPolynomial::new(EqPolynomial::new(vec_r).evals());
@@ -317,8 +323,7 @@ where
         let b_1_at_rho = self.A.b_1_at_rho.unwrap();
         let b_2_at_rho = self.A.b_2_at_rho.unwrap();
         let c_at_rho = self.A.c_at_rho.unwrap();
-        assert_eq!(tensorcheck_claim,
-                   eq_at_r_rho * (b_1_at_rho + b_2_at_rho - b_1_at_rho * b_2_at_rho - c_at_rho));
+        assert_eq!(tensorcheck_claim, eq_at_r_rho * (b_1_at_rho + b_2_at_rho - b_1_at_rho * b_2_at_rho - c_at_rho));
 
         // Step 4: Verify the IVC proof
 
@@ -327,14 +332,14 @@ where
         (true, sumcheck_challenges)
     }
 
-    pub fn decide(&self, transcript: &mut IOPTranscript<E::ScalarField>, sumcheck_challenges: Vec<E::ScalarField>) -> bool {
+    pub fn decide(&self, transcript: &mut Transcript<E::ScalarField>, sumcheck_challenges: Vec<E::ScalarField>) -> bool {
         let b_1_at_rho = self.A.b_1_at_rho.unwrap();
         let b_2_at_rho = self.A.b_2_at_rho.unwrap();
         let c_at_rho = self.A.c_at_rho.unwrap();
 
         // Verify the accumulator
         // Get c_1 and c_2 (XXX could also get just c and then compute c^2)
-        let vec_c: Vec<E::ScalarField> = transcript.get_and_append_challenge_vectors(b"vec_c", 2).unwrap();
+        let vec_c: Vec<F> = transcript.challenge_vector(b"vec_c", 2);
 
         // Now compute commitment to P using B_1, B_2, and C
         let mut c_1_times_B_2 = self.A.B_2_commitment.clone().unwrap(); // XXX stop the cloning!!!
@@ -370,11 +375,13 @@ pub mod test {
     use super::*;
     use crate::constant_for_curves::{ScalarField, E};
 
+    type F = ScalarField;
+
     #[test]
     fn test_aggregate() {
         let rng = &mut rand::thread_rng();
-        let mut transcript_p = IOPTranscript::<ScalarField>::new(b"aggr");
-        let mut transcript_v = IOPTranscript::<ScalarField>::new(b"aggr");
+        let mut transcript_p = Transcript::<F>::new(b"aggr");
+        let mut transcript_v = Transcript::<F>::new(b"aggr");
 
         // num_vars = log(degree_x) + log(degree_y)
         let degree_x = 8usize;
@@ -410,5 +417,3 @@ pub mod test {
     }
 }
 
-
- */
