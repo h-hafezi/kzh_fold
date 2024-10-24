@@ -17,7 +17,7 @@ pub mod sumcheck;
 mod timer;
 mod unipoly;
 mod conversion;
-mod sumcheck_circuit;
+pub mod sumcheck_circuit;
 mod partial_verifier;
 mod sparse_mlpoly;
 
