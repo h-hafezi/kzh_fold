@@ -1,6 +1,7 @@
 use ark_ff::PrimeField;
+use ark_serialize::CanonicalSerialize;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize)]
 pub struct EqTree<F: PrimeField> {
     // vector of length 2 * 2^depth - 1
     pub nodes: Vec<F>,
