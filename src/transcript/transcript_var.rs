@@ -1,9 +1,11 @@
+use crate::gadgets::non_native::util::non_native_to_fpvar;
 use crate::hash::poseidon::PoseidonHashVar;
 use crate::transcript::transcript::Transcript;
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ff::PrimeField;
 use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::fields::fp::FpVar;
+use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
 use ark_relations::r1cs::ConstraintSystemRef;
 
 pub struct TranscriptVar<F: PrimeField + Absorb> {
@@ -33,9 +35,20 @@ impl<F: PrimeField + Absorb> TranscriptVar<F> {
         self.poseidon_hash.update_sponge(vec![scalar.clone()]);
     }
 
+    pub fn append_scalar_non_native<Q: PrimeField>(&mut self, _label: &'static [u8], scalar: &NonNativeFieldVar<Q, F>) {
+        let converted_scalar = non_native_to_fpvar(&scalar);
+        self.poseidon_hash.update_sponge(vec![converted_scalar.clone()]);
+    }
+
     pub fn append_scalars(&mut self, _label: &'static [u8], scalars: &[FpVar<F>]) {
         for f in scalars {
             self.append_scalar(_label, f);
+        }
+    }
+
+    pub fn append_scalars_non_native<Q: PrimeField>(&mut self, _label: &'static [u8], scalars: &[NonNativeFieldVar<Q, F>]) {
+        for q in scalars {
+            self.append_scalar_non_native(_label, q);
         }
     }
 
@@ -62,17 +75,19 @@ pub trait AppendToTranscriptVar<F: PrimeField + Absorb> {
 
 #[cfg(test)]
 mod tests {
-    use crate::constant_for_curves::ScalarField;
+    use crate::constant_for_curves::{BaseField, ScalarField};
     use crate::transcript::transcript::Transcript;
     use crate::transcript::transcript_var::TranscriptVar;
     use ark_r1cs_std::alloc::AllocVar;
     use ark_r1cs_std::fields::fp::FpVar;
+    use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
     use ark_r1cs_std::R1CSVar;
     use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
     use ark_std::UniformRand;
     use rand::thread_rng;
 
     type F = ScalarField;
+    type Q = BaseField;
 
     #[test]
     fn test_transcript_vs_transcript_var() {
@@ -91,10 +106,24 @@ mod tests {
 
         for _ in 0..10 {
             let random_scalar: F = F::rand(&mut rng);
+            let non_native: Q = Q::rand(&mut rng);
             // Append the same random scalar to both transcript and transcript_var
             transcript.append_scalar(label, &random_scalar);
-            let random_scalar_var = FpVar::new_witness(cs.clone(), || Ok(random_scalar)).unwrap();
+            transcript.append_scalar_non_native(label, &non_native);
+
+            // the zk version
+            let random_scalar_var = FpVar::new_witness(
+                cs.clone(),
+                || Ok(random_scalar),
+            ).unwrap();
+            let random_non_native = NonNativeFieldVar::new_witness(
+                cs.clone(),
+                || Ok(non_native),
+            ).unwrap();
+
+            // append to transcript
             transcript_var.append_scalar(label, &random_scalar_var);
+            transcript_var.append_scalar_non_native(label, &random_non_native);
         }
 
         // Compare the final states
@@ -103,6 +132,6 @@ mod tests {
 
         // Assert that the states are equal
         assert_eq!(transcript_state, transcript_var_state, "The transcript states are not equal");
-        println!("number of constraints: {}",cs.num_constraints());
+        println!("number of constraints: {}", cs.num_constraints());
     }
 }

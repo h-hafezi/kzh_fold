@@ -1,4 +1,4 @@
-use crate::gadgets::non_native::util::convert_affine_to_scalars;
+use crate::gadgets::non_native::util::{convert_affine_to_scalars, convert_field_one_to_field_two};
 use crate::hash::poseidon::{get_poseidon_config, PoseidonHash};
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
@@ -36,11 +36,25 @@ impl<F: PrimeField + Absorb> Transcript<F> {
         self.poseidon_hash.update_sponge(vec![scalar.clone()]);
     }
 
+    pub fn append_scalar_non_native<Q: PrimeField>(&mut self, _label: &'static [u8], scalar: &Q) {
+        // convert into F
+        let converted_scalar = convert_field_one_to_field_two::<Q, F>(scalar.clone());
+        self.poseidon_hash.update_sponge(vec![converted_scalar.clone()]);
+    }
+
+
     pub fn append_scalars(&mut self, _label: &'static [u8], scalars: &[F]) {
         for f in scalars {
             self.append_scalar(_label, &f);
         }
     }
+
+    pub fn append_scalars_non_native<Q: PrimeField>(&mut self, _label: &'static [u8], scalars: &[Q]) {
+        for q in scalars {
+            self.append_scalar_non_native(_label, q);
+        }
+    }
+
 
     pub fn challenge_scalar(&mut self, _label: &'static [u8]) -> F {
         let new_state = self.poseidon_hash.output();

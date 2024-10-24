@@ -80,6 +80,7 @@ where
         ScalarField=G2::BaseField
     >,
     F: PrimeField + Absorb,
+    E: Pairing<G1Affine=Affine<G1>, ScalarField=F>,
 {
     fn new_variable<T: Borrow<SignatureVerifierCircuit<E, F, G1, G2, C2>>>(
         cs: impl Into<Namespace<F>>,
@@ -253,7 +254,7 @@ where
         pk_t.enforce_equal(&self.pk_t_var).expect("error while enforcing equality");
 
         // Step 5: fold the cycle fold instance
-        let one_bits = NonNativeFieldVar::one().to_bits_le().unwrap();
+        let one_bits = <NonNativeFieldVar<G1::BaseField, F> as ToBitsGadget<F>>::to_bits_le(&NonNativeFieldVar::one()).unwrap();
         let final_instance = self.running_auxiliary_input_pk_var.fold(
             &[((&self.auxiliary_input_pk_var, None), &self.com_pk_var, &NonNativeFieldVar::one(), &one_bits)]
         ).unwrap();
