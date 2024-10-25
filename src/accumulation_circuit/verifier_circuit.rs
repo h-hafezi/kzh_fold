@@ -26,6 +26,7 @@ use rand::thread_rng;
 use crate::accumulation::accumulator::{AccInstance, AccSRS};
 use crate::accumulation_circuit::instance_circuit::AccumulatorInstanceVar;
 use crate::accumulation_circuit::prover::AccumulatorVerifierCircuitProver;
+use crate::accumulation_circuit::prover::tests::get_random_prover;
 use crate::accumulation_circuit::randomness_different_formats;
 use crate::commitment::CommitmentScheme;
 use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
@@ -423,14 +424,14 @@ where
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField>,
     ProjectiveVar<G2, FpVar<<G2 as CurveConfig>::BaseField>>: AllocVar<<C2 as CommitmentScheme<Projective<G2>>>::Commitment, <G2 as CurveConfig>::BaseField>,
 {
-    pub fn rand<E: Pairing>(srs: &AccSRS<E>, cs: ConstraintSystemRef<G1::ScalarField>) -> AccumulatorVerifierVar<G1, G2, C2>
+    pub fn rand<E: Pairing>(cs: ConstraintSystemRef<G1::ScalarField>) -> AccumulatorVerifierVar<G1, G2, C2>
     where
         E: Pairing<G1Affine=Affine<G1>, ScalarField=<G1 as CurveConfig>::ScalarField, BaseField=<G1 as CurveConfig>::BaseField>,
         <G2 as CurveConfig>::BaseField: Absorb,
         <G2 as CurveConfig>::ScalarField: Absorb,
     {
         // get the prover
-        let prover = AccumulatorVerifierCircuitProver::rand(&srs);
+        let prover = get_random_prover::<G1, G2, C2, E>();
 
         // the randomness in different formats
         let beta_scalar = prover.beta.clone();
@@ -518,7 +519,7 @@ where
         // initialise cycle fold running instance var
         let running_cycle_fold_instance_var = RelaxedOvaInstanceVar::new_variable(
             ns!(cs, "running cycle fold instance var"),
-            || Ok(prover.running_cycle_fold_instance),
+            || Ok(prover.cycle_fold_running_instance),
             AllocationMode::Input,
         ).unwrap();
 
@@ -581,21 +582,11 @@ pub mod tests {
     type C2 = PedersenCommitment<Projective<G2>>;
 
     pub fn get_initiliase_cs() -> ConstraintSystemRef<ScalarField> {
-        // specifying degrees of polynomials
-        let n = 4;
-        let m = 4;
-
-        // get a random srs
-        let srs = {
-            let srs_pcs: SRS<E> = PolyCommit::<E>::setup(n, m, &mut thread_rng());
-            Accumulator::setup(srs_pcs.clone(), &mut thread_rng())
-        };
-
         // a constraint system
         let cs = ConstraintSystem::<ScalarField>::new_ref();
 
         // initialise the accumulate verifier circuit
-        let verifier = AccumulatorVerifierVar::<G1, G2, C2>::rand(&srs, cs.clone());
+        let verifier = AccumulatorVerifierVar::<G1, G2, C2>::rand::<E>(cs.clone());
 
         println!("number of constraint for initialisation: {}", cs.num_constraints());
 
