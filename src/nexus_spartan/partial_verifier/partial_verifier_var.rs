@@ -260,7 +260,7 @@ mod tests {
         let partial_verifier_var = PartialVerifierVar::new_variable(
             cs.clone(),
             || Ok(partial_verifier.clone()),
-            AllocationMode::Witness,
+            AllocationMode::Input,
         ).unwrap();
 
         // todo: write a TranscriptVar::from(Transcript) function

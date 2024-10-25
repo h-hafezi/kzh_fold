@@ -22,17 +22,3 @@ pub type G1 = BNConfig;
 pub type G2 = GrumpkinConfig;
 
 pub type G1Projective = Projective<G1>;
-
-#[cfg(test)]
-mod test {
-    use ark_ec::AffineRepr;
-    use ark_std::UniformRand;
-    use rand::thread_rng;
-    use crate::constant_for_curves::{E, G2Affine};
-
-    #[test]
-    pub fn test() {
-        let g  = G2Affine::rand(&mut thread_rng());
-        println!("g: {}", g.x().unwrap());
-    }
-}

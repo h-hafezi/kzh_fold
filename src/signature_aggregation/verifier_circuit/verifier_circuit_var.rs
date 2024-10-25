@@ -403,6 +403,6 @@ mod test {
         signature_verifier_circuit_var.verify(&mut transcript_var);
 
         assert!(cs.is_satisfied().unwrap());
-        println!("{}", cs.num_constraints());
+        println!("{} {}", cs.num_constraints(), cs.borrow().unwrap().num_instance_variables);
     }
 }
