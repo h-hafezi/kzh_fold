@@ -5,7 +5,7 @@ extern crate sha3;
 
 mod commitments;
 pub mod committed_relaxed_snark;
-mod crr1cs;
+pub mod crr1cs;
 pub mod crr1csproof;
 pub mod errors;
 pub mod polycommitments;

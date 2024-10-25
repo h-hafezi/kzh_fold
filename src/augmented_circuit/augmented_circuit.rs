@@ -62,12 +62,62 @@ mod tests {
     use ark_relations::r1cs::ConstraintSystem;
 
     use super::*;
+    use crate::nexus_spartan::crr1cs::is_sat;
+    use crate::nexus_spartan::crr1cs::produce_synthetic_crr1cs;
+    use crate::nexus_spartan::crr1csproof::CRR1CSProof;
     use crate::constant_for_curves::{ScalarField, E};
-    use crate::nexus_spartan::partial_verifier::partial_verifier::tests::partial_verifier_test_helper;
+
+    pub fn get_test_proof<E, PC, F>() -> (PartialVerifier<F>, Transcript<F>)
+    where
+        F: PrimeField + Absorb,
+        PC: PolyCommitmentScheme<E>,
+        E: Pairing<ScalarField=F>,
+    {
+        let num_vars = 1024;
+        let num_cons = num_vars;
+        let num_inputs = 10;
+        let (shape, instance, witness, gens) = produce_synthetic_crr1cs::<E, PC>(num_cons, num_vars, num_inputs);
+        assert!(is_sat(&shape, &instance, &witness, &gens.gens_r1cs_sat).unwrap());
+
+        let (num_cons, num_vars, _num_inputs) = (
+            shape.get_num_cons(),
+            shape.get_num_vars(),
+            shape.get_num_inputs(),
+        );
+
+        let mut prover_transcript = Transcript::new(b"example");
+
+        let (proof, rx, ry) = CRR1CSProof::prove(
+            &shape,
+            &instance,
+            witness,
+            &gens.gens_r1cs_sat,
+            &mut prover_transcript,
+        );
+
+        let inst_evals = shape.inst.inst.evaluate(&rx, &ry);
+
+        let mut verifier_transcript = Transcript::new(b"example");
+        let mut verifier_transcript_clone1 = verifier_transcript.clone();
+        let partial_verifier = PartialVerifier::initialise(
+            proof.clone(),
+            num_vars,
+            num_cons,
+            instance.input.assignment,
+            &inst_evals,
+            &mut verifier_transcript,
+        );
+
+        partial_verifier.verify::<E>(&mut verifier_transcript_clone1);
+
+        (proof, partial_verifier)
+    }
 
     #[test]
     pub fn test_augmented_circuit() {
-        let (partial_verifier, _transcript) = partial_verifier_test_helper::<E, MultilinearPolynomial<ScalarField>, ScalarField>();
+        let (proof, partial_verifier) = get_test_proof::<E, MultilinearPolynomial<ScalarField>, ScalarField>();
+
+
         let cs = ConstraintSystem::<ScalarField>::new_ref();
         let augmented_circuit = AugmentedCircuit {
             spartan_partial_verifier: partial_verifier.clone()
@@ -78,6 +128,8 @@ mod tests {
             || Ok(augmented_circuit.clone()),
             AllocationMode::Input,
         ).unwrap();
+
+        let proof_accumulator = proof.proof_eval_vars_at_ry;
 
         // assert_eq!(augmented_circuit, augmented_circuit_var.value().unwrap());
 
