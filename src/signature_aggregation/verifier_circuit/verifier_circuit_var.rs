@@ -396,7 +396,7 @@ mod test {
         let signature_verifier_circuit_var = SignatureVerifierCircuitVar::new_variable(
             cs.clone(),
             || Ok(signature_verifier_circuit),
-            AllocationMode::Witness,
+            AllocationMode::Input,
         ).unwrap();
 
         let mut transcript_var = TranscriptVar::<F>::new(cs.clone(), b"aggr");
