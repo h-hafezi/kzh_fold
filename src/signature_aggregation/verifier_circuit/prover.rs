@@ -160,7 +160,7 @@ mod test {
         let shape = setup_shape::<G1, G2>().unwrap();
         let commitment_pp: Vec<Affine<G2>> = PedersenCommitment::<Projective<G2>>::setup(shape.num_vars + shape.num_constraints, b"test", &());
         let rng = &mut thread_rng();
-        let (pk_1, pk_2, pk_t): (G1Affine, G1Affine, G1Affine) = SignatureVerifierProver::<G1, G2, C2, E>::get_satisfying_public_keys(rng);
+        let (pk_1, pk_2, _): (G1Affine, G1Affine, G1Affine) = SignatureVerifierProver::<G1, G2, C2, E>::get_satisfying_public_keys(rng);
         let (instance, witness) = SignatureVerifierProver::<G1, G2, C2, E>::get_auxiliary_input_for_public_keys(&shape, &commitment_pp, pk_1, pk_2);
         shape.is_ova_satisfied(&instance, &witness, &commitment_pp).unwrap()
     }
@@ -181,14 +181,14 @@ mod test {
         let prover = SignatureVerifierProver::<G1, G2, C2, E>::rand(rng, Q::from(2u8));
 
         // get a set of random public keys
-        let (pk_1, pk_2, pk_t): (G1Affine, G1Affine, G1Affine) = SignatureVerifierProver::<G1, G2, C2, E>::get_satisfying_public_keys(rng);
+        let (pk_1, pk_2, _): (G1Affine, G1Affine, G1Affine) = SignatureVerifierProver::<G1, G2, C2, E>::get_satisfying_public_keys(rng);
 
         // get corresponding instance/witness of (pk_1, pk_2, pk_t)
         let (instance, witness) = SignatureVerifierProver::<G1, G2, C2, E>::get_auxiliary_input_for_public_keys(&prover.shape, &prover.commitment_pp, pk_1, pk_2);
         prover.shape.is_ova_satisfied(&instance, &witness, &prover.commitment_pp).unwrap();
 
         // fold it with the prover's running instance/witness
-        let (com_T, new_running_instance, new_running_witness) = prover.compute_cycle_fold_proofs_and_final_instance(&instance, &witness);
+        let (_, new_running_instance, new_running_witness) = prover.compute_cycle_fold_proofs_and_final_instance(&instance, &witness);
 
         // check validity
         prover.shape.is_relaxed_ova_satisfied(&new_running_instance, &new_running_witness, &prover.commitment_pp).unwrap();
