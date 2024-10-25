@@ -250,22 +250,22 @@ where
         ).expect("equality error");
 
         // Step 4: Do the cycle fold math
-        // Non-native scalar multiplication: linear combination E'' = E_{temp} + (1-beta) * beta * Q
+        // Non-native scalar multiplication: linear combination pk_t = pk_1 + pk_2
         let (flag,
             r,
             pk_1,
             pk_2,
             pk_t
         ) = self.cycle_fold_fresh_instance.parse_secondary_io::<G1>().unwrap();
-        // g1 == Q
+        // g1 == pk_1
         pk_1.enforce_equal(&self.pk_1_var).expect("error while enforcing equality");
-        // g2 == E_temp
+        // g2 == pk_2
         pk_2.enforce_equal(&self.pk_2_var).expect("error while enforcing equality");
         // enforce flag to be true
         flag.enforce_equal(&NonNativeFieldVar::one()).expect("error while enforcing equality");
         // check r to be equal to one
         r.enforce_equal(&NonNativeFieldVar::one()).expect("error while enforcing equality");
-        // check out the result E_var is consistent with result_acc
+        // check out the result pk_t is consistent with input pk_t
         pk_t.enforce_equal(&self.pk_t_var).expect("error while enforcing equality");
 
         // Step 5: fold the cycle fold instance
