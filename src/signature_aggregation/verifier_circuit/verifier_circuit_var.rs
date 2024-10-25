@@ -226,7 +226,9 @@ where
 {
     pub fn verify(&self, transcript: &mut TranscriptVar<F>) {
         // Step 1: Get challenge
-        transcript.append_scalars_non_native(b"poly", &[self.com_bitfield.0.clone(), self.com_bitfield.1.clone()]);
+        transcript.append_scalar_non_native(b"poly", &self.com_bitfield.0);
+        transcript.append_scalar_non_native(b"poly", &self.com_bitfield.1);
+
         let vec_r = transcript.challenge_vector(b"vec_r", self.bitfield_poly_var.num_variables);
 
         // Step 2: Verify the sumcheck proof
