@@ -31,17 +31,22 @@ where
     pub pk_2: E::G1Affine,
     pub pk_t: E::G1Affine,
 
+    /// bitfield commitment, solely used for Fiat-Shamir
+    pub com_bitfield: (G1::BaseField, G1::BaseField),
+
+    /// beta used to take linear combination for cycle fold
+    pub beta: G1::BaseField,
+
     /// the cross term error
     pub com_pk: Projective<G2>,
-    pub auxiliary_input_pk: OvaInstance<G2, C2>,
+    pub cycle_fold_fresh_instance: OvaInstance<G2, C2>,
+
     /// auxiliary input which helps to have pk_t = pk_2 + pk_1
-    pub running_auxiliary_input_pk: RelaxedOvaInstance<G2, C2>,
-    pub final_auxiliary_input_pk: RelaxedOvaInstance<G2, C2>,
+    pub cycle_fold_running_instance: RelaxedOvaInstance<G2, C2>,
+    pub cycle_fold_final_instance: RelaxedOvaInstance<G2, C2>,
 
     /// the bitfield polynomial
     pub bitfield_poly: MultilinearPolynomial<F>,
-    /// commitment to bitfield (only for Fiat-Shamir)
-    pub bitfield_poly_commitment: E::G1Affine,
 
     /// the sumcheck proof
     pub sumcheck_proof: SumcheckCircuit<F>,
@@ -51,4 +56,3 @@ where
     pub b_2_at_rho: F,
     pub c_at_rho: F,
 }
-

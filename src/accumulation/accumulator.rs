@@ -131,7 +131,7 @@ where
 
     /// Given public data for the opening p(x, y) = z
     /// return an accumulator instance
-    pub fn new_accumulator_instance_from_proof(
+    pub fn new_accumulator_instance_from_fresh_kzh_instance(
         srs: &AccSRS<E>,
         C: &E::G1Affine,
         x: &[E::ScalarField],
@@ -163,7 +163,7 @@ where
         }
     }
 
-    pub fn new_accumulator_witness_from_proof(srs: &AccSRS<E>, proof: OpeningProof<E>, x: &[E::ScalarField], y: &[E::ScalarField]) -> AccWitness<E> {
+    pub fn new_accumulator_witness_from_fresh_kzh_witness(srs: &AccSRS<E>, proof: OpeningProof<E>, x: &[E::ScalarField], y: &[E::ScalarField]) -> AccWitness<E> {
         // asserting the sizes are correct
         assert_eq!(1 << x.len(), srs.pc_srs.degree_x, "invalid size of vector x");
         assert_eq!(1 << y.len(), srs.pc_srs.degree_y, "invalid size of vector y");
@@ -442,10 +442,10 @@ impl<E: Pairing> Accumulator<E> {
         assert!(poly_commit.verify(&com1, &open1, &x1, &y1, &z1));
         assert!(poly_commit.verify(&com2, &open2, &x2, &y2, &z2));
 
-        let instance1 = Accumulator::new_accumulator_instance_from_proof(&srs, &com1.C, &x1, &y1, &z1);
-        let witness1 = Accumulator::new_accumulator_witness_from_proof(&srs, open1, &x1, &y1);
-        let instance2 = Accumulator::new_accumulator_instance_from_proof(&srs, &com2.C, &x2, &y2, &z2);
-        let witness2 = Accumulator::new_accumulator_witness_from_proof(&srs, open2, &x2, &y2);
+        let instance1 = Accumulator::new_accumulator_instance_from_fresh_kzh_instance(&srs, &com1.C, &x1, &y1, &z1);
+        let witness1 = Accumulator::new_accumulator_witness_from_fresh_kzh_witness(&srs, open1, &x1, &y1);
+        let instance2 = Accumulator::new_accumulator_instance_from_fresh_kzh_instance(&srs, &com2.C, &x2, &y2, &z2);
+        let witness2 = Accumulator::new_accumulator_witness_from_fresh_kzh_witness(&srs, open2, &x2, &y2);
 
         let acc1 = Accumulator::new_accumulator(&instance1, &witness1);
         let acc2 = Accumulator::new_accumulator(&instance2, &witness2);

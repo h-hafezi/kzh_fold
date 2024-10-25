@@ -4,8 +4,7 @@ use ark_ec::AffineRepr;
 use ark_ff::PrimeField;
 use rand::RngCore;
 
-use crate::accumulation;
-use crate::accumulation::accumulator::{AccInstance, AccWitness, Accumulator};
+use crate::accumulation::accumulator::{AccInstance, AccSRS, AccWitness, Accumulator};
 use crate::constant_for_curves::ScalarField;
 use crate::nexus_spartan::sumcheck::SumcheckInstanceProof;
 use crate::pcs::multilinear_pcs::{Commitment, PolyCommit};
@@ -17,7 +16,7 @@ use ark_ff::Zero;
 // XXX move to mod.rs or somewhere neutral
 #[derive(Clone, Debug)]
 pub struct SRS<E: Pairing> {
-    pub acc_srs: accumulation::accumulator::AccSRS<E>,
+    pub acc_srs: AccSRS<E>,
 }
 
 impl<E: Pairing> SRS<E>
@@ -25,7 +24,7 @@ where
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
     <E as Pairing>::ScalarField: Absorb,
 {
-    fn new<T: RngCore>(degree_x: usize, degree_y: usize, rng: &mut T) -> Self {
+    pub(crate) fn new<R: RngCore>(degree_x: usize, degree_y: usize, rng: &mut R) -> Self {
         let pcs_srs = PolyCommit::setup(degree_x, degree_y, rng);
 
         SRS {
@@ -40,23 +39,27 @@ where
     <E as Pairing>::ScalarField: Absorb,
 {
     // TODO comment this out for now. we will figure out the BLS stuff later.
-    //pk: E::G1Affine,
-    //sig: E::G2Affine,
-    // Commitments to b_1(x) and b_2(x)
-    B_1_commitment: Option<Commitment<E>>,
-    B_2_commitment: Option<Commitment<E>>,
-    // c(x): the union poly
-    bitfield_poly: MultilinearPolynomial<E::ScalarField>,
-    // Commitment to c(x)
-    bitfield_commitment: Commitment<E>,
-    sumcheck_proof: Option<SumcheckInstanceProof<E::ScalarField>>,
-    // Accumulator witness for random evaluation of p(x) at rho:
-    // p(rho) = b_1(rho) + c_1 * b_2(rho) + c_2 * c(rho)
-    sumcheck_eval_acc_witness: Option<AccWitness<E>>,
-    // Evaluations of the inner polynomials at rho:
-    b_1_at_rho: Option<E::ScalarField>, // b_1(rho)
-    b_2_at_rho: Option<E::ScalarField>, // b_2(rho)
-    c_at_rho: Option<E::ScalarField>, // c(rho)
+    // pk: E::G1Affine,
+    // sig: E::G2Affine,
+
+    /// Commitments to b_1(x) and b_2(x)
+    pub B_1_commitment: Option<Commitment<E>>,
+    pub B_2_commitment: Option<Commitment<E>>,
+    /// c(x): the union poly
+    pub bitfield_poly: MultilinearPolynomial<E::ScalarField>,
+    /// Commitment to c(x)
+    pub bitfield_commitment: Commitment<E>,
+    pub sumcheck_proof: Option<SumcheckInstanceProof<E::ScalarField>>,
+
+    /// Accumulator witness for random evaluation of p(x) at rho:
+    /// p(rho) = b_1(rho) + c_1 * b_2(rho) + c_2 * c(rho)
+    pub sumcheck_eval_acc_witness: Option<AccWitness<E>>,
+
+    /// Evaluations of the inner polynomials at rho:
+    pub b_1_at_rho: Option<E::ScalarField>, // b_1(rho)
+    pub b_2_at_rho: Option<E::ScalarField>, // b_2(rho)
+    pub c_at_rho: Option<E::ScalarField>, // c(rho)
+
     // ivc_proof: Option<IVCProof<E>>
     // state_acc_witness: Option<AccWitness<E>>
 }
@@ -90,9 +93,9 @@ where
     E: Pairing<ScalarField=F>,
     F: PrimeField + Absorb,
 {
-    srs: SRS<E>,
-    A_1: SignatureAggrData<E>,
-    A_2: SignatureAggrData<E>,
+    pub srs: SRS<E>,
+    pub A_1: SignatureAggrData<E>,
+    pub A_2: SignatureAggrData<E>,
 }
 
 impl<E, F> Aggregator<E, F>
@@ -111,27 +114,27 @@ where
         let poly_commit = PolyCommit { srs: self.srs.acc_srs.pc_srs.clone() }; // XXX no clone. bad ergonomics
 
         // Split the evaluation point in half since open() just needs the first half
-        // XXX ergonomics
         assert_eq!(eval_point.len() % 2, 0);
         let mid = eval_point.len() / 2;
         let (eval_point_first_half, eval_point_second_half) = eval_point.split_at(mid);
 
         let opening_proof = poly_commit.open(bitfield_poly, bitfield_commitment.clone(), eval_point_first_half); // XXX needless clone
 
-        // XXX bad name for function
-        let acc_instance = Accumulator::new_accumulator_instance_from_proof(
+        let acc_instance = Accumulator::new_accumulator_instance_from_fresh_kzh_instance(
             &self.srs.acc_srs,
             &bitfield_commitment.C,
             eval_point_first_half,
             eval_point_second_half,
             eval_result,
         );
-        let acc_witness = Accumulator::new_accumulator_witness_from_proof(
+
+        let acc_witness = Accumulator::new_accumulator_witness_from_fresh_kzh_witness(
             &self.srs.acc_srs,
             opening_proof,
             eval_point_first_half,
             eval_point_second_half,
         );
+
         Accumulator {
             witness: acc_witness,
             instance: acc_instance,
@@ -152,7 +155,10 @@ where
         let C_commitment = poly_commit.commit(&c_poly);
 
         // Step 3: Get r from verifier: it's the evaluation point challenge (for the zerocheck)
-        transcript.append_point::<E>(b"poly", &C_commitment.C);
+        transcript.append_scalars_non_native::<<<E as Pairing>::G1Affine as AffineRepr>::BaseField>(
+            b"poly",
+            &[C_commitment.C.x().unwrap(), C_commitment.C.y().unwrap()],
+        );
         let vec_r = transcript.challenge_vector(b"vec_r", b_1_poly.num_variables);
 
         // Step 4: Do the sumcheck for the following polynomial:
@@ -294,7 +300,7 @@ where
         let (eval_point_first_half, eval_point_second_half) = eval_point.split_at(mid);
 
         // XXX bad name for function
-        Accumulator::new_accumulator_instance_from_proof(
+        Accumulator::new_accumulator_instance_from_fresh_kzh_instance(
             &self.srs.acc_srs,
             &bitfield_commitment.C,
             eval_point_first_half,
@@ -305,7 +311,10 @@ where
 
     pub fn verify(&self, transcript: &mut Transcript<F>) -> (bool, Vec<F>) {
         // Step 1: Get r challenge from verifier
-        transcript.append_point::<E>(b"poly", &self.A.bitfield_commitment.C);
+        transcript.append_scalars_non_native::<<<E as Pairing>::G1Affine as AffineRepr>::BaseField>(
+            b"poly",
+            &[self.A.bitfield_commitment.C.x().unwrap(), self.A.bitfield_commitment.C.y().unwrap()],
+        );
         let vec_r = transcript.challenge_vector(b"vec_r", self.A.bitfield_poly.num_variables);
 
         // Step 2: Verify the sumcheck proof
