@@ -9,7 +9,7 @@ use crate::commitment::{CommitmentScheme, Len};
 
 pub(crate) const LOG_TARGET: &str = "nexus-nova";
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct PedersenCommitment<G>(PhantomData<G>);
 
 impl<T> Len for Vec<T> {
