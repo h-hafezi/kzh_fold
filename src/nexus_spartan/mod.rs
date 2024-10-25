@@ -18,7 +18,7 @@ mod timer;
 mod unipoly;
 mod conversion;
 pub mod sumcheck_circuit;
-mod partial_verifier;
+pub mod partial_verifier;
 mod sparse_mlpoly;
 
 use ark_crypto_primitives::sponge::Absorb;
