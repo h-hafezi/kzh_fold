@@ -60,12 +60,16 @@ impl<F: PrimeField + Absorb> AllocVar<AugmentedCircuit<F>, F> for AugmentedCircu
 #[cfg(test)]
 mod tests {
     use ark_relations::r1cs::ConstraintSystem;
+    use rand::thread_rng;
 
     use super::*;
+    use crate::accumulation::accumulator::Accumulator;
     use crate::nexus_spartan::crr1cs::is_sat;
     use crate::nexus_spartan::crr1cs::produce_synthetic_crr1cs;
     use crate::nexus_spartan::crr1csproof::CRR1CSProof;
     use crate::constant_for_curves::{ScalarField, E};
+    use crate::pcs::multilinear_pcs::PolyCommit;
+    use crate::pcs::multilinear_pcs::SRS;
 
     pub fn get_test_proof<E, PC, F>() -> (CRR1CSProof<E, PC, F>, PartialVerifier<F>)
     where
@@ -115,8 +119,13 @@ mod tests {
 
     #[test]
     pub fn test_augmented_circuit() {
-        let (proof, partial_verifier) = get_test_proof::<E, MultilinearPolynomial<ScalarField>, ScalarField>();
+        let degree_x = 512;
+        let degree_y = 512;
+        let srs_pcs: SRS<E> = PolyCommit::<E>::setup(degree_x, degree_y, &mut thread_rng());
+        let srs = Accumulator::setup(srs_pcs.clone(), &mut thread_rng());
+        let running_accumulator = Accumulator::random_satisfying_accumulator(&srs, &mut thread_rng());
 
+        let (proof, partial_verifier) = get_test_proof::<E, MultilinearPolynomial<ScalarField>, ScalarField>();
 
         let cs = ConstraintSystem::<ScalarField>::new_ref();
         let augmented_circuit = AugmentedCircuit {
@@ -130,15 +139,15 @@ mod tests {
         ).unwrap();
 
         let kzh_opening_proof = proof.eval_vars_at_ry;
-        // Turn it into an accumulator
-        
+        // Hossein: Turn kzh_opening_proof into accumulator: kzh_opening_proof_accumulator
+        // Hossein: For now, we generate a random one:
+        let kzh_opening_proof_accumulator = Accumulator::random_satisfying_accumulator(&srs, &mut thread_rng());
 
-
-        // assert_eq!(augmented_circuit, augmented_circuit_var.value().unwrap());
-
-        // let (_r_x, _r_y) = partial_verifier_var.verify(&mut transcript);
-        // println!("constraint count: {} {}", cs.num_instance_variables(), cs.num_witness_variables());
-        // assert!(cs.is_satisfied().unwrap());
+        // Aggregate running_accumulator with kzh_opening_proof_accumulator
+        let (instance, witness, Q) = Accumulator::prove(&srs,
+                                                        &running_accumulator,
+                                                        &kzh_opening_proof_accumulator);
+        assert!(Accumulator::decide(&srs, &Accumulator { witness, instance }));
     }
 }
 
