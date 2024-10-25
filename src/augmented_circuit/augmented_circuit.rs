@@ -129,7 +129,10 @@ mod tests {
             AllocationMode::Input,
         ).unwrap();
 
-        let proof_accumulator = proof.eval_vars_at_ry;
+        let kzh_opening_proof = proof.eval_vars_at_ry;
+        // Turn it into an accumulator
+        
+
 
         // assert_eq!(augmented_circuit, augmented_circuit_var.value().unwrap());
 
