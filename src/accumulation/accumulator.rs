@@ -1,5 +1,6 @@
 use std::ops::{Add, Mul, Neg, Sub};
 
+use ark_serialize::CanonicalSerialize;
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::{AffineRepr, CurveGroup, VariableBaseMSM};
 use ark_ec::pairing::Pairing;
@@ -32,7 +33,7 @@ pub struct AccSRS<E: Pairing> {
     pub poseidon_config: PoseidonConfig<E:: ScalarField>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize)]
 pub struct AccInstance<E: Pairing> {
     pub C: E::G1Affine,
     pub T: E::G1Affine,
@@ -73,7 +74,7 @@ where
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize)]
 pub struct AccWitness<E: Pairing> {
     // size of degree_x
     pub vec_D: Vec<E::G1Affine>,
@@ -86,7 +87,7 @@ pub struct AccWitness<E: Pairing> {
     pub tree_y: EqTree<E::ScalarField>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize)]
 pub struct Accumulator<E: Pairing> {
     pub witness: AccWitness<E>,
     pub instance: AccInstance<E>,
@@ -406,7 +407,6 @@ impl<E: Pairing> Accumulator<E> {
         let polynomial1 = MultilinearPolynomial::rand(srs.pc_srs.degree_x.log_2() + srs.pc_srs.degree_y.log_2(), rng);
         let polynomial2 = MultilinearPolynomial::rand(srs.pc_srs.degree_x.log_2() + srs.pc_srs.degree_y.log_2(), rng);
 
-
         // random points and evaluation
         let mut x1: Vec<E::ScalarField> = Vec::new();
         let mut x2: Vec<E::ScalarField> = Vec::new();
@@ -465,9 +465,9 @@ pub mod test {
     use ark_ec::pairing::Pairing;
     use rand::thread_rng;
 
-    use crate::accumulation::accumulator::Accumulator;
-    use crate::constant_for_curves::E;
+    use crate::constant_for_curves::{E, ScalarField};
     use crate::pcs::multilinear_pcs::{PolyCommit, SRS};
+    use super::*;
 
     #[test]
     fn test_accumulator_end_to_end() {
@@ -481,6 +481,26 @@ pub mod test {
 
         let (instance, witness, Q) = Accumulator::prove(&srs, &acc1, &acc2);
         assert!(Accumulator::decide(&srs, &Accumulator { witness, instance }));
+    }
+
+    #[test]
+    fn test_accumulator_sizes() {
+        let degrees = vec![(2, 2), (4, 4), (8, 8), (16, 16), (32, 32), (64, 64), (128, 128), (256, 256), (512, 512), (1024, 1024)];
+        for (degree_x, degree_y) in degrees {
+            let srs_pcs: SRS<E> = PolyCommit::<E>::setup(degree_x, degree_y, &mut thread_rng());
+            let srs = Accumulator::setup(srs_pcs.clone(), &mut thread_rng());
+
+            let acc = Accumulator::random_satisfying_accumulator(&srs, &mut thread_rng());
+            let witness_len = degree_x*degree_y;
+            let witness_polynomial: MultilinearPolynomial<ScalarField> = MultilinearPolynomial::rand(degree_x.log_2() + degree_y.log_2(), &mut thread_rng());
+
+            println!("witness length: {} ({} bytes compressed):\n\taccumulator size: {} bytes (compressed: {} bytes)\n\t\tinstance compressed: {} bytes\n\t\twitness compressed: {} bytes",
+                     witness_len, witness_polynomial.compressed_size(),
+                     acc.uncompressed_size(), acc.compressed_size(),
+                     acc.instance.compressed_size(),
+                     acc.witness.compressed_size()
+            );
+        }
     }
 }
 
