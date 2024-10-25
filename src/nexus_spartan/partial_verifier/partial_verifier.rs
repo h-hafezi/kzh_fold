@@ -33,7 +33,7 @@ pub struct PartialVerifier<F: PrimeField + Absorb> {
 
 impl<F: PrimeField + Absorb> PartialVerifier<F> {
     pub fn initialise<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>>(
-        proof: CRR1CSProof<E, PC, F>,
+        proof: &CRR1CSProof<E, PC, F>,
         num_vars: usize,
         num_cons: usize,
         input: Vec<F>,
@@ -255,7 +255,7 @@ pub mod tests {
         let mut verifier_transcript_clone1 = verifier_transcript.clone();
         let verifier_transcript_clone2 = verifier_transcript.clone();
         let partial_verifier = PartialVerifier::initialise(
-            proof,
+            &proof,
             num_vars,
             num_cons,
             instance.input.assignment,

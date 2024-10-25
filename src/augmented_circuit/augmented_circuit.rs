@@ -67,7 +67,7 @@ mod tests {
     use crate::nexus_spartan::crr1csproof::CRR1CSProof;
     use crate::constant_for_curves::{ScalarField, E};
 
-    pub fn get_test_proof<E, PC, F>() -> (PartialVerifier<F>, Transcript<F>)
+    pub fn get_test_proof<E, PC, F>() -> (CRR1CSProof<E, PC, F>, PartialVerifier<F>)
     where
         F: PrimeField + Absorb,
         PC: PolyCommitmentScheme<E>,
@@ -100,7 +100,7 @@ mod tests {
         let mut verifier_transcript = Transcript::new(b"example");
         let mut verifier_transcript_clone1 = verifier_transcript.clone();
         let partial_verifier = PartialVerifier::initialise(
-            proof.clone(),
+            &proof,
             num_vars,
             num_cons,
             instance.input.assignment,
@@ -129,7 +129,7 @@ mod tests {
             AllocationMode::Input,
         ).unwrap();
 
-        let proof_accumulator = proof.proof_eval_vars_at_ry;
+        let proof_accumulator = proof.eval_vars_at_ry;
 
         // assert_eq!(augmented_circuit, augmented_circuit_var.value().unwrap());
 
