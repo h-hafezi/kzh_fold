@@ -424,15 +424,12 @@ where
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField>,
     ProjectiveVar<G2, FpVar<<G2 as CurveConfig>::BaseField>>: AllocVar<<C2 as CommitmentScheme<Projective<G2>>>::Commitment, <G2 as CurveConfig>::BaseField>,
 {
-    pub fn rand<E: Pairing>(cs: ConstraintSystemRef<G1::ScalarField>) -> AccumulatorVerifierVar<G1, G2, C2>
+    pub fn new<E: Pairing>(cs: ConstraintSystemRef<G1::ScalarField>, prover: AccumulatorVerifierCircuitProver<G1, G2, C2, E>) -> AccumulatorVerifierVar<G1, G2, C2>
     where
         E: Pairing<G1Affine=Affine<G1>, ScalarField=<G1 as CurveConfig>::ScalarField, BaseField=<G1 as CurveConfig>::BaseField>,
         <G2 as CurveConfig>::BaseField: Absorb,
         <G2 as CurveConfig>::ScalarField: Absorb,
     {
-        // get the prover
-        let prover = get_random_prover::<G1, G2, C2, E>();
-
         // the randomness in different formats
         let beta_scalar = prover.beta.clone();
         let (_, beta_var, beta_var_non_native) = randomness_different_formats::<E>(cs.clone(), beta_scalar);
@@ -581,12 +578,13 @@ pub mod tests {
 
     type C2 = PedersenCommitment<Projective<G2>>;
 
-    pub fn get_initiliase_cs() -> ConstraintSystemRef<ScalarField> {
+    pub fn get_initialise_cs() -> ConstraintSystemRef<ScalarField> {
         // a constraint system
         let cs = ConstraintSystem::<ScalarField>::new_ref();
 
         // initialise the accumulate verifier circuit
-        let verifier = AccumulatorVerifierVar::<G1, G2, C2>::rand::<E>(cs.clone());
+        let prover: AccumulatorVerifierCircuitProver<G1, G2, C2, E> = get_random_prover();
+        let verifier = AccumulatorVerifierVar::<G1, G2, C2>::new::<E>(cs.clone(), prover);
 
         println!("number of constraint for initialisation: {}", cs.num_constraints());
 
@@ -607,7 +605,7 @@ pub mod tests {
 
     #[test]
     fn kzh_acc_verifier_circuit_initialisation_test() {
-        let cs = get_initiliase_cs();
+        let cs = get_initialise_cs();
 
         // pad witness to have a length of power of two
         for _ in 0..((1 << 16) - cs.num_constraints() + 5019) {
