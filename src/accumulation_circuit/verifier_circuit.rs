@@ -26,7 +26,7 @@ use rand::thread_rng;
 use crate::accumulation::accumulator::{AccInstance, AccSRS};
 use crate::accumulation_circuit::instance_circuit::AccumulatorInstanceVar;
 use crate::accumulation_circuit::prover::AccumulatorVerifierCircuitProver;
-use crate::accumulation_circuit::prover::tests::get_random_prover;
+use crate::accumulation_circuit::prover::get_random_prover;
 use crate::accumulation_circuit::randomness_different_formats;
 use crate::commitment::CommitmentScheme;
 use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
@@ -285,7 +285,7 @@ where
     C2: CommitmentScheme<Projective<G2>>,
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField>,
 {
-    pub fn accumulate(&self)
+    pub fn accumulate(&self) -> (RelaxedOvaInstanceVar<G2, C2>, AccumulatorInstanceVar<G1>)
     where
         <G2 as CurveConfig>::BaseField: Absorb,
     {
@@ -410,6 +410,10 @@ where
 
         self.final_cycle_fold_instance_var.X.enforce_equal(&final_instance.X).expect("XXX: panic message");
         self.final_cycle_fold_instance_var.commitment.enforce_equal(&final_instance.commitment).expect("XXX: panic message");
+
+        // todo: check if possible to do without cloning
+        // return result of accumulation and final cycle fold instance
+        (self.final_cycle_fold_instance_var.clone(), self.final_accumulator_instance_var.clone())
     }
 }
 
@@ -589,7 +593,7 @@ pub mod tests {
         println!("number of constraint for initialisation: {}", cs.num_constraints());
 
         // run the accumulation
-        verifier.accumulate();
+        let _ = verifier.accumulate();
 
         println!("number of constraint after accumulation: {}", cs.num_constraints());
 

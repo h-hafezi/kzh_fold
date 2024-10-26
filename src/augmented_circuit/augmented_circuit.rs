@@ -1,59 +1,72 @@
-use ark_ec::short_weierstrass::{Affine, Projective, SWCurveConfig};
-use ark_crypto_primitives::sponge::Absorb;
-use ark_ec::pairing::Pairing;
-use ark_ff::PrimeField;
-use ark_ec::{AffineRepr, CurveConfig};
-use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
-use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
-use std::borrow::Borrow;
-
-use crate::accumulation_circuit::verifier_circuit::AccumulatorVerifier;
-use crate::math::Math;
+use crate::accumulation::accumulator::AccInstance;
+use crate::accumulation_circuit::instance_circuit::AccumulatorInstanceVar;
+use crate::accumulation_circuit::verifier_circuit::{AccumulatorVerifier, AccumulatorVerifierVar};
 use crate::commitment::CommitmentScheme;
 use crate::nexus_spartan::partial_verifier::partial_verifier_var::PartialVerifierVar;
-use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
-use crate::nexus_spartan::sparse_polynomial::sparse_polynomial::SparsePoly;
-use crate::nexus_spartan::sumcheck_circuit::sumcheck_circuit::SumcheckCircuit;
-use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
-use crate::transcript::transcript::Transcript;
-
+use ark_crypto_primitives::sponge::Absorb;
+use ark_ec::pairing::Pairing;
+use ark_ec::short_weierstrass::{Affine, Projective, SWCurveConfig};
+use ark_ec::{AffineRepr, CurveConfig};
+use ark_ff::PrimeField;
+use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
+use ark_r1cs_std::fields::fp::FpVar;
+use ark_relations::r1cs::{Namespace, SynthesisError};
+use std::borrow::Borrow;
+use ark_r1cs_std::eq::EqGadget;
+use ark_r1cs_std::fields::FieldVar;
+use itertools::izip;
 use crate::nexus_spartan::partial_verifier::partial_verifier::PartialVerifier;
+use crate::nova::cycle_fold::coprocessor_constraints::RelaxedOvaInstanceVar;
+use crate::pcs::multilinear_pcs::{split_between_x_and_y, SRS};
+use crate::transcript::transcript_var::TranscriptVar;
+
+type Output<G2, C2, G1, F> = (RelaxedOvaInstanceVar<G2, C2>, AccumulatorInstanceVar<G1>, Vec<FpVar<F>>, Vec<FpVar<F>>);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct AugmentedCircuit<G1, G2, C2, E>
+pub struct AugmentedCircuit<G1, G2, C2, E, F>
 where
     G1: SWCurveConfig + Clone,
     G1::BaseField: PrimeField,
     G1::ScalarField: PrimeField + Absorb,
-    G2: SWCurveConfig,
+    G2: SWCurveConfig<BaseField=F> + Clone,
     G2::BaseField: PrimeField,
     C2: CommitmentScheme<Projective<G2>>,
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField>,
-    E: Pairing<G1Affine=Affine<G1>, ScalarField=<G1 as CurveConfig>::ScalarField>,
+    E: Pairing<G1Affine=Affine<G1>, ScalarField=F>,
+    F: PrimeField,
 {
-    spartan_partial_verifier: PartialVerifier<G1::ScalarField>,
-    kzh_acc_verifier: AccumulatorVerifier<G1, G2, C2, E>,
+    pub spartan_partial_verifier: PartialVerifier<F>,
+    pub kzh_acc_verifier: AccumulatorVerifier<G1, G2, C2, E>,
 }
 
-pub struct AugmentedCircuitVar<F: PrimeField + Absorb>
+pub struct AugmentedCircuitVar<G1, G2, C2, F>
+where
+    F: PrimeField + Absorb,
+    G1::BaseField: PrimeField,
+    G1::ScalarField: PrimeField,
+    G2: SWCurveConfig<BaseField=F> + Clone,
+    G2::BaseField: PrimeField,
+    C2: CommitmentScheme<Projective<G2>>,
+    G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField> + Clone,
 {
-    spartan_partial_verifier: PartialVerifierVar<F>,
-    // Hossein: add AccumulatorVerifierVar here
+    pub spartan_partial_verifier: PartialVerifierVar<F>,
+    pub kzh_acc_verifier: AccumulatorVerifierVar<G1, G2, C2>,
 }
 
-impl<G1, G2, C2, E> AllocVar<AugmentedCircuit<G1, G2, C2, E>, G1::ScalarField> for AugmentedCircuitVar<G1::ScalarField>
+impl<G1, G2, C2, E, F> AllocVar<AugmentedCircuit<G1, G2, C2, E, F>, F> for AugmentedCircuitVar<G1, G2, C2, F>
 where
     G1: SWCurveConfig + Clone,
     G1::BaseField: PrimeField,
     G1::ScalarField: PrimeField + Absorb,
-    G2: SWCurveConfig,
+    G2: SWCurveConfig<BaseField=F> + Clone,
     G2::BaseField: PrimeField,
     C2: CommitmentScheme<Projective<G2>>,
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField>,
-    E: Pairing<G1Affine=Affine<G1>, ScalarField=<G1 as CurveConfig>::ScalarField>,
+    E: Pairing<G1Affine=Affine<G1>, ScalarField=F>,
+    F: PrimeField,
 {
-    fn new_variable<T: Borrow<AugmentedCircuit<G1, G2, C2, E>>>(
-        cs: impl Into<Namespace<G1::ScalarField>>,
+    fn new_variable<T: Borrow<AugmentedCircuit<G1, G2, C2, E, F>>>(
+        cs: impl Into<Namespace<F>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
@@ -67,21 +80,64 @@ where
         let data = binding.borrow();
 
         // Allocate the Spartan partial verifier
-        let partial_verifier = PartialVerifierVar::new_variable(
+        let spartan_partial_verifier = PartialVerifierVar::new_variable(
             cs.clone(),
             || Ok(&data.spartan_partial_verifier),
             mode,
         )?;
 
-        // Allocate the KZH AccVerifier
-        // Hossein: AccumulatorVerifierVar
+        // Allocate the accumulator verifier
+        let kzh_acc_verifier = AccumulatorVerifierVar::new_variable(
+            cs.clone(),
+            || Ok(&data.kzh_acc_verifier),
+            mode,
+        )?;
 
         Ok(AugmentedCircuitVar {
-            spartan_partial_verifier: partial_verifier
+            spartan_partial_verifier,
+            kzh_acc_verifier,
         })
     }
 }
 
+impl<G1, G2, C2, F> AugmentedCircuitVar<G1, G2, C2, F>
+where
+    F: PrimeField + Absorb,
+    G1::BaseField: PrimeField,
+    G1::ScalarField: PrimeField,
+    G2: SWCurveConfig<BaseField=F> + Clone,
+    G2::BaseField: PrimeField,
+    C2: CommitmentScheme<Projective<G2>>,
+    G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField> + Clone,
+{
+    fn verify<E: Pairing>(&self, transcript: &mut TranscriptVar<F>) -> Output<G2, C2, G1, F> {
+        let (final_cycle_fold_instance, final_accumulator_instance) = self.kzh_acc_verifier.accumulate();
+        let (rx, ry) = self.spartan_partial_verifier.verify(transcript);
+
+        // ************* do the consistency checks *************
+        let length_x = self.kzh_acc_verifier.current_accumulator_instance_var.x_var.len();
+        let length_y = self.kzh_acc_verifier.current_accumulator_instance_var.y_var.len();
+
+        let (expected_x_var, expected_y_var) = split_between_x_and_y(length_x, length_y, ry.as_slice(), FpVar::zero());
+        for (e1, e2) in izip!(&self.kzh_acc_verifier.current_accumulator_instance_var.x_var, expected_x_var) {
+            e1.enforce_equal(&e2).expect("error while enforcing equality");
+        }
+        for (e1, e2) in izip!(&self.kzh_acc_verifier.current_accumulator_instance_var.y_var, expected_y_var) {
+            e1.enforce_equal(&e2).expect("error while enforcing equality");
+        }
+
+        // enforce equal eval_Z_at_ry and accumulator.z_var
+        self.spartan_partial_verifier.eval_vars_at_ry.enforce_equal(
+            &self.kzh_acc_verifier
+                .current_accumulator_instance_var
+                .z_var
+        ).expect("error while enforcing equality");
+
+        (final_cycle_fold_instance, final_accumulator_instance, rx, ry)
+    }
+}
+
+/*
 #[cfg(test)]
 mod tests {
     use ark_relations::r1cs::ConstraintSystem;
@@ -192,6 +248,6 @@ mod tests {
 
     }
 }
-
+ */
 
 

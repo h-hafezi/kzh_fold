@@ -7,7 +7,7 @@ use rand::RngCore;
 
 use crate::nexus_spartan::polycommitments::error::PCSError;
 use crate::nexus_spartan::polycommitments::{PCSKeys, PolyCommitmentScheme};
-use crate::pcs::multilinear_pcs::{Commitment, OpeningProof, PolyCommit, SRS};
+use crate::pcs::multilinear_pcs::{split_between_x_and_y, Commitment, OpeningProof, PolyCommit, SRS};
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript::{AppendToTranscript, Transcript};
 
@@ -49,12 +49,16 @@ where
         assert_eq!(poly.len, 1 << poly.num_variables);
         assert_eq!(poly.evaluation_over_boolean_hypercube.len(), poly.len);
 
-        let (x, _) = ck.srs.split_between_x_and_y(r);
+        let length_x = ck.srs.get_x_length();
+        let length_y = ck.srs.get_y_length();
+        let (x, _) = split_between_x_and_y::<F>(length_x, length_y, r, F::ZERO);
         ck.open(&poly, C.unwrap().clone(), x.as_slice())
     }
 
-    fn verify(commitment: &Self::Commitment, proof: &Self::PolyCommitmentProof, ck: &Self::EvalVerifierKey, r: &[E::ScalarField], eval: &E::ScalarField) -> Result<(), PCSError> {
-        let (x, y) = ck.srs.split_between_x_and_y(r);
+    fn verify(commitment: &Self::Commitment, proof: &Self::PolyCommitmentProof, ck: &Self::EvalVerifierKey, r: &[F], eval: &F) -> Result<(), PCSError> {
+        let length_x = ck.srs.get_x_length();
+        let length_y = ck.srs.get_y_length();
+        let (x, y) = split_between_x_and_y::<F>(length_x, length_y, r, F::ZERO);
 
         // verify the proof
         assert!(ck.verify(commitment, proof, x.as_slice(), y.as_slice(), eval));

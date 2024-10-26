@@ -3,7 +3,7 @@ use std::ops::{Add, Mul};
 
 use ark_ec::pairing::Pairing;
 use ark_ec::{CurveGroup, VariableBaseMSM};
-use ark_ff::AdditiveGroup;
+use ark_ff::{AdditiveGroup, Zero};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::UniformRand;
 use derivative::Derivative;
@@ -60,27 +60,27 @@ impl<E: Pairing> SRS<E> {
     pub fn get_y_length(&self) -> usize {
         self.degree_y.log_2()
     }
-
-    pub fn split_between_x_and_y(&self, r: &[E::ScalarField]) -> (Vec<E::ScalarField>, Vec<E::ScalarField>) {
-        let x_length = self.get_x_length();
-        let y_length = self.get_y_length();
-        let total_length = x_length + y_length;
-
-        // If r is smaller than the required length, extend it with zeros at the beginning
-        let mut extended_r = r.to_vec();
-        if r.len() < total_length {
-            let mut zeros = vec![E::ScalarField::ZERO; total_length - r.len()];
-            zeros.extend(extended_r);  // Prepend zeros to the beginning
-            extended_r = zeros;
-        }
-
-        // Split the vector into two parts
-        let r_x = extended_r[..x_length].to_vec();
-        let r_y = extended_r[x_length..total_length].to_vec();
-
-        (r_x, r_y)
-    }
 }
+
+/// the function receives an input r and splits into two sub-vectors x and y to be used for PCS
+pub fn split_between_x_and_y<T: Clone>(x_length: usize, y_length: usize, r: &[T], zero: T) -> (Vec<T>, Vec<T>) {
+    let total_length = x_length + y_length;
+
+    // If r is smaller than the required length, extend it with zeros at the beginning
+    let mut extended_r = r.to_vec();
+    if r.len() < total_length {
+        let mut zeros = vec![zero; total_length - r.len()];
+        zeros.extend(extended_r);  // Prepend zeros to the beginning
+        extended_r = zeros;
+    }
+
+    // Split the vector into two parts
+    let r_x = extended_r[..x_length].to_vec();
+    let r_y = extended_r[x_length..total_length].to_vec();
+
+    (r_x, r_y)
+}
+
 
 impl<E: Pairing> PolyCommit<E> {
     pub fn setup<T: RngCore>(degree_x: usize, degree_y: usize, rng: &mut T) -> SRS<E> {
@@ -208,7 +208,7 @@ impl<E: Pairing> PolyCommit<E> {
         let msm_rhs = E::G1::msm_unchecked(&proof.vec_D, &EqPolynomial::new(x.to_vec()).evals());
 
         // third condition
-            let y_expected = proof.f_star_poly.evaluate(y);
+        let y_expected = proof.f_star_poly.evaluate(y);
 
         // checking all three conditions
         (pairing_lhs == pairing_rhs) && (msm_lhs == msm_rhs) && (y_expected == *z)
@@ -268,7 +268,7 @@ pub mod test {
     use rand::thread_rng;
 
     use crate::constant_for_curves::{ScalarField, E};
-    use crate::pcs::multilinear_pcs::{PolyCommit, SRS};
+    use crate::pcs::multilinear_pcs::{split_between_x_and_y, PolyCommit, SRS};
     use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 
     #[test]
@@ -318,7 +318,14 @@ pub mod test {
         let y = r[3..].to_vec();
 
         // do the split and assert equality
-        let (x_new, y_new) = srs.split_between_x_and_y(r.as_slice());
+        let length_x = srs.get_x_length();
+        let length_y = srs.get_y_length();
+        let (x_new, y_new) = split_between_x_and_y::<ScalarField>(
+            length_x,
+            length_y,
+            r.as_slice(),
+            ScalarField::ZERO,
+        );
         assert_eq!(x_new, x);
         assert_eq!(y_new, y);
 
