@@ -228,7 +228,7 @@ mod tests {
 
     #[test]
     pub fn test_partial_verifier_circuit() {
-        let (partial_verifier, _transcript) = partial_verifier_test_helper::<E, MultilinearPolynomial<ScalarField>, ScalarField>();
+        let (partial_verifier, transcript) = partial_verifier_test_helper::<E, MultilinearPolynomial<ScalarField>, ScalarField>();
         let cs = ConstraintSystem::<ScalarField>::new_ref();
         let partial_verifier_var = PartialVerifierVar::new_variable(
             cs.clone(),
@@ -236,11 +236,9 @@ mod tests {
             AllocationMode::Input,
         ).unwrap();
 
-        // todo: write a TranscriptVar::from(Transcript) function
-        // this has to be consistent with the test in partial_verifier.rs
-        let mut transcript = TranscriptVar::new(cs.clone(), b"example");
+        let mut transcript_var = TranscriptVar::from_transcript(cs.clone(), transcript);
 
-        let (_r_x, _r_y) = partial_verifier_var.verify(&mut transcript);
+        let (_r_x, _r_y) = partial_verifier_var.verify(&mut transcript_var);
         println!("constraint count: {} {}", cs.num_instance_variables(), cs.num_witness_variables());
         assert!(cs.is_satisfied().unwrap());
     }

@@ -263,9 +263,9 @@ pub mod tests {
 
         let inst_evals = shape.inst.inst.evaluate(&rx, &ry);
 
-        let mut verifier_transcript = Transcript::new(b"example");
-        let mut verifier_transcript_clone1 = verifier_transcript.clone();
-        let verifier_transcript_clone2 = verifier_transcript.clone();
+        let mut prover_transcript = Transcript::new(b"example");
+        let mut verifier_transcript = prover_transcript.clone();
+        let verifier_transcript_clone = verifier_transcript.clone();
         let partial_verifier = PartialVerifier::initialise(
             &proof,
             num_vars,
@@ -275,11 +275,11 @@ pub mod tests {
                 com_w
             }),
             &inst_evals,
-            &mut verifier_transcript,
+            &mut prover_transcript,
         );
 
-        partial_verifier.verify(&mut verifier_transcript_clone1);
+        partial_verifier.verify(&mut verifier_transcript);
 
-        (partial_verifier, verifier_transcript_clone2)
+        (partial_verifier, verifier_transcript_clone)
     }
 }

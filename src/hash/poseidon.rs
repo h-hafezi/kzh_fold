@@ -1,7 +1,3 @@
-use std::sync::Mutex;
-/// Poseidon config stolen from sonobe
-
-use ark_crypto_primitives::crh::poseidon::constraints::CRHParametersVar;
 use ark_crypto_primitives::sponge::constraints::{AbsorbGadget, CryptographicSpongeVar};
 use ark_crypto_primitives::sponge::poseidon::constraints::PoseidonSpongeVar;
 use ark_crypto_primitives::sponge::poseidon::{find_poseidon_ark_and_mds, PoseidonSponge};
@@ -10,7 +6,6 @@ use ark_ff::PrimeField;
 use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_relations::r1cs::ConstraintSystemRef;
-use lazy_static::lazy_static;
 
 
 #[derive(Clone)]
@@ -83,6 +78,26 @@ impl<F: Absorb + PrimeField> PoseidonHashVar<F> {
         }
     }
 
+    pub fn from_poseidon_hash(cs: ConstraintSystemRef<F>, poseidon_hash: PoseidonHash<F>) -> Self {
+        // convert state from F into FpVar
+        let state = {
+            let mut res = Vec::new();
+            for i in poseidon_hash.sponge.state {
+                res.push(FpVar::new_input(cs.clone(), ||Ok(i)).unwrap());
+            }
+            res
+        };
+
+        PoseidonHashVar{
+            sponge: PoseidonSpongeVar {
+                cs,
+                parameters: poseidon_hash.sponge.parameters.clone(),
+                state,
+                mode: poseidon_hash.sponge.mode.clone(),
+            },
+        }
+    }
+
     pub fn update_sponge<A: AbsorbGadget<F>>(&mut self, field_vector: Vec<A>) -> () {
         for field_element in field_vector {
             self.sponge.absorb(&field_element).expect("Error while sponge absorbing");
@@ -127,6 +142,17 @@ mod tests {
         hash_object_var.update_sponge(vec![non_native_to_fpvar(&one_on_second_curve_var)]);
 
         assert_eq!(hash_object_var.output().value().unwrap(), hash_object.output());
+
+        // test from_poseidon_function
+        let mut hash_object_var_new = PoseidonHashVar::from_poseidon_hash(
+            ConstraintSystem::new_ref(),
+            hash_object.clone(),
+        );
+
+        assert_eq!(
+            hash_object_var_new.output().value().unwrap(),
+            hash_object_var.output().value().unwrap()
+        );
     }
 }
 

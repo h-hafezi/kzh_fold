@@ -1,18 +1,27 @@
+use std::borrow::Borrow;
 use crate::gadgets::non_native::util::non_native_to_fpvar;
-use crate::hash::poseidon::PoseidonHashVar;
+use crate::hash::poseidon::{PoseidonHash, PoseidonHashVar};
 use crate::transcript::transcript::Transcript;
 use ark_crypto_primitives::sponge::Absorb;
+use ark_ec::CurveConfig;
+use ark_ec::pairing::Pairing;
+use ark_ec::short_weierstrass::{Affine, SWCurveConfig};
 use ark_ff::PrimeField;
-use ark_r1cs_std::alloc::AllocVar;
+use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
-use ark_relations::r1cs::ConstraintSystemRef;
+use ark_relations::ns;
+use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
+use crate::accumulation::accumulator::AccInstance;
+use crate::accumulation_circuit::affine_to_projective;
+use crate::accumulation_circuit::instance_circuit::AccumulatorInstanceVar;
+use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
 
 pub struct TranscriptVar<F: PrimeField + Absorb> {
     // This will hold the current state of the transcript
-    state: FpVar<F>,
+    pub state: FpVar<F>,
     // the poseidon hash
-    poseidon_hash: PoseidonHashVar<F>,
+    pub poseidon_hash: PoseidonHashVar<F>,
 }
 
 impl<F: Absorb + PrimeField> TranscriptVar<F> {
@@ -24,7 +33,25 @@ impl<F: Absorb + PrimeField> TranscriptVar<F> {
             poseidon_hash: PoseidonHashVar::new(cs.clone()),
         }
     }
+
+    pub fn from_transcript(cs: ConstraintSystemRef<F>, transcript: Transcript<F>) -> TranscriptVar<F> {
+        let state = FpVar::new_witness(
+            cs.clone(),
+            || Ok(transcript.state.clone()),
+        ).unwrap();
+
+        let poseidon_hash = PoseidonHashVar::from_poseidon_hash(
+            cs.clone(),
+            transcript.poseidon_hash,
+        );
+
+        TranscriptVar {
+            state,
+            poseidon_hash,
+        }
+    }
 }
+
 
 impl<F: PrimeField + Absorb> TranscriptVar<F> {
     pub fn append_message(&mut self, _label: &'static [u8], _message: &[u8]) {
@@ -78,7 +105,7 @@ mod tests {
     use crate::constant_for_curves::{BaseField, ScalarField};
     use crate::transcript::transcript::Transcript;
     use crate::transcript::transcript_var::TranscriptVar;
-    use ark_r1cs_std::alloc::AllocVar;
+    use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
     use ark_r1cs_std::fields::fp::FpVar;
     use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
     use ark_r1cs_std::R1CSVar;
@@ -133,5 +160,17 @@ mod tests {
         // Assert that the states are equal
         assert_eq!(transcript_state, transcript_var_state, "The transcript states are not equal");
         println!("number of constraints: {}", cs.num_constraints());
+
+        // test new_variable works correctly
+        let mut new_transcript_var = TranscriptVar::from_transcript(
+            cs.clone(),
+            transcript,
+        );
+
+        // assert output of new_transcript_var and transcript_var are identical
+        assert_eq!(
+            transcript_var.challenge_scalar(label).value().unwrap(),
+            new_transcript_var.challenge_scalar(label).value().unwrap()
+        );
     }
 }

@@ -10,7 +10,7 @@ pub struct Transcript<F: PrimeField + Absorb> {
     // This will hold the current state of the transcript
     pub state: F,
     // the poseidon hash
-    poseidon_hash: PoseidonHash<F>,
+    pub poseidon_hash: PoseidonHash<F>,
 }
 
 impl<F: PrimeField + Absorb> Transcript<F> {
