@@ -112,11 +112,9 @@ where
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField> + Clone,
 {
     fn verify<E: Pairing>(&self, transcript: &mut TranscriptVar<F>) -> Output<G2, C2, G1, F> {
-        assert!(self.spartan_partial_verifier.eval_vars_at_ry.cs().is_satisfied().unwrap());
         let (final_cycle_fold_instance, final_accumulator_instance) = self.kzh_acc_verifier.accumulate();
-        assert!(self.spartan_partial_verifier.eval_vars_at_ry.cs().is_satisfied().unwrap());
         let (rx, ry) = self.spartan_partial_verifier.verify(transcript);
-        assert!(self.spartan_partial_verifier.eval_vars_at_ry.cs().is_satisfied().unwrap());
+
         // ************* do the consistency checks *************
         let length_x = self.kzh_acc_verifier.current_accumulator_instance_var.x_var.len();
         let length_y = self.kzh_acc_verifier.current_accumulator_instance_var.y_var.len();
@@ -126,11 +124,9 @@ where
             e1.enforce_equal(&e2).expect("error while enforcing equality");
         }
 
-        assert!(self.spartan_partial_verifier.eval_vars_at_ry.cs().is_satisfied().unwrap());
         for (e1, e2) in izip!(&self.kzh_acc_verifier.current_accumulator_instance_var.y_var, expected_y_var) {
             e1.enforce_equal(&e2).expect("error while enforcing equality");
         }
-        assert!(self.spartan_partial_verifier.eval_vars_at_ry.cs().is_satisfied().unwrap());
 
 
         // enforce equal eval_Z_at_ry and accumulator.z_var
@@ -139,14 +135,12 @@ where
                 .current_accumulator_instance_var
                 .z_var
         ).expect("error while enforcing equality");
-        assert!(self.spartan_partial_verifier.eval_vars_at_ry.cs().is_satisfied().unwrap());
 
         // enforce the commitment in spartan verifier and the accumulator new instance
         NonNativeAffineVar::enforce_equal(
             &self.spartan_partial_verifier.instance.1,
             &self.kzh_acc_verifier.current_accumulator_instance_var.C_var,
         ).expect("error while enforcing equality");
-        assert!(self.spartan_partial_verifier.eval_vars_at_ry.cs().is_satisfied().unwrap());
 
         (final_cycle_fold_instance, final_accumulator_instance, rx, ry)
     }
@@ -306,7 +300,7 @@ mod tests {
         // assert it's formated correctly
         prover.is_satisfied();
 
-        // ******************************* Construct the accumulator verifier circuit *******************************
+        // ******************************* Construct the augmented circuit *******************************
 
         let cs = ConstraintSystem::<ScalarField>::new_ref();
         let partial_verifier_var = PartialVerifierVar::new_variable(
@@ -324,7 +318,7 @@ mod tests {
 
         augmented_circuit.verify::<E>(&mut transcript_var);
 
+        assert!(cs.is_satisfied().unwrap());
         println!("{}", cs.num_constraints());
     }
 }
-

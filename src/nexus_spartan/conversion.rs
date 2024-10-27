@@ -121,7 +121,7 @@ impl<F: PrimeField + Absorb> CRR1CSWitness<F> {
 
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use crate::constant_for_curves::{ScalarField, E, G1};
     use crate::hash::pederson::PedersenCommitment;
     use crate::nexus_spartan::crr1cs::{is_sat, CRR1CSInstance, CRR1CSKey, CRR1CSShape, CRR1CSWitness};
@@ -144,7 +144,7 @@ mod tests {
 
     // Define a simple constraint system struct
     // for the circuit: a + b == a^2
-    struct TrivialCircuit<F: PrimeField> {
+    pub struct TrivialCircuit<F: PrimeField> {
         pub a: F,  // Public input
         pub b: F,  // Public input
     }
@@ -208,7 +208,6 @@ mod tests {
         let key: CRR1CSKey<E, MultilinearPolynomial<ScalarField>> = CRR1CSKey::new(&SRS, shape.get_num_cons(), shape.get_num_vars());
         let instance: CRR1CSInstance<E, MultilinearPolynomial<ScalarField>> = CRR1CSInstance::convert(cs.clone(), &key.keys.ck);
         let witness = CRR1CSWitness::<ScalarField>::convert(cs.clone());
-
         // check that the Spartan instance-witness pair is still satisfying
         assert!(is_sat(&shape, &instance, &witness, &key).unwrap());
 

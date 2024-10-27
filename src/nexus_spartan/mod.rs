@@ -20,6 +20,7 @@ mod conversion;
 pub mod sumcheck_circuit;
 pub mod partial_verifier;
 mod sparse_mlpoly;
+mod matrix_evaluation_accumulation;
 
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
