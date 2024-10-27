@@ -15,6 +15,7 @@ use std::borrow::Borrow;
 use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::FieldVar;
 use itertools::izip;
+use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
 use crate::nexus_spartan::partial_verifier::partial_verifier::PartialVerifier;
 use crate::nova::cycle_fold::coprocessor_constraints::RelaxedOvaInstanceVar;
 use crate::pcs::multilinear_pcs::{split_between_x_and_y, SRS};
@@ -131,6 +132,12 @@ where
             &self.kzh_acc_verifier
                 .current_accumulator_instance_var
                 .z_var
+        ).expect("error while enforcing equality");
+
+        // enforce the commitment in spartan verifier and the accumulator new instance
+        NonNativeAffineVar::enforce_equal(
+            &self.spartan_partial_verifier.instance.1,
+            &self.kzh_acc_verifier.current_accumulator_instance_var.C_var,
         ).expect("error while enforcing equality");
 
         (final_cycle_fold_instance, final_accumulator_instance, rx, ry)

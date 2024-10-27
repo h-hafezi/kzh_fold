@@ -17,6 +17,7 @@ use ark_crypto_primitives::sponge::poseidon::PoseidonConfig;
 use crate::pcs::multilinear_pcs::{OpeningProof, PolyCommit, SRS};
 use crate::math::Math;
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
+use crate::transcript::transcript::AppendToTranscript;
 use crate::utils::inner_product;
 
 #[derive(Clone, Debug)]
@@ -29,8 +30,6 @@ pub struct AccSRS<E: Pairing> {
 
     pub k_prime: E::G1Affine,
     pub pc_srs: SRS<E>,
-
-    pub poseidon_config: PoseidonConfig<E:: ScalarField>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize)]
@@ -105,7 +104,6 @@ where
             k_x: generate_random_elements::<E, T>(2 * pc_srs.degree_x - 1, rng),
             k_y: generate_random_elements::<E, T>(2 * pc_srs.degree_y - 1, rng),
             k_prime: E::G1Affine::rand(rng),
-            poseidon_config: get_poseidon_config(),
         }
     }
 
@@ -125,7 +123,7 @@ where
         let (p1, p2) = convert_affine_to_scalars::<E>(Q);
         sponge.extend(vec![p1, p2]);
 
-        let mut hash_object = PoseidonHash::new(&srs.poseidon_config);
+        let mut hash_object = PoseidonHash::new();
         hash_object.update_sponge(sponge);
         hash_object.output()
     }

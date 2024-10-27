@@ -1,6 +1,7 @@
 use crate::gadgets::non_native::util::{convert_affine_to_scalars, convert_field_one_to_field_two};
 use crate::hash::poseidon::{get_poseidon_config, PoseidonHash};
 use ark_crypto_primitives::sponge::Absorb;
+use ark_crypto_primitives::sponge::poseidon::PoseidonConfig;
 use ark_ec::pairing::Pairing;
 use ark_ff::PrimeField;
 
@@ -14,10 +15,9 @@ pub struct Transcript<F: PrimeField + Absorb> {
 
 impl<F: PrimeField + Absorb> Transcript<F> {
     pub fn new(_label: &'static [u8]) -> Transcript<F> {
-        let poseidon_config = get_poseidon_config();
         Transcript {
             state: F::ONE,
-            poseidon_hash: PoseidonHash::new(&poseidon_config),
+            poseidon_hash: PoseidonHash::new(),
         }
     }
 }

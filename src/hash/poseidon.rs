@@ -1,19 +1,21 @@
-use ark_crypto_primitives::crh::poseidon::constraints::CRHParametersVar;
+use std::sync::Mutex;
 /// Poseidon config stolen from sonobe
 
-use ark_crypto_primitives::sponge::{Absorb, CryptographicSponge, poseidon::{PoseidonConfig}};
+use ark_crypto_primitives::crh::poseidon::constraints::CRHParametersVar;
 use ark_crypto_primitives::sponge::constraints::{AbsorbGadget, CryptographicSpongeVar};
-use ark_crypto_primitives::sponge::poseidon::{find_poseidon_ark_and_mds, PoseidonSponge};
 use ark_crypto_primitives::sponge::poseidon::constraints::PoseidonSpongeVar;
+use ark_crypto_primitives::sponge::poseidon::{find_poseidon_ark_and_mds, PoseidonSponge};
+use ark_crypto_primitives::sponge::{poseidon::PoseidonConfig, Absorb, CryptographicSponge};
 use ark_ff::PrimeField;
 use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_relations::r1cs::ConstraintSystemRef;
+use lazy_static::lazy_static;
+
 
 #[derive(Clone)]
 pub struct PoseidonHash<F: Absorb + PrimeField> {
-    pub(crate) poseidon_params: PoseidonConfig<F>,
-    sponge: PoseidonSponge<F>,
+    pub sponge: PoseidonSponge<F>,
 }
 
 pub fn get_poseidon_config<F: PrimeField>() -> PoseidonConfig<F> {
@@ -32,7 +34,7 @@ pub fn get_poseidon_config<F: PrimeField>() -> PoseidonConfig<F> {
         full_rounds,
         partial_rounds,
         0,
-        );
+    );
     PoseidonConfig::new(
         full_rounds as usize,
         partial_rounds as usize,
@@ -46,9 +48,9 @@ pub fn get_poseidon_config<F: PrimeField>() -> PoseidonConfig<F> {
 
 impl<F: Absorb + PrimeField> PoseidonHash<F> {
     /// This Poseidon configuration generator agrees with Circom's Poseidon(4) in the case of BN254's scalar field
-    pub fn new(poseidon_params: &PoseidonConfig<F>) -> Self {
+    pub fn new() -> Self {
+        let poseidon_params = get_poseidon_config::<F>();
         Self {
-            poseidon_params: poseidon_params.clone(),
             sponge: PoseidonSponge::new(&poseidon_params),
         }
     }
@@ -66,19 +68,17 @@ impl<F: Absorb + PrimeField> PoseidonHash<F> {
 }
 
 pub struct PoseidonHashVar<F: Absorb + PrimeField> {
-    poseidon_params: CRHParametersVar<F>,
     sponge: PoseidonSpongeVar<F>,
 }
 
 impl<F: Absorb + PrimeField> PoseidonHashVar<F> {
     pub fn new(cs: ConstraintSystemRef<F>) -> Self {
-        let poseidon_config = get_poseidon_config();
-        let hash = PoseidonHash::new(&poseidon_config);
-        // XXX: later don't clone
-        let poseidon_params = CRHParametersVar::<F>::new_witness(cs.clone(), || Ok(hash.poseidon_params.clone())).unwrap();
-        let sponge = PoseidonSpongeVar::new(cs, &hash.poseidon_params);
+        let poseidon_params = get_poseidon_config::<F>();
+
+        // get the SpongeVar
+        let sponge = PoseidonSpongeVar::new(cs, &poseidon_params);
+
         PoseidonHashVar {
-            poseidon_params,
             sponge,
         }
     }
@@ -98,11 +98,11 @@ impl<F: Absorb + PrimeField> PoseidonHashVar<F> {
 
 #[cfg(test)]
 mod tests {
-    use ark_ff::{Field};
+    use ark_ff::Field;
     use ark_r1cs_std::fields::fp::FpVar;
     use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
-    use ark_r1cs_std::{R1CSVar};
-    use ark_relations::r1cs::{ConstraintSystem};
+    use ark_r1cs_std::R1CSVar;
+    use ark_relations::r1cs::ConstraintSystem;
 
     use super::*;
 
@@ -112,8 +112,7 @@ mod tests {
 
     #[test]
     fn hash_test() {
-        let poseidon_config = get_poseidon_config();
-        let mut hash_object: PoseidonHash<ScalarField> = PoseidonHash::new(&poseidon_config);
+        let mut hash_object: PoseidonHash<ScalarField> = PoseidonHash::new();
         hash_object.update_sponge(vec![ScalarField::ONE, ScalarField::ONE]);
         hash_object.update_sponge(vec![convert_field_one_to_field_two::<BaseField, ScalarField>(BaseField::ONE)]);
 
