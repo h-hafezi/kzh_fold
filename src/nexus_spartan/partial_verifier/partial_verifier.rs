@@ -242,6 +242,8 @@ pub mod tests {
         let num_vars = 1024;
         let num_cons = num_vars;
         let num_inputs = 10;
+
+        // this generates a new instance/witness for spartan as well as PCS parameters
         let (shape, instance, witness, gens) = produce_synthetic_crr1cs::<E, PC>(num_cons, num_vars, num_inputs);
         assert!(is_sat(&shape, &instance, &witness, &gens.gens_r1cs_sat).unwrap());
 
