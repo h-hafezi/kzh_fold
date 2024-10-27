@@ -6,7 +6,7 @@ use ark_poly_commit::Error;
 use rand::RngCore;
 
 use crate::nexus_spartan::polycommitments::error::PCSError;
-use crate::nexus_spartan::polycommitments::{PCSKeys, PolyCommitmentScheme};
+use crate::nexus_spartan::polycommitments::{PCSKeys, PolyCommitmentScheme, ToAffine};
 use crate::pcs::multilinear_pcs::{split_between_x_and_y, Commitment, OpeningProof, PolyCommit, SRS};
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript::{AppendToTranscript, Transcript};
@@ -14,13 +14,18 @@ use crate::transcript::transcript::{AppendToTranscript, Transcript};
 impl<E: Pairing, F: PrimeField + Absorb> AppendToTranscript<F> for Commitment<E>
 where
     E: Pairing<ScalarField=F>,
-    <<E as Pairing>::G1Affine as ark_ec::AffineRepr>::BaseField: PrimeField,
+    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
 {
     fn append_to_transcript(&self, label: &'static [u8], transcript: &mut Transcript<F>) {
         Transcript::append_point::<E>(transcript, label, &self.C);
     }
 }
 
+impl<E: Pairing> ToAffine<E> for Commitment<E> {
+    fn to_affine(self) -> E::G1Affine {
+        self.C
+    }
+}
 
 impl<F: PrimeField + Absorb, E: Pairing<ScalarField=F>> PolyCommitmentScheme<E> for MultilinearPolynomial<F>
 where

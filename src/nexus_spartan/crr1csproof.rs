@@ -259,9 +259,7 @@ impl<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>, F: PrimeField + Abs
         // we currently require the number of |inputs| + 1 to be at most number of vars
         assert!(input.len() < vars.len());
         Transcript::append_scalars(transcript, b"input", input);
-
-        // todo: has to be removed for the decider
-        // comm_W.append_to_transcript(b"comm_W", transcript);
+        AppendToTranscript::append_to_transcript(comm_W, b"witness", transcript);
 
         // create a multilinear polynomial using the supplied assignment for variables
         let poly_vars = MultilinearPolynomial::<F>::new(vars.clone());
@@ -395,12 +393,14 @@ impl<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>, F: PrimeField + Abs
     ) -> Result<(Vec<F>, Vec<F>), ProofVerifyError> {
         let CRR1CSInstance {
             input,
-            comm_W: _comm_W,
+            comm_W,
         } = instance;
 
         let input = input.assignment.as_slice();
 
+        // update the transcript
         Transcript::append_scalars(transcript, b"input", input);
+        AppendToTranscript::append_to_transcript(comm_W, b"witness", transcript);
 
         let n = num_vars;
 

@@ -1,22 +1,33 @@
+use crate::accumulation_circuit::affine_to_projective;
+use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
 use crate::math::Math;
 use crate::nexus_spartan::partial_verifier::partial_verifier::PartialVerifier;
 use crate::nexus_spartan::sparse_polynomial::sparse_polynomial_var::SparsePolyVar;
+use crate::nexus_spartan::sumcheck_circuit::sumcheck_circuit_var::SumcheckCircuitVar;
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript_var::TranscriptVar;
 use ark_crypto_primitives::sponge::Absorb;
+use ark_ec::pairing::Pairing;
+use ark_ec::short_weierstrass::{Affine, SWCurveConfig};
 use ark_ff::PrimeField;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
+use ark_r1cs_std::groups::curves::short_weierstrass::ProjectiveVar;
 use ark_r1cs_std::R1CSVar;
+use ark_relations::ns;
 use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 use std::borrow::Borrow;
-use crate::nexus_spartan::sumcheck_circuit::sumcheck_circuit_var::SumcheckCircuitVar;
 
-pub struct PartialVerifierVar<F: PrimeField + Absorb> {
+pub struct PartialVerifierVar<F: PrimeField + Absorb, G1>
+where
+    G1: SWCurveConfig<ScalarField=F> + Clone,
+    G1::BaseField: PrimeField,
+    G1::ScalarField: PrimeField,
+{
     /// io input, equivalent with, CRR1CSInstance { input: _input, comm_W, } = instance;
-    pub input: Vec<FpVar<F>>,
+    pub instance: (Vec<FpVar<F>>, NonNativeAffineVar<G1>),
     /// Sumcheck proof for the polynomial g(x) = \sum eq(tau,x) * (~Az~(x) * ~Bz~(x) - u * ~Cz~(x) - ~E~(x))
     pub sc_proof_phase1: SumcheckCircuitVar<F>,
     /// Evaluation claims for ~Az~(rx), ~Bz~(rx), and ~Cz~(rx).
@@ -33,9 +44,19 @@ pub struct PartialVerifierVar<F: PrimeField + Absorb> {
     pub num_cons: usize,
 }
 
-impl<F: PrimeField + Absorb> PartialVerifierVar<F> {
+impl<F: PrimeField + Absorb, G1> PartialVerifierVar<F, G1>
+where
+    G1: SWCurveConfig<ScalarField=F> + Clone,
+    G1::BaseField: PrimeField,
+    G1::ScalarField: PrimeField,
+{
     pub fn verify(&self, transcript: &mut TranscriptVar<F>) -> (Vec<FpVar<F>>, Vec<FpVar<F>>) {
-        TranscriptVar::append_scalars(transcript, b"input", self.input.as_slice());
+        TranscriptVar::append_scalars(transcript, b"input", self.instance.0.as_slice());
+        TranscriptVar::append_scalars_non_native(
+            transcript,
+            b"input",
+            &[self.instance.1.x.clone(), self.instance.1.y.clone()],
+        );
 
         let n = self.num_vars;
 
@@ -93,8 +114,8 @@ impl<F: PrimeField + Absorb> PartialVerifierVar<F> {
             let mut input_as_sparse_poly_entries = vec![FpVar::one()];
             // remaining inputs:
             input_as_sparse_poly_entries.extend(
-                (0..self.input.len())
-                    .map(|i| self.input[i].clone())
+                (0..self.instance.0.len())
+                    .map(|i| self.instance.0[i].clone())
                     .collect::<Vec<FpVar<F>>>(),
             );
             SparsePolyVar::new(n.log_2(), input_as_sparse_poly_entries).evaluate(&ry[1..])
@@ -113,8 +134,14 @@ impl<F: PrimeField + Absorb> PartialVerifierVar<F> {
     }
 }
 
-impl<F: PrimeField + Absorb> AllocVar<PartialVerifier<F>, F> for PartialVerifierVar<F> {
-    fn new_variable<T: Borrow<PartialVerifier<F>>>(
+impl<F: PrimeField + Absorb, G1, E> AllocVar<PartialVerifier<F, E>, F> for PartialVerifierVar<F, G1>
+where
+    G1: SWCurveConfig<ScalarField=F> + Clone,
+    G1::BaseField: PrimeField,
+    G1::ScalarField: PrimeField,
+    E: Pairing<G1Affine=Affine<G1>, ScalarField=F>,
+{
+    fn new_variable<T: Borrow<PartialVerifier<F, E>>>(
         cs: impl Into<Namespace<F>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
@@ -131,9 +158,16 @@ impl<F: PrimeField + Absorb> AllocVar<PartialVerifier<F>, F> for PartialVerifier
         // Allocate the `input` vector of FpVars
         let input = Vec::<FpVar<F>>::new_variable(
             cs.clone(),
-            || Ok(partial_verifier.input.clone()),
+            || Ok(partial_verifier.instance.0.clone()),
             mode,
         )?;
+
+        let com_w = NonNativeAffineVar::new_variable(
+            ns!(cs, "C"),
+            || Ok(affine_to_projective(partial_verifier.instance.1.clone())),
+            mode,
+        ).unwrap();
+
 
         // Allocate the sumcheck proof phase 1
         let sc_proof_phase1 = SumcheckCircuitVar::new_variable(
@@ -172,7 +206,7 @@ impl<F: PrimeField + Absorb> AllocVar<PartialVerifier<F>, F> for PartialVerifier
 
         // Create the final PartialVerifierVar instance
         Ok(PartialVerifierVar {
-            input,
+            instance: (input, com_w),
             sc_proof_phase1,
             claims_phase2,
             sc_proof_phase2,
@@ -180,67 +214,6 @@ impl<F: PrimeField + Absorb> AllocVar<PartialVerifier<F>, F> for PartialVerifier
             evals,
             num_vars: partial_verifier.num_vars,
             num_cons: partial_verifier.num_cons,
-        })
-    }
-}
-
-impl<F: PrimeField + Absorb> R1CSVar<F> for PartialVerifierVar<F> {
-    type Value = PartialVerifier<F>;
-
-    fn cs(&self) -> ConstraintSystemRef<F> {
-        let mut cs_ref = ConstraintSystemRef::None;
-
-        // Combine the constraint system from input vector
-        for input_var in &self.input {
-            cs_ref = input_var.cs().or(cs_ref);
-        }
-
-        // Combine the constraint systems of both sumcheck circuits
-        cs_ref = self.sc_proof_phase1.cs().or(cs_ref);
-        cs_ref = self.sc_proof_phase2.cs().or(cs_ref);
-
-        // Combine the constraint systems of the evaluation claims (Az, Bz, Cz)
-        cs_ref = self.claims_phase2.0.cs().or(cs_ref);
-        cs_ref = self.claims_phase2.1.cs().or(cs_ref);
-        cs_ref = self.claims_phase2.2.cs().or(cs_ref);
-
-        // Combine the constraint system of eval_vars_at_ry
-        cs_ref = self.eval_vars_at_ry.cs().or(cs_ref);
-
-        // Combine the constraint systems of the evals tuple (evaluations)
-        cs_ref = self.evals.0.cs().or(cs_ref);
-        cs_ref = self.evals.1.cs().or(cs_ref);
-        cs_ref = self.evals.2.cs().or(cs_ref);
-
-        cs_ref
-    }
-
-    fn value(&self) -> Result<Self::Value, SynthesisError> {
-        let input_val = self.input.iter().map(|var| var.value().unwrap()).collect();
-        let sc_proof_phase1_val = self.sc_proof_phase1.value()?;
-        let claims_phase2_val = (
-            self.claims_phase2.0.value()?,
-            self.claims_phase2.1.value()?,
-            self.claims_phase2.2.value()?,
-        );
-        let sc_proof_phase2_val = self.sc_proof_phase2.value()?;
-        let eval_vars_at_ry_val = self.eval_vars_at_ry.value()?;
-        let evals_val = (
-            self.evals.0.value()?,
-            self.evals.1.value()?,
-            self.evals.2.value()?,
-        );
-
-        // Return the full PartialVerifierVar value
-        Ok(PartialVerifier {
-            input: input_val,
-            sc_proof_phase1: sc_proof_phase1_val,
-            claims_phase2: claims_phase2_val,
-            sc_proof_phase2: sc_proof_phase2_val,
-            eval_vars_at_ry: eval_vars_at_ry_val,
-            evals: evals_val,
-            num_vars: self.num_vars,
-            num_cons: self.num_cons,
         })
     }
 }
@@ -266,8 +239,6 @@ mod tests {
         // todo: write a TranscriptVar::from(Transcript) function
         // this has to be consistent with the test in partial_verifier.rs
         let mut transcript = TranscriptVar::new(cs.clone(), b"example");
-
-        assert_eq!(partial_verifier, partial_verifier_var.value().unwrap());
 
         let (_r_x, _r_y) = partial_verifier_var.verify(&mut transcript);
         println!("constraint count: {} {}", cs.num_instance_variables(), cs.num_witness_variables());

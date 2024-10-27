@@ -12,6 +12,10 @@ use crate::transcript::transcript::AppendToTranscript;
 pub mod error;
 pub mod kzh;
 
+pub trait ToAffine<E: Pairing> {
+    fn to_affine(self) -> E::G1Affine;
+}
+
 pub trait VectorCommitmentScheme<E: Pairing>
 where
     <E as Pairing>::ScalarField: Absorb,
@@ -32,7 +36,8 @@ where
 pub struct PCSKeys<E, PC>
 where
     PC: PolyCommitmentScheme<E> + ?Sized,
-    E: Pairing, <E as Pairing>::ScalarField: Absorb
+    E: Pairing,
+    <E as Pairing>::ScalarField: Absorb,
 {
     pub ck: PC::PolyCommitmentKey,
     pub vk: PC::EvalVerifierKey,
@@ -54,7 +59,9 @@ where
     + CanonicalDeserialize
     + PartialEq
     + Eq
-    + Clone;
+    + Clone
+    + AppendToTranscript<E::ScalarField>
+    + ToAffine<E>;
 
     // The commitments should be compatible with a homomorphic vector commitment valued in G
     type PolyCommitmentProof: Sync + CanonicalSerialize + CanonicalDeserialize + Debug;

@@ -5,16 +5,21 @@ use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
 use crate::nexus_spartan::sparse_polynomial::sparse_polynomial::SparsePoly;
 use crate::nexus_spartan::sumcheck_circuit::sumcheck_circuit::SumcheckCircuit;
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
-use crate::transcript::transcript::Transcript;
+use crate::transcript::transcript::{AppendToTranscript, Transcript};
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
+use ark_ec::AffineRepr;
 use ark_ff::PrimeField;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct PartialVerifier<F: PrimeField + Absorb> {
+pub struct PartialVerifier<F, E>
+where
+    F: PrimeField + Absorb,
+    E: Pairing<ScalarField=F>,
+{
     /// io input, equivalent with
     /// let CRR1CSInstance { input: _input, comm_W, } = instance;
-    pub input: Vec<F>,
+    pub instance: (Vec<F>, E::G1Affine),
     /// Sumcheck proof for the polynomial g(x) = \sum eq(tau,x) * (~Az~(x) * ~Bz~(x) - u * ~Cz~(x) - ~E~(x))
     pub sc_proof_phase1: SumcheckCircuit<F>,
     /// Evaluation claims for ~Az~(rx), ~Bz~(rx), and ~Cz~(rx).
@@ -31,16 +36,20 @@ pub struct PartialVerifier<F: PrimeField + Absorb> {
     pub num_cons: usize,
 }
 
-impl<F: PrimeField + Absorb> PartialVerifier<F> {
-    pub fn initialise<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>>(
+impl<F: PrimeField + Absorb, E: Pairing<ScalarField=F>> PartialVerifier<F, E>
+where
+    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
+{
+    pub fn initialise<PC: PolyCommitmentScheme<E>>(
         proof: &CRR1CSProof<E, PC, F>,
         num_vars: usize,
         num_cons: usize,
-        input: Vec<F>,
+        instance: (Vec<F>, E::G1Affine),
         evals: &(F, F, F),
         transcript: &mut Transcript<F>,
     ) -> Self {
-        Transcript::append_scalars(transcript, b"input", input.as_slice());
+        Transcript::append_scalars(transcript, b"input", instance.0.as_slice());
+        Transcript::append_point::<E>(transcript, b"witness", &instance.1);
 
         let n = num_vars;
 
@@ -104,8 +113,8 @@ impl<F: PrimeField + Absorb> PartialVerifier<F> {
         let poly_input_eval = {
             let mut input_as_sparse_poly_entries = vec![F::ONE];
             input_as_sparse_poly_entries.extend(
-                (0..input.len())
-                    .map(|i| input[i])
+                (0..instance.0.len())
+                    .map(|i| instance.0[i])
                     .collect::<Vec<F>>(),
             );
             SparsePoly::new(n.log_2(), input_as_sparse_poly_entries).evaluate(&ry[1..])
@@ -121,7 +130,7 @@ impl<F: PrimeField + Absorb> PartialVerifier<F> {
         assert_eq!(expected_claim_post_phase2, claim_post_phase2);
 
         PartialVerifier {
-            input,
+            instance,
             sc_proof_phase1: sc_proof_phase1_circuit,
             claims_phase2: proof.claims_phase2,
             sc_proof_phase2: sc_proof_phase2_circuit,
@@ -133,8 +142,9 @@ impl<F: PrimeField + Absorb> PartialVerifier<F> {
     }
 
 
-    pub fn verify<E: Pairing<ScalarField=F>>(&self, transcript: &mut Transcript<F>) -> (Vec<F>, Vec<F>) {
-        Transcript::append_scalars(transcript, b"input", self.input.as_slice());
+    pub fn verify(&self, transcript: &mut Transcript<F>) -> (Vec<F>, Vec<F>) {
+        Transcript::append_scalars(transcript, b"input", self.instance.0.as_slice());
+        Transcript::append_point::<E>(transcript, b"witness", &self.instance.1);
 
         let n = self.num_vars;
 
@@ -189,8 +199,8 @@ impl<F: PrimeField + Absorb> PartialVerifier<F> {
             let mut input_as_sparse_poly_entries = vec![F::ONE];
             // remaining inputs:
             input_as_sparse_poly_entries.extend(
-                (0..self.input.len())
-                    .map(|i| self.input[i])
+                (0..self.instance.0.len())
+                    .map(|i| self.instance.0[i])
                     .collect::<Vec<F>>(),
             );
             SparsePoly::new(n.log_2(), input_as_sparse_poly_entries).evaluate(&ry[1..])
@@ -215,17 +225,19 @@ pub mod tests {
 
     use super::*;
     use crate::constant_for_curves::{ScalarField, E};
+    use crate::nexus_spartan::polycommitments::ToAffine;
 
     #[test]
     pub fn check_verification_proof() {
         partial_verifier_test_helper::<E, MultilinearPolynomial<ScalarField>, ScalarField>();
     }
 
-    pub fn partial_verifier_test_helper<E, PC, F>() -> (PartialVerifier<F>, Transcript<F>)
+    pub fn partial_verifier_test_helper<E, PC, F>() -> (PartialVerifier<F, E>, Transcript<F>)
     where
         F: PrimeField + Absorb,
         PC: PolyCommitmentScheme<E>,
         E: Pairing<ScalarField=F>,
+        <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
     {
         let num_vars = 1024;
         let num_cons = num_vars;
@@ -258,12 +270,15 @@ pub mod tests {
             &proof,
             num_vars,
             num_cons,
-            instance.input.assignment,
+            (instance.input.assignment, {
+                let com_w: E::G1Affine = instance.comm_W.to_affine();
+                com_w
+            }),
             &inst_evals,
             &mut verifier_transcript,
         );
 
-        partial_verifier.verify::<E>(&mut verifier_transcript_clone1);
+        partial_verifier.verify(&mut verifier_transcript_clone1);
 
         (partial_verifier, verifier_transcript_clone2)
     }

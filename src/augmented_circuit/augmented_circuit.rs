@@ -35,7 +35,7 @@ where
     E: Pairing<G1Affine=Affine<G1>, ScalarField=F>,
     F: PrimeField,
 {
-    pub spartan_partial_verifier: PartialVerifier<F>,
+    pub spartan_partial_verifier: PartialVerifier<F, E>,
     pub kzh_acc_verifier: AccumulatorVerifier<G1, G2, C2, E>,
 }
 
@@ -49,7 +49,7 @@ where
     C2: CommitmentScheme<Projective<G2>>,
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField> + Clone,
 {
-    pub spartan_partial_verifier: PartialVerifierVar<F>,
+    pub spartan_partial_verifier: PartialVerifierVar<F, G1>,
     pub kzh_acc_verifier: AccumulatorVerifierVar<G1, G2, C2>,
 }
 
@@ -249,5 +249,3 @@ mod tests {
     }
 }
  */
-
-
