@@ -148,10 +148,11 @@ where
         // Define the constants for infinity (FpVar::ONE, FpVar::ZERO)
         let one_fpvar = FpVar::constant(G1::ScalarField::ONE);
         let zero_fpvar = FpVar::constant(G1::ScalarField::ZERO);
-
+        println!("before: {}", self.x.cs().num_constraints());
         // Conditionally select based on the infinity flag
         let x = FpVar::conditionally_select(&self.infinity, &one_fpvar, &x_fpvar)?;
         let y = FpVar::conditionally_select(&self.infinity, &zero_fpvar, &y_fpvar)?;
+        println!("after: {}", self.x.cs().num_constraints());
 
         Ok(vec![x, y])
     }
@@ -218,11 +219,5 @@ mod tests {
         let _ = Q_var.to_sponge_field_elements().unwrap();
         println!("constraint count for NonNativeAffineVar into native field: {}", cs.num_constraints());
     }
-
-    #[test]
-    fn to_sponge_field_test() {
-
-    }
-
 }
 

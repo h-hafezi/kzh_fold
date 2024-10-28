@@ -4,7 +4,7 @@ use ark_ff::{AdditiveGroup, BigInteger, Field, PrimeField};
 use ark_r1cs_std::boolean::Boolean;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
-use ark_r1cs_std::{ToBitsGadget};
+use ark_r1cs_std::{ToBitsGadget, ToConstraintFieldGadget};
 
 pub fn non_native_to_fpvar<ScalarField, BaseField>(
     non_native_var: &NonNativeFieldVar<BaseField, ScalarField>,

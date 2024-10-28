@@ -397,6 +397,7 @@ where
         // check out the result z_c_var is consistent with result_acc
         z_var.enforce_equal(&self.final_accumulator_instance_var.z_var).expect("error while enforcing equality");
 
+        // todo: try later to have different randomness for each of these instances
         let final_instance = self.running_cycle_fold_instance_var.fold(
             &[((&self.auxiliary_input_C_var, None), &self.com_C_var, &self.beta_var_non_native, &beta_bits),
                 ((&self.auxiliary_input_T_var, None), &self.com_T_var, &self.beta_var_non_native, &beta_bits),
