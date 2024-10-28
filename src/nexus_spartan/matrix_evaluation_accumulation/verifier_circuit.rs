@@ -12,7 +12,7 @@ use std::borrow::Borrow;
 use std::ops::Mul;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MatrixEvaluationVerifier<F: PrimeField + Absorb> {
+pub struct MatrixEvaluationAccVerifier<F: PrimeField + Absorb> {
     pub running_input: (Vec<F>, Vec<F>),
     pub current_input: (Vec<F>, Vec<F>),
     pub running_evaluations: (F, F, F),
@@ -20,7 +20,7 @@ pub struct MatrixEvaluationVerifier<F: PrimeField + Absorb> {
     pub proof: (F, F, F),
 }
 
-impl<F: PrimeField + Absorb> MatrixEvaluationVerifier<F> {
+impl<F: PrimeField + Absorb> MatrixEvaluationAccVerifier<F> {
     pub fn accumulate(&self, transcript: &mut Transcript<F>) -> ((Vec<F>, Vec<F>), (F, F, F)) {
         // add the whole struct to transcript
         transcript.append_scalars(
@@ -64,7 +64,7 @@ impl<F: PrimeField + Absorb> MatrixEvaluationVerifier<F> {
     }
 }
 
-pub struct MatrixEvaluationVerifierVar<F: PrimeField + Absorb> {
+pub struct MatrixEvaluationAccVerifierVar<F: PrimeField + Absorb> {
     pub running_input: (Vec<FpVar<F>>, Vec<FpVar<F>>),
     pub current_input: (Vec<FpVar<F>>, Vec<FpVar<F>>),
     pub running_evaluations: (FpVar<F>, FpVar<F>, FpVar<F>),
@@ -73,8 +73,8 @@ pub struct MatrixEvaluationVerifierVar<F: PrimeField + Absorb> {
 }
 
 // Implement the `AllocVar` and `R1CSVar` traits to integrate with R1CS constraint systems
-impl<F: PrimeField + Absorb> AllocVar<MatrixEvaluationVerifier<F>, F> for MatrixEvaluationVerifierVar<F> {
-    fn new_variable<T: Borrow<MatrixEvaluationVerifier<F>>>(
+impl<F: PrimeField + Absorb> AllocVar<MatrixEvaluationAccVerifier<F>, F> for MatrixEvaluationAccVerifierVar<F> {
+    fn new_variable<T: Borrow<MatrixEvaluationAccVerifier<F>>>(
         cs: impl Into<Namespace<F>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
@@ -102,7 +102,7 @@ impl<F: PrimeField + Absorb> AllocVar<MatrixEvaluationVerifier<F>, F> for Matrix
         let proof_1 = FpVar::<F>::new_variable(cs.clone(), || Ok(instance.proof.1), mode)?;
         let proof_2 = FpVar::<F>::new_variable(cs.clone(), || Ok(instance.proof.2), mode)?;
 
-        Ok(MatrixEvaluationVerifierVar {
+        Ok(MatrixEvaluationAccVerifierVar {
             running_input: (running_input_x, running_input_y),
             current_input: (current_input_x, current_input_y),
             running_evaluations: (running_eval_0, running_eval_1, running_eval_2),
@@ -112,8 +112,8 @@ impl<F: PrimeField + Absorb> AllocVar<MatrixEvaluationVerifier<F>, F> for Matrix
     }
 }
 
-impl<F: PrimeField + Absorb> R1CSVar<F> for MatrixEvaluationVerifierVar<F> {
-    type Value = MatrixEvaluationVerifier<F>;
+impl<F: PrimeField + Absorb> R1CSVar<F> for MatrixEvaluationAccVerifierVar<F> {
+    type Value = MatrixEvaluationAccVerifier<F>;
 
     /// Returns a reference to the constraint system.
     fn cs(&self) -> ConstraintSystemRef<F> {
@@ -122,7 +122,7 @@ impl<F: PrimeField + Absorb> R1CSVar<F> for MatrixEvaluationVerifierVar<F> {
 
     /// Retrieves the underlying values from the variable if they exist.
     fn value(&self) -> Result<Self::Value, SynthesisError> {
-        Ok(MatrixEvaluationVerifier {
+        Ok(MatrixEvaluationAccVerifier {
             running_input: (
                 self.running_input.0.iter().map(|var| var.value()).collect::<Result<Vec<_>, _>>()?,
                 self.running_input.1.iter().map(|var| var.value()).collect::<Result<Vec<_>, _>>()?
@@ -151,7 +151,7 @@ impl<F: PrimeField + Absorb> R1CSVar<F> for MatrixEvaluationVerifierVar<F> {
 }
 
 
-impl<F: PrimeField + Absorb> MatrixEvaluationVerifierVar<F> {
+impl<F: PrimeField + Absorb> MatrixEvaluationAccVerifierVar<F> {
     /// Constraint-friendly accumulate function.
     pub fn accumulate(&self, transcript: &mut TranscriptVar<F>) -> ((Vec<FpVar<F>>, Vec<FpVar<F>>), (FpVar<F>, FpVar<F>, FpVar<F>)) {
         // add the whole struct to transcript
@@ -210,7 +210,7 @@ pub mod tests {
     use crate::constant_for_curves::{ScalarField, E, G1};
     use crate::nexus_spartan::matrix_evaluation_accumulation::prover::fold_matrices_evaluations;
     use crate::nexus_spartan::matrix_evaluation_accumulation::prover::tests::matrix_evaluation_setup;
-    use crate::nexus_spartan::matrix_evaluation_accumulation::verifier_circuit::{MatrixEvaluationVerifier, MatrixEvaluationVerifierVar};
+    use crate::nexus_spartan::matrix_evaluation_accumulation::verifier_circuit::{MatrixEvaluationAccVerifier, MatrixEvaluationAccVerifierVar};
     use crate::transcript::transcript::Transcript;
     use crate::transcript::transcript_var::TranscriptVar;
     use ark_ff::One;
@@ -247,7 +247,7 @@ pub mod tests {
             true,
         );
 
-        let verifier = MatrixEvaluationVerifier {
+        let verifier = MatrixEvaluationAccVerifier {
             running_input: (running_input_x.clone(), running_input_y.clone()),
             current_input: (current_input_x.clone(), current_input_y.clone()),
             running_evaluations,
@@ -308,7 +308,7 @@ pub mod tests {
             true,
         );
 
-        let verifier = MatrixEvaluationVerifier {
+        let verifier = MatrixEvaluationAccVerifier {
             running_input: (running_input_x.clone(), running_input_y.clone()),
             current_input: (current_input_x.clone(), current_input_y.clone()),
             running_evaluations,
@@ -316,7 +316,7 @@ pub mod tests {
             proof: matrix_evaluation_proof,
         };
 
-        let verifier_var = MatrixEvaluationVerifierVar::new_variable(
+        let verifier_var = MatrixEvaluationAccVerifierVar::new_variable(
             cs.clone(),
             || Ok(verifier.clone()),
             AllocationMode::Witness,
