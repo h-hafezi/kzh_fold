@@ -35,6 +35,7 @@ use crate::gadgets::r1cs::{OvaInstance, RelaxedOvaInstance};
 use crate::hash::poseidon::PoseidonHashVar;
 use crate::nova::cycle_fold::coprocessor::{synthesize, SecondaryCircuit as SecondaryCircuit};
 use crate::nova::cycle_fold::coprocessor_constraints::{OvaInstanceVar, RelaxedOvaInstanceVar};
+use crate::transcript::transcript_var::TranscriptVar;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AccumulatorVerifier<G1, G2, C2, E>
@@ -285,7 +286,7 @@ where
     C2: CommitmentScheme<Projective<G2>>,
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField>,
 {
-    pub fn accumulate(&self) -> (RelaxedOvaInstanceVar<G2, C2>, AccumulatorInstanceVar<G1>)
+    pub fn accumulate(&self, transcript_var: &mut TranscriptVar<G1::ScalarField>) -> (RelaxedOvaInstanceVar<G2, C2>, AccumulatorInstanceVar<G1>)
     where
         <G2 as CurveConfig>::BaseField: Absorb,
     {
@@ -294,16 +295,11 @@ where
         let beta_ = Boolean::le_bits_to_fp_var(beta_bits.as_slice()).unwrap();
         self.beta_var.enforce_equal(&beta_).expect("error while enforcing equality");
 
-        println!("cs count: {}", self.beta_var.cs().num_constraints());
         // compute Poseidon hash and make sure it's consistent with input beta
-        let mut hash_object = PoseidonHashVar::new(self.current_accumulator_instance_var.cs());
-        let mut sponge = Vec::new();
-        sponge.extend(self.current_accumulator_instance_var.to_sponge_field_elements().unwrap());
-        sponge.extend(self.running_accumulator_instance_var.to_sponge_field_elements().unwrap());
-        sponge.extend(self.Q_var.to_sponge_field_elements().unwrap());
-        hash_object.update_sponge(sponge);
-        hash_object.output().enforce_equal(&self.beta_var).expect("error while enforcing equality");
-        println!("cs count: {}", self.beta_var.cs().num_constraints());
+        transcript_var.append_scalars(b"instance 1", self.current_accumulator_instance_var.to_sponge_field_elements().unwrap().as_slice());
+        transcript_var.append_scalars(b"instance 2", self.running_accumulator_instance_var.to_sponge_field_elements().unwrap().as_slice());
+        transcript_var.append_scalars(b"Q", self.Q_var.to_sponge_field_elements().unwrap().as_slice());
+        transcript_var.challenge_scalar(b"challenge scalar").enforce_equal(&self.beta_var).expect("error while enforcing equality");
 
         // Non-native scalar multiplication: linear combination of C
         let (flag,
@@ -589,12 +585,20 @@ pub mod tests {
 
         // initialise the accumulate verifier circuit
         let prover: AccumulatorVerifierCircuitProver<G1, G2, C2, E, ScalarField> = get_random_prover();
-        let verifier = AccumulatorVerifierVar::<G1, G2, C2>::new::<E>(cs.clone(), prover);
+        let verifier = AccumulatorVerifierVar::<G1, G2, C2>::new::<E>(
+            cs.clone(),
+            prover.clone()
+        );
 
         println!("number of constraint for initialisation: {}", cs.num_constraints());
 
+        let mut transcript_var = TranscriptVar::from_transcript(
+            cs.clone(),
+            prover.initial_transcript.clone()
+        );
+
         // run the accumulation
-        let _ = verifier.accumulate();
+        let _ = verifier.accumulate(&mut transcript_var);
 
         println!("number of constraint after accumulation: {}", cs.num_constraints());
 
@@ -612,11 +616,12 @@ pub mod tests {
     fn kzh_acc_verifier_circuit_initialisation_test() {
         let cs = get_initialise_cs();
 
+        println!("puff {}", cs.num_constraints());
         // pad witness to have a length of power of two
-        for _ in 0..((1 << 16) - cs.num_constraints() + 5019) {
+        for _ in 0..((1 << 16) - cs.num_constraints() + 5018) {
              let _ = Boolean::new_witness(cs.clone(), || Ok(false));
         }
-        /*
+
         // convert to the corresponding Spartan types
         let shape = CRR1CSShape::<ScalarField>::convert::<G1>(cs.clone());
         let SRS: SRS<E> = MultilinearPolynomial::setup(18, &mut thread_rng()).unwrap();
@@ -658,7 +663,7 @@ pub mod tests {
                 &mut verifier_transcript,
             )
             .is_ok());
-         */
+
         /*
         // write the witness into a file
         let cs_borrow = cs.borrow().unwrap();
