@@ -303,6 +303,10 @@ pub mod tests {
         let ((r_x_folded, r_y_folded), new_evaluations) = verifier.accumulate(beta);
         let ((r_x_folded_var, r_y_folded_var), new_evaluations_var) = verifier_var.accumulate(&beta_var);
 
+        // check cs status
+        assert!(cs.is_satisfied().unwrap());
+        println!("constraint num: {}", cs.num_constraints());
+
         let r_x_folded_var_value: Vec<F> = r_x_folded_var.iter().map(|val| val.value().unwrap()).collect();
         let r_y_folded_var_value: Vec<F> = r_y_folded_var.iter().map(|val| val.value().unwrap()).collect();
 

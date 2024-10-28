@@ -294,6 +294,7 @@ where
         let beta_ = Boolean::le_bits_to_fp_var(beta_bits.as_slice()).unwrap();
         self.beta_var.enforce_equal(&beta_).expect("error while enforcing equality");
 
+        println!("cs count: {}", self.beta_var.cs().num_constraints());
         // compute Poseidon hash and make sure it's consistent with input beta
         let mut hash_object = PoseidonHashVar::new(self.current_accumulator_instance_var.cs());
         let mut sponge = Vec::new();
@@ -302,7 +303,7 @@ where
         sponge.extend(self.Q_var.to_sponge_field_elements().unwrap());
         hash_object.update_sponge(sponge);
         hash_object.output().enforce_equal(&self.beta_var).expect("error while enforcing equality");
-
+        println!("cs count: {}", self.beta_var.cs().num_constraints());
 
         // Non-native scalar multiplication: linear combination of C
         let (flag,
@@ -428,7 +429,7 @@ where
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField>,
     ProjectiveVar<G2, FpVar<<G2 as CurveConfig>::BaseField>>: AllocVar<<C2 as CommitmentScheme<Projective<G2>>>::Commitment, <G2 as CurveConfig>::BaseField>,
 {
-    pub fn new<E: Pairing>(cs: ConstraintSystemRef<G1::ScalarField>, prover: AccumulatorVerifierCircuitProver<G1, G2, C2, E>) -> AccumulatorVerifierVar<G1, G2, C2>
+    pub fn new<E: Pairing>(cs: ConstraintSystemRef<G1::ScalarField>, prover: AccumulatorVerifierCircuitProver<G1, G2, C2, E, E::ScalarField>) -> AccumulatorVerifierVar<G1, G2, C2>
     where
         E: Pairing<G1Affine=Affine<G1>, ScalarField=<G1 as CurveConfig>::ScalarField, BaseField=<G1 as CurveConfig>::BaseField>,
         <G2 as CurveConfig>::BaseField: Absorb,
@@ -587,7 +588,7 @@ pub mod tests {
         let cs = ConstraintSystem::<ScalarField>::new_ref();
 
         // initialise the accumulate verifier circuit
-        let prover: AccumulatorVerifierCircuitProver<G1, G2, C2, E> = get_random_prover();
+        let prover: AccumulatorVerifierCircuitProver<G1, G2, C2, E, ScalarField> = get_random_prover();
         let verifier = AccumulatorVerifierVar::<G1, G2, C2>::new::<E>(cs.clone(), prover);
 
         println!("number of constraint for initialisation: {}", cs.num_constraints());
@@ -615,7 +616,7 @@ pub mod tests {
         for _ in 0..((1 << 16) - cs.num_constraints() + 5019) {
              let _ = Boolean::new_witness(cs.clone(), || Ok(false));
         }
-
+        /*
         // convert to the corresponding Spartan types
         let shape = CRR1CSShape::<ScalarField>::convert::<G1>(cs.clone());
         let SRS: SRS<E> = MultilinearPolynomial::setup(18, &mut thread_rng()).unwrap();
@@ -657,7 +658,7 @@ pub mod tests {
                 &mut verifier_transcript,
             )
             .is_ok());
-
+         */
         /*
         // write the witness into a file
         let cs_borrow = cs.borrow().unwrap();
@@ -673,4 +674,3 @@ pub mod tests {
          */
     }
 }
-

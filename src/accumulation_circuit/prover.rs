@@ -6,6 +6,8 @@ use crate::gadgets::r1cs::ova::commit_T;
 use crate::gadgets::r1cs::{OvaInstance, OvaWitness, R1CSShape, RelaxedOvaInstance, RelaxedOvaWitness};
 use crate::hash::pederson::PedersenCommitment;
 use crate::nova::cycle_fold::coprocessor::{setup_shape, synthesize, SecondaryCircuit};
+use crate::pcs::multilinear_pcs::{PolyCommit, SRS};
+use crate::transcript::transcript::Transcript;
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
 use ark_ec::short_weierstrass::{Affine, Projective, SWCurveConfig};
@@ -13,21 +15,24 @@ use ark_ec::{CurveConfig, CurveGroup};
 use ark_ff::Field;
 use ark_ff::PrimeField;
 use rand::thread_rng;
-use crate::pcs::multilinear_pcs::{PolyCommit, SRS};
 
-#[derive(Clone, Debug)]
-pub struct AccumulatorVerifierCircuitProver<G1, G2, C2, E>
+#[derive(Clone)]
+pub struct AccumulatorVerifierCircuitProver<G1, G2, C2, E, F>
 where
+    F: PrimeField + Absorb,
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField> + Clone,
     G1::BaseField: PrimeField,
     G1::ScalarField: PrimeField,
-    G2: SWCurveConfig,
+    G2: SWCurveConfig<BaseField=F>,
     G2::BaseField: PrimeField,
     C2: CommitmentScheme<Projective<G2>, PP=Vec<Affine<G2>>>,
-    E: Pairing<G1Affine=Affine<G1>, ScalarField=G1::ScalarField>,
+    E: Pairing<G1Affine=Affine<G1>, ScalarField=F>,
+    <G2 as CurveConfig>::ScalarField: Absorb,
 {
     /// the randomness used for taking linear combination, it should be input from Accumulator::compute_fiat_shammir_challenge()
-    pub beta: G1::ScalarField,
+    pub beta: F,
+
+    pub initial_transcript: Transcript<F>,
 
     /// srs for the accumulation
     pub srs: AccSRS<E>,
@@ -48,15 +53,17 @@ where
     pub m: u32,
 }
 
-impl<G1, G2, C2, E> AccumulatorVerifierCircuitProver<G1, G2, C2, E>
+impl<G1, G2, C2, E, F> AccumulatorVerifierCircuitProver<G1, G2, C2, E, F>
 where
+    F: PrimeField + Absorb,
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField> + Clone,
     G1::BaseField: PrimeField,
     G1::ScalarField: PrimeField,
-    G2: SWCurveConfig,
+    G2: SWCurveConfig<BaseField=F>,
     G2::BaseField: PrimeField,
     C2: CommitmentScheme<Projective<G2>, PP=Vec<Affine<G2>>>,
-    E: Pairing<G1Affine=Affine<G1>, ScalarField=G1::ScalarField>,
+    E: Pairing<G1Affine=Affine<G1>, ScalarField=F>,
+    <G2 as CurveConfig>::ScalarField: Absorb,
 {
     #[inline(always)]
     pub fn get_current_acc_instance(&self) -> &AccInstance<E> {
@@ -69,18 +76,17 @@ where
     }
 }
 
-impl<G1, G2, C2, E> AccumulatorVerifierCircuitProver<G1, G2, C2, E>
+impl<G1, G2, C2, E, F> AccumulatorVerifierCircuitProver<G1, G2, C2, E, F>
 where
-    G1: SWCurveConfig + Clone,
+    F: PrimeField + Absorb,
+    G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField> + Clone,
     G1::BaseField: PrimeField,
     G1::ScalarField: PrimeField,
-    G2: SWCurveConfig,
+    G2: SWCurveConfig<BaseField=F>,
     G2::BaseField: PrimeField,
     C2: CommitmentScheme<Projective<G2>, PP=Vec<Affine<G2>>>,
-    G1: SWCurveConfig<BaseField=<G2 as CurveConfig>::ScalarField, ScalarField=<G2 as CurveConfig>::BaseField>,
-    E: Pairing<G1Affine=Affine<G1>, ScalarField=<G1 as CurveConfig>::ScalarField>,
-    G2::BaseField: Absorb,
-    G2::ScalarField: Absorb,
+    E: Pairing<G1Affine=Affine<G1>, ScalarField=F>,
+    <G2 as CurveConfig>::ScalarField: Absorb,
 {
     pub fn is_satisfied(&self)
     where
@@ -116,7 +122,7 @@ where
         let g2 = affine_to_projective(self.current_accumulator.instance.T.clone());
 
         // T'' = beta * acc_running.instance.T + (1 - beta) * acc_instance.instance.T
-        let g_out = (g1 * self.beta) + (g2 * (G1::ScalarField::ONE - self.beta));
+        let g_out = (g1 * self.beta) + (g2 * (F::ONE - self.beta));
 
         synthesize::<G1, G2, C2>(SecondaryCircuit {
             g1,
@@ -132,7 +138,7 @@ where
         let g2 = affine_to_projective(self.current_accumulator.instance.E.clone());
 
         // E_temp = beta * acc_running.instance.E + (1 - beta) * acc_instance.instance.E
-        let g_out = (g1 * self.beta) + (g2 * (G1::ScalarField::ONE - self.beta));
+        let g_out = (g1 * self.beta) + (g2 * (F::ONE - self.beta));
 
         synthesize::<G1, G2, C2>(SecondaryCircuit {
             g1,
@@ -148,26 +154,36 @@ where
         let e2 = affine_to_projective(self.current_accumulator.instance.E.clone());
 
         // E_temp = beta * e1 + (1 - beta) * e2
-        let E_temp = (e1 * self.beta) + (e2 * (G1::ScalarField::ONE - self.beta));
+        let E_temp = (e1 * self.beta) + (e2 * (F::ONE - self.beta));
         let Q = self.compute_proof_Q();
-        let g_out = E_temp + Q * (self.beta * (G1::ScalarField::ONE - self.beta));
+        let g_out = E_temp + Q * (self.beta * (F::ONE - self.beta));
 
         synthesize::<G1, G2, C2>(SecondaryCircuit {
             g1: Q,
             g2: E_temp,
             g_out,
-            r: convert_field_one_to_field_two::<G1::ScalarField, G1::BaseField>(self.beta * (G1::ScalarField::ONE - self.beta)),
+            r: convert_field_one_to_field_two::<G1::ScalarField, G1::BaseField>(self.beta * (F::ONE - self.beta)),
             flag: true,
         }, &self.commitment_pp[0..self.shape.num_vars].to_vec()).unwrap()
     }
 
-    pub fn compute_proof_Q(&self) -> Projective<G1> {
+    pub fn compute_proof_Q(&self) -> Projective<G1>
+    {
         // since acc_instance takes (1- beta) then it should be first in the function argument
-        affine_to_projective(Accumulator::prove(&self.srs, &self.current_accumulator, &self.running_accumulator).2)
+        affine_to_projective(Accumulator::helper_function_Q(&self.srs,
+                                                            &self.current_accumulator,
+                                                            &self.running_accumulator)
+        )
     }
 
-    pub fn compute_result_accumulator_instance(&self) -> AccInstance<E> {
-        Accumulator::prove(&self.srs, &self.current_accumulator, &self.running_accumulator).0
+    pub fn compute_result_accumulator_instance(&self) -> AccInstance<E>
+    {
+        let mut transcript = self.initial_transcript.clone();
+        Accumulator::prove(&self.srs,
+                           &self.current_accumulator,
+                           &self.running_accumulator,
+                           &mut transcript,
+        ).0
     }
 
     pub fn compute_cycle_fold_proofs_and_final_instance(&self) -> (
@@ -176,7 +192,10 @@ where
         C2::Commitment,
         C2::Commitment,
         RelaxedOvaInstance<G2, C2>
-    ) {
+    )
+    where
+        <G2 as CurveConfig>::ScalarField: Absorb,
+    {
         let compute_commit_and_fold =
             |running_witness: &RelaxedOvaWitness<G2>,
              running_instance: &RelaxedOvaInstance<G2, C2>,
@@ -264,7 +283,8 @@ where
                current_accumulator: Accumulator<E>,
                cycle_fold_running_instance: RelaxedOvaInstance<G2, C2>,
                cycle_fold_running_witness: RelaxedOvaWitness<G2>,
-    ) -> AccumulatorVerifierCircuitProver<G1, G2, C2, E> {
+               initial_transcript: Transcript<F>,
+    ) -> AccumulatorVerifierCircuitProver<G1, G2, C2, E, F> {
         // assert accumulators are satisfied
         assert!(Accumulator::decide(&srs, &running_accumulator));
         assert!(Accumulator::decide(&srs, &current_accumulator));
@@ -280,15 +300,23 @@ where
             &cycle_fold_running_instance,
             &cycle_fold_running_witness,
             &commitment_pp,
-        ).expect("error doing equality assserition");
+        ).expect("error doing equality assertion");
 
         // compute Q
         let Q = Accumulator::helper_function_Q(&srs, &current_accumulator, &running_accumulator);
 
-        let beta = Accumulator::compute_fiat_shamir_challenge(srs, &current_accumulator.instance, &running_accumulator.instance, Q);
+        // clone the transcript so it doesn't change
+        let mut transcript = initial_transcript.clone();
+        let beta = Accumulator::compute_fiat_shamir_challenge(
+            &mut transcript,
+            &current_accumulator.instance,
+            &running_accumulator.instance,
+            Q,
+        );
 
         AccumulatorVerifierCircuitProver {
             beta,
+            initial_transcript,
             srs: srs.clone(),
             current_accumulator,
             running_accumulator,
@@ -316,18 +344,17 @@ where
     }
 }
 
-pub fn get_random_prover<G1, G2, C2, E>() -> AccumulatorVerifierCircuitProver<G1, G2, C2, E>
+pub fn get_random_prover<G1, G2, C2, E, F>() -> AccumulatorVerifierCircuitProver<G1, G2, C2, E, F>
 where
-    G1: SWCurveConfig + Clone,
+    F: PrimeField + Absorb,
+    G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField> + Clone,
     G1::BaseField: PrimeField,
     G1::ScalarField: PrimeField,
-    G2: SWCurveConfig,
+    G2: SWCurveConfig<BaseField=F>,
     G2::BaseField: PrimeField,
     C2: CommitmentScheme<Projective<G2>, PP=Vec<Affine<G2>>>,
-    G1: SWCurveConfig<BaseField=<G2 as CurveConfig>::ScalarField, ScalarField=<G2 as CurveConfig>::BaseField>,
-    E: Pairing<G1Affine=Affine<G1>, ScalarField=<G1 as CurveConfig>::ScalarField>,
-    G2::BaseField: Absorb,
-    G2::ScalarField: Absorb,
+    E: Pairing<G1Affine=Affine<G1>, ScalarField=F>,
+    <G2 as CurveConfig>::ScalarField: Absorb,
 {
     // specifying degrees of polynomials
     let (n, m) = (4, 4);
@@ -342,23 +369,24 @@ where
     let shape = setup_shape::<G1, G2>().unwrap();
 
     // get trivial running instance
-    let (cycle_fold_running_instance, cycle_fold_running_witness) = AccumulatorVerifierCircuitProver::<G1, G2, C2, E>::get_trivial_cycle_fold_running_instance_witness(&shape);
+    let (cycle_fold_running_instance, cycle_fold_running_witness) = AccumulatorVerifierCircuitProver::<G1, G2, C2, E, F>::get_trivial_cycle_fold_running_instance_witness(&shape);
 
     // get commitment_pp
-    let commitment_pp = AccumulatorVerifierCircuitProver::<G1, G2, C2, E>::get_commitment_pp(&shape);
+    let commitment_pp = AccumulatorVerifierCircuitProver::<G1, G2, C2, E, F>::get_commitment_pp(&shape);
 
     // get two random accumulators
     let current_accumulator = Accumulator::random_satisfying_accumulator(&srs, &mut thread_rng());
     let running_accumulator = Accumulator::random_satisfying_accumulator(&srs, &mut thread_rng());
 
 
-    let prover: AccumulatorVerifierCircuitProver<G1, G2, C2, E> = AccumulatorVerifierCircuitProver::new(
+    let prover: AccumulatorVerifierCircuitProver<G1, G2, C2, E, F> = AccumulatorVerifierCircuitProver::new(
         &srs,
         commitment_pp,
         running_accumulator,
         current_accumulator,
         cycle_fold_running_instance,
-        cycle_fold_running_witness
+        cycle_fold_running_witness,
+        Transcript::new(b"initial_transcript"),
     );
 
     // assert it's formated correctly
@@ -371,36 +399,37 @@ where
 
 #[cfg(test)]
 pub mod tests {
-    use ark_crypto_primitives::sponge::Absorb;
-    use ark_ec::CurveConfig;
     use ark_ec::pairing::Pairing;
-    use ark_ec::short_weierstrass::{Affine, Projective, SWCurveConfig};
-    use ark_ff::{Field, PrimeField};
-    use rand::thread_rng;
+    use ark_ec::CurveConfig;
+    use ark_ff::Field;
 
     use crate::accumulation::accumulator::Accumulator;
     use crate::accumulation_circuit::prover::{get_random_prover, AccumulatorVerifierCircuitProver};
-    use crate::commitment::CommitmentScheme;
     use crate::constant_for_curves::{BaseField, ScalarField, E, G1, G2};
     use crate::gadgets::non_native::util::convert_field_one_to_field_two;
     use crate::hash::pederson::PedersenCommitment;
-    use crate::nova::cycle_fold::coprocessor::setup_shape;
-    use crate::pcs::multilinear_pcs::{PolyCommit, SRS};
 
     type GrumpkinCurveGroup = ark_grumpkin::Projective;
     type C2 = PedersenCommitment<GrumpkinCurveGroup>;
+    type F = ScalarField;
+    type Q = BaseField;
 
     #[test]
     pub fn auxiliary_input_C_correctness() {
-        let prover: AccumulatorVerifierCircuitProver<G1, G2, C2, E> = get_random_prover();
+        let prover: AccumulatorVerifierCircuitProver<G1, G2, C2, E, F> = get_random_prover();
 
         let (r1cs_instance, _) = prover.compute_auxiliary_input_C();
         let secondary_circuit = r1cs_instance.parse_secondary_io().unwrap();
 
         // get the accumulated result
-        let new_acc_instance = Accumulator::prove(&prover.srs, &prover.current_accumulator, &prover.running_accumulator).0;
+        let new_acc_instance = Accumulator::prove(
+            &prover.srs,
+            &prover.current_accumulator,
+            &prover.running_accumulator,
+            &mut prover.initial_transcript.clone(),
+        ).0;
 
-        assert_eq!(secondary_circuit.r, convert_field_one_to_field_two::<ScalarField, BaseField>(prover.beta));
+        assert_eq!(secondary_circuit.r, convert_field_one_to_field_two::<F, BaseField>(prover.beta));
         assert_eq!(secondary_circuit.flag, false);
         assert_eq!(secondary_circuit.g1, prover.running_accumulator.instance.C);
         assert_eq!(secondary_circuit.g2, prover.current_accumulator.instance.C);
@@ -409,15 +438,20 @@ pub mod tests {
 
     #[test]
     pub fn auxiliary_input_T_correctness() {
-        let prover: AccumulatorVerifierCircuitProver<G1, G2, C2, E> = get_random_prover();
+        let prover: AccumulatorVerifierCircuitProver<G1, G2, C2, E, F> = get_random_prover();
 
         let (r1cs_instance, _) = prover.compute_auxiliary_input_T();
         let secondary_circuit = r1cs_instance.parse_secondary_io().unwrap();
 
         // get the accumulated result
-        let new_acc_instance = Accumulator::prove(&prover.srs, &prover.current_accumulator, &prover.running_accumulator).0;
+        let new_acc_instance = Accumulator::prove(
+            &prover.srs,
+            &prover.current_accumulator,
+            &prover.running_accumulator,
+            &mut prover.initial_transcript.clone(),
+        ).0;
 
-        assert_eq!(secondary_circuit.r, convert_field_one_to_field_two::<ScalarField, BaseField>(prover.beta));
+        assert_eq!(secondary_circuit.r, convert_field_one_to_field_two::<F, BaseField>(prover.beta));
         assert_eq!(secondary_circuit.flag, false);
         assert_eq!(secondary_circuit.g1, prover.running_accumulator.instance.T);
         assert_eq!(secondary_circuit.g2, prover.current_accumulator.instance.T);
@@ -427,7 +461,7 @@ pub mod tests {
 
     #[test]
     pub fn auxiliary_input_E_correctness() {
-        let prover: AccumulatorVerifierCircuitProver<G1, G2, C2, E> = get_random_prover();
+        let prover: AccumulatorVerifierCircuitProver<G1, G2, C2, E, F> = get_random_prover();
 
         let (r1cs_instance, _) = prover.compute_auxiliary_input_E_1();
         let secondary_circuit_E_1 = r1cs_instance.parse_secondary_io().unwrap();
@@ -438,15 +472,20 @@ pub mod tests {
         let Q = prover.compute_proof_Q();
 
         // get the accumulated result
-        let new_acc_instance = Accumulator::prove(&prover.srs, &prover.current_accumulator, &prover.running_accumulator).0;
+        let new_acc_instance = Accumulator::prove(
+            &prover.srs,
+            &prover.current_accumulator,
+            &prover.running_accumulator,
+            &mut prover.initial_transcript.clone(),
+        ).0;
 
         // checking correctness of flags
         assert_eq!(secondary_circuit_E_1.flag, false);
         assert_eq!(secondary_circuit_E_2.flag, true);
 
         // checking correctness of randomness
-        assert_eq!(secondary_circuit_E_1.r, convert_field_one_to_field_two::<ScalarField, BaseField>(prover.beta));
-        assert_eq!(secondary_circuit_E_2.r, convert_field_one_to_field_two::<ScalarField, BaseField>(prover.beta * (ScalarField::ONE - prover.beta)));
+        assert_eq!(secondary_circuit_E_1.r, convert_field_one_to_field_two::<F, Q>(prover.beta));
+        assert_eq!(secondary_circuit_E_2.r, convert_field_one_to_field_two::<F, Q>(prover.beta * (F::ONE - prover.beta)));
 
         // check E_temp is present in two circuits
         assert_eq!(secondary_circuit_E_1.g_out, secondary_circuit_E_2.g2);
@@ -461,8 +500,7 @@ pub mod tests {
 
     #[test]
     pub fn compute_cycle_fold_proofs_correctness() {
-        let prover: AccumulatorVerifierCircuitProver<G1, G2, C2, E> = get_random_prover();
+        let prover: AccumulatorVerifierCircuitProver<G1, G2, C2, E, F> = get_random_prover();
         let _ = prover.compute_cycle_fold_proofs_and_final_instance();
     }
 }
-

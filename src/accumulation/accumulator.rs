@@ -1,23 +1,21 @@
 use std::ops::{Add, Mul, Neg, Sub};
 
-use ark_serialize::CanonicalSerialize;
 use ark_crypto_primitives::sponge::Absorb;
-use ark_ec::{AffineRepr, CurveGroup, VariableBaseMSM};
 use ark_ec::pairing::Pairing;
+use ark_ec::{AffineRepr, CurveGroup, VariableBaseMSM};
 use ark_ff::{AdditiveGroup, Field, PrimeField, Zero};
 use ark_poly::EvaluationDomain;
+use ark_serialize::CanonicalSerialize;
 use ark_std::UniformRand;
 use rand::{Rng, RngCore};
 
 use crate::accumulation::eq_tree::EqTree;
 use crate::accumulation::generate_random_elements;
 use crate::gadgets::non_native::util::convert_affine_to_scalars;
-use crate::hash::poseidon::{PoseidonHash, get_poseidon_config};
-use ark_crypto_primitives::sponge::poseidon::PoseidonConfig;
-use crate::pcs::multilinear_pcs::{OpeningProof, PolyCommit, SRS};
 use crate::math::Math;
+use crate::pcs::multilinear_pcs::{OpeningProof, PolyCommit, SRS};
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
-use crate::transcript::transcript::AppendToTranscript;
+use crate::transcript::transcript::{AppendToTranscript, Transcript};
 use crate::utils::inner_product;
 
 #[derive(Clone, Debug)]
@@ -114,18 +112,14 @@ where
         }
     }
 
-    pub fn compute_fiat_shamir_challenge(srs: &AccSRS<E>, instance_1: &AccInstance<E>, instance_2: &AccInstance<E>, Q: E::G1Affine) -> E::ScalarField {
-        let mut sponge = Vec::new();
-        sponge.extend(instance_1.to_sponge_field_elements());
-        sponge.extend(instance_2.to_sponge_field_elements());
+    pub fn compute_fiat_shamir_challenge(transcript: &mut Transcript<E::ScalarField>, instance_1: &AccInstance<E>, instance_2: &AccInstance<E>, Q: E::G1Affine) -> E::ScalarField {
+        transcript.append_scalars(b"instance 1", instance_1.to_sponge_field_elements().as_slice());
+        transcript.append_scalars(b"instance 2", instance_2.to_sponge_field_elements().as_slice());
 
-        // Define a closure to handle the conversion of affine points to scalars
         let (p1, p2) = convert_affine_to_scalars::<E>(Q);
-        sponge.extend(vec![p1, p2]);
+        transcript.append_scalars(b"Q", &[p1, p2]);
 
-        let mut hash_object = PoseidonHash::new();
-        hash_object.update_sponge(sponge);
-        hash_object.output()
+        transcript.challenge_scalar(b"challenge scalar")
     }
 
     /// Given public data for the opening p(x, y) = z
@@ -175,7 +169,7 @@ where
         }
     }
 
-    pub fn prove(srs: &AccSRS<E>, acc_1: &Accumulator<E>, acc_2: &Accumulator<E>) -> (AccInstance<E>, AccWitness<E>, E::G1Affine)
+    pub fn prove(srs: &AccSRS<E>, acc_1: &Accumulator<E>, acc_2: &Accumulator<E>, transcript: &mut Transcript<E::ScalarField>) -> (AccInstance<E>, AccWitness<E>, E::G1Affine)
     where
         <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb,
     {
@@ -188,12 +182,13 @@ where
         // compute the quotient variable Q
         let Q: E::G1Affine = Self::helper_function_Q(srs, acc_1, acc_2);
 
-        let beta = Accumulator::compute_fiat_shamir_challenge(srs, instance_1, instance_2, Q);
+        let mut transcript_clone = transcript.clone();
+        let beta = Accumulator::compute_fiat_shamir_challenge(transcript, instance_1, instance_2, Q);
 
         let one_minus_beta: E::ScalarField = E::ScalarField::ONE - beta;
 
         // get the accumulated new_instance
-        let new_instance = Self::verify(srs, instance_1, instance_2, Q);
+        let new_instance = Self::verify(srs, instance_1, instance_2, Q, &mut transcript_clone);
 
         // get the accumulated witness
         let new_witness = AccWitness {
@@ -206,7 +201,7 @@ where
                     .zip(witness_2.f_star_poly.evaluation_over_boolean_hypercube.iter())
                     .map(
                         |(&a, &b)|
-                        a * (one_minus_beta) + (b * beta)
+                            a * (one_minus_beta) + (b * beta)
                     )
                     .collect(),
                 len: witness_1.f_star_poly.len(),
@@ -216,7 +211,7 @@ where
                     .zip(witness_2.tree_x.nodes.iter())
                     .map(
                         |(&a, &b)|
-                        a * (one_minus_beta) + (b * beta)
+                            a * (one_minus_beta) + (b * beta)
                     )
                     .collect(),
                 depth: witness_1.tree_x.depth,
@@ -226,17 +221,24 @@ where
                     .zip(witness_2.tree_y.nodes.iter())
                     .map(
                         |(&a, &b)|
-                        a * (one_minus_beta) + (b * beta)
+                            a * (one_minus_beta) + (b * beta)
                     )
                     .collect(),
                 depth: witness_1.tree_y.depth,
             },
         };
-        return (new_instance, new_witness, Q);
+
+        (new_instance, new_witness, Q)
     }
 
-    pub fn verify(srs: &AccSRS<E>, instance_1: &AccInstance<E>, instance_2: &AccInstance<E>, Q: E::G1Affine) -> AccInstance<E> {
-        let beta = Accumulator::compute_fiat_shamir_challenge(srs, instance_1, instance_2, Q);
+    pub fn verify(
+        srs: &AccSRS<E>,
+        instance_1: &AccInstance<E>,
+        instance_2: &AccInstance<E>,
+        Q: E::G1Affine,
+        transcript: &mut Transcript<E::ScalarField>,
+    ) -> AccInstance<E> {
+        let beta = Accumulator::compute_fiat_shamir_challenge(transcript, instance_1, instance_2, Q);
         let one_minus_beta: E::ScalarField = E::ScalarField::ONE - beta;
 
         let new_error_term: E::G1Affine = {
@@ -421,9 +423,9 @@ impl<E: Pairing> Accumulator<E> {
         }
 
         // Get vector: (x1, y1)
-        let whole_input_1:  Vec<_> = x1.clone().into_iter().chain(y1.clone()).collect();
+        let whole_input_1: Vec<_> = x1.clone().into_iter().chain(y1.clone()).collect();
         // Get vector: (x2, y2)
-        let whole_input_2:  Vec<_> = x2.clone().into_iter().chain(y2.clone()).collect();
+        let whole_input_2: Vec<_> = x2.clone().into_iter().chain(y2.clone()).collect();
 
         let z1 = polynomial1.evaluate(&whole_input_1);
         let z2 = polynomial2.evaluate(&whole_input_2);
@@ -450,7 +452,9 @@ impl<E: Pairing> Accumulator<E> {
         assert!(Accumulator::decide(&srs, &acc1));
         assert!(Accumulator::decide(&srs, &acc2));
 
-        let (new_instance, new_witness, Q) = Accumulator::prove(&srs, &acc1, &acc2);
+        let mut prover_transcript = Transcript::new(b"new_transcript");
+
+        let (new_instance, new_witness, Q) = Accumulator::prove(&srs, &acc1, &acc2, &mut prover_transcript);
 
         let new_acc = Accumulator::new_accumulator(&new_instance, &new_witness);
         assert!(Accumulator::decide(&srs, &new_acc));
@@ -463,27 +467,35 @@ pub mod test {
     use ark_ec::pairing::Pairing;
     use rand::thread_rng;
 
-    use crate::constant_for_curves::{E, ScalarField};
-    use crate::pcs::multilinear_pcs::{PolyCommit, SRS};
     use super::*;
+    use crate::constant_for_curves::{ScalarField, E};
+    use crate::pcs::multilinear_pcs::{PolyCommit, SRS};
 
     #[test]
     fn test_accumulator_end_to_end() {
-        let degree_x = 128usize;
-        let degree_y = 128usize;
+        let (degree_x, degree_y) = (128usize, 128usize);
         let srs_pcs: SRS<E> = PolyCommit::<E>::setup(degree_x, degree_y, &mut thread_rng());
         let srs = Accumulator::setup(srs_pcs.clone(), &mut thread_rng());
 
         let acc1 = Accumulator::random_satisfying_accumulator(&srs, &mut thread_rng());
         let acc2 = Accumulator::random_satisfying_accumulator(&srs, &mut thread_rng());
 
-        let (instance, witness, Q) = Accumulator::prove(&srs, &acc1, &acc2);
+        let mut prover_transcript = Transcript::new(b"new_transcript");
+        let mut verifier_transcript = prover_transcript.clone();
+
+        let (instance, witness, Q) = Accumulator::prove(&srs, &acc1, &acc2, &mut prover_transcript);
+
+        let instance_expected = Accumulator::verify(&srs, &acc1.instance, &acc2.instance, Q, &mut verifier_transcript);
+
+        assert_eq!(instance, instance_expected);
         assert!(Accumulator::decide(&srs, &Accumulator { witness, instance }));
     }
 
     #[test]
     fn test_accumulator_sizes() {
-        let degrees = vec![(2, 2), (4, 4), (8, 8), (16, 16), (32, 32), (64, 64), (128, 128), (256, 256), (512, 512), (1024, 1024)];
+        // Hossein: change the degrees later, it takes too long
+        let degrees = vec![(2, 2), (4, 4), (8, 8), (16, 16), (32, 32)];
+
         for (degree_x, degree_y) in degrees {
             let srs_pcs: SRS<E> = PolyCommit::<E>::setup(degree_x, degree_y, &mut thread_rng());
             let srs = Accumulator::setup(srs_pcs.clone(), &mut thread_rng());

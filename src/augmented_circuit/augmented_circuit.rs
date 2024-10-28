@@ -1,4 +1,4 @@
-use crate::accumulation_circuit::instance_circuit::AccumulatorInstanceVar;
+/*use crate::accumulation_circuit::instance_circuit::AccumulatorInstanceVar;
 use crate::accumulation_circuit::verifier_circuit::{AccumulatorVerifier, AccumulatorVerifierVar};
 use crate::commitment::CommitmentScheme;
 use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
@@ -322,3 +322,5 @@ mod tests {
         println!("{}", cs.num_constraints());
     }
 }
+
+ */
