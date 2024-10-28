@@ -2,7 +2,7 @@ use crate::accumulation_circuit::instance_circuit::AccumulatorInstanceVar;
 use crate::accumulation_circuit::verifier_circuit::{AccumulatorVerifier, AccumulatorVerifierVar};
 use crate::commitment::CommitmentScheme;
 use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
-use crate::nexus_spartan::partial_verifier::partial_verifier::PartialVerifier;
+use crate::nexus_spartan::partial_verifier::partial_verifier::SpartanPartialVerifier;
 use crate::nexus_spartan::partial_verifier::partial_verifier_var::PartialVerifierVar;
 use crate::nova::cycle_fold::coprocessor_constraints::RelaxedOvaInstanceVar;
 use crate::pcs::multilinear_pcs::split_between_x_and_y;
@@ -38,7 +38,7 @@ where
     E: Pairing<G1Affine=Affine<G1>, ScalarField=F>,
     F: PrimeField,
 {
-    pub spartan_partial_verifier: PartialVerifier<F, E>,
+    pub spartan_partial_verifier: SpartanPartialVerifier<F, E>,
     pub kzh_acc_verifier: AccumulatorVerifier<G1, G2, C2, E>,
     pub matrix_evaluation_verifier: MatrixEvaluationVerifier<F>,
 }
@@ -194,7 +194,6 @@ mod tests {
     /// Take as input `proof_i` and `running_accumulator_{i}` and produce `proof_{i+1}` and `running_accumulator_{i+1}`.
     fn test_augmented_circuit_helper() {
         // ******************************* generate a satisfying instance for Spartan and get structure *******************************
-
         let num_vars = 1024;
         let num_cons = num_vars;
         let num_inputs = 10;
@@ -211,6 +210,7 @@ mod tests {
 
         let mut prover_transcript = Transcript::new(b"example");
 
+        // Get `proof_i` and random evaluation point (r_x, r_y)
         let (spartan_proof, rx, ry) = CRR1CSProof::prove(
             &spartan_shape,
             &instance,
@@ -219,14 +219,15 @@ mod tests {
             &mut prover_transcript,
         );
 
+        // Get A(r_x, r_y), B(r_x, r_y), C(r_x, r_y)
         let current_evaluation = spartan_shape.inst.inst.evaluate(&rx, &ry);
 
-        // ******************************* construct partial verifier circuit *******************************
+        // ******************************* construct Spartan partial verifier circuit *******************************
 
         let mut prover_transcript = Transcript::new(b"example");
         let mut verifier_transcript = prover_transcript.clone();
         let verifier_transcript_clone = verifier_transcript.clone();
-        let partial_verifier = PartialVerifier::initialise(
+        let partial_verifier = SpartanPartialVerifier::initialise(
             &spartan_proof,
             num_vars,
             num_cons,

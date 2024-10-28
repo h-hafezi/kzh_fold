@@ -1,7 +1,7 @@
 use crate::accumulation_circuit::affine_to_projective;
 use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
 use crate::math::Math;
-use crate::nexus_spartan::partial_verifier::partial_verifier::PartialVerifier;
+use crate::nexus_spartan::partial_verifier::partial_verifier::SpartanPartialVerifier;
 use crate::nexus_spartan::sparse_polynomial::sparse_polynomial_var::SparsePolyVar;
 use crate::nexus_spartan::sumcheck_circuit::sumcheck_circuit_var::SumcheckCircuitVar;
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
@@ -134,14 +134,14 @@ where
     }
 }
 
-impl<F: PrimeField + Absorb, G1, E> AllocVar<PartialVerifier<F, E>, F> for PartialVerifierVar<F, G1>
+impl<F: PrimeField + Absorb, G1, E> AllocVar<SpartanPartialVerifier<F, E>, F> for PartialVerifierVar<F, G1>
 where
     G1: SWCurveConfig<ScalarField=F> + Clone,
     G1::BaseField: PrimeField,
     G1::ScalarField: PrimeField,
     E: Pairing<G1Affine=Affine<G1>, ScalarField=F>,
 {
-    fn new_variable<T: Borrow<PartialVerifier<F, E>>>(
+    fn new_variable<T: Borrow<SpartanPartialVerifier<F, E>>>(
         cs: impl Into<Namespace<F>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,

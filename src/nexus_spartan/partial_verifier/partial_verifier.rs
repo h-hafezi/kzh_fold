@@ -12,7 +12,7 @@ use ark_ec::AffineRepr;
 use ark_ff::PrimeField;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct PartialVerifier<F, E>
+pub struct SpartanPartialVerifier<F, E>
 where
     F: PrimeField + Absorb,
     E: Pairing<ScalarField=F>,
@@ -36,7 +36,7 @@ where
     pub num_cons: usize,
 }
 
-impl<F: PrimeField + Absorb, E: Pairing<ScalarField=F>> PartialVerifier<F, E>
+impl<F: PrimeField + Absorb, E: Pairing<ScalarField=F>> SpartanPartialVerifier<F, E>
 where
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
 {
@@ -129,7 +129,7 @@ where
 
         assert_eq!(expected_claim_post_phase2, claim_post_phase2);
 
-        PartialVerifier {
+        SpartanPartialVerifier {
             instance,
             sc_proof_phase1: sc_proof_phase1_circuit,
             claims_phase2: proof.claims_phase2,
@@ -232,7 +232,7 @@ pub mod tests {
         partial_verifier_test_helper::<E, MultilinearPolynomial<ScalarField>, ScalarField>();
     }
 
-    pub fn partial_verifier_test_helper<E, PC, F>() -> (PartialVerifier<F, E>, Transcript<F>)
+    pub fn partial_verifier_test_helper<E, PC, F>() -> (SpartanPartialVerifier<F, E>, Transcript<F>)
     where
         F: PrimeField + Absorb,
         PC: PolyCommitmentScheme<E>,
@@ -268,7 +268,7 @@ pub mod tests {
         let mut prover_transcript = Transcript::new(b"example");
         let mut verifier_transcript = prover_transcript.clone();
         let verifier_transcript_clone = verifier_transcript.clone();
-        let partial_verifier = PartialVerifier::initialise(
+        let partial_verifier = SpartanPartialVerifier::initialise(
             &proof,
             num_vars,
             num_cons,
