@@ -616,7 +616,6 @@ pub mod tests {
     fn kzh_acc_verifier_circuit_initialisation_test() {
         let cs = get_initialise_cs();
 
-        println!("puff {}", cs.num_constraints());
         // pad witness to have a length of power of two
         for _ in 0..((1 << 16) - cs.num_constraints() + 5018) {
              let _ = Boolean::new_witness(cs.clone(), || Ok(false));

@@ -1,4 +1,4 @@
-/*use crate::accumulation_circuit::instance_circuit::AccumulatorInstanceVar;
+use crate::accumulation_circuit::instance_circuit::AccumulatorInstanceVar;
 use crate::accumulation_circuit::verifier_circuit::{AccumulatorVerifier, AccumulatorVerifierVar};
 use crate::commitment::CommitmentScheme;
 use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
@@ -112,8 +112,8 @@ where
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField> + Clone,
 {
     fn verify<E: Pairing>(&self, transcript: &mut TranscriptVar<F>) -> Output<G2, C2, G1, F> {
-        let (final_cycle_fold_instance, final_accumulator_instance) = self.kzh_acc_verifier.accumulate();
         let (rx, ry) = self.spartan_partial_verifier.verify(transcript);
+        let (final_cycle_fold_instance, final_accumulator_instance) = self.kzh_acc_verifier.accumulate(transcript);
 
         // ************* do the consistency checks *************
         let length_x = self.kzh_acc_verifier.current_accumulator_instance_var.x_var.len();
@@ -282,19 +282,20 @@ mod tests {
         let shape = setup_shape::<G1, G2>().unwrap();
 
         // get trivial running instance
-        let (cycle_fold_running_instance, cycle_fold_running_witness) = AccumulatorVerifierCircuitProver::<G1, G2, C2, E>::get_trivial_cycle_fold_running_instance_witness(&shape);
+        let (cycle_fold_running_instance, cycle_fold_running_witness) = AccumulatorVerifierCircuitProver::<G1, G2, C2, E, F>::get_trivial_cycle_fold_running_instance_witness(&shape);
 
         // get commitment_pp
-        let commitment_pp = AccumulatorVerifierCircuitProver::<G1, G2, C2, E>::get_commitment_pp(&shape);
+        let commitment_pp = AccumulatorVerifierCircuitProver::<G1, G2, C2, E, F>::get_commitment_pp(&shape);
 
 
-        let prover: AccumulatorVerifierCircuitProver<G1, G2, C2, E> = AccumulatorVerifierCircuitProver::new(
+        let prover: AccumulatorVerifierCircuitProver<G1, G2, C2, E, F> = AccumulatorVerifierCircuitProver::new(
             &acc_srs,
             commitment_pp,
             running_acc,
             current_acc,
             cycle_fold_running_instance,
             cycle_fold_running_witness,
+            prover_transcript,
         );
 
         // assert it's formated correctly
@@ -322,5 +323,3 @@ mod tests {
         println!("{}", cs.num_constraints());
     }
 }
-
- */
