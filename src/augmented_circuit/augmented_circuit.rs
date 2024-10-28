@@ -20,6 +20,8 @@ use ark_r1cs_std::R1CSVar;
 use ark_relations::r1cs::{Namespace, SynthesisError};
 use itertools::izip;
 use std::borrow::Borrow;
+use digest::Mac;
+use crate::nexus_spartan::matrix_evaluation_accumulation::verifier_circuit::{MatrixEvaluationVerifier, MatrixEvaluationVerifierVar};
 
 type Output<G2, C2, G1, F> = (RelaxedOvaInstanceVar<G2, C2>, AccumulatorInstanceVar<G1>, Vec<FpVar<F>>, Vec<FpVar<F>>);
 
@@ -38,6 +40,7 @@ where
 {
     pub spartan_partial_verifier: PartialVerifier<F, E>,
     pub kzh_acc_verifier: AccumulatorVerifier<G1, G2, C2, E>,
+    pub matrix_evaluation_verifier: MatrixEvaluationVerifier<F>,
 }
 
 pub struct AugmentedCircuitVar<G1, G2, C2, F>
@@ -52,6 +55,7 @@ where
 {
     pub spartan_partial_verifier: PartialVerifierVar<F, G1>,
     pub kzh_acc_verifier: AccumulatorVerifierVar<G1, G2, C2>,
+    pub matrix_evaluation_verifier: MatrixEvaluationVerifierVar<F>,
 }
 
 impl<G1, G2, C2, E, F> AllocVar<AugmentedCircuit<G1, G2, C2, E, F>, F> for AugmentedCircuitVar<G1, G2, C2, F>
@@ -94,9 +98,17 @@ where
             mode,
         )?;
 
+        // Allocate the accumulator verifier
+        let matrix_evaluation_verifier = MatrixEvaluationVerifierVar::new_variable(
+            cs.clone(),
+            || Ok(&data.matrix_evaluation_verifier),
+            mode,
+        )?;
+
         Ok(AugmentedCircuitVar {
             spartan_partial_verifier,
             kzh_acc_verifier,
+            matrix_evaluation_verifier,
         })
     }
 }
@@ -114,6 +126,9 @@ where
     fn verify<E: Pairing>(&self, transcript: &mut TranscriptVar<F>) -> Output<G2, C2, G1, F> {
         let (rx, ry) = self.spartan_partial_verifier.verify(transcript);
         let (final_cycle_fold_instance, final_accumulator_instance) = self.kzh_acc_verifier.accumulate(transcript);
+
+        // also return these later
+        let ((vector_x, vector_y), evaluations) = self.matrix_evaluation_verifier.accumulate(transcript);
 
         // ************* do the consistency checks *************
         let length_x = self.kzh_acc_verifier.current_accumulator_instance_var.x_var.len();
@@ -164,7 +179,9 @@ mod tests {
     use crate::transcript::transcript::Transcript;
     use ark_ff::AdditiveGroup;
     use ark_relations::r1cs::ConstraintSystem;
+    use ark_std::UniformRand;
     use rand::thread_rng;
+    use crate::nexus_spartan::matrix_evaluation_accumulation::prover::fold_matrices_evaluations;
 
     type C2 = PedersenCommitment<Projective<G2>>;
     type F = ScalarField;
@@ -183,26 +200,26 @@ mod tests {
         let num_inputs = 10;
 
         // this generates a new instance/witness for spartan as well as PCS parameters
-        let (shape, instance, witness, gens) = produce_synthetic_crr1cs::<E, MultilinearPolynomial<F>>(num_cons, num_vars, num_inputs);
-        assert!(is_sat(&shape, &instance, &witness, &gens.gens_r1cs_sat).unwrap());
+        let (spartan_shape, instance, witness, gens) = produce_synthetic_crr1cs::<E, MultilinearPolynomial<F>>(num_cons, num_vars, num_inputs);
+        assert!(is_sat(&spartan_shape, &instance, &witness, &gens.gens_r1cs_sat).unwrap());
 
         let (num_cons, num_vars, _num_inputs) = (
-            shape.get_num_cons(),
-            shape.get_num_vars(),
-            shape.get_num_inputs(),
+            spartan_shape.get_num_cons(),
+            spartan_shape.get_num_vars(),
+            spartan_shape.get_num_inputs(),
         );
 
         let mut prover_transcript = Transcript::new(b"example");
 
-        let (proof, rx, ry) = CRR1CSProof::prove(
-            &shape,
+        let (spartan_proof, rx, ry) = CRR1CSProof::prove(
+            &spartan_shape,
             &instance,
             witness,
             &gens.gens_r1cs_sat,
             &mut prover_transcript,
         );
 
-        let inst_evals = shape.inst.inst.evaluate(&rx, &ry);
+        let current_evaluation = spartan_shape.inst.inst.evaluate(&rx, &ry);
 
         // ******************************* construct partial verifier circuit *******************************
 
@@ -210,14 +227,14 @@ mod tests {
         let mut verifier_transcript = prover_transcript.clone();
         let verifier_transcript_clone = verifier_transcript.clone();
         let partial_verifier = PartialVerifier::initialise(
-            &proof,
+            &spartan_proof,
             num_vars,
             num_cons,
             (instance.input.assignment, {
                 let com_w: <E as Pairing>::G1Affine = instance.comm_W.clone().to_affine();
                 com_w
             }),
-            &inst_evals,
+            &current_evaluation,
             &mut prover_transcript,
         );
 
@@ -231,7 +248,7 @@ mod tests {
         let running_acc = Accumulator::random_satisfying_accumulator(&acc_srs, &mut thread_rng());
 
         // generate an opening proof for the witness
-        let opening_proof = proof.proof_eval_vars_at_ry.clone();
+        let opening_proof = spartan_proof.proof_eval_vars_at_ry.clone();
 
         // commit to witness again
         let commitment = instance.comm_W.clone();
@@ -247,7 +264,7 @@ mod tests {
                 &opening_proof,
                 x.as_slice(),
                 y.as_slice(),
-                &proof.eval_vars_at_ry
+                &spartan_proof.eval_vars_at_ry
             )
         );
 
@@ -256,7 +273,7 @@ mod tests {
             &commitment.C,
             x.as_slice(),
             y.as_slice(),
-            &proof.eval_vars_at_ry,
+            &spartan_proof.eval_vars_at_ry,
         );
 
         let acc_witness = Accumulator::new_accumulator_witness_from_fresh_kzh_witness(
@@ -279,13 +296,13 @@ mod tests {
         // ******************************* Construct the accumulator verifier circuit *******************************
 
         // the shape of the R1CS instance
-        let shape = setup_shape::<G1, G2>().unwrap();
+        let cycle_fold_shape = setup_shape::<G1, G2>().unwrap();
 
         // get trivial running instance
-        let (cycle_fold_running_instance, cycle_fold_running_witness) = AccumulatorVerifierCircuitProver::<G1, G2, C2, E, F>::get_trivial_cycle_fold_running_instance_witness(&shape);
+        let (cycle_fold_running_instance, cycle_fold_running_witness) = AccumulatorVerifierCircuitProver::<G1, G2, C2, E, F>::get_trivial_cycle_fold_running_instance_witness(&cycle_fold_shape);
 
         // get commitment_pp
-        let commitment_pp = AccumulatorVerifierCircuitProver::<G1, G2, C2, E, F>::get_commitment_pp(&shape);
+        let commitment_pp = AccumulatorVerifierCircuitProver::<G1, G2, C2, E, F>::get_commitment_pp(&cycle_fold_shape);
 
 
         let prover: AccumulatorVerifierCircuitProver<G1, G2, C2, E, F> = AccumulatorVerifierCircuitProver::new(
@@ -301,20 +318,61 @@ mod tests {
         // assert it's formated correctly
         prover.is_satisfied();
 
+        // ******************************* construct matrix evaluation verifier circuit *******************************
+
+        let mut rng = thread_rng();
+
+        // Generate random elements in the field for r_x_prime and r_y_prime
+        let r_x_prime: Vec<F> = (0..rx.len()).map(|_| F::rand(&mut rng)).collect();
+        let r_y_prime: Vec<F> = (0..ry.len()).map(|_| F::rand(&mut rng)).collect();
+
+        let z_prime: (F, F, F) = spartan_shape.inst.inst.evaluate(&r_x_prime, &r_y_prime);
+
+        let beta = F::rand(&mut rng);
+
+        let (beta, matrix_evaluation_proof) = fold_matrices_evaluations(
+            &spartan_shape,
+            (rx.clone(), ry.clone()),
+            (r_x_prime.clone(), r_y_prime.clone()),
+            &mut prover.final_transcript.clone(),
+            current_evaluation,
+            z_prime,
+            true,
+        );
+
+        let verifier = MatrixEvaluationVerifier{
+            running_input: (rx.clone(), ry.clone()),
+            current_input: (r_x_prime.clone(), r_y_prime.clone()),
+            running_evaluations: current_evaluation,
+            current_evaluations: z_prime,
+            proof: matrix_evaluation_proof,
+        };
+
+
         // ******************************* Construct the augmented circuit *******************************
 
         let cs = ConstraintSystem::<ScalarField>::new_ref();
+
         let partial_verifier_var = PartialVerifierVar::new_variable(
             cs.clone(),
             || Ok(partial_verifier.clone()),
             AllocationMode::Input,
         ).unwrap();
+
         let acc_verifier_var = AccumulatorVerifierVar::<G1, G2, C2>::new::<E>(cs.clone(), prover);
+
+        let matrix_evaluation_verifier_var = MatrixEvaluationVerifierVar::new_variable(
+            cs.clone(),
+            || Ok(verifier.clone()),
+            AllocationMode::Witness,
+        ).unwrap();
 
         let augmented_circuit = AugmentedCircuitVar {
             spartan_partial_verifier: partial_verifier_var,
             kzh_acc_verifier: acc_verifier_var,
+            matrix_evaluation_verifier: matrix_evaluation_verifier_var,
         };
+
         let mut transcript_var = TranscriptVar::from_transcript(cs.clone(), verifier_transcript_clone);
 
         augmented_circuit.verify::<E>(&mut transcript_var);

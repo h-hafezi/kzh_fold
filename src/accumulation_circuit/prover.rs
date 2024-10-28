@@ -33,6 +33,7 @@ where
     pub beta: F,
 
     pub initial_transcript: Transcript<F>,
+    pub final_transcript: Transcript<F>,
 
     /// srs for the accumulation
     pub srs: AccSRS<E>,
@@ -317,6 +318,7 @@ where
         AccumulatorVerifierCircuitProver {
             beta,
             initial_transcript,
+            final_transcript: transcript,
             srs: srs.clone(),
             current_accumulator,
             running_accumulator,

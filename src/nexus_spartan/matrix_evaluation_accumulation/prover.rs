@@ -1,48 +1,78 @@
 use crate::nexus_spartan::crr1cs::CRR1CSShape;
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ff::PrimeField;
+use crate::transcript::transcript::Transcript;
 
 pub fn fold_matrices_evaluations<F: PrimeField + Absorb>(
     shape: &CRR1CSShape<F>,
-    r: (Vec<F>, Vec<F>),
-    r_prime: (Vec<F>, Vec<F>),
-    beta: F,
-    evaluations: ((F, F, F), (F, F, F)),
+    running_input: (Vec<F>, Vec<F>),
+    current_input: (Vec<F>, Vec<F>),
+    transcript: &mut Transcript<F>,
+    running_evaluations: (F, F, F),
+    current_evaluations: (F, F, F),
     check_evaluations: bool,
-) -> (F, F, F) {
-    let (r_x, r_y) = r;
-    let (r_x_prime, r_y_prime) = r_prime;
-    let (z, z_prime) = evaluations;
+) -> (F, (F, F, F)) {
+    let (running_input_x, running_input_y) = running_input.clone();
+    let (current_input_x, current_input_y) = current_input.clone();
+
+    // append struct to transcript to generate challenge beta
+    transcript.append_scalars(b"matrix evaluations",
+                              to_sponge_vector(
+                                  &running_input,
+                                  &current_input,
+                                  running_evaluations,
+                                  current_evaluations,
+                              ).as_slice(),
+    );
+    let beta = transcript.challenge_scalar(b"beta");
+
 
     if check_evaluations {
-        let z_new = shape.inst.inst.evaluate(&r_x, &r_y);
-        assert_eq!(z, z_new);
+        let expected_running_evaluations = shape.inst.inst.evaluate(&running_input_x, &running_input_y);
+        assert_eq!(running_evaluations, expected_running_evaluations);
 
-        let z_prime_new = shape.inst.inst.evaluate(&r_x_prime, &r_y_prime);
-        assert_eq!(z_prime, z_prime_new);
+        let expected_current_evaluations = shape.inst.inst.evaluate(&current_input_x, &current_input_y);
+        assert_eq!(current_evaluations, expected_current_evaluations);
     }
 
     // Perform the random combination for r_x_folded and r_y_folded
-    let r_x_folded: Vec<F> = r_x.iter()
-        .zip(r_x_prime.iter())
+    let folded_input_x: Vec<F> = running_input_x.iter()
+        .zip(current_input_x.iter())
         .map(|(rx, rx_prime)| *rx * (F::one() - beta) + *rx_prime * beta)
         .collect();
 
-    let r_y_folded: Vec<F> = r_y.iter()
-        .zip(r_y_prime.iter())
+    let folded_input_y: Vec<F> = running_input_y.iter()
+        .zip(current_input_y.iter())
         .map(|(ry, ry_prime)| *ry * (F::one() - beta) + *ry_prime * beta)
         .collect();
 
     // Evaluate the folded r_x_folded and r_y_folded
-    let new_evaluation = shape.inst.inst.evaluate(&r_x_folded, &r_y_folded);
+    let new_evaluation = shape.inst.inst.evaluate(&folded_input_x, &folded_input_y);
 
     // Calculate the proof values
-    let proof_A = (new_evaluation.0 - ((F::one() - beta) * z.0 + beta * z_prime.0)) / (beta * (F::one() - beta));
-    let proof_B = (new_evaluation.1 - ((F::one() - beta) * z.1 + beta * z_prime.1)) / (beta * (F::one() - beta));
-    let proof_C = (new_evaluation.2 - ((F::one() - beta) * z.2 + beta * z_prime.2)) / (beta * (F::one() - beta));
+    let proof_A = (new_evaluation.0 - ((F::one() - beta) * running_evaluations.0 + beta * current_evaluations.0)) / (beta * (F::one() - beta));
+    let proof_B = (new_evaluation.1 - ((F::one() - beta) * running_evaluations.1 + beta * current_evaluations.1)) / (beta * (F::one() - beta));
+    let proof_C = (new_evaluation.2 - ((F::one() - beta) * running_evaluations.2 + beta * current_evaluations.2)) / (beta * (F::one() - beta));
 
-    (proof_A, proof_B, proof_C)
+    (beta, (proof_A, proof_B, proof_C))
 }
+
+pub fn to_sponge_vector<T: Clone>(running_input: &(Vec<T>, Vec<T>),
+                                  new_input: &(Vec<T>, Vec<T>),
+                                  running_evaluation: (T, T, T),
+                                  new_evaluation: (T, T, T),
+) -> Vec<T> {
+    let mut res = Vec::new();
+    res.extend(running_input.0.clone());
+    res.extend(running_input.1.clone());
+    res.extend(new_input.0.clone());
+    res.extend(new_input.1.clone());
+    res.extend(vec![new_evaluation.0, new_evaluation.1, new_evaluation.2]);
+    res.extend(vec![running_evaluation.0, running_evaluation.1, running_evaluation.2]);
+
+    res
+}
+
 
 #[cfg(test)]
 pub mod tests {
@@ -87,7 +117,6 @@ pub mod tests {
         // Generate the constraints
         circuit.generate_constraints(cs.clone()).unwrap();
         assert!(cs.is_satisfied().unwrap());
-        println!("{}", cs.num_constraints());
 
         cs.set_mode(SynthesisMode::Prove { construct_matrices: true });
         cs.finalize();
@@ -123,26 +152,25 @@ pub mod tests {
     #[test]
     fn test() {
         // ************************************************ set up the spartan proof ************************************************
-        let (shape, r_x, r_y) = matrix_evaluation_setup::<F, E, G1>();
+        let (shape, running_input_x, running_input_y) = matrix_evaluation_setup::<F, E, G1>();
 
         // ************************************************ setup params for folding prover ************************************************
         let mut rng = thread_rng();
 
         // Generate random elements in the field for r_x_prime and r_y_prime
-        let r_x_prime: Vec<F> = (0..r_x.len()).map(|_| F::rand(&mut rng)).collect();
-        let r_y_prime: Vec<F> = (0..r_y.len()).map(|_| F::rand(&mut rng)).collect();
+        let current_input_x: Vec<F> = (0..running_input_x.len()).map(|_| F::rand(&mut rng)).collect();
+        let current_input_y: Vec<F> = (0..running_input_y.len()).map(|_| F::rand(&mut rng)).collect();
 
-        let z: (F, F, F) = shape.inst.inst.evaluate(&r_x, &r_y);
-        let z_prime: (F, F, F) = shape.inst.inst.evaluate(&r_x_prime, &r_y_prime);
+        let running_evaluations: (F, F, F) = shape.inst.inst.evaluate(&running_input_x, &running_input_y);
+        let current_evaluations: (F, F, F) = shape.inst.inst.evaluate(&current_input_x, &current_input_y);
 
-        let beta = F::rand(&mut rng);
-
-        let (proof_A, proof_B, proof_C) = fold_matrices_evaluations(
+        let (beta, (proof_A, proof_B, proof_C)) = fold_matrices_evaluations(
             &shape,
-            (r_x.clone(), r_y.clone()),
-            (r_x_prime.clone(), r_y_prime.clone()),
-            beta,
-            (z, z_prime),
+            (running_input_x.clone(), running_input_y.clone()),
+            (current_input_x.clone(), current_input_y.clone()),
+            &mut Transcript::new(b"new transcript"),
+            running_evaluations,
+            current_evaluations,
             true,
         );
 
@@ -155,22 +183,22 @@ pub mod tests {
         };
 
         // Compute the expected evaluation tuple
-        let expected_z_folded = expected_eval(z, z_prime, (proof_A, proof_B, proof_C));
+        let expected_folded_evaluations = expected_eval(running_evaluations, current_evaluations, (proof_A, proof_B, proof_C));
 
 
         // Perform the random combination for r_x_folded and r_y_folded
-        let r_x_folded: Vec<F> = r_x.iter()
-            .zip(r_x_prime.iter())
+        let folded_input_x: Vec<F> = running_input_x.iter()
+            .zip(current_input_x.iter())
             .map(|(rx, rx_prime)| *rx * (F::one() - beta) + *rx_prime * beta)
             .collect();
 
-        let r_y_folded: Vec<F> = r_y.iter()
-            .zip(r_y_prime.iter())
+        let folded_input_y: Vec<F> = running_input_y.iter()
+            .zip(current_input_y.iter())
             .map(|(ry, ry_prime)| *ry * (F::one() - beta) + *ry_prime * beta)
             .collect();
 
-        let z_folded: (F, F, F) = shape.inst.inst.evaluate(&r_x_folded, &r_y_folded);
+        let folded_evaluations: (F, F, F) = shape.inst.inst.evaluate(&folded_input_x, &folded_input_y);
 
-        assert_eq!(expected_z_folded, z_folded);
+        assert_eq!(expected_folded_evaluations, folded_evaluations);
     }
 }
