@@ -21,7 +21,7 @@ use ark_relations::r1cs::{Namespace, SynthesisError};
 use itertools::izip;
 use std::borrow::Borrow;
 use digest::Mac;
-use crate::nexus_spartan::matrix_evaluation_accumulation::verifier_circuit::{MatrixEvaluationVerifier, MatrixEvaluationVerifierVar};
+use crate::nexus_spartan::matrix_evaluation_accumulation::verifier_circuit::{MatrixEvaluationAccVerifier, MatrixEvaluationAccVerifierVar};
 
 type Output<G2, C2, G1, F> = (RelaxedOvaInstanceVar<G2, C2>, AccumulatorInstanceVar<G1>, Vec<FpVar<F>>, Vec<FpVar<F>>);
 
@@ -40,7 +40,7 @@ where
 {
     pub spartan_partial_verifier: SpartanPartialVerifier<F, E>,
     pub kzh_acc_verifier: AccumulatorVerifier<G1, G2, C2, E>,
-    pub matrix_evaluation_verifier: MatrixEvaluationVerifier<F>,
+    pub matrix_evaluation_verifier: MatrixEvaluationAccVerifier<F>,
 }
 
 pub struct AugmentedCircuitVar<G1, G2, C2, F>
@@ -55,7 +55,7 @@ where
 {
     pub spartan_partial_verifier: PartialVerifierVar<F, G1>,
     pub kzh_acc_verifier: AccumulatorVerifierVar<G1, G2, C2>,
-    pub matrix_evaluation_verifier: MatrixEvaluationVerifierVar<F>,
+    pub matrix_evaluation_verifier: MatrixEvaluationAccVerifierVar<F>,
 }
 
 impl<G1, G2, C2, E, F> AllocVar<AugmentedCircuit<G1, G2, C2, E, F>, F> for AugmentedCircuitVar<G1, G2, C2, F>
@@ -99,7 +99,7 @@ where
         )?;
 
         // Allocate the accumulator verifier
-        let matrix_evaluation_verifier = MatrixEvaluationVerifierVar::new_variable(
+        let matrix_evaluation_verifier = MatrixEvaluationAccVerifierVar::new_variable(
             cs.clone(),
             || Ok(&data.matrix_evaluation_verifier),
             mode,
@@ -208,6 +208,10 @@ mod tests {
             spartan_shape.get_num_inputs(),
         );
 
+        let mut rng = thread_rng();
+        let pcs_srs = gens.gens_r1cs_sat.keys.ck.srs.clone();
+        let acc_srs = Accumulator::setup(pcs_srs.clone(), &mut thread_rng());
+
         let mut prover_transcript = Transcript::new(b"example");
 
         // Get `proof_i` and random evaluation point (r_x, r_y)
@@ -220,7 +224,7 @@ mod tests {
         );
 
         // Get A(r_x, r_y), B(r_x, r_y), C(r_x, r_y)
-        let current_evaluation = spartan_shape.inst.inst.evaluate(&rx, &ry);
+        let current_A_B_C_evaluations = spartan_shape.inst.inst.evaluate(&rx, &ry);
 
         // ******************************* construct Spartan partial verifier circuit *******************************
 
@@ -235,33 +239,29 @@ mod tests {
                 let com_w: <E as Pairing>::G1Affine = instance.comm_W.clone().to_affine();
                 com_w
             }),
-            &current_evaluation,
+            &current_A_B_C_evaluations,
             &mut prover_transcript,
         );
 
         partial_verifier.verify(&mut verifier_transcript);
 
-        // ******************************* get corresponding accumulator of the spartan verifier *******************************
+        // ******************************* Extract current accumulator from the Spartan proof *******************************
 
-        // random running accumulator
-        let pcs_srs = gens.gens_r1cs_sat.keys.ck.srs.clone();
-        let acc_srs = Accumulator::setup(pcs_srs.clone(), &mut thread_rng());
-        let running_acc = Accumulator::random_satisfying_accumulator(&acc_srs, &mut thread_rng());
 
-        // generate an opening proof for the witness
+        // Get the KZH opening proof from the Spartan proof
         let opening_proof = spartan_proof.proof_eval_vars_at_ry.clone();
 
-        // commit to witness again
-        let commitment = instance.comm_W.clone();
+        // Commitment to witness polynomial
+        let commitment_w = instance.comm_W.clone();
 
-        let length_x = pcs_srs.get_x_length();
-        let length_y = pcs_srs.get_y_length();
-        let (x, y) = split_between_x_and_y::<F>(length_x, length_y, &ry[1..], F::ZERO);
+        // Get the evaluation point of the opening proof
+        let (x, y) = split_between_x_and_y::<F>(pcs_srs.get_x_length(), pcs_srs.get_y_length(), &ry[1..], F::ZERO);
 
+        // Sanity check: verify the opening proof
         assert!(
             PolyCommit::verify(
                 &PolyCommit { srs: pcs_srs.clone() },
-                &commitment,
+                &commitment_w,
                 &opening_proof,
                 x.as_slice(),
                 y.as_slice(),
@@ -269,24 +269,23 @@ mod tests {
             )
         );
 
+        // Get accumulator from the opening proof
         let acc_instance = Accumulator::new_accumulator_instance_from_fresh_kzh_instance(
             &acc_srs,
-            &commitment.C,
+            &commitment_w.C,
             x.as_slice(),
             y.as_slice(),
             &spartan_proof.eval_vars_at_ry,
         );
-
         let acc_witness = Accumulator::new_accumulator_witness_from_fresh_kzh_witness(
             &acc_srs,
             opening_proof,
             x.as_slice(),
             y.as_slice(),
         );
-
         let current_acc = Accumulator::new_accumulator(&acc_instance, &acc_witness);
 
-        // assert decide
+        // Check that the accumulator is valid
         assert!(
             Accumulator::decide(
                 &acc_srs,
@@ -294,7 +293,13 @@ mod tests {
             )
         );
 
-        // ******************************* Construct the accumulator verifier circuit *******************************
+        // ******************************* Get the running accumulator for the IVC scheme *******************************
+
+        let running_acc = Accumulator::random_satisfying_accumulator(&acc_srs, &mut thread_rng());
+
+        // ******************************* Construct the KZH AccVerifier circuit *******************************
+
+        // Here we will accumulate the current accumulator `current_acc` with the running accumulator `running_acc`
 
         // the shape of the R1CS instance
         let cycle_fold_shape = setup_shape::<G1, G2>().unwrap();
@@ -319,14 +324,13 @@ mod tests {
         // assert it's formated correctly
         prover.is_satisfied();
 
-        // ******************************* construct matrix evaluation verifier circuit *******************************
+        // ******************************* Construct A,B,C matrix evaluation accumulation AccVerifier circuit *******************************
 
-        let mut rng = thread_rng();
-
+        // Generate running accumulator
         // Generate random elements in the field for r_x_prime and r_y_prime
         let r_x_prime: Vec<F> = (0..rx.len()).map(|_| F::rand(&mut rng)).collect();
         let r_y_prime: Vec<F> = (0..ry.len()).map(|_| F::rand(&mut rng)).collect();
-
+        // Generate A(r_x', r_y'), B(r_x', r_y'), C(r_x', r_y')
         let z_prime: (F, F, F) = spartan_shape.inst.inst.evaluate(&r_x_prime, &r_y_prime);
 
         let beta = F::rand(&mut rng);
@@ -336,15 +340,15 @@ mod tests {
             (rx.clone(), ry.clone()),
             (r_x_prime.clone(), r_y_prime.clone()),
             &mut prover.final_transcript.clone(),
-            current_evaluation,
+            current_A_B_C_evaluations,
             z_prime,
             true,
         );
 
-        let verifier = MatrixEvaluationVerifier{
+        let verifier = MatrixEvaluationAccVerifier{
             running_input: (rx.clone(), ry.clone()),
             current_input: (r_x_prime.clone(), r_y_prime.clone()),
-            running_evaluations: current_evaluation,
+            running_evaluations: current_A_B_C_evaluations,
             current_evaluations: z_prime,
             proof: matrix_evaluation_proof,
         };
@@ -362,7 +366,7 @@ mod tests {
 
         let acc_verifier_var = AccumulatorVerifierVar::<G1, G2, C2>::new::<E>(cs.clone(), prover);
 
-        let matrix_evaluation_verifier_var = MatrixEvaluationVerifierVar::new_variable(
+        let matrix_evaluation_verifier_var = MatrixEvaluationAccVerifierVar::new_variable(
             cs.clone(),
             || Ok(verifier.clone()),
             AllocationMode::Witness,
@@ -379,6 +383,6 @@ mod tests {
         augmented_circuit.verify::<E>(&mut transcript_var);
 
         assert!(cs.is_satisfied().unwrap());
-        println!("{}", cs.num_constraints());
+        println!("augmented circuit constraints: {}", cs.num_constraints());
     }
 }
