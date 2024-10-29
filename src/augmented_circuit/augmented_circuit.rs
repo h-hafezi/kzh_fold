@@ -171,13 +171,16 @@ mod tests {
     use crate::nexus_spartan::crr1cs::is_sat;
     use crate::nexus_spartan::crr1cs::produce_synthetic_crr1cs;
     use crate::nexus_spartan::crr1csproof::CRR1CSProof;
+    use crate::nexus_spartan::crr1csproof::{CRR1CSInstance, CRR1CSKey, CRR1CSShape, CRR1CSWitness};
     use crate::nexus_spartan::polycommitments::{PolyCommitmentScheme, ToAffine};
     use crate::nova::cycle_fold::coprocessor::setup_shape;
     use crate::pcs::multilinear_pcs::PolyCommit;
     use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
+    use crate::pcs::multilinear_pcs::{SRS};
     use crate::transcript::transcript::Transcript;
     use ark_ff::AdditiveGroup;
-    use ark_relations::r1cs::ConstraintSystem;
+    use ark_r1cs_std::prelude::Boolean;
+    use ark_relations::r1cs::{ConstraintSystem, SynthesisMode};
     use ark_std::UniformRand;
     use rand::thread_rng;
     use crate::nexus_spartan::matrix_evaluation_accumulation::prover::fold_matrices_evaluations;
@@ -366,5 +369,31 @@ mod tests {
 
         assert!(cs.is_satisfied().unwrap());
         println!("augmented circuit constraints: {}", cs.num_constraints());
+
+        // these are required to called CRR1CSShape::convert
+        cs.set_mode(SynthesisMode::Prove { construct_matrices: true });
+        cs.finalize();
+
+        ////////// Prover /////////////////
+
+        // convert to the corresponding Spartan types
+        let shape = CRR1CSShape::<ScalarField>::convert::<G1>(cs.clone());
+        let key: CRR1CSKey<E, MultilinearPolynomial<ScalarField>> = CRR1CSKey::new(&SRS, shape.get_num_cons(), shape.get_num_vars());
+        // Commitment to w(x) happens here
+        let instance: CRR1CSInstance<E, MultilinearPolynomial<ScalarField>> = CRR1CSInstance::convert(cs.clone(), &key.keys.ck);
+        let witness = CRR1CSWitness::<ScalarField>::convert(cs.clone());
+
+        // check that the Spartan instance-witness pair is still satisfying
+        assert!(is_sat(&shape, &instance, &witness, &key).unwrap());
+
+        let mut prover_transcript = Transcript::new(b"example");
+
+        let (proof, rx, ry) = CRR1CSProof::prove(
+            &shape,
+            &instance,
+            witness,
+            &key,
+            &mut prover_transcript,
+        );
     }
 }
