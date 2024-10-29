@@ -114,7 +114,14 @@ where
 impl<F: PrimeField + Absorb> CRR1CSWitness<F> {
     pub(crate) fn convert(cs: ConstraintSystemRef<F>) -> Self {
         let cs_borrow = cs.borrow().unwrap();
-        let witness = cs_borrow.witness_assignment.clone();
+        let mut witness = cs_borrow.witness_assignment.clone();
+
+        // Calculate the next power of two for the length of the witness
+        let next_power_of_two = witness.len().next_power_of_two();
+
+        // Pad the witness vector with F::zero() to reach the next power of two
+        witness.resize(next_power_of_two, F::zero());
+
         CRR1CSWitness { W: Assignment::new(&witness).unwrap() }
     }
 }

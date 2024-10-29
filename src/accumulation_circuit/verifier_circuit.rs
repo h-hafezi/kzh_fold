@@ -617,10 +617,11 @@ pub mod tests {
     fn kzh_acc_verifier_circuit_initialisation_test() {
         let cs = get_initialise_cs();
 
-        // pad witness to have a length of power of two
-        for _ in 0..((1 << 16) - cs.num_constraints() + 5018) {
-             let _ = Boolean::new_witness(cs.clone(), || Ok(false));
-        }
+        println!("number of constraint random cs: {}", cs.num_constraints());
+        println!("number of instance random cs: {}", cs.num_instance_variables());
+        println!("number of witness random cs: {}", cs.num_witness_variables());
+
+        println!("number of constraint before shape convert: {}", cs.num_constraints());
 
         // convert to the corresponding Spartan types
         let shape = CRR1CSShape::<ScalarField>::convert::<G1>(cs.clone());
