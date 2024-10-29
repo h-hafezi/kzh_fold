@@ -101,8 +101,27 @@ where
 
         assert!(!pub_io.is_empty(), "instance is empty");
 
+        {
+            // Count the number of zeroes and ones in the witness
+            let total = witness.len();
+            let zero_count = witness.iter().filter(|&x| x.is_zero()).count();
+            let one_count = witness.iter().filter(|&x| x.is_one()).count();
+
+            // Calculate relative counts
+            let zero_relative = zero_count as f64 / total as f64;
+            let one_relative = one_count as f64 / total as f64;
+
+            // Output the results
+            println!("Witness zero count: {}", zero_count);
+            println!("Witness zero count: {:.2}%", zero_relative * 100.0);
+            println!("Witness one count: {}", one_count);
+            println!("Witness one count: {:.2}%", one_relative * 100.0);
+        }
+
         let poly_W = MultilinearPolynomial::new(witness);
+        let commit_timer = start_timer!(|| "Instance conversion (commit to witness)");
         let comm_W = PC::commit(&poly_W, &key);
+        end_timer!(commit_timer);
 
         CRR1CSInstance {
             input: Assignment::new(&pub_io[1..]).unwrap(),
