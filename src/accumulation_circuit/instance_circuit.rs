@@ -7,6 +7,7 @@ use ark_ec::pairing::Pairing;
 use ark_ec::short_weierstrass::{Affine, Projective, SWCurveConfig};
 use ark_ff::{Field, One, PrimeField, Zero};
 use ark_r1cs_std::alloc::{AllocationMode, AllocVar};
+use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
@@ -39,6 +40,41 @@ where
     pub x_var: Vec<FpVar<G1::ScalarField>>,
     pub y_var: Vec<FpVar<G1::ScalarField>>,
     pub z_var: FpVar<G1::ScalarField>,
+}
+
+impl<G1> AccumulatorInstanceVar<G1>
+where
+    G1: SWCurveConfig + Clone,
+    <G1 as CurveConfig>::ScalarField: PrimeField,
+    <G1 as CurveConfig>::BaseField: PrimeField,
+{
+    pub fn enforce_equal(
+        &self,
+        other: &Self,
+    ) -> Result<(), SynthesisError> {
+        // Enforce equality for group points
+        self.C_var.enforce_equal(&other.C_var)?;
+        self.T_var.enforce_equal(&other.T_var)?;
+        self.E_var.enforce_equal(&other.E_var)?;
+
+        // Enforce equality for scalar field vectors
+        if self.x_var.len() != other.x_var.len() || self.y_var.len() != other.y_var.len() {
+            return Err(SynthesisError::AssignmentMissing);
+        }
+
+        for (x_self, x_other) in self.x_var.iter().zip(other.x_var.iter()) {
+            x_self.enforce_equal(x_other)?;
+        }
+
+        for (y_self, y_other) in self.y_var.iter().zip(other.y_var.iter()) {
+            y_self.enforce_equal(y_other)?;
+        }
+
+        // Enforce equality for single scalar field element z_var
+        self.z_var.enforce_equal(&other.z_var)?;
+
+        Ok(())
+    }
 }
 
 
@@ -267,6 +303,48 @@ pub mod tests {
         for (x, x_var) in zip(instance.to_sponge_field_elements(), instance_var.to_sponge_field_elements().unwrap()) {
             assert_eq!(x, x_var.value().unwrap());
         }
+    }
+
+    #[test]
+    fn test_enforce_equal() {
+        let instance = get_random_acc_instance();
+
+        // Create a constraint system
+        let cs = ConstraintSystem::<ScalarField>::new_ref();
+
+        // Create a circuit variable for the instance
+        let instance_var = AccumulatorInstanceVar::new_variable(
+            cs.clone(),
+            || Ok(instance.clone()),
+            AllocationMode::Witness,
+        ).unwrap();
+
+        // Create a cloned circuit variable for testing equality
+        let instance_clone_var = AccumulatorInstanceVar::new_variable(
+            cs.clone(),
+            || Ok(instance.clone()),
+            AllocationMode::Witness,
+        ).unwrap();
+
+        // Enforce equality between the instance and its clone
+        instance_var.enforce_equal(&instance_clone_var).unwrap();
+
+        // Check that the constraint system is satisfied (equality should hold)
+        assert!(cs.is_satisfied().unwrap());
+
+        // Generate a different random instance for testing inequality
+        let different_instance = get_random_acc_instance();
+        let different_instance_var = AccumulatorInstanceVar::new_variable(
+            cs.clone(),
+            || Ok(different_instance),
+            AllocationMode::Witness,
+        ).unwrap();
+
+        // Enforce equality between the original instance and a different instance
+        instance_var.enforce_equal(&different_instance_var).unwrap();
+
+        // Now the constraint system should not be satisfied (equality should not hold)
+        assert!(!cs.is_satisfied().unwrap());
     }
 }
 

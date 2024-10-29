@@ -20,7 +20,7 @@ use ark_relations::ns;
 use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 use std::borrow::Borrow;
 
-pub struct PartialVerifierVar<F: PrimeField + Absorb, G1>
+pub struct SpartanPartialVerifierVar<F: PrimeField + Absorb, G1>
 where
     G1: SWCurveConfig<ScalarField=F> + Clone,
     G1::BaseField: PrimeField,
@@ -44,7 +44,7 @@ where
     pub num_cons: usize,
 }
 
-impl<F: PrimeField + Absorb, G1> PartialVerifierVar<F, G1>
+impl<F: PrimeField + Absorb, G1> SpartanPartialVerifierVar<F, G1>
 where
     G1: SWCurveConfig<ScalarField=F> + Clone,
     G1::BaseField: PrimeField,
@@ -134,7 +134,7 @@ where
     }
 }
 
-impl<F: PrimeField + Absorb, G1, E> AllocVar<SpartanPartialVerifier<F, E>, F> for PartialVerifierVar<F, G1>
+impl<F: PrimeField + Absorb, G1, E> AllocVar<SpartanPartialVerifier<F, E>, F> for SpartanPartialVerifierVar<F, G1>
 where
     G1: SWCurveConfig<ScalarField=F> + Clone,
     G1::BaseField: PrimeField,
@@ -205,7 +205,7 @@ where
         );
 
         // Create the final PartialVerifierVar instance
-        Ok(PartialVerifierVar {
+        Ok(SpartanPartialVerifierVar {
             instance: (input, com_w),
             sc_proof_phase1,
             claims_phase2,
@@ -230,7 +230,7 @@ mod tests {
     pub fn test_partial_verifier_circuit() {
         let (partial_verifier, transcript) = partial_verifier_test_helper::<E, MultilinearPolynomial<ScalarField>, ScalarField>();
         let cs = ConstraintSystem::<ScalarField>::new_ref();
-        let partial_verifier_var = PartialVerifierVar::new_variable(
+        let partial_verifier_var = SpartanPartialVerifierVar::new_variable(
             cs.clone(),
             || Ok(partial_verifier.clone()),
             AllocationMode::Input,

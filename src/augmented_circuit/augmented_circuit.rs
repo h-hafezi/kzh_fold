@@ -3,7 +3,7 @@ use crate::accumulation_circuit::verifier_circuit::{AccumulatorVerifier, Accumul
 use crate::commitment::CommitmentScheme;
 use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
 use crate::nexus_spartan::partial_verifier::partial_verifier::SpartanPartialVerifier;
-use crate::nexus_spartan::partial_verifier::partial_verifier_var::PartialVerifierVar;
+use crate::nexus_spartan::partial_verifier::partial_verifier_var::SpartanPartialVerifierVar;
 use crate::nova::cycle_fold::coprocessor_constraints::RelaxedOvaInstanceVar;
 use crate::pcs::multilinear_pcs::split_between_x_and_y;
 use crate::transcript::transcript_var::TranscriptVar;
@@ -53,7 +53,7 @@ where
     C2: CommitmentScheme<Projective<G2>>,
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField> + Clone,
 {
-    pub spartan_partial_verifier: PartialVerifierVar<F, G1>,
+    pub spartan_partial_verifier: SpartanPartialVerifierVar<F, G1>,
     pub kzh_acc_verifier: AccumulatorVerifierVar<G1, G2, C2>,
     pub matrix_evaluation_verifier: MatrixEvaluationAccVerifierVar<F>,
 }
@@ -85,7 +85,7 @@ where
         let data = binding.borrow();
 
         // Allocate the Spartan partial verifier
-        let spartan_partial_verifier = PartialVerifierVar::new_variable(
+        let spartan_partial_verifier = SpartanPartialVerifierVar::new_variable(
             cs.clone(),
             || Ok(&data.spartan_partial_verifier),
             mode,
@@ -358,7 +358,7 @@ mod tests {
 
         let cs = ConstraintSystem::<ScalarField>::new_ref();
 
-        let partial_verifier_var = PartialVerifierVar::new_variable(
+        let partial_verifier_var = SpartanPartialVerifierVar::new_variable(
             cs.clone(),
             || Ok(partial_verifier.clone()),
             AllocationMode::Input,
