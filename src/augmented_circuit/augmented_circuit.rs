@@ -143,7 +143,6 @@ where
             e1.enforce_equal(&e2).expect("error while enforcing equality");
         }
 
-
         // enforce equal eval_Z_at_ry and accumulator.z_var
         self.spartan_partial_verifier.eval_vars_at_ry.enforce_equal(
             &self.kzh_acc_verifier
@@ -208,7 +207,6 @@ mod tests {
             spartan_shape.get_num_inputs(),
         );
 
-        let mut rng = thread_rng();
         let pcs_srs = gens.gens_r1cs_sat.keys.ck.srs.clone();
         let acc_srs = Accumulator::setup(pcs_srs.clone(), &mut thread_rng());
 
@@ -247,7 +245,6 @@ mod tests {
 
         // ******************************* Extract current accumulator from the Spartan proof *******************************
 
-
         // Get the KZH opening proof from the Spartan proof
         let opening_proof = spartan_proof.proof_eval_vars_at_ry.clone();
 
@@ -277,12 +274,14 @@ mod tests {
             y.as_slice(),
             &spartan_proof.eval_vars_at_ry,
         );
+
         let acc_witness = Accumulator::new_accumulator_witness_from_fresh_kzh_witness(
             &acc_srs,
             opening_proof,
             x.as_slice(),
             y.as_slice(),
         );
+
         let current_acc = Accumulator::new_accumulator(&acc_instance, &acc_witness);
 
         // Check that the accumulator is valid
@@ -326,37 +325,18 @@ mod tests {
 
         // ******************************* Construct A,B,C matrix evaluation accumulation AccVerifier circuit *******************************
 
-        // Generate running accumulator
-        // Generate random elements in the field for r_x_prime and r_y_prime
-        let r_x_prime: Vec<F> = (0..rx.len()).map(|_| F::rand(&mut rng)).collect();
-        let r_y_prime: Vec<F> = (0..ry.len()).map(|_| F::rand(&mut rng)).collect();
-        // Generate A(r_x', r_y'), B(r_x', r_y'), C(r_x', r_y')
-        let z_prime: (F, F, F) = spartan_shape.inst.inst.evaluate(&r_x_prime, &r_y_prime);
-
-        let beta = F::rand(&mut rng);
-
-        let (beta, matrix_evaluation_proof) = fold_matrices_evaluations(
+        let verifier = MatrixEvaluationAccVerifier::random_from_running_inputs(
             &spartan_shape,
-            (rx.clone(), ry.clone()),
-            (r_x_prime.clone(), r_y_prime.clone()),
-            &mut prover.final_transcript.clone(),
-            current_A_B_C_evaluations,
-            z_prime,
-            true,
+            rx,
+            ry,
+            prover.final_transcript.clone(),
+            &mut thread_rng(),
         );
-
-        let verifier = MatrixEvaluationAccVerifier{
-            running_input: (rx.clone(), ry.clone()),
-            current_input: (r_x_prime.clone(), r_y_prime.clone()),
-            running_evaluations: current_A_B_C_evaluations,
-            current_evaluations: z_prime,
-            proof: matrix_evaluation_proof,
-        };
 
 
         // ******************************* Construct the augmented circuit *******************************
 
-        let cs = ConstraintSystem::<ScalarField>::new_ref();
+        let cs = ConstraintSystem::<F>::new_ref();
 
         let partial_verifier_var = SpartanPartialVerifierVar::new_variable(
             cs.clone(),

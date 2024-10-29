@@ -21,4 +21,3 @@ pub mod augmented_circuit;
 
 pub mod math;
 mod transcript;
-mod signature_augmented_circuit;

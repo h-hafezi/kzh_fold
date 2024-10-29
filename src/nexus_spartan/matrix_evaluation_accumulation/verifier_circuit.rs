@@ -1,4 +1,5 @@
-use crate::nexus_spartan::matrix_evaluation_accumulation::prover::to_sponge_vector;
+use crate::nexus_spartan::crr1cs::CRR1CSShape;
+use crate::nexus_spartan::matrix_evaluation_accumulation::prover::{fold_matrices_evaluations, to_sponge_vector};
 use crate::transcript::transcript::Transcript;
 use crate::transcript::transcript_var::TranscriptVar;
 use ark_crypto_primitives::sponge::Absorb;
@@ -8,6 +9,7 @@ use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::R1CSVar;
 use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
+use rand::Rng;
 use std::borrow::Borrow;
 use std::ops::Mul;
 
@@ -61,6 +63,39 @@ impl<F: PrimeField + Absorb> MatrixEvaluationAccVerifier<F> {
         let next_evaluation = expected_eval(self.running_evaluations, self.current_evaluations, self.proof);
 
         ((folded_input_x, folded_input_y), next_evaluation)
+    }
+
+    pub fn random_from_running_inputs<R: Rng>(shape: &CRR1CSShape<F>, rx: Vec<F>, ry: Vec<F>, mut transcript: Transcript<F>, mut rng: R) -> Self {
+        // Generate random elements in the field for r_x_prime and r_y_prime
+        let r_x_prime: Vec<F> = (0..rx.len()).map(|_| F::rand(&mut rng)).collect();
+        let r_y_prime: Vec<F> = (0..ry.len()).map(|_| F::rand(&mut rng)).collect();
+
+        // Generate A(r_x', r_y'), B(r_x', r_y'), C(r_x', r_y')
+        let z_prime: (F, F, F) = shape.inst.inst.evaluate(&r_x_prime, &r_y_prime);
+
+        let current_A_B_C_evaluations = shape.inst.inst.evaluate(&rx, &ry);
+
+        let beta = F::rand(&mut rng);
+
+        let (beta, matrix_evaluation_proof) = fold_matrices_evaluations(
+            &shape,
+            (rx.clone(), ry.clone()),
+            (r_x_prime.clone(), r_y_prime.clone()),
+            &mut transcript,
+            current_A_B_C_evaluations,
+            z_prime,
+            true,
+        );
+
+        let verifier = MatrixEvaluationAccVerifier {
+            running_input: (rx.clone(), ry.clone()),
+            current_input: (r_x_prime.clone(), r_y_prime.clone()),
+            running_evaluations: current_A_B_C_evaluations,
+            current_evaluations: z_prime,
+            proof: matrix_evaluation_proof,
+        };
+
+        verifier
     }
 }
 
