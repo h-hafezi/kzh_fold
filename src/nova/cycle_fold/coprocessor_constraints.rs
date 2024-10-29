@@ -1,23 +1,24 @@
 use std::{borrow::Borrow, marker::PhantomData};
 
 use ark_ec::{
-    AffineRepr,
     short_weierstrass::{Affine, Projective, SWCurveConfig},
+    AffineRepr,
 };
 use ark_ff::{Field, PrimeField};
 use ark_r1cs_std::{
-    alloc::{AllocationMode, AllocVar},
+    alloc::{AllocVar, AllocationMode},
     boolean::Boolean,
     fields::{
-        FieldVar,
         fp::FpVar,
         nonnative::{NonNativeFieldMulResultVar, NonNativeFieldVar},
+        FieldVar,
     },
     groups::{curves::short_weierstrass::ProjectiveVar, CurveVar},
-    R1CSVar,
     select::CondSelectGadget,
+    R1CSVar,
     ToBitsGadget,
 };
+use ark_r1cs_std::eq::EqGadget;
 use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 
 use crate::commitment::CommitmentScheme;
@@ -297,6 +298,22 @@ where
             _commitment_scheme: PhantomData,
         })
     }
+
+    pub fn enforce_equal(&self, other: &Self) -> Result<(), SynthesisError> {
+        // Enforce equality for the commitment field
+        self.commitment.enforce_equal(&other.commitment)?;
+
+        // Enforce equality for each element in the X vector
+        if self.X.len() != other.X.len() {
+            return Err(SynthesisError::AssignmentMissing);
+        }
+
+        for (x_self, x_other) in self.X.iter().zip(&other.X) {
+            x_self.enforce_equal(x_other)?;
+        }
+
+        Ok(())
+    }
 }
 
 
@@ -361,15 +378,15 @@ where
 mod tests {
     use ark_ff::Zero;
     use ark_pallas::PallasConfig;
-    use ark_r1cs_std::alloc::{AllocationMode, AllocVar};
-    use ark_r1cs_std::{R1CSVar};
+    use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
+    use ark_r1cs_std::R1CSVar;
     use ark_relations::r1cs::ConstraintSystem;
     use ark_vesta::{Fq, VestaConfig};
 
     use crate::commitment::*;
     use crate::hash::pederson::PedersenCommitment;
     use crate::nova::cycle_fold::coprocessor::{setup_shape, synthesize};
-    use crate::nova::cycle_fold::coprocessor_constraints::{OvaInstanceVar};
+    use crate::nova::cycle_fold::coprocessor_constraints::OvaInstanceVar;
     use crate::nova::cycle_fold::test::tests::get_random_circuit;
 
     #[test]
