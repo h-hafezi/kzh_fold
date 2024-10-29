@@ -248,13 +248,13 @@ impl<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>, F: PrimeField + Abs
 
         let _inst = &shape.inst.inst;
         let CRR1CSInstance {
-            input: _input,
+            input,
             comm_W,
         } = instance;
 
-        let CRR1CSWitness { W: _vars } = witness;
+        let CRR1CSWitness { W: vars } = witness;
 
-        let (inst, input, vars) = (&_inst, _input.assignment.as_slice(), _vars.assignment);
+        let (inst, input, vars) = (&_inst, input.assignment.as_slice(), vars.assignment);
 
         // we currently require the number of |inputs| + 1 to be at most number of vars
         assert!(input.len() < vars.len());
