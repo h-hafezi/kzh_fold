@@ -192,8 +192,10 @@ mod tests {
 
     /// Take as input `proof_i` and `running_accumulator_{i}` and produce `proof_{i+1}` and `running_accumulator_{i+1}`.
     fn test_augmented_circuit_helper() {
+        let SRS: SRS<E> = MultilinearPolynomial::setup(18, &mut thread_rng()).unwrap();
+
         // ******************************* generate a satisfying instance for Spartan and get structure *******************************
-        let num_vars = 1024;
+        let num_vars = 131072;
         let num_cons = num_vars;
         let num_inputs = 10;
 
