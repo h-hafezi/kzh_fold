@@ -3,6 +3,7 @@ use std::borrow::Borrow;
 use std::marker::PhantomData;
 use std::ops::Add;
 
+use ark_std::{end_timer, start_timer};
 use ark_crypto_primitives::sponge::constraints::AbsorbGadget;
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
@@ -580,7 +581,8 @@ pub mod tests {
 
     type C2 = PedersenCommitment<Projective<G2>>;
 
-    pub fn get_initialise_cs() -> ConstraintSystemRef<ScalarField> {
+    // Test helper
+    pub fn get_random_acc_verifier_cs() -> ConstraintSystemRef<ScalarField> {
         // a constraint system
         let cs = ConstraintSystem::<ScalarField>::new_ref();
 
@@ -614,8 +616,16 @@ pub mod tests {
     }
 
     #[test]
-    fn kzh_acc_verifier_circuit_initialisation_test() {
-        let cs = get_initialise_cs();
+    fn kzh_acc_verifier_circuit_end_to_end_test() {
+        let SRS: SRS<E> = MultilinearPolynomial::setup(18, &mut thread_rng()).unwrap();
+
+        let cs = get_random_acc_verifier_cs();
+
+        println!("number of constraint random cs: {}", cs.num_constraints());
+        println!("number of instance random cs: {}", cs.num_instance_variables());
+        println!("number of witness random cs: {}", cs.num_witness_variables());
+
+        println!("number of constraint before shape convert: {}", cs.num_constraints());
 
         println!("number of constraint random cs: {}", cs.num_constraints());
         println!("number of instance random cs: {}", cs.num_instance_variables());
@@ -625,21 +635,17 @@ pub mod tests {
 
         // convert to the corresponding Spartan types
         let shape = CRR1CSShape::<ScalarField>::convert::<G1>(cs.clone());
-        let SRS: SRS<E> = MultilinearPolynomial::setup(18, &mut thread_rng()).unwrap();
         let key: CRR1CSKey<E, MultilinearPolynomial<ScalarField>> = CRR1CSKey::new(&SRS, shape.get_num_cons(), shape.get_num_vars());
+        // Commitment to w(x) happens here
         let instance: CRR1CSInstance<E, MultilinearPolynomial<ScalarField>> = CRR1CSInstance::convert(cs.clone(), &key.keys.ck);
+
         let witness = CRR1CSWitness::<ScalarField>::convert(cs.clone());
 
         // check that the Spartan instance-witness pair is still satisfying
         assert!(is_sat(&shape, &instance, &witness, &key).unwrap());
 
-        let (num_cons, num_vars, _num_inputs) = (
-            shape.get_num_cons(),
-            shape.get_num_vars(),
-            shape.get_num_inputs(),
-        );
+        //////////// Prover: ////////////////
 
-        // run Spartan prover
         let mut prover_transcript = Transcript::new(b"example");
 
         let (proof, rx, ry) = CRR1CSProof::prove(
@@ -653,8 +659,14 @@ pub mod tests {
         // evaluate matrices A B C
         let inst_evals = shape.inst.inst.evaluate(&rx, &ry);
 
-        // run Spartan verifier
+        //////////// Verifier ////////////////
+
         let mut verifier_transcript = Transcript::new(b"example");
+        let (num_cons, num_vars, _num_inputs) = (
+            shape.get_num_cons(),
+            shape.get_num_vars(),
+            shape.get_num_inputs(),
+        );
         assert!(proof
             .verify(
                 num_vars,

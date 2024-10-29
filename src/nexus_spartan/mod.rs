@@ -114,6 +114,7 @@ impl<F: PrimeField + Absorb> Instance<F> {
         B: &[(usize, usize, F)],
         C: &[(usize, usize, F)],
     ) -> Result<Self, R1CSError> {
+        // padding
         let (num_vars_padded, num_cons_padded) = {
             let num_vars_padded = {
                 let mut num_vars_padded = num_vars;
@@ -161,8 +162,10 @@ impl<F: PrimeField + Absorb> Instance<F> {
                     }
 
                     if col >= num_vars {
+                        // Column refers to inputs (not witness). Move it past padding
                         mat.push((row, col + num_vars_padded - num_vars, val));
                     } else {
+                        // Column refers to witness
                         mat.push((row, col, val));
                     }
                 }

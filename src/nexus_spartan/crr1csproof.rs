@@ -286,10 +286,10 @@ impl<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>, F: PrimeField + Abs
         );
 
         // compute the initial evaluation table for R(\tau, x)
-        let mut poly_tau = MultilinearPolynomial::new(EqPolynomial::new(tau).evals());
         let (mut poly_Az, mut poly_Bz, mut poly_Cz) =
             inst.multiply_vec(inst.get_num_cons(), z.len(), &z);
 
+        let mut poly_tau = MultilinearPolynomial::new(EqPolynomial::new(tau).evals());
         let (sc_proof_phase1, rx, _claims_phase1) = CRR1CSProof::<E, PC, F>::prove_phase_one(
             num_rounds_x,
             &mut poly_tau,
@@ -345,8 +345,8 @@ impl<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>, F: PrimeField + Abs
         let (sc_proof_phase2, ry, _claims_phase2) = CRR1CSProof::<E, PC, F>::prove_phase_two(
             num_rounds_y,
             &claim_phase2,
-            &mut MultilinearPolynomial::new(z.clone()),
-            &mut MultilinearPolynomial::new(evals_ABC.clone()),
+            &mut MultilinearPolynomial::new(z),
+            &mut MultilinearPolynomial::new(evals_ABC),
             transcript,
         );
         timer_sc_proof_phase2.stop();
