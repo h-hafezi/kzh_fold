@@ -34,19 +34,15 @@ where
     /// bitfield commitment, solely used for Fiat-Shamir
     pub com_bitfield: (G1::BaseField, G1::BaseField),
 
+    /// XXX: All the cyclefold things should be ideally combined into a single thing
     /// beta used to take linear combination for cycle fold
     pub beta: G1::BaseField,
-
     /// the cross term error
     pub com_pk: Projective<G2>,
     pub cycle_fold_fresh_instance: OvaInstance<G2, C2>,
-
     /// auxiliary input which helps to have pk_t = pk_2 + pk_1
     pub cycle_fold_running_instance: RelaxedOvaInstance<G2, C2>,
     pub cycle_fold_final_instance: RelaxedOvaInstance<G2, C2>,
-
-    /// the bitfield polynomial
-    pub bitfield_poly: MultilinearPolynomial<F>,
 
     /// the sumcheck proof
     pub sumcheck_proof: SumcheckCircuit<F>,

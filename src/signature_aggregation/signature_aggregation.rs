@@ -38,30 +38,49 @@ pub struct SignatureAggrData<E: Pairing>
 where
     <E as Pairing>::ScalarField: Absorb,
 {
-    // TODO comment this out for now. we will figure out the BLS stuff later.
-    // pk: E::G1Affine,
-    // sig: E::G2Affine,
+    /////////////// Signature aggregation data ///////////////
 
     /// Commitments to b_1(x) and b_2(x)
     pub B_1_commitment: Option<Commitment<E>>,
     pub B_2_commitment: Option<Commitment<E>>,
     /// c(x): the union poly
     pub bitfield_poly: MultilinearPolynomial<E::ScalarField>,
+
+    // sig: E::G2Affine,
+
+    /////////////// All the z_i data that go into SignatureVerifierCircuit //////////////
+
+    // TODO we will figure out the BLS stuff later.
+    // pk: E::G1Affine,
+
     /// Commitment to c(x)
     pub bitfield_commitment: Commitment<E>,
     pub sumcheck_proof: Option<SumcheckInstanceProof<E::ScalarField>>,
-
-    /// Accumulator witness for random evaluation of p(x) at rho:
-    /// p(rho) = b_1(rho) + c_1 * b_2(rho) + c_2 * c(rho)
-    pub sumcheck_eval_acc_witness: Option<AccWitness<E>>,
 
     /// Evaluations of the inner polynomials at rho:
     pub b_1_at_rho: Option<E::ScalarField>, // b_1(rho)
     pub b_2_at_rho: Option<E::ScalarField>, // b_2(rho)
     pub c_at_rho: Option<E::ScalarField>, // c(rho)
 
-    // ivc_proof: Option<IVCProof<E>>
-    // state_acc_witness: Option<AccWitness<E>>
+    /////////////// KZH accumulator for the sig aggr sumcheck (goes into 3-to-1) //////////////
+
+    /// Accumulator for random evaluation of p(x) at rho:
+    /// p(rho) = b_1(rho) + c_1 * b_2(rho) + c_2 * c(rho)
+    pub sumcheck_eval_accumulator: Option<Accumulator<E>>,
+
+    /////////////// Running accumulator `acc_i` //////////////////
+
+    // Running KZH accumulator (goes into 3-to-1)
+    // pub running_KZH_accumulator: Option<Accumulator<E>>,
+
+    // Running multilinear eval accumulator
+    // pub running_A_B_C_accumulator: ???
+
+    /////////////// IVC proof for all the previous steps `\pi_i` //////////////////
+
+    // The IVC proof contains a KZH accumulator and an A,B,C accumulator
+
+    // ivc_proof: Option<CRR1CSProof<E>>
 }
 
 impl<E: Pairing> SignatureAggrData<E>
@@ -78,10 +97,10 @@ where
             bitfield_poly,
             bitfield_commitment,
             sumcheck_proof: None,
-            sumcheck_eval_acc_witness: None,
             b_1_at_rho: None,
             b_2_at_rho: None,
             c_at_rho: None,
+            sumcheck_eval_accumulator: None,
         }
     }
 }
@@ -260,10 +279,10 @@ where
             bitfield_poly: c_poly,
             bitfield_commitment: C_commitment,
             sumcheck_proof: Some(sumcheck_proof),
-            sumcheck_eval_acc_witness: Some(sumcheck_eval_accumulator.witness),
             b_1_at_rho: Some(b_1_at_rho),
             b_2_at_rho: Some(b_2_at_rho),
             c_at_rho: Some(c_at_rho),
+            sumcheck_eval_accumulator: Some(sumcheck_eval_accumulator),
             // ivc_proof: ivc_proof
             // state_acc_witness: state_acc_witness
         }
@@ -368,19 +387,15 @@ where
         let p_at_rho = b_1_at_rho + vec_c[0] * b_2_at_rho + vec_c[1] * c_at_rho;
 
         // Compute the decider's accumulator instance
-        let acc_instance = self.get_acc_instance_from_evaluation(
+        let _acc_instance = self.get_acc_instance_from_evaluation(
             &P_commitment,
             &p_at_rho,
             &sumcheck_challenges);
 
-        // Compute the full accumulator using the witness from the prover
-        let accumulator = Accumulator {
-            instance: acc_instance,
-            witness: self.A.sumcheck_eval_acc_witness.clone().unwrap(),
-        };
+        // Do the cross-check that the accumulator is the right one using _acc_instance
 
         // Decide the accumulator!
-        assert!(Accumulator::decide(&self.srs.acc_srs, &accumulator));
+        assert!(Accumulator::decide(&self.srs.acc_srs, &self.A.sumcheck_eval_accumulator.clone().unwrap()));
 
         true
     }
