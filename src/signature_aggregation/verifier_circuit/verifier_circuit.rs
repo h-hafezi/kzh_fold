@@ -47,6 +47,10 @@ where
     /// the sumcheck proof
     pub sumcheck_proof: SumcheckCircuit<F>,
 
+    /// XXX: remove!
+    /// the bitfield polynomial
+    pub bitfield_poly: MultilinearPolynomial<F>,
+
     /// Evaluations of the inner polynomials at rho:
     pub b_1_at_rho: F,
     pub b_2_at_rho: F,
