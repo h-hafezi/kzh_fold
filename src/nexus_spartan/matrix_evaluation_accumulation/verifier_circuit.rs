@@ -258,7 +258,7 @@ pub mod tests {
     type F = ScalarField;
 
     #[test]
-    fn test_non_zk() {
+    fn test_A_B_C_eval_non_zk() {
         let (shape, running_input_x, running_input_y) = matrix_evaluation_setup::<F, E, G1>();
 
         let mut rng = thread_rng();
@@ -313,7 +313,7 @@ pub mod tests {
     }
 
     #[test]
-    fn test_zk() {
+    fn test_A_B_C_eval_zk() {
         let (shape, running_input_x, running_input_y) = matrix_evaluation_setup::<F, E, G1>();
         let cs = ConstraintSystem::<F>::new_ref();
 

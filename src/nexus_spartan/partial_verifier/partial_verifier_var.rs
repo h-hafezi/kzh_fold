@@ -239,7 +239,7 @@ mod tests {
         let mut transcript_var = TranscriptVar::from_transcript(cs.clone(), transcript);
 
         let (_r_x, _r_y) = partial_verifier_var.verify(&mut transcript_var);
-        println!("constraint count: {} {}", cs.num_instance_variables(), cs.num_witness_variables());
+        println!("constraint count: {}", cs.num_constraints());
         assert!(cs.is_satisfied().unwrap());
     }
 }

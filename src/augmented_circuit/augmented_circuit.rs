@@ -7,6 +7,7 @@ use crate::nexus_spartan::partial_verifier::partial_verifier_var::SpartanPartial
 use crate::nova::cycle_fold::coprocessor_constraints::RelaxedOvaInstanceVar;
 use crate::pcs::multilinear_pcs::split_between_x_and_y;
 use crate::transcript::transcript_var::TranscriptVar;
+use ark_std::{end_timer, start_timer};
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
 use ark_ec::short_weierstrass::{Affine, Projective, SWCurveConfig};
@@ -395,5 +396,31 @@ mod tests {
             &key,
             &mut prover_transcript,
         );
+
+        ////////// Verifier /////////////////
+
+        let A_B_C_eval_timer = start_timer!(|| "ABC evals");
+        // evaluate matrices A B C
+        let inst_evals = shape.inst.inst.evaluate(&rx, &ry);
+        end_timer!(A_B_C_eval_timer);
+
+        let mut verifier_transcript = Transcript::new(b"example");
+        let (num_cons, num_vars, _num_inputs) = (
+            shape.get_num_cons(),
+            shape.get_num_vars(),
+            shape.get_num_inputs(),
+        );
+
+        let verify_timer = start_timer!(|| "verify");
+        assert!(proof
+            .verify(
+                num_vars,
+                num_cons,
+                &instance,
+                &inst_evals,
+                &mut verifier_transcript,
+            )
+            .is_ok());
+        end_timer!(verify_timer);
     }
 }

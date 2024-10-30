@@ -7,6 +7,7 @@ use ark_ff::{AdditiveGroup, Field, PrimeField, Zero};
 use ark_poly::EvaluationDomain;
 use ark_serialize::CanonicalSerialize;
 use ark_std::UniformRand;
+use ark_std::{end_timer, start_timer};
 use rand::{Rng, RngCore};
 
 use crate::accumulation::eq_tree::EqTree;
@@ -488,7 +489,10 @@ pub mod test {
         let instance_expected = Accumulator::verify(&srs, &acc1.instance, &acc2.instance, Q, &mut verifier_transcript);
 
         assert_eq!(instance, instance_expected);
+
+        let decide_timer = start_timer!(|| "decide");
         assert!(Accumulator::decide(&srs, &Accumulator { witness, instance }));
+        end_timer!(decide_timer);
     }
 
     #[test]

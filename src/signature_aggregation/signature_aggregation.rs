@@ -406,6 +406,8 @@ where
         // Decide the accumulator!
         assert!(Accumulator::decide(&self.srs.acc_srs, &self.A.sumcheck_eval_accumulator.clone().unwrap()));
 
+        // XXX Verify the IVC proof
+
         true
     }
 }
