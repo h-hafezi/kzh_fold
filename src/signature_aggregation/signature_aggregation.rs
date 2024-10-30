@@ -33,6 +33,7 @@ where
     }
 }
 
+/// This is the data sent by an aggregator node to the next aggregator node on the network
 #[derive(Clone, Debug)]
 pub struct SignatureAggrData<E: Pairing>
 where
@@ -106,7 +107,7 @@ where
 }
 
 /// This struct represents an aggregator on the network that receives data from two parties and needs to aggregate them
-/// into one. After aggregation, the aggregator forwards the aggregated data.
+/// into one. After aggregation, the aggregator produces its own `SignatureAggrData` and forwards it to the next node.
 pub struct Aggregator<E, F>
 where
     E: Pairing<ScalarField=F>,
