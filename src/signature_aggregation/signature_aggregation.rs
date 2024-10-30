@@ -4,16 +4,16 @@ use ark_ec::AffineRepr;
 use ark_ff::PrimeField;
 use rand::RngCore;
 
-use crate::accumulation::accumulator::{AccInstance, AccSRS, AccWitness, Accumulator};
+use crate::accumulation::accumulator::{AccInstance, AccSRS, Accumulator};
 use crate::constant_for_curves::ScalarField;
+use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
 use crate::nexus_spartan::sumcheck::SumcheckInstanceProof;
-use crate::pcs::multilinear_pcs::{Commitment, PolyCommit};
+use crate::pcs::multilinear_pcs::{split_between_x_and_y, Commitment, PolyCommit};
 use crate::polynomial::eq_poly::eq_poly::EqPolynomial;
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript::Transcript;
 use ark_ff::Zero;
 
-// XXX move to mod.rs or somewhere neutral
 #[derive(Clone, Debug)]
 pub struct SRS<E: Pairing> {
     pub acc_srs: AccSRS<E>,
@@ -126,32 +126,43 @@ where
     /// Return (A.X, A.W) given f(x), and z and y such that f(z) = y
     fn get_accumulator_from_evaluation(&self,
                                        bitfield_poly: &MultilinearPolynomial<F>,
-                                       bitfield_commitment: &Commitment<E>,
                                        eval_result: &F,
                                        eval_point: &Vec<F>,
     ) -> Accumulator<E> {
         let poly_commit = PolyCommit { srs: self.srs.acc_srs.pc_srs.clone() }; // XXX no clone. bad ergonomics
 
-        // Split the evaluation point in half since open() just needs the first half
-        assert_eq!(eval_point.len() % 2, 0);
-        let mid = eval_point.len() / 2;
-        let (eval_point_first_half, eval_point_second_half) = eval_point.split_at(mid);
+        let bitfield_commitment=MultilinearPolynomial::commit(
+            bitfield_poly,
+            &poly_commit,
+        );
 
-        let opening_proof = poly_commit.open(bitfield_poly, bitfield_commitment.clone(), eval_point_first_half); // XXX needless clone
+        // Split the evaluation point in half since open() just needs the first half
+
+        let opening_proof = MultilinearPolynomial::prove(
+            Some(&bitfield_commitment),
+            &bitfield_poly,
+            eval_point,
+            &poly_commit
+        );
+
+
+        let length_x = poly_commit.srs.get_x_length();
+        let length_y = poly_commit.srs.get_y_length();
+        let (eval_point_first_half, eval_point_second_half) = split_between_x_and_y::<F>(length_x, length_y, eval_point, F::ZERO);
 
         let acc_instance = Accumulator::new_accumulator_instance_from_fresh_kzh_instance(
             &self.srs.acc_srs,
             &bitfield_commitment.C,
-            eval_point_first_half,
-            eval_point_second_half,
+            eval_point_first_half.as_slice(),
+            eval_point_second_half.as_slice(),
             eval_result,
         );
 
         let acc_witness = Accumulator::new_accumulator_witness_from_fresh_kzh_witness(
             &self.srs.acc_srs,
             opening_proof,
-            eval_point_first_half,
-            eval_point_second_half,
+            eval_point_first_half.as_slice(),
+            eval_point_second_half.as_slice(),
         );
 
         Accumulator {
@@ -162,6 +173,7 @@ where
 
     pub fn aggregate(&self, transcript: &mut Transcript<F>) -> SignatureAggrData<E> {
         let poly_commit = PolyCommit { srs: self.srs.acc_srs.pc_srs.clone() }; // XXX no clone. bad ergonomics
+
         // Step 1:
         // let pk = self.A_1.pk + self.A_2.pk;
         // let sk = self.A_1.sig + self.A_2.sig;
@@ -171,7 +183,7 @@ where
         let b_2_poly = &self.A_2.bitfield_poly;
 
         let c_poly = b_1_poly.get_bitfield_union_poly(&b_2_poly);
-        let C_commitment = poly_commit.commit(&c_poly);
+        let C_commitment = MultilinearPolynomial::commit(&c_poly, &poly_commit);
 
         // Step 3: Get r from verifier: it's the evaluation point challenge (for the zerocheck)
         transcript.append_scalars_non_native::<<<E as Pairing>::G1Affine as AffineRepr>::BaseField>(
@@ -253,7 +265,6 @@ where
         // Step 5.4: Compute accumulator for opening of p(rho)
         let sumcheck_eval_accumulator = self.get_accumulator_from_evaluation(
             &p_x,
-            &P_commitment,
             &p_at_rho,
             &sumcheck_challenges,
         );
@@ -313,17 +324,14 @@ where
                                         eval_point: &Vec<F>,
     ) -> AccInstance<E> {
         // Split the evaluation point in half since open() just needs the first half
-        // XXX ergonomics
-        assert_eq!(eval_point.len() % 2, 0);
-        let mid = eval_point.len() / 2;
-        let (eval_point_first_half, eval_point_second_half) = eval_point.split_at(mid);
-
-        // XXX bad name for function
+        let length_x = self.srs.acc_srs.pc_srs.get_x_length();
+        let length_y = self.srs.acc_srs.pc_srs.get_y_length();
+        let (eval_point_first_half, eval_point_second_half) = split_between_x_and_y::<F>(length_x, length_y, eval_point, F::ZERO);
         Accumulator::new_accumulator_instance_from_fresh_kzh_instance(
             &self.srs.acc_srs,
             &bitfield_commitment.C,
-            eval_point_first_half,
-            eval_point_second_half,
+            eval_point_first_half.as_slice(),
+            eval_point_second_half.as_slice(),
             eval_result,
         )
     }
