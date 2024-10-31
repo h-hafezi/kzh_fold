@@ -218,6 +218,7 @@ where
                                                                       &mut c_poly.clone(), // c(x)
                                                                       union_comb_func,
                                                                       transcript);
+        let rho = sumcheck_challenges;
 
         // Step 5: Send evaluations to verifier
         // The verifier needs the following evaluation to verify the sumcheck:
@@ -243,31 +244,17 @@ where
         // Now combine everything to p(x)
         let p_x = b_1_poly.clone() + c_1_times_b_2_poly + c_2_times_c_poly;
 
-        // Step 5.2: Now compute P commitment to p(x)
-        // First compute c_1 * B_2
-        // let b_1_eval_accumulator = self.get_accumulator_from_evaluation(
-        //     &self.A_1.bitfield_poly,
-        //     &self.A_1.bitfield_commitment,
-        //     &sumcheck_challenges,
-        // );
-        let mut c_1_times_B_2 = self.A_2.bitfield_commitment.clone();
-        c_1_times_B_2.scale_by_r(&vec_c[0]);
-        // Now compute c_2 * C
-        let mut c_2_times_C = C_commitment.clone();
-        c_2_times_C.scale_by_r(&vec_c[1]);
-        let P_commitment = self.A_1.bitfield_commitment.clone() + c_1_times_B_2 + c_2_times_C;
-
-        // Step 5.3: Compute b_1(rho), b_2(rho), c(rho) to send it to verifier
-        let b_1_at_rho = b_1_poly.evaluate(&sumcheck_challenges);
-        let b_2_at_rho = b_2_poly.evaluate(&sumcheck_challenges);
-        let c_at_rho = c_poly.evaluate(&sumcheck_challenges);
+        // Step 5.2: Compute b_1(rho), b_2(rho), c(rho) to send it to verifier
+        let b_1_at_rho = b_1_poly.evaluate(&rho);
+        let b_2_at_rho = b_2_poly.evaluate(&rho);
+        let c_at_rho = c_poly.evaluate(&rho);
         let p_at_rho = b_1_at_rho + vec_c[0] * b_2_at_rho + vec_c[1] * c_at_rho;
 
         // Step 5.4: Compute accumulator for opening of p(rho)
         let sumcheck_eval_accumulator = self.get_accumulator_from_evaluation(
             &p_x,
             &p_at_rho,
-            &sumcheck_challenges,
+            &rho,
         );
 
         // Step 6: Aggregate accumulators 5-to-1:
@@ -357,13 +344,14 @@ where
                     3,
                     transcript,
                 ).unwrap();
+        let rho = sumcheck_challenges;
 
         // Step 3: Verify the sumcheck tensor check (the random evaluation at the end of the protocol)
         // We need to check: p(rho) = tensor check_claim
         // where rho are the sumcheck challenges and
         // where p(x) = eq(r,x) (b_1(x) + b_2(x) - b_1(x) * b_2(x) - c(x))
         let eq_at_r = MultilinearPolynomial::new(EqPolynomial::new(vec_r).evals());
-        let eq_at_r_rho = eq_at_r.evaluate(&sumcheck_challenges);
+        let eq_at_r_rho = eq_at_r.evaluate(&rho);
         let b_1_at_rho = self.A.b_1_at_rho.unwrap();
         let b_2_at_rho = self.A.b_2_at_rho.unwrap();
         let c_at_rho = self.A.c_at_rho.unwrap();
@@ -373,10 +361,11 @@ where
 
         // Step 5: Verify the BLS signature
 
-        (true, sumcheck_challenges)
+        (true, rho)
     }
 
     pub fn decide(&self, transcript: &mut Transcript<F>, sumcheck_challenges: Vec<F>) -> bool {
+        let rho = sumcheck_challenges;
         let b_1_at_rho = self.A.b_1_at_rho.unwrap();
         let b_2_at_rho = self.A.b_2_at_rho.unwrap();
         let c_at_rho = self.A.c_at_rho.unwrap();
@@ -399,7 +388,7 @@ where
         let _acc_instance = self.get_acc_instance_from_evaluation(
             &P_commitment,
             &p_at_rho,
-            &sumcheck_challenges);
+            &rho);
 
         // Do the cross-check that the accumulator is the right one using _acc_instance
 
@@ -419,32 +408,41 @@ pub mod test {
 
     type F = ScalarField;
 
+    /// Bob and Charlie send signature data to Alice. Alice aggregates it and sends it forward.
     #[test]
-    fn test_aggregate() {
+    fn test_signature_aggregation_end_to_end() {
+        // Setup:
         let rng = &mut rand::thread_rng();
         let mut transcript_p = Transcript::<F>::new(b"aggr");
         let mut transcript_v = Transcript::<F>::new(b"aggr");
 
         // num_vars = log(degree_x) + log(degree_y)
-        let degree_x = 8usize;
-        let degree_y = 8usize;
-        let num_vars = 6usize;
-
+        let degree_x = 64usize;
+        let degree_y = 64usize;
+        let num_vars = 12usize;
         let srs = SRS::<E>::new(degree_x, degree_y, rng);
 
+        // Generate signature aggregation payload from Bob
         let b_1 = MultilinearPolynomial::random_binary(num_vars, rng);
         let sig_aggr_data_1 = SignatureAggrData::new(b_1, None, &srs);
 
+        // Generate signature aggregation payload from Charlie
         let b_2 = MultilinearPolynomial::random_binary(num_vars, rng);
         let sig_aggr_data_2 = SignatureAggrData::new(b_2, None, &srs);
 
+        ////////////// Aggregation ////////////////
+
+        // Now setup Alice, the aggregator
         let aggregator = Aggregator {
             srs: srs.clone(),
             A_1: sig_aggr_data_1,
             A_2: sig_aggr_data_2,
         };
 
+        // Perform the aggregation
         let agg_data = aggregator.aggregate(&mut transcript_p);
+
+        ////////////// Verification ////////////////
 
         // Now let's do verification
         let verifier = Verifier {
