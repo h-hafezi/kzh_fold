@@ -331,7 +331,7 @@ mod tests {
 
         // ******************************* Construct A,B,C matrix evaluation accumulation AccVerifier circuit *******************************
 
-        let verifier = MatrixEvaluationAccVerifier::random_from_running_inputs(
+        let verifier = MatrixEvaluationAccVerifier::random_from_eval_point(
             &spartan_shape,
             rx,
             ry,

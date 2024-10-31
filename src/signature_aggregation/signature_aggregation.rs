@@ -119,6 +119,14 @@ where
     pub charlie_data: SignatureAggrData<E>,
 }
 
+// pub struct SigAggrAccumulator<E, F>
+// where
+//     E: Pairing<ScalarField=F>,
+//     F: PrimeField + Absorb,
+// {
+//     ;
+// }
+
 /// This struct represents an IVC aggregator, Alice, that receives network data from a single party, Bob, and also has
 /// her own running accumulator. It aggregates the received data with the running accumulator and produces her own
 /// `SignatureAggrData` that can be forwarded to the next node.
