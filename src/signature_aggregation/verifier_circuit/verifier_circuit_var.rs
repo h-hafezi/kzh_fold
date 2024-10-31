@@ -289,7 +289,7 @@ mod test {
     use crate::nexus_spartan::sumcheck_circuit::sumcheck_circuit::SumcheckCircuit;
     use crate::nova::cycle_fold::coprocessor::setup_shape;
     use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
-    use crate::signature_aggregation::signature_aggregation::{Aggregator, SignatureAggrData, Verifier, SRS};
+    use crate::signature_aggregation::signature_aggregation::{AggregatorPCD, SignatureAggrData, Verifier, SRS};
     use crate::signature_aggregation::verifier_circuit::prover::SignatureVerifierProver;
     use crate::signature_aggregation::verifier_circuit::verifier_circuit::SignatureVerifierCircuit;
     use crate::signature_aggregation::verifier_circuit::verifier_circuit_var::SignatureVerifierCircuitVar;
@@ -335,10 +335,10 @@ mod test {
             let b_2 = MultilinearPolynomial::random_binary(num_vars, rng);
             let sig_aggr_data_2 = SignatureAggrData::new(b_2, None, &srs);
 
-            let aggregator = Aggregator {
+            let aggregator = AggregatorPCD {
                 srs: srs.clone(),
-                A_1: sig_aggr_data_1,
-                A_2: sig_aggr_data_2,
+                bob_data: sig_aggr_data_1,
+                charlie_data: sig_aggr_data_2,
             };
 
             let agg_data = aggregator.aggregate(&mut transcript_p);

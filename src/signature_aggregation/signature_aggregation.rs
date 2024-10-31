@@ -106,19 +106,33 @@ where
     }
 }
 
-/// This struct represents an aggregator on the network that receives data from two parties and needs to aggregate them
-/// into one. After aggregation, the aggregator produces its own `SignatureAggrData` and forwards it to the next node.
-pub struct Aggregator<E, F>
+/// This struct represents a PCD aggregator, Alice, that receives network data from two parties, Bob and Charlie, and
+/// needs to aggregate them into one. After aggregation, the aggregator produces its own `SignatureAggrData` and
+/// forwards it to the next node.
+pub struct AggregatorPCD<E, F>
 where
     E: Pairing<ScalarField=F>,
     F: PrimeField + Absorb,
 {
     pub srs: SRS<E>,
-    pub A_1: SignatureAggrData<E>,
-    pub A_2: SignatureAggrData<E>,
+    pub bob_data: SignatureAggrData<E>,
+    pub charlie_data: SignatureAggrData<E>,
 }
 
-impl<E, F> Aggregator<E, F>
+/// This struct represents an IVC aggregator, Alice, that receives network data from a single party, Bob, and also has
+/// her own running accumulator. It aggregates the received data with the running accumulator and produces her own
+/// `SignatureAggrData` that can be forwarded to the next node.
+pub struct AggregatorIVC<E, F>
+where
+    E: Pairing<ScalarField=F>,
+    F: PrimeField + Absorb,
+{
+    pub srs: SRS<E>,
+    pub bob_data: SignatureAggrData<E>,
+}
+
+
+impl<E, F> AggregatorPCD<E, F>
 where
     E: Pairing<ScalarField=F>,
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
@@ -180,8 +194,8 @@ where
         // let sk = self.A_1.sig + self.A_2.sig;
 
         // Step 2: Compute c(x)
-        let b_1_poly = &self.A_1.bitfield_poly;
-        let b_2_poly = &self.A_2.bitfield_poly;
+        let b_1_poly = &self.bob_data.bitfield_poly;
+        let b_2_poly = &self.charlie_data.bitfield_poly;
 
         let c_poly = b_1_poly.get_bitfield_union_poly(&b_2_poly);
         let C_commitment = MultilinearPolynomial::commit(&c_poly, &poly_commit);
@@ -273,8 +287,8 @@ where
         // let A_eval_3 = ivc_proof.A_eval;
 
         SignatureAggrData {
-            B_1_commitment: Some(self.A_1.bitfield_commitment.clone()),
-            B_2_commitment: Some(self.A_2.bitfield_commitment.clone()),
+            B_1_commitment: Some(self.bob_data.bitfield_commitment.clone()),
+            B_2_commitment: Some(self.charlie_data.bitfield_commitment.clone()),
             bitfield_poly: c_poly,
             bitfield_commitment: C_commitment,
             sumcheck_proof: Some(sumcheck_proof),
@@ -433,10 +447,10 @@ pub mod test {
         ////////////// Aggregation ////////////////
 
         // Now setup Alice, the aggregator
-        let aggregator = Aggregator {
+        let aggregator = AggregatorPCD {
             srs: srs.clone(),
-            A_1: sig_aggr_data_1,
-            A_2: sig_aggr_data_2,
+            bob_data: sig_aggr_data_1,
+            charlie_data: sig_aggr_data_2,
         };
 
         // Perform the aggregation
