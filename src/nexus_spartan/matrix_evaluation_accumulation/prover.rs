@@ -1,6 +1,8 @@
-use crate::nexus_spartan::crr1cs::CRR1CSShape;
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ff::PrimeField;
+use rand::RngCore;
+
+use crate::nexus_spartan::crr1cs::CRR1CSShape;
 use crate::transcript::transcript::Transcript;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -9,6 +11,19 @@ pub struct MatrixEvaluationAccumulator<F: PrimeField + Absorb> {
     pub evaluation_point: (Vec<F>, Vec<F>),
     // A(r_x, r_y), B(r_x, r_y), C(r_x, r_y)
     pub evaluations: (F, F, F),
+}
+
+impl<F: PrimeField + Absorb> MatrixEvaluationAccumulator<F> {
+    pub fn rand<R: RngCore>(x_len: usize, y_len: usize, rng: &mut R) -> Self {
+        let eval_point_x: Vec<F> = (0..x_len).map(|_| F::rand(rng)).collect();
+        let eval_point_y: Vec<F> = (0..y_len).map(|_| F::rand(rng)).collect();
+        let evaluations = (F::rand(rng), F::rand(rng), F::rand(rng));
+
+        Self {
+            evaluation_point: (eval_point_x, eval_point_y),
+            evaluations: evaluations
+        }
+    }
 }
 
 pub fn fold_matrices_evaluations<F: PrimeField + Absorb>(

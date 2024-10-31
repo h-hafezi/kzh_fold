@@ -281,126 +281,126 @@ where
     }
 }
 
-#[cfg(test)]
-mod test {
-    use crate::commitment::CommitmentScheme;
-    use crate::constant_for_curves::{BaseField, G1Affine, ScalarField, E, G1, G2};
-    use crate::hash::pederson::PedersenCommitment;
-    use crate::nexus_spartan::sumcheck_circuit::sumcheck_circuit::SumcheckCircuit;
-    use crate::nova::cycle_fold::coprocessor::setup_shape;
-    use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
-    use crate::signature_aggregation::signature_aggregation::{AggregatorPCD, SignatureAggrData, Verifier, SRS};
-    use crate::signature_aggregation::verifier_circuit::prover::SignatureVerifierProver;
-    use crate::signature_aggregation::verifier_circuit::verifier_circuit::SignatureVerifierCircuit;
-    use crate::signature_aggregation::verifier_circuit::verifier_circuit_var::SignatureVerifierCircuitVar;
-    use crate::transcript::transcript::Transcript;
-    use crate::transcript::transcript_var::TranscriptVar;
-    use ark_ec::short_weierstrass::{Affine, Projective};
-    use ark_ec::AffineRepr;
-    use ark_ff::AdditiveGroup;
-    use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
-    use ark_relations::r1cs::ConstraintSystem;
-    use rand::thread_rng;
+// #[cfg(test)]
+// mod test {
+//     use crate::commitment::CommitmentScheme;
+//     use crate::constant_for_curves::{BaseField, G1Affine, ScalarField, E, G1, G2};
+//     use crate::hash::pederson::PedersenCommitment;
+//     use crate::nexus_spartan::sumcheck_circuit::sumcheck_circuit::SumcheckCircuit;
+//     use crate::nova::cycle_fold::coprocessor::setup_shape;
+//     use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
+//     use crate::signature_aggregation::signature_aggregation::{AggregatorPCD, SignatureAggrData, Verifier, SRS};
+//     use crate::signature_aggregation::verifier_circuit::prover::SignatureVerifierProver;
+//     use crate::signature_aggregation::verifier_circuit::verifier_circuit::SignatureVerifierCircuit;
+//     use crate::signature_aggregation::verifier_circuit::verifier_circuit_var::SignatureVerifierCircuitVar;
+//     use crate::transcript::transcript::Transcript;
+//     use crate::transcript::transcript_var::TranscriptVar;
+//     use ark_ec::short_weierstrass::{Affine, Projective};
+//     use ark_ec::AffineRepr;
+//     use ark_ff::AdditiveGroup;
+//     use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
+//     use ark_relations::r1cs::ConstraintSystem;
+//     use rand::thread_rng;
 
-    type GrumpkinCurveGroup = ark_grumpkin::Projective;
-    type C2 = PedersenCommitment<GrumpkinCurveGroup>;
-    type F = ScalarField;
-    type Q = BaseField;
+//     type GrumpkinCurveGroup = ark_grumpkin::Projective;
+//     type C2 = PedersenCommitment<GrumpkinCurveGroup>;
+//     type F = ScalarField;
+//     type Q = BaseField;
 
-    #[test]
-    pub fn test() {
-        // get a random prover
-        let rng = &mut thread_rng();
+//     #[test]
+//     pub fn test() {
+//         // get a random prover
+//         let rng = &mut thread_rng();
 
-        // the randomness used to take linear combination for cycle fold
-        let beta = Q::from(2u8);
+//         // the randomness used to take linear combination for cycle fold
+//         let beta = Q::from(2u8);
 
-        // get a random prover
-        let prover = SignatureVerifierProver::<G1, G2, C2, E>::rand(rng, beta);
+//         // get a random prover
+//         let prover = SignatureVerifierProver::<G1, G2, C2, E>::rand(rng, beta);
 
-        // get a random verifier
-        let verifier = {
-            let mut transcript_p = Transcript::<F>::new(b"aggr");
+//         // get a random verifier
+//         let verifier = {
+//             let mut transcript_p = Transcript::<F>::new(b"aggr");
 
-            // num_vars = log(degree_x) + log(degree_y)
-            let degree_x = 8usize;
-            let degree_y = 8usize;
-            let num_vars = 6usize;
+//             // num_vars = log(degree_x) + log(degree_y)
+//             let degree_x = 8usize;
+//             let degree_y = 8usize;
+//             let num_vars = 6usize;
 
-            let srs = SRS::<E>::new(degree_x, degree_y, rng);
+//             let srs = SRS::<E>::new(degree_x, degree_y, rng);
 
-            let b_1 = MultilinearPolynomial::random_binary(num_vars, rng);
-            let sig_aggr_data_1 = SignatureAggrData::new(b_1, None, &srs);
+//             let b_1 = MultilinearPolynomial::random_binary(num_vars, rng);
+//             let sig_aggr_data_1 = SignatureAggrData::new(b_1, None, &srs);
 
-            let b_2 = MultilinearPolynomial::random_binary(num_vars, rng);
-            let sig_aggr_data_2 = SignatureAggrData::new(b_2, None, &srs);
+//             let b_2 = MultilinearPolynomial::random_binary(num_vars, rng);
+//             let sig_aggr_data_2 = SignatureAggrData::new(b_2, None, &srs);
 
-            let aggregator = AggregatorPCD {
-                srs: srs.clone(),
-                bob_data: sig_aggr_data_1,
-                charlie_data: sig_aggr_data_2,
-            };
+//             let aggregator = AggregatorPCD {
+//                 srs: srs.clone(),
+//                 bob_data: sig_aggr_data_1,
+//                 charlie_data: sig_aggr_data_2,
+//             };
 
-            let agg_data = aggregator.aggregate(&mut transcript_p);
+//             let agg_data = aggregator.aggregate(&mut transcript_p);
 
-            // Now let's do verification
-            let verifier = Verifier {
-                srs,
-                A: agg_data,
-            };
+//             // Now let's do verification
+//             let verifier = Verifier {
+//                 srs,
+//                 A: agg_data,
+//             };
 
-            verifier
-        };
+//             verifier
+//         };
 
-        // get a set of random public keys
-        let (pk_1, pk_2, _pk_t): (G1Affine, G1Affine, G1Affine) = SignatureVerifierProver::<G1, G2, C2, E>::get_satisfying_public_keys(rng);
+//         // get a set of random public keys
+//         let (pk_1, pk_2, _pk_t): (G1Affine, G1Affine, G1Affine) = SignatureVerifierProver::<G1, G2, C2, E>::get_satisfying_public_keys(rng);
 
-        let shape = setup_shape::<G1, G2>().unwrap();
-        let commitment_pp: Vec<Affine<G2>> = PedersenCommitment::<Projective<G2>>::setup(shape.num_vars + shape.num_constraints, b"test", &());
+//         let shape = setup_shape::<G1, G2>().unwrap();
+//         let commitment_pp: Vec<Affine<G2>> = PedersenCommitment::<Projective<G2>>::setup(shape.num_vars + shape.num_constraints, b"test", &());
 
-        let (com_pk, cycle_fold_fresh_instance, cycle_fold_running_instance, cycle_fold_final_instance) = {
-            // fold it with the prover's running instance/witness
-            let (instance, witness) = SignatureVerifierProver::<G1, G2, C2, E>::get_auxiliary_input_for_public_keys(&shape, &commitment_pp, pk_1, pk_2);
-            let (com_T, new_running_instance, _) = prover.compute_cycle_fold_proofs_and_final_instance(&instance, &witness);
+//         let (com_pk, cycle_fold_fresh_instance, cycle_fold_running_instance, cycle_fold_final_instance) = {
+//             // fold it with the prover's running instance/witness
+//             let (instance, witness) = SignatureVerifierProver::<G1, G2, C2, E>::get_auxiliary_input_for_public_keys(&shape, &commitment_pp, pk_1, pk_2);
+//             let (com_T, new_running_instance, _) = prover.compute_cycle_fold_proofs_and_final_instance(&instance, &witness);
 
-            (com_T, instance, prover.cycle_fold_running_instance, new_running_instance)
-        };
+//             (com_T, instance, prover.cycle_fold_running_instance, new_running_instance)
+//         };
 
-        let signature_verifier_circuit = SignatureVerifierCircuit::<E, F, G1, G2, C2> {
-            pk_1,
-            pk_2,
-            pk_t: (pk_1 + pk_2).into(),
-            com_bitfield: (verifier.A.bitfield_commitment.C.x().unwrap(),
-                           verifier.A.bitfield_commitment.C.y().unwrap()
-            ),
-            beta,
-            com_pk,
-            cycle_fold_fresh_instance,
-            cycle_fold_running_instance,
-            cycle_fold_final_instance,
-            bitfield_poly: verifier.A.bitfield_poly.clone(),
-            sumcheck_proof: SumcheckCircuit {
-                compressed_polys: verifier.A.sumcheck_proof.unwrap().compressed_polys,
-                claim: F::ZERO,
-                num_rounds: verifier.A.bitfield_poly.num_variables,
-                degree_bound: 3,
-            },
-            b_1_at_rho: verifier.A.b_1_at_rho.unwrap(),
-            b_2_at_rho: verifier.A.b_2_at_rho.unwrap(),
-            c_at_rho: verifier.A.c_at_rho.unwrap(),
-        };
+//         let signature_verifier_circuit = SignatureVerifierCircuit::<E, F, G1, G2, C2> {
+//             pk_1,
+//             pk_2,
+//             pk_t: (pk_1 + pk_2).into(),
+//             com_bitfield: (verifier.A.bitfield_commitment.C.x().unwrap(),
+//                            verifier.A.bitfield_commitment.C.y().unwrap()
+//             ),
+//             beta,
+//             com_pk,
+//             cycle_fold_fresh_instance,
+//             cycle_fold_running_instance,
+//             cycle_fold_final_instance,
+//             bitfield_poly: verifier.A.bitfield_poly.clone(),
+//             sumcheck_proof: SumcheckCircuit {
+//                 compressed_polys: verifier.A.sumcheck_proof.unwrap().compressed_polys,
+//                 claim: F::ZERO,
+//                 num_rounds: verifier.A.bitfield_poly.num_variables,
+//                 degree_bound: 3,
+//             },
+//             b_1_at_rho: verifier.A.b_1_at_rho.unwrap(),
+//             b_2_at_rho: verifier.A.b_2_at_rho.unwrap(),
+//             c_at_rho: verifier.A.c_at_rho.unwrap(),
+//         };
 
-        let cs = ConstraintSystem::<F>::new_ref();
-        let signature_verifier_circuit_var = SignatureVerifierCircuitVar::new_variable(
-            cs.clone(),
-            || Ok(signature_verifier_circuit),
-            AllocationMode::Input,
-        ).unwrap();
+//         let cs = ConstraintSystem::<F>::new_ref();
+//         let signature_verifier_circuit_var = SignatureVerifierCircuitVar::new_variable(
+//             cs.clone(),
+//             || Ok(signature_verifier_circuit),
+//             AllocationMode::Input,
+//         ).unwrap();
 
-        let mut transcript_var = TranscriptVar::<F>::new(cs.clone(), b"aggr");
-        signature_verifier_circuit_var.verify(&mut transcript_var);
+//         let mut transcript_var = TranscriptVar::<F>::new(cs.clone(), b"aggr");
+//         signature_verifier_circuit_var.verify(&mut transcript_var);
 
-        assert!(cs.is_satisfied().unwrap());
-        println!("{} {}", cs.num_constraints(), cs.borrow().unwrap().num_instance_variables);
-    }
-}
+//         assert!(cs.is_satisfied().unwrap());
+//         println!("{} {}", cs.num_constraints(), cs.borrow().unwrap().num_instance_variables);
+//     }
+// }

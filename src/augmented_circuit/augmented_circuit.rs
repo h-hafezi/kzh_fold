@@ -331,7 +331,7 @@ mod tests {
 
         // ******************************* Construct A,B,C matrix evaluation accumulation AccVerifier circuit *******************************
 
-        let verifier = MatrixEvaluationAccVerifier::random_from_eval_point(
+        let matrix_eval_acc_verifier = MatrixEvaluationAccVerifier::random_from_eval_point(
             &spartan_shape,
             rx,
             ry,
@@ -354,7 +354,7 @@ mod tests {
 
         let matrix_evaluation_verifier_var = MatrixEvaluationAccVerifierVar::new_variable(
             cs.clone(),
-            || Ok(verifier.clone()),
+            || Ok(matrix_eval_acc_verifier.clone()),
             AllocationMode::Witness,
         ).unwrap();
 

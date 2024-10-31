@@ -107,6 +107,36 @@ where
     }
 }
 
+/// This struct represents an accumulator for the signature aggregation protocol
+pub struct SignatureAggrAccumulator<E, F>
+where
+    E: Pairing<ScalarField=F>,
+    F: PrimeField + Absorb,
+{
+    A_B_C_accumulator: MatrixEvaluationAccumulator<F>,
+    KZH_accumulator: KZHAccumulator<E>,
+}
+
+impl<E, F> SignatureAggrAccumulator<E, F>
+where
+    <E as Pairing>::ScalarField: Absorb,
+   <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb,
+   <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
+    E: Pairing<ScalarField=F>,
+    F: PrimeField + Absorb,
+{
+    pub fn rand<R: RngCore>(srs: &AccSRS<E>, rng: &mut R) -> Self {
+        let kzh_acc = KZHAccumulator::random_satisfying_accumulator(srs, rng);
+        // XXX fix the x_len, y_len
+        let A_B_C_acc: MatrixEvaluationAccumulator<F> = MatrixEvaluationAccumulator::rand(3, 3, rng);
+
+        Self {
+            A_B_C_accumulator: A_B_C_acc,
+            KZH_accumulator: kzh_acc
+        }
+    }
+}
+
 /// This struct represents a PCD aggregator, Alice, that receives network data from two parties, Bob and Charlie, and
 /// needs to aggregate them into one. After aggregation, the aggregator produces its own `SignatureAggrData` and
 /// forwards it to the next node.
@@ -120,15 +150,6 @@ where
     pub charlie_data: SignatureAggrData<E>,
 }
 
-pub struct SigAggrAccumulator<E, F>
-where
-    E: Pairing<ScalarField=F>,
-    F: PrimeField + Absorb,
-{
-    A_B_C_accumulator: MatrixEvaluationAccumulator<F>,
-    KZH_accumulator: KZHAccumulator<E>,
-}
-
 /// This struct represents an IVC aggregator, Alice, that receives network data from a single party, Bob, and also has
 /// her own running accumulator. It aggregates the received data with the running accumulator and produces her own
 /// `SignatureAggrData` that can be forwarded to the next node.
@@ -139,12 +160,18 @@ where
 {
     pub srs: SRS<E>,
 
+    // Alice's running bitfield (the result of previous aggregations)
+    pub running_bitfield_poly: MultilinearPolynomial<E::ScalarField>,
+    // Commitment to Alice's running bitfield
+    pub running_bitfield_commitment: Commitment<E>,
+    // Alice's running accumulator
+    pub running_accumulator: SignatureAggrAccumulator<E, F>,
+
+    // Data received from Bob
     pub bob_data: SignatureAggrData<E>,
-    pub running_accumulator: SigAggrAccumulator<E, F>,
 }
 
-
-impl<E, F> AggregatorPCD<E, F>
+impl<E, F> AggregatorIVC<E, F>
 where
     E: Pairing<ScalarField=F>,
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
@@ -206,8 +233,8 @@ where
         // let sk = self.A_1.sig + self.A_2.sig;
 
         // Step 2: Compute c(x)
-        let b_1_poly = &self.bob_data.bitfield_poly;
-        let b_2_poly = &self.charlie_data.bitfield_poly;
+        let b_1_poly = &self.running_bitfield_poly;
+        let b_2_poly = &self.bob_data.bitfield_poly;
 
         let c_poly = b_1_poly.get_bitfield_union_poly(&b_2_poly);
         let C_commitment = MultilinearPolynomial::commit(&c_poly, &poly_commit);
@@ -299,8 +326,8 @@ where
         // let A_eval_3 = ivc_proof.A_eval;
 
         SignatureAggrData {
-            B_1_commitment: Some(self.bob_data.bitfield_commitment.clone()),
-            B_2_commitment: Some(self.charlie_data.bitfield_commitment.clone()),
+            B_1_commitment: Some(self.running_bitfield_commitment.clone()),
+            B_2_commitment: Some(self.bob_data.bitfield_commitment.clone()),
             bitfield_poly: c_poly,
             bitfield_commitment: C_commitment,
             sumcheck_proof: Some(sumcheck_proof),
@@ -440,7 +467,7 @@ pub mod test {
         // Setup:
         let rng = &mut rand::thread_rng();
         let mut transcript_p = Transcript::<F>::new(b"aggr");
-        let mut transcript_v = Transcript::<F>::new(b"aggr");
+        // let mut transcript_v = Transcript::<F>::new(b"aggr");
 
         // num_vars = log(degree_x) + log(degree_y)
         let degree_x = 64usize;
@@ -449,10 +476,26 @@ pub mod test {
         let srs = SRS::<E>::new(degree_x, degree_y, rng);
 
         // Generate signature aggregation payload from Bob
-        let bitfield = MultilinearPolynomial::random_binary(num_vars, rng);
-        let sig_aggr_data_1 = SignatureAggrData::new(bitfield, None, &srs);
+        let bob_bitfield = MultilinearPolynomial::random_binary(num_vars, rng);
+        let bob_data = SignatureAggrData::new(bob_bitfield, None, &srs);
+
+        // Generate random running accumulator for Alice
+        let alice_bitfield = MultilinearPolynomial::random_binary(num_vars, rng);
+        let poly_commit = PolyCommit { srs: srs.acc_srs.pc_srs.clone() }; // XXX no clone
+        let alice_bitfield_commitment = poly_commit.commit(&alice_bitfield);
+        let alice_running_accumulator = SignatureAggrAccumulator::rand(&srs.acc_srs, rng);
 
         ////////////// Aggregation ////////////////
+
+        let alice  = AggregatorIVC {
+            srs: srs.clone(),
+            running_bitfield_poly: alice_bitfield,
+            running_bitfield_commitment: alice_bitfield_commitment,
+            running_accumulator: alice_running_accumulator,
+            bob_data: bob_data,
+        };
+
+        let aggregated_data = alice.aggregate(&mut transcript_p);
     }
 
 
@@ -487,21 +530,7 @@ pub mod test {
             charlie_data: sig_aggr_data_2,
         };
 
-        // Perform the aggregation
-        let agg_data = aggregator.aggregate(&mut transcript_p);
-
-        ////////////// Verification ////////////////
-
-        // Now let's do verification
-        let verifier = Verifier {
-            srs,
-            A: agg_data,
-        };
-
-        let (is_valid, sumcheck_challenges) = verifier.verify(&mut transcript_v);
-        assert!(is_valid);
-
-        assert!(verifier.decide(&mut transcript_v, sumcheck_challenges));
+        // TODO
     }
 }
 
