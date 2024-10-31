@@ -68,7 +68,7 @@ where
 
     /// Accumulator for random evaluation of p(x) at rho:
     /// p(rho) = b_1(rho) + c_1 * b_2(rho) + c_2 * c(rho)
-    pub sumcheck_eval_accumulator: Option<KZHAccumulator<E>>,
+    pub sumcheck_eval_KZH_accumulator: Option<KZHAccumulator<E>>,
 
     /////////////// Running accumulator `acc_i` //////////////////
 
@@ -76,7 +76,7 @@ where
     // pub running_KZH_accumulator: Option<KZHAccumulator<E>>,
 
     // Running multilinear eval accumulator
-    // pub running_A_B_C_accumulator: ???
+    // pub running_A_B_C_eval_accumulator: ???
 
     /////////////// IVC proof for all the previous steps `\pi_i` //////////////////
 
@@ -102,7 +102,7 @@ where
             b_1_at_rho: None,
             b_2_at_rho: None,
             c_at_rho: None,
-            sumcheck_eval_accumulator: None,
+            sumcheck_eval_KZH_accumulator: None,
         }
     }
 }
@@ -113,7 +113,7 @@ where
     E: Pairing<ScalarField=F>,
     F: PrimeField + Absorb,
 {
-    A_B_C_accumulator: MatrixEvaluationAccumulator<F>,
+    A_B_C_eval_accumulator: MatrixEvaluationAccumulator<F>,
     KZH_accumulator: KZHAccumulator<E>,
 }
 
@@ -131,7 +131,7 @@ where
         let A_B_C_acc: MatrixEvaluationAccumulator<F> = MatrixEvaluationAccumulator::rand(3, 3, rng);
 
         Self {
-            A_B_C_accumulator: A_B_C_acc,
+            A_B_C_eval_accumulator: A_B_C_acc,
             KZH_accumulator: kzh_acc
         }
     }
@@ -304,26 +304,25 @@ where
         let p_at_rho = b_1_at_rho + vec_c[0] * b_2_at_rho + vec_c[1] * c_at_rho;
 
         // Step 5.4: Compute accumulator for opening of p(rho)
-        let sumcheck_eval_accumulator = self.get_accumulator_from_evaluation(
+        let sumcheck_eval_KZH_accumulator = self.get_accumulator_from_evaluation(
             &p_x,
             &p_at_rho,
             &rho,
         );
 
-        // Step 6: Aggregate accumulators 5-to-1:
-        // Hossein: At this point we will also have four more accumulators from the IVC proofs of Bob and Charlie
-        // Hossein: Accumulate the five accumulators into one
-        // let bob_accumulator_ivc = self.A_1.ivc_proof.acc_witness;
-        // let bob_accumulator_state = self.A_1.state_acc_witness;
-        // let charlie_accumulator_ivc = self.A_2.ivc_proof.acc_witness;
-        // let charlie_accumulator_state = self.A_2.state_acc_witness;
-        // let (ivc_proof, state_accumulator) = self.accumulate_everything(sumcheck_eval_accumulator, bob_accumulator_ivc, bob_accumulator_state,
-        //                                                                 charlie_accumulator_ivc, charlie_accumulator_state);
+        // Step 6: Aggregate accumulators 3-to-1:
+        // Hossein: At this point we will also have two more KZH accumulators: one from our running accumulator, and another one from Bob
+        // Hossein: Accumulate thet three accumulators into one
+        // let bob_KZH_accumulator = self.A_1.ivc_proof.KZH_accumulator;
+        // let running_KZH_accumulator = self.running_accumulator.KZH_accumulator
 
-        // Step 7: Accumulate forward the evaluations of A, B, C from the IVC proofs
-        // let A_eval_1 = self.A_1.ivc_proof.A_eval;
-        // let A_eval_2 = self.A_2.ivc_proof.A_eval;
-        // let A_eval_3 = ivc_proof.A_eval;
+        // Hossein: We will also have two A,B,C accumulators: one from our running accumulator, and one from Bob
+        // let bob_A_B_C_eval_accumulator = self.A_1.ivc_proof.A_B_C_eval_accumulator;
+        // let running_A_B_C_eval_accumulator=  self.running_accumulator.A_B_C_eval_accumulator;
+
+        // Hossein: Accumulate everything!
+        // let (ivc_proof, state_accumulator) = self.accumulate_everything(sumcheck_eval_accumulator, bob_accumulator, running_accumulator,
+        //                                                                 bob_A_B_C_eval_accumulator, running_A_B_C_eval_accumulator);
 
         SignatureAggrData {
             B_1_commitment: Some(self.running_bitfield_commitment.clone()),
@@ -334,7 +333,7 @@ where
             b_1_at_rho: Some(b_1_at_rho),
             b_2_at_rho: Some(b_2_at_rho),
             c_at_rho: Some(c_at_rho),
-            sumcheck_eval_accumulator: Some(sumcheck_eval_accumulator),
+            sumcheck_eval_KZH_accumulator: Some(sumcheck_eval_KZH_accumulator),
             // ivc_proof: ivc_proof
             // state_acc_witness: state_acc_witness
         }
@@ -446,7 +445,7 @@ where
         // Do the cross-check that the accumulator is the right one using _acc_instance
 
         // Decide the accumulator!
-        assert!(KZHAccumulator::decide(&self.srs.acc_srs, &self.A.sumcheck_eval_accumulator.clone().unwrap()));
+        assert!(KZHAccumulator::decide(&self.srs.acc_srs, &self.A.sumcheck_eval_KZH_accumulator.clone().unwrap()));
 
         // XXX Verify the IVC proof
 
@@ -495,42 +494,44 @@ pub mod test {
             bob_data: bob_data,
         };
 
-        let aggregated_data = alice.aggregate(&mut transcript_p);
+        let _aggregated_data = alice.aggregate(&mut transcript_p);
+
+        //////////// Verification //////////////////
     }
 
 
-    /// Bob and Charlie send signature data to Alice. Alice aggregates it and sends it forward.
-    #[test]
-    fn test_signature_aggregation_PCD_end_to_end() {
-        // Setup:
-        let rng = &mut rand::thread_rng();
-        let mut transcript_p = Transcript::<F>::new(b"aggr");
-        let mut transcript_v = Transcript::<F>::new(b"aggr");
+    // Bob and Charlie send signature data to Alice. Alice aggregates it and sends it forward.
+    // #[test]
+    // fn test_signature_aggregation_PCD_end_to_end() {
+    //     // Setup:
+    //     let rng = &mut rand::thread_rng();
+    //     let mut transcript_p = Transcript::<F>::new(b"aggr");
+    //     let mut transcript_v = Transcript::<F>::new(b"aggr");
 
-        // num_vars = log(degree_x) + log(degree_y)
-        let degree_x = 64usize;
-        let degree_y = 64usize;
-        let num_vars = 12usize;
-        let srs = SRS::<E>::new(degree_x, degree_y, rng);
+    //     // num_vars = log(degree_x) + log(degree_y)
+    //     let degree_x = 64usize;
+    //     let degree_y = 64usize;
+    //     let num_vars = 12usize;
+    //     let srs = SRS::<E>::new(degree_x, degree_y, rng);
 
-        // Generate signature aggregation payload from Bob
-        let b_1 = MultilinearPolynomial::random_binary(num_vars, rng);
-        let sig_aggr_data_1 = SignatureAggrData::new(b_1, None, &srs);
+    //     // Generate signature aggregation payload from Bob
+    //     let b_1 = MultilinearPolynomial::random_binary(num_vars, rng);
+    //     let sig_aggr_data_1 = SignatureAggrData::new(b_1, None, &srs);
 
-        // Generate signature aggregation payload from Charlie
-        let b_2 = MultilinearPolynomial::random_binary(num_vars, rng);
-        let sig_aggr_data_2 = SignatureAggrData::new(b_2, None, &srs);
+    //     // Generate signature aggregation payload from Charlie
+    //     let b_2 = MultilinearPolynomial::random_binary(num_vars, rng);
+    //     let sig_aggr_data_2 = SignatureAggrData::new(b_2, None, &srs);
 
-        ////////////// Aggregation ////////////////
+    //     ////////////// Aggregation ////////////////
 
-        // Now setup Alice, the aggregator
-        let aggregator = AggregatorPCD {
-            srs: srs.clone(),
-            bob_data: sig_aggr_data_1,
-            charlie_data: sig_aggr_data_2,
-        };
+    //     // Now setup Alice, the aggregator
+    //     let aggregator = AggregatorPCD {
+    //         srs: srs.clone(),
+    //         bob_data: sig_aggr_data_1,
+    //         charlie_data: sig_aggr_data_2,
+    //     };
 
-        // TODO
-    }
+    //     // TODO
+    // }
 }
 
