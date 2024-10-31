@@ -4,8 +4,9 @@ use ark_ec::AffineRepr;
 use ark_ff::PrimeField;
 use rand::RngCore;
 
-use crate::accumulation::accumulator::{AccInstance, AccSRS, Accumulator};
+use crate::accumulation::accumulator::{AccInstance, AccSRS, Accumulator as KZHAccumulator};
 use crate::constant_for_curves::ScalarField;
+use crate::nexus_spartan::matrix_evaluation_accumulation::prover::MatrixEvaluationAccumulator;
 use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
 use crate::nexus_spartan::sumcheck::SumcheckInstanceProof;
 use crate::pcs::multilinear_pcs::{split_between_x_and_y, Commitment, PolyCommit};
@@ -28,7 +29,7 @@ where
         let pcs_srs = PolyCommit::setup(degree_x, degree_y, rng);
 
         SRS {
-            acc_srs: Accumulator::setup(pcs_srs, rng),
+            acc_srs: KZHAccumulator::setup(pcs_srs, rng),
         }
     }
 }
@@ -67,12 +68,12 @@ where
 
     /// Accumulator for random evaluation of p(x) at rho:
     /// p(rho) = b_1(rho) + c_1 * b_2(rho) + c_2 * c(rho)
-    pub sumcheck_eval_accumulator: Option<Accumulator<E>>,
+    pub sumcheck_eval_accumulator: Option<KZHAccumulator<E>>,
 
     /////////////// Running accumulator `acc_i` //////////////////
 
     // Running KZH accumulator (goes into 3-to-1)
-    // pub running_KZH_accumulator: Option<Accumulator<E>>,
+    // pub running_KZH_accumulator: Option<KZHAccumulator<E>>,
 
     // Running multilinear eval accumulator
     // pub running_A_B_C_accumulator: ???
@@ -119,13 +120,14 @@ where
     pub charlie_data: SignatureAggrData<E>,
 }
 
-// pub struct SigAggrAccumulator<E, F>
-// where
-//     E: Pairing<ScalarField=F>,
-//     F: PrimeField + Absorb,
-// {
-//     ;
-// }
+pub struct SigAggrAccumulator<E, F>
+where
+    E: Pairing<ScalarField=F>,
+    F: PrimeField + Absorb,
+{
+    A_B_C_accumulator: MatrixEvaluationAccumulator<F>,
+    KZH_accumulator: KZHAccumulator<E>,
+}
 
 /// This struct represents an IVC aggregator, Alice, that receives network data from a single party, Bob, and also has
 /// her own running accumulator. It aggregates the received data with the running accumulator and produces her own
@@ -136,7 +138,9 @@ where
     F: PrimeField + Absorb,
 {
     pub srs: SRS<E>,
+
     pub bob_data: SignatureAggrData<E>,
+    pub running_accumulator: SigAggrAccumulator<E, F>,
 }
 
 
@@ -151,7 +155,7 @@ where
                                        bitfield_poly: &MultilinearPolynomial<F>,
                                        eval_result: &F,
                                        eval_point: &Vec<F>,
-    ) -> Accumulator<E> {
+    ) -> KZHAccumulator<E> {
         let poly_commit = PolyCommit { srs: self.srs.acc_srs.pc_srs.clone() }; // XXX no clone. bad ergonomics
 
         let bitfield_commitment=MultilinearPolynomial::commit(
@@ -173,7 +177,7 @@ where
         let length_y = poly_commit.srs.get_y_length();
         let (eval_point_first_half, eval_point_second_half) = split_between_x_and_y::<F>(length_x, length_y, eval_point, F::ZERO);
 
-        let acc_instance = Accumulator::new_accumulator_instance_from_fresh_kzh_instance(
+        let acc_instance = KZHAccumulator::new_accumulator_instance_from_fresh_kzh_instance(
             &self.srs.acc_srs,
             &bitfield_commitment.C,
             eval_point_first_half.as_slice(),
@@ -181,14 +185,14 @@ where
             eval_result,
         );
 
-        let acc_witness = Accumulator::new_accumulator_witness_from_fresh_kzh_witness(
+        let acc_witness = KZHAccumulator::new_accumulator_witness_from_fresh_kzh_witness(
             &self.srs.acc_srs,
             opening_proof,
             eval_point_first_half.as_slice(),
             eval_point_second_half.as_slice(),
         );
 
-        Accumulator {
+        KZHAccumulator {
             witness: acc_witness,
             instance: acc_instance,
         }
@@ -337,7 +341,7 @@ where
         let length_x = self.srs.acc_srs.pc_srs.get_x_length();
         let length_y = self.srs.acc_srs.pc_srs.get_y_length();
         let (eval_point_first_half, eval_point_second_half) = split_between_x_and_y::<F>(length_x, length_y, eval_point, F::ZERO);
-        Accumulator::new_accumulator_instance_from_fresh_kzh_instance(
+        KZHAccumulator::new_accumulator_instance_from_fresh_kzh_instance(
             &self.srs.acc_srs,
             &bitfield_commitment.C,
             eval_point_first_half.as_slice(),
@@ -415,7 +419,7 @@ where
         // Do the cross-check that the accumulator is the right one using _acc_instance
 
         // Decide the accumulator!
-        assert!(Accumulator::decide(&self.srs.acc_srs, &self.A.sumcheck_eval_accumulator.clone().unwrap()));
+        assert!(KZHAccumulator::decide(&self.srs.acc_srs, &self.A.sumcheck_eval_accumulator.clone().unwrap()));
 
         // XXX Verify the IVC proof
 
@@ -430,9 +434,31 @@ pub mod test {
 
     type F = ScalarField;
 
+    /// Bob sends signature data to Alice. Alice aggregates it and sends it forward.
+    #[test]
+    fn test_signature_aggregation_IVC_end_to_end() {
+        // Setup:
+        let rng = &mut rand::thread_rng();
+        let mut transcript_p = Transcript::<F>::new(b"aggr");
+        let mut transcript_v = Transcript::<F>::new(b"aggr");
+
+        // num_vars = log(degree_x) + log(degree_y)
+        let degree_x = 64usize;
+        let degree_y = 64usize;
+        let num_vars = 12usize;
+        let srs = SRS::<E>::new(degree_x, degree_y, rng);
+
+        // Generate signature aggregation payload from Bob
+        let bitfield = MultilinearPolynomial::random_binary(num_vars, rng);
+        let sig_aggr_data_1 = SignatureAggrData::new(bitfield, None, &srs);
+
+        ////////////// Aggregation ////////////////
+    }
+
+
     /// Bob and Charlie send signature data to Alice. Alice aggregates it and sends it forward.
     #[test]
-    fn test_signature_aggregation_end_to_end() {
+    fn test_signature_aggregation_PCD_end_to_end() {
         // Setup:
         let rng = &mut rand::thread_rng();
         let mut transcript_p = Transcript::<F>::new(b"aggr");
