@@ -97,10 +97,12 @@ where
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
     F: PrimeField + Absorb,
 {
+    /// Generate a random SignatureAggrData for a network participant
     pub fn rand<R: RngCore>(num_vars: usize, srs: &AccSRS<E>, rng: &mut R) -> Self {
         let poly_commit = PCSEngine { srs: srs.pc_srs.clone() };
         let mut transcript = Transcript::<F>::new(b"aggr");
 
+        // Random polynomials
         let b_1_poly = MultilinearPolynomial::random_binary(num_vars, rng);
         let b_2_poly = MultilinearPolynomial::random_binary(num_vars, rng);
         let c_poly = b_1_poly.get_bitfield_union_poly(&b_2_poly);
@@ -109,14 +111,16 @@ where
         let B_2_commitment = MultilinearPolynomial::commit(&b_2_poly, &poly_commit);
         let C_commitment = MultilinearPolynomial::commit(&c_poly, &poly_commit);
 
+        // Some random stuff for the sig/pk
         let sig = E::G2Affine::rand(rng);
         let pk = E::G1Affine::rand(rng);
         // let message = E::G2Affine::rand(rng);
 
-        // Do the sumcheck at a random point
+        // Perform the sig aggr sumcheck
         let (sumcheck_proof, rho) = perform_sig_aggr_sumcheck::<E, F>(&b_1_poly, &b_2_poly, &c_poly,
                                                               &mut transcript);
 
+        // Get the accumulator for the sumcheck
         let (b_1_at_rho, b_2_at_rho, c_at_rho, sumcheck_eval_KZH_accumulator) =
             compute_signature_aggr_KZH_accumulator(srs, &b_1_poly, &b_2_poly, &c_poly, &rho, &mut transcript);
 
@@ -252,6 +256,7 @@ where
 }
 
 /// Return (A.X, A.W) given f(x), and z and y such that f(z) = y
+/// XXX: This should be moved to the accumulator module
 fn get_accumulator_from_evaluation<E, F>(acc_srs: &AccSRS<E>,
                                          bitfield_poly: &MultilinearPolynomial<F>,
                                          eval_result: &F,
@@ -302,7 +307,7 @@ where
     }
 }
 
-/// The verifier needs the following evaluation to verify the sumcheck:
+/// Signature aggregation verifier needs the following evaluation to verify the sumcheck:
 /// y_1 = b_1(rho), y_2 = b_2(rho), and y_3 = c(rho)
 /// where rho are the sumcheck challenges.
 ///
@@ -448,6 +453,7 @@ where
     F: PrimeField + Absorb,
     E: Pairing<ScalarField=F>,
 {
+    // XXX: Consider moving to accumulator module
     fn get_acc_instance_from_evaluation(&self,
                                         bitfield_commitment: &PCSCommitment<E>,
                                         eval_result: &F,
@@ -567,7 +573,7 @@ pub mod test {
         // Generate signature aggregation payload from Bob
         let bob_data = SignatureAggrData::rand(num_vars, &srs.acc_srs, rng);
 
-        // Generate random running accumulator for Alice
+        // Generate random running data for Alice
         let alice_bitfield = MultilinearPolynomial::random_binary(num_vars, rng);
         let poly_commit = PCSEngine { srs: srs.acc_srs.pc_srs.clone() }; // XXX no clone
         let alice_bitfield_commitment = poly_commit.commit(&alice_bitfield);
