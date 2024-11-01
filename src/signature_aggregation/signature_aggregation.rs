@@ -1,9 +1,9 @@
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
 use ark_ec::AffineRepr;
+use ark_ff::UniformRand;
 use ark_ff::PrimeField;
 use rand::RngCore;
-
 use crate::accumulation::accumulator::{AccInstance, AccSRS, Accumulator as KZHAccumulator};
 use crate::constant_for_curves::ScalarField;
 use crate::nexus_spartan::matrix_evaluation_accumulation::prover::MatrixEvaluationAccumulator;
@@ -36,9 +36,11 @@ where
 
 /// This is the data sent by an aggregator node to the next aggregator node on the network
 #[derive(Clone, Debug)]
-pub struct SignatureAggrData<E: Pairing>
+pub struct SignatureAggrData<E, F>
 where
-    <E as Pairing>::ScalarField: Absorb,
+    E: Pairing<ScalarField=F>,
+    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
+    F: PrimeField + Absorb,
 {
     /////////////// Signature aggregation data ///////////////
 
@@ -46,11 +48,11 @@ where
     pub B_1_commitment: PCSCommitment<E>,
     pub B_2_commitment: PCSCommitment<E>,
     /// c(x): the union poly
-    pub bitfield_poly: MultilinearPolynomial<E::ScalarField>,
+    pub bitfield_poly: MultilinearPolynomial<F>,
 
     /// aggregated signature and message
     sig: E::G2Affine,
-    message: E::G2Affine,
+    // message: E::G2Affine,
 
     /////////////// All the z_i data that go into SignatureVerifierCircuit //////////////
 
@@ -61,12 +63,12 @@ where
     pub bitfield_commitment: PCSCommitment<E>,
 
     /// proof that bitfield poly has been computed correctly in fact
-    pub sumcheck_proof: SumcheckInstanceProof<E::ScalarField>,
+    pub sumcheck_proof: SumcheckInstanceProof<F>,
 
     /// Evaluations of the inner polynomials at rho:
-    pub b_1_at_rho: E::ScalarField, // b_1(rho)
-    pub b_2_at_rho: E::ScalarField, // b_2(rho)
-    pub c_at_rho: E::ScalarField, // c(rho)
+    pub b_1_at_rho: F, // b_1(rho)
+    pub b_2_at_rho: F, // b_2(rho)
+    pub c_at_rho: F, // c(rho)
 
     /////////////// KZH accumulator for the sig aggr sumcheck (goes into 3-to-1) //////////////
 
@@ -87,6 +89,51 @@ where
     // The IVC proof contains a KZH accumulator and an A,B,C accumulator
 
     // ivc_proof: Option<CRR1CSProof<E>>
+}
+
+impl<E, F> SignatureAggrData<E, F>
+where
+    E: Pairing<ScalarField=F>,
+    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
+    F: PrimeField + Absorb,
+{
+    pub fn rand<R: RngCore>(num_vars: usize, srs: &AccSRS<E>, rng: &mut R) -> Self {
+        let poly_commit = PCSEngine { srs: srs.pc_srs.clone() };
+        let mut transcript = Transcript::<F>::new(b"aggr");
+
+        let b_1_poly = MultilinearPolynomial::random_binary(num_vars, rng);
+        let b_2_poly = MultilinearPolynomial::random_binary(num_vars, rng);
+        let c_poly = b_1_poly.get_bitfield_union_poly(&b_2_poly);
+
+        let B_1_commitment = MultilinearPolynomial::commit(&b_1_poly, &poly_commit);
+        let B_2_commitment = MultilinearPolynomial::commit(&b_2_poly, &poly_commit);
+        let C_commitment = MultilinearPolynomial::commit(&c_poly, &poly_commit);
+
+        let sig = E::G2Affine::rand(rng);
+        let pk = E::G1Affine::rand(rng);
+        // let message = E::G2Affine::rand(rng);
+
+        // Do the sumcheck at a random point
+        let (sumcheck_proof, rho) = perform_sig_aggr_sumcheck::<E, F>(&b_1_poly, &b_2_poly, &c_poly,
+                                                              &mut transcript);
+
+        let (b_1_at_rho, b_2_at_rho, c_at_rho, sumcheck_eval_KZH_accumulator) =
+            compute_signature_aggr_KZH_accumulator(srs, &b_1_poly, &b_2_poly, &c_poly, &rho, &mut transcript);
+
+        Self {
+            B_1_commitment,
+            B_2_commitment,
+            bitfield_poly: c_poly,
+            sig,
+            pk,
+            bitfield_commitment: C_commitment,
+            sumcheck_proof,
+            b_1_at_rho,
+            b_2_at_rho,
+            c_at_rho,
+            sumcheck_eval_KZH_accumulator,
+        }
+    }
 }
 
 /// This struct represents an accumulator for the signature aggregation protocol
@@ -127,11 +174,12 @@ where
 pub struct AggregatorPCD<E, F>
 where
     E: Pairing<ScalarField=F>,
+    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
     F: PrimeField + Absorb,
 {
     pub srs: SignatureAggrSRS<E>,
-    pub bob_data: SignatureAggrData<E>,
-    pub charlie_data: SignatureAggrData<E>,
+    pub bob_data: SignatureAggrData<E, F>,
+    pub charlie_data: SignatureAggrData<E, F>,
 }
 
 /// This struct represents an IVC aggregator, Alice, that receives network data from a single party, Bob, and also has
@@ -140,6 +188,7 @@ where
 pub struct AggregatorIVC<E, F>
 where
     E: Pairing<ScalarField=F>,
+    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
     F: PrimeField + Absorb,
 {
     pub srs: SignatureAggrSRS<E>,
@@ -155,10 +204,156 @@ where
     // running public key
     pub running_public_key: E::G1Affine,
     // the message, this is supposed to be constant during the IVC/PCD
-    pub message: E::G2Affine,
+    // pub message: E::G2Affine,
 
     // Data received from Bob
-    pub bob_data: SignatureAggrData<E>,
+    pub bob_data: SignatureAggrData<E, F>,
+}
+
+// Perform sumcheck for the following polynomial: eq(r,x) * (b_1 + b_2 - b_1 * b_2 - c)
+pub fn perform_sig_aggr_sumcheck<E, F>(
+    b_1_poly: &MultilinearPolynomial<F>,
+    b_2_poly: &MultilinearPolynomial<F>,
+    c_poly: &MultilinearPolynomial<F>,
+    transcript: &mut Transcript<F>,
+) -> (SumcheckInstanceProof<F>, Vec<F>)
+where
+    E: Pairing<ScalarField = F>,
+    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
+    F: PrimeField + Absorb,
+{
+    let vec_r = transcript.challenge_vector(b"vec_r", b_1_poly.num_variables);
+    let union_comb_func =
+        |eq_poly: &F, b_1_poly: &F, b_2_poly: &F, c_poly: &F|
+             -> F { *eq_poly * (*b_1_poly + *b_2_poly - *b_1_poly * *b_2_poly - *c_poly) };
+
+    // Start preparing for the sumcheck
+    let num_rounds = c_poly.num_variables;
+    let eq_at_r = MultilinearPolynomial::new(EqPolynomial::new(vec_r).evals());
+
+    // Sanity check: This is not true in general, but it's true for our tests
+    assert_eq!(b_1_poly.len, b_2_poly.len);
+    assert_eq!(b_1_poly.len, c_poly.len);
+    assert_eq!(b_1_poly.len, eq_at_r.len);
+
+    // Run the sumcheck and get back the verifier's challenge (random eval point rho)
+    let (sumcheck_proof, sumcheck_challenges, _) =
+        SumcheckInstanceProof::prove_cubic_four_terms::<_, E::G1>(&F::zero(),
+                                                                  num_rounds,
+                                                                  &mut eq_at_r.clone(), // eq(r, x)
+                                                                  &mut b_1_poly.clone(), // b_1(x)
+                                                                  &mut b_2_poly.clone(), // b_2(x)
+                                                                  &mut c_poly.clone(), // c(x)
+                                                                  union_comb_func,
+                                                                  transcript);
+    let rho = sumcheck_challenges;
+
+    (sumcheck_proof, rho)
+}
+
+/// Return (A.X, A.W) given f(x), and z and y such that f(z) = y
+fn get_accumulator_from_evaluation<E, F>(acc_srs: &AccSRS<E>,
+                                         bitfield_poly: &MultilinearPolynomial<F>,
+                                         eval_result: &F,
+                                         eval_point: &Vec<F>,
+) -> KZHAccumulator<E>
+where
+    E: Pairing<ScalarField = F>,
+    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
+    F: PrimeField + Absorb,
+{
+    let poly_commit = PCSEngine { srs: acc_srs.pc_srs.clone() };
+
+    let bitfield_commitment=MultilinearPolynomial::commit(
+        bitfield_poly,
+        &poly_commit,
+    );
+
+    let opening_proof = MultilinearPolynomial::prove(
+        Some(&bitfield_commitment),
+        &bitfield_poly,
+        eval_point,
+        &poly_commit
+    );
+
+
+    let length_x = poly_commit.srs.get_x_length();
+    let length_y = poly_commit.srs.get_y_length();
+    let (eval_point_first_half, eval_point_second_half) = split_between_x_and_y::<F>(length_x, length_y, eval_point, F::ZERO);
+
+    let acc_instance = KZHAccumulator::new_accumulator_instance_from_fresh_kzh_instance(
+        acc_srs,
+        &bitfield_commitment.C,
+        eval_point_first_half.as_slice(),
+        eval_point_second_half.as_slice(),
+        eval_result,
+    );
+
+    let acc_witness = KZHAccumulator::new_accumulator_witness_from_fresh_kzh_witness(
+        acc_srs,
+        opening_proof,
+        eval_point_first_half.as_slice(),
+        eval_point_second_half.as_slice(),
+    );
+
+    KZHAccumulator {
+        witness: acc_witness,
+        instance: acc_instance,
+    }
+}
+
+/// The verifier needs the following evaluation to verify the sumcheck:
+/// y_1 = b_1(rho), y_2 = b_2(rho), and y_3 = c(rho)
+/// where rho are the sumcheck challenges.
+///
+/// Instead of sending three KZH proofs to the verifier, we ask the verifier for challenges c_1 and c_2
+/// then we combine three polys into a single polynomial using a random linear combination, and send a
+/// proof for the resulting polynomial p(x) where p(x) = b_1(x) + c_1 * b_2(x) + c_2 * c(x)
+///
+/// Return b_1(rho), b_2(rho), c(rho) and an accumulator for the proof on p(x).
+pub fn compute_signature_aggr_KZH_accumulator<E, F>(
+    acc_srs: &AccSRS<E>,
+    b_1_poly: &MultilinearPolynomial<F>,
+    b_2_poly: &MultilinearPolynomial<F>,
+    c_poly: &MultilinearPolynomial<F>,
+    rho: &Vec<F>,
+    transcript: &mut Transcript<F>,
+) -> (F, F, F, KZHAccumulator<E>)
+where
+    E: Pairing<ScalarField = F>,
+    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
+    F: PrimeField + Absorb,
+{
+    // Get c_1 and c_2 (XXX could also get just c and then compute c^2)
+    let vec_c: Vec<F> = transcript.challenge_vector(b"vec_c", 2);
+
+    // Step 5.1: First compute p(x):
+    // Get c_1 * b_2(x)
+    let mut c_1_times_b_2_poly = b_2_poly.clone();
+    c_1_times_b_2_poly.scalar_mul(&vec_c[0]);
+
+    // Get c_2 * c(x)
+    let mut c_2_times_c_poly = c_poly.clone();
+    c_2_times_c_poly.scalar_mul(&vec_c[1]);
+
+    // Now combine everything to p(x)
+    let p_x = b_1_poly.clone() + c_1_times_b_2_poly + c_2_times_c_poly;
+
+    // Step 5.2: Compute b_1(rho), b_2(rho), c(rho) to send it to verifier
+    let b_1_at_rho = b_1_poly.evaluate(&rho);
+    let b_2_at_rho = b_2_poly.evaluate(&rho);
+    let c_at_rho = c_poly.evaluate(&rho);
+    let p_at_rho = b_1_at_rho + vec_c[0] * b_2_at_rho + vec_c[1] * c_at_rho;
+
+    // Step 5.4: Compute accumulator for opening of p(rho)
+    let sumcheck_eval_KZH_accumulator = get_accumulator_from_evaluation(
+        &acc_srs,
+        &p_x,
+        &p_at_rho,
+        &rho,
+    );
+
+    (b_1_at_rho, b_2_at_rho, c_at_rho, sumcheck_eval_KZH_accumulator)
 }
 
 impl<E, F> AggregatorIVC<E, F>
@@ -167,60 +362,14 @@ where
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
     F: PrimeField + Absorb,
 {
-    /// Return (A.X, A.W) given f(x), and z and y such that f(z) = y
-    fn get_accumulator_from_evaluation(&self,
-                                       bitfield_poly: &MultilinearPolynomial<F>,
-                                       eval_result: &F,
-                                       eval_point: &Vec<F>,
-    ) -> KZHAccumulator<E> {
-        let poly_commit = PCSEngine { srs: self.srs.acc_srs.pc_srs.clone() };
-
-        let bitfield_commitment=MultilinearPolynomial::commit(
-            bitfield_poly,
-            &poly_commit,
-        );
-
-        let opening_proof = MultilinearPolynomial::prove(
-            Some(&bitfield_commitment),
-            &bitfield_poly,
-            eval_point,
-            &poly_commit
-        );
-
-
-        let length_x = poly_commit.srs.get_x_length();
-        let length_y = poly_commit.srs.get_y_length();
-        let (eval_point_first_half, eval_point_second_half) = split_between_x_and_y::<F>(length_x, length_y, eval_point, F::ZERO);
-
-        let acc_instance = KZHAccumulator::new_accumulator_instance_from_fresh_kzh_instance(
-            &self.srs.acc_srs,
-            &bitfield_commitment.C,
-            eval_point_first_half.as_slice(),
-            eval_point_second_half.as_slice(),
-            eval_result,
-        );
-
-        let acc_witness = KZHAccumulator::new_accumulator_witness_from_fresh_kzh_witness(
-            &self.srs.acc_srs,
-            opening_proof,
-            eval_point_first_half.as_slice(),
-            eval_point_second_half.as_slice(),
-        );
-
-        KZHAccumulator {
-            witness: acc_witness,
-            instance: acc_instance,
-        }
-    }
-
-    pub fn aggregate(&self, transcript: &mut Transcript<F>) -> SignatureAggrData<E> {
+    pub fn aggregate(&self, transcript: &mut Transcript<F>) -> SignatureAggrData<E, F> {
         let poly_commit = PCSEngine { srs: self.srs.acc_srs.pc_srs.clone() };
 
         // Step 1:
         let pk = self.running_public_key + self.bob_data.pk;
         let sig = self.running_signature + self.bob_data.sig;
 
-        assert_eq!(self.message, self.bob_data.message, "two messages should be equal");
+        // assert_eq!(self.message, self.bob_data.message, "two messages should be equal");
 
         // Step 2: Compute c(x)
         let b_1_poly = &self.running_bitfield_poly;
@@ -234,71 +383,18 @@ where
             b"poly",
             &[C_commitment.C.x().unwrap(), C_commitment.C.y().unwrap()],
         );
-        let vec_r = transcript.challenge_vector(b"vec_r", b_1_poly.num_variables);
 
         // Step 4: Do the sumcheck for the following polynomial:
         // eq(r,x) * (b_1 + b_2 - b_1 * b_2 - c)
-        let union_comb_func =
-            |eq_poly: &F, b_1_poly: &F, b_2_poly: &F, c_poly: &F|
-             -> F { *eq_poly * (*b_1_poly + *b_2_poly - *b_1_poly * *b_2_poly - *c_poly) };
-
-        // Start preparing for the sumcheck
-        let num_rounds = c_poly.num_variables;
-        let eq_at_r = MultilinearPolynomial::new(EqPolynomial::new(vec_r).evals());
-
-        // Sanity check: This is not true in general, but it's true for our tests
-        assert_eq!(b_1_poly.len, b_2_poly.len);
-        assert_eq!(b_1_poly.len, c_poly.len);
-        assert_eq!(b_1_poly.len, eq_at_r.len);
-
-        // Run the sumcheck and get back the verifier's challenge (random eval point rho)
-        let (sumcheck_proof, sumcheck_challenges, _) =
-            SumcheckInstanceProof::prove_cubic_four_terms::<_, E::G1>(&F::zero(),
-                                                                      num_rounds,
-                                                                      &mut eq_at_r.clone(), // eq(r, x)
-                                                                      &mut b_1_poly.clone(), // b_1(x)
-                                                                      &mut b_2_poly.clone(), // b_2(x)
-                                                                      &mut c_poly.clone(), // c(x)
-                                                                      union_comb_func,
+        let (sumcheck_proof, rho) = perform_sig_aggr_sumcheck::<E, F>(b_1_poly, b_2_poly, &c_poly,
                                                                       transcript);
-        let rho = sumcheck_challenges;
 
-        // Step 5: Send evaluations to verifier
-        // The verifier needs the following evaluation to verify the sumcheck:
-        // y_1 = b_1(rho), y_2 = b_2(rho), and y_3 = c(rho)
-        // where rho are the sumcheck challenges.
-        //
-        // Instead of sending three KZH proofs to the verifier, we ask the verifier for challenges c_1 and c_2
-        // then we combine three polys into a single polynomial using a random linear combination, and send a
-        // proof for the resulting polynomial p(x) where p(x) = b_1(x) + c_1 * b_2(x) + c_2 * c(x)
+        // Step 5: Send KZH accumulator to verifier
+        let (b_1_at_rho, b_2_at_rho, c_at_rho, sumcheck_eval_KZH_accumulator) =
+            compute_signature_aggr_KZH_accumulator(&self.srs.acc_srs,
+                                                   &b_1_poly, &b_2_poly, &c_poly,
+                                                   &rho, transcript);
 
-        // Get c_1 and c_2 (XXX could also get just c and then compute c^2)
-        let vec_c: Vec<F> = transcript.challenge_vector(b"vec_c", 2);
-
-        // Step 5.1: First compute p(x):
-        // Get c_1 * b_2(x)
-        let mut c_1_times_b_2_poly = b_2_poly.clone();
-        c_1_times_b_2_poly.scalar_mul(&vec_c[0]);
-
-        // Get c_2 * c(x)
-        let mut c_2_times_c_poly = c_poly.clone();
-        c_2_times_c_poly.scalar_mul(&vec_c[1]);
-
-        // Now combine everything to p(x)
-        let p_x = b_1_poly.clone() + c_1_times_b_2_poly + c_2_times_c_poly;
-
-        // Step 5.2: Compute b_1(rho), b_2(rho), c(rho) to send it to verifier
-        let b_1_at_rho = b_1_poly.evaluate(&rho);
-        let b_2_at_rho = b_2_poly.evaluate(&rho);
-        let c_at_rho = c_poly.evaluate(&rho);
-        let p_at_rho = b_1_at_rho + vec_c[0] * b_2_at_rho + vec_c[1] * c_at_rho;
-
-        // Step 5.4: Compute accumulator for opening of p(rho)
-        let sumcheck_eval_KZH_accumulator = self.get_accumulator_from_evaluation(
-            &p_x,
-            &p_at_rho,
-            &rho,
-        );
 
         // Step 6: Aggregate accumulators 3-to-1:
         // Hossein: At this point we will also have two more KZH accumulators: one from our running accumulator, and another one from Bob
@@ -319,7 +415,7 @@ where
             B_2_commitment: self.bob_data.bitfield_commitment.clone(),
             bitfield_poly: c_poly,
             sig: sig.into(),
-            message: self.message,
+            // message: self.message,
             pk: pk.into(),
             bitfield_commitment: C_commitment,
             sumcheck_proof,
@@ -339,10 +435,11 @@ where
 pub struct Verifier<E, F>
 where
     F: PrimeField + Absorb,
+    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
     E: Pairing<ScalarField=F>,
 {
     pub srs: SignatureAggrSRS<E>,
-    pub A: SignatureAggrData<E>,
+    pub A: SignatureAggrData<E, F>,
 }
 
 impl<E, F> Verifier<E, F>
@@ -445,11 +542,11 @@ where
     }
 }
 
-/*
+
 #[cfg(test)]
 pub mod test {
     use super::*;
-    use crate::constant_for_curves::{ScalarField, E};
+    use crate::constant_for_curves::{ScalarField, G2Affine, G1Affine, E};
 
     type F = ScalarField;
 
@@ -468,14 +565,15 @@ pub mod test {
         let srs = SignatureAggrSRS::<E>::new(degree_x, degree_y, rng);
 
         // Generate signature aggregation payload from Bob
-        let bob_bitfield = MultilinearPolynomial::random_binary(num_vars, rng);
-        let bob_data = SignatureAggrData::new(bob_bitfield, None, &srs);
+        let bob_data = SignatureAggrData::rand(num_vars, &srs.acc_srs, rng);
 
         // Generate random running accumulator for Alice
         let alice_bitfield = MultilinearPolynomial::random_binary(num_vars, rng);
         let poly_commit = PCSEngine { srs: srs.acc_srs.pc_srs.clone() }; // XXX no clone
         let alice_bitfield_commitment = poly_commit.commit(&alice_bitfield);
         let alice_running_accumulator = SignatureAggrAccumulator::rand(&srs.acc_srs, rng);
+        let alice_running_sig = G2Affine::rand(rng);
+        let alice_running_pk = G1Affine::rand(rng);
 
         ////////////// Aggregation ////////////////
 
@@ -484,8 +582,8 @@ pub mod test {
             running_bitfield_poly: alice_bitfield,
             running_bitfield_commitment: alice_bitfield_commitment,
             running_accumulator: alice_running_accumulator,
-            running_signature: (),
-            running_public_key: (),
+            running_signature: alice_running_sig,
+            running_public_key: alice_running_pk,
             bob_data,
         };
 
@@ -530,5 +628,4 @@ pub mod test {
     // }
 }
 
- */
-
+      
