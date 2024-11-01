@@ -39,7 +39,7 @@ pub fn prove<E, F>(
 
     // Create slices backed by their respective vectors.  This lets us reslice as we compress the lengths of the
     // vectors in the main loop below.
-    let mut slice_G = &mut crs_G_vec.clone()[..]; // XXX clone
+    let mut slice_G = &mut crs_G_vec.clone()[..];
     let mut slice_x = &mut vec_x.clone()[..];
 
     while slice_x.len() > 1 {
