@@ -6,6 +6,7 @@ use ark_std::{end_timer, start_timer};
 use crate::commitment::CommitmentScheme;
 use crate::gadgets::r1cs::R1CSShape;
 use crate::gadgets::sparse::SparseMatrix;
+use crate::nexus_spartan::analyze_vector_sparseness;
 use crate::nexus_spartan::crr1cs::{CRR1CSInstance, CRR1CSShape, CRR1CSWitness};
 use crate::nexus_spartan::errors::R1CSError;
 use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
@@ -104,22 +105,7 @@ where
 
         assert!(!pub_io.is_empty(), "instance is empty");
 
-        {
-            // Count the number of zeroes and ones in the witness
-            let total = witness.len();
-            let zero_count = witness.iter().filter(|&x| x.is_zero()).count();
-            let one_count = witness.iter().filter(|&x| x.is_one()).count();
-
-            // Calculate relative counts
-            let zero_relative = zero_count as f64 / total as f64;
-            let one_relative = one_count as f64 / total as f64;
-
-            // Output the results
-            println!("Witness zero count: {}", zero_count);
-            println!("Witness zero count: {:.2}%", zero_relative * 100.0);
-            println!("Witness one count: {}", one_count);
-            println!("Witness one count: {:.2}%", one_relative * 100.0);
-        }
+        analyze_vector_sparseness("witness", &witness);
 
         let poly_W = MultilinearPolynomial::new(witness);
         let commit_timer = start_timer!(|| "Instance conversion (commit to witness)");

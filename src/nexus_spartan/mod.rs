@@ -24,7 +24,7 @@ pub mod matrix_evaluation_accumulation;
 
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
-use ark_ff::PrimeField;
+use ark_ff::{BigInteger, PrimeField};
 use ark_serialize::*;
 use core::cmp::max;
 use errors::R1CSError;
@@ -253,4 +253,50 @@ impl<F: PrimeField + Absorb> Instance<F> {
             InputsAssignment { assignment: inputs },
         )
     }
+}
+
+pub fn analyze_vector_sparseness<F: PrimeField>(name: &str, z: &Vec<F>) {
+    // Count the number of zeroes and ones in the witness
+    let total = z.len();
+    let zero_count = z.iter().filter(|&x| x.is_zero()).count();
+    let one_count = z.iter().filter(|&x| x.is_one()).count();
+
+    // Calculate relative counts
+    let zero_relative = zero_count as f64 / total as f64;
+    let one_relative = one_count as f64 / total as f64;
+
+    // Compute the number of bits for each element
+    let num_bits: Vec<u32> = z.iter().map(|x| x.into_bigint().num_bits()).collect();
+
+    // Compute average, min, and max num_bits
+    let sum_bits: u32 = num_bits.iter().sum();
+    let avg_bits = sum_bits as f64 / total as f64;
+    let min_bits = num_bits.iter().min().unwrap();
+    let max_bits = num_bits.iter().max().unwrap();
+
+    // Get the modulus bit length (maximum bit length per element)
+    let modulus_bit_length = F::MODULUS_BIT_SIZE as u32;
+
+    // Compute the maximum possible total bit length
+    let max_bit_length_possible = total as u32 * modulus_bit_length;
+
+    // Compute the effective bit length percentage
+    let effective_bit_length_percentage = (sum_bits as f64 / max_bit_length_possible as f64) * 100.0;
+
+    // Output the results
+    println!("[*] Analyzing {}", name);
+    println!("\tsize: {}", total);
+    println!("\tzero count: {}", zero_count);
+    println!("\tzero percentage: {:.2}%", zero_relative * 100.0);
+    println!("\tone count: {}", one_count);
+    println!("\tone percentage: {:.2}%", one_relative * 100.0);
+    println!("\taverage bit length: {:.2}", avg_bits);
+    println!("\tmin bit length: {}", min_bits);
+    println!("\tmax bit length: {}", max_bits);
+    println!("\teffective bit length (total bits): {}", sum_bits);
+    println!("\tmax possible bit length (total bits): {}", max_bit_length_possible);
+    println!(
+        "\teffective bit length percentage: {:.2}%",
+        effective_bit_length_percentage
+    );
 }
