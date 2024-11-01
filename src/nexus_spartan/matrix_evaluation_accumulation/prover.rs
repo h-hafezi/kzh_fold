@@ -3,6 +3,7 @@ use ark_ff::PrimeField;
 use rand::RngCore;
 
 use crate::nexus_spartan::crr1cs::CRR1CSShape;
+use crate::polynomial::univariate::PolynomialInterpolator;
 use crate::transcript::transcript::Transcript;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -13,6 +14,7 @@ pub struct MatrixEvaluationAccumulator<F: PrimeField + Absorb> {
     pub evaluations: (F, F, F),
 }
 
+// todo: I think it's weird, it should take a shape not generate everything randomly
 impl<F: PrimeField + Absorb> MatrixEvaluationAccumulator<F> {
     pub fn rand<R: RngCore>(x_len: usize, y_len: usize, rng: &mut R) -> Self {
         let eval_point_x: Vec<F> = (0..x_len).map(|_| F::rand(rng)).collect();
@@ -21,7 +23,7 @@ impl<F: PrimeField + Absorb> MatrixEvaluationAccumulator<F> {
 
         Self {
             evaluation_point: (eval_point_x, eval_point_y),
-            evaluations: evaluations
+            evaluations: evaluations,
         }
     }
 }
@@ -80,6 +82,63 @@ pub fn fold_matrices_evaluations<F: PrimeField + Absorb>(
     (beta, (proof_A, proof_B, proof_C))
 }
 
+pub fn compute_q<F: PrimeField + Absorb>(shape: &CRR1CSShape<F>,
+                                         eval_point_1: (Vec<F>, Vec<F>),
+                                         eval_point_2: (Vec<F>, Vec<F>),
+) -> (PolynomialInterpolator<F>, PolynomialInterpolator<F>, PolynomialInterpolator<F>) {
+    let (eval_point_1_x, eval_point_1_y) = eval_point_1.clone();
+    let (eval_point_2_x, eval_point_2_y) = eval_point_2.clone();
+
+    assert_eq!(eval_point_1_x.len(), eval_point_2_x.len(), "arrays with unequal length");
+    assert_eq!(eval_point_1_y.len(), eval_point_2_y.len(), "arrays with unequal length");
+
+    let evals_1 = shape.inst.inst.evaluate(&eval_point_1_x, &eval_point_1_y);
+    let evals_2 = shape.inst.inst.evaluate(&eval_point_2_x, &eval_point_2_y);
+
+    let mut Q_A = Vec::new();
+    let mut Q_B = Vec::new();
+    let mut Q_C = Vec::new();
+
+    // we start from 2 because the term (1- x) * x is zero at 0 and 2
+    for i in 2..shape.get_num_cons() + 2 {
+        let beta = F::from(i as u128);
+
+        // Perform the random combination for r_x_folded and r_y_folded
+        let folded_input_x: Vec<F> = eval_point_1_x.iter()
+            .zip(eval_point_2_x.iter())
+            .map(|(rx, rx_prime)| *rx * (F::one() - beta) + *rx_prime * beta)
+            .collect();
+
+        let folded_input_y: Vec<F> = eval_point_1_y.iter()
+            .zip(eval_point_2_y.iter())
+            .map(|(ry, ry_prime)| *ry * (F::one() - beta) + *ry_prime * beta)
+            .collect();
+
+        // Evaluate the folded r_x_folded and r_y_folded
+        let new_evaluation = shape.inst.inst.evaluate(&folded_input_x, &folded_input_y);
+
+        // Calculate the proof values
+        let q_A = (new_evaluation.0 - ((F::one() - beta) * evals_1.0 + beta * evals_2.0)) / (beta * (F::one() - beta));
+        let q_B = (new_evaluation.1 - ((F::one() - beta) * evals_1.1 + beta * evals_2.1)) / (beta * (F::one() - beta));
+        let q_C = (new_evaluation.2 - ((F::one() - beta) * evals_1.2 + beta * evals_2.2)) / (beta * (F::one() - beta));
+
+        Q_A.push((beta, q_A));
+        Q_B.push((beta, q_B));
+        Q_C.push((beta, q_C));
+    }
+
+    let mut poly_Q_A = PolynomialInterpolator::new();
+    poly_Q_A.interpolate(Q_A.as_slice());
+
+    let mut poly_Q_B = PolynomialInterpolator::new();
+    poly_Q_B.interpolate(Q_B.as_slice());
+
+    let mut poly_Q_C = PolynomialInterpolator::new();
+    poly_Q_C.interpolate(Q_C.as_slice());
+
+    (poly_Q_A, poly_Q_B, poly_Q_C)
+}
+
 pub fn to_sponge_vector<T: Clone>(eval_point_1: &(Vec<T>, Vec<T>),
                                   new_input: &(Vec<T>, Vec<T>),
                                   running_evaluation: (T, T, T),
@@ -99,20 +158,20 @@ pub fn to_sponge_vector<T: Clone>(eval_point_1: &(Vec<T>, Vec<T>),
 
 #[cfg(test)]
 pub mod tests {
-    use ark_crypto_primitives::sponge::Absorb;
-    use ark_ec::CurveConfig;
-    use ark_ec::pairing::Pairing;
-    use ark_ec::short_weierstrass::{Affine, SWCurveConfig};
-    use ark_ff::{One, PrimeField};
     use crate::constant_for_curves::{ScalarField, E, G1};
     use crate::nexus_spartan::conversion::tests::TrivialCircuit;
     use crate::nexus_spartan::crr1cs::{is_sat, CRR1CSInstance, CRR1CSKey, CRR1CSShape, CRR1CSWitness};
     use crate::nexus_spartan::crr1csproof::CRR1CSProof;
-    use crate::nexus_spartan::matrix_evaluation_accumulation::prover::{fold_matrices_evaluations};
+    use crate::nexus_spartan::matrix_evaluation_accumulation::prover::{compute_q, fold_matrices_evaluations};
     use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
     use crate::pcs::multilinear_pcs::PolynomialCommitmentSRS;
     use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
     use crate::transcript::transcript::Transcript;
+    use ark_crypto_primitives::sponge::Absorb;
+    use ark_ec::pairing::Pairing;
+    use ark_ec::short_weierstrass::{Affine, SWCurveConfig};
+    use ark_ec::CurveConfig;
+    use ark_ff::{One, PrimeField};
     use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystem, SynthesisMode};
     use ark_std::UniformRand;
     use rand::thread_rng;
@@ -124,7 +183,7 @@ pub mod tests {
         F: PrimeField + Absorb,
         E: Pairing<G1Affine=Affine<G1>, ScalarField=F>,
         G1: SWCurveConfig<ScalarField=F> + Clone,
-        <G1 as CurveConfig>::BaseField: PrimeField
+        <G1 as CurveConfig>::BaseField: PrimeField,
     {
         // Create a new constraint system for: a + b == a^2
         let cs = ConstraintSystem::<F>::new_ref();
@@ -217,5 +276,41 @@ pub mod tests {
         let folded_evaluations: (F, F, F) = shape.inst.inst.evaluate(&folded_input_x, &folded_input_y);
 
         assert_eq!(expected_folded_evaluations, folded_evaluations);
+    }
+
+    #[test]
+    fn test_poly_q() {
+        // ************************************************ set up the spartan proof ************************************************
+        let (shape, eval_point_1_x, eval_point_1_y) = matrix_evaluation_setup::<F, E, G1>();
+
+        // ************************************************ setup params for folding prover ************************************************
+        let mut rng = thread_rng();
+
+        // Generate random elements in the field for r_x_prime and r_y_prime
+        let eval_point_2_x: Vec<F> = (0..eval_point_1_x.len()).map(|_| F::rand(&mut rng)).collect();
+        let eval_point_2_y: Vec<F> = (0..eval_point_1_y.len()).map(|_| F::rand(&mut rng)).collect();
+
+        let evals_1: (F, F, F) = shape.inst.inst.evaluate(&eval_point_1_x, &eval_point_1_y);
+        let evals_2: (F, F, F) = shape.inst.inst.evaluate(&eval_point_2_x, &eval_point_2_y);
+
+        let (beta, (proof_A, proof_B, proof_C)) = fold_matrices_evaluations(
+            &shape,
+            (eval_point_1_x.clone(), eval_point_1_y.clone()),
+            (eval_point_2_x.clone(), eval_point_2_y.clone()),
+            &mut Transcript::new(b"new transcript"),
+            evals_1,
+            evals_2,
+            true,
+        );
+
+        let (Q_A, Q_B, Q_C) = compute_q(
+            &shape,
+            (eval_point_1_x, eval_point_1_y),
+            (eval_point_2_x, eval_point_2_y),
+        );
+
+        assert_eq!(Q_A.evaluate(beta), proof_A);
+        assert_eq!(Q_B.evaluate(beta), proof_B);
+        assert_eq!(Q_C.evaluate(beta), proof_C);
     }
 }

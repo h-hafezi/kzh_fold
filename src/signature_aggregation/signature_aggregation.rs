@@ -597,41 +597,6 @@ pub mod test {
 
         //////////// Verification //////////////////
     }
-
-
-    // Bob and Charlie send signature data to Alice. Alice aggregates it and sends it forward.
-    // #[test]
-    // fn test_signature_aggregation_PCD_end_to_end() {
-    //     // Setup:
-    //     let rng = &mut rand::thread_rng();
-    //     let mut transcript_p = Transcript::<F>::new(b"aggr");
-    //     let mut transcript_v = Transcript::<F>::new(b"aggr");
-
-    //     // num_vars = log(degree_x) + log(degree_y)
-    //     let degree_x = 64usize;
-    //     let degree_y = 64usize;
-    //     let num_vars = 12usize;
-    //     let srs = SRS::<E>::new(degree_x, degree_y, rng);
-
-    //     // Generate signature aggregation payload from Bob
-    //     let b_1 = MultilinearPolynomial::random_binary(num_vars, rng);
-    //     let sig_aggr_data_1 = SignatureAggrData::new(b_1, None, &srs);
-
-    //     // Generate signature aggregation payload from Charlie
-    //     let b_2 = MultilinearPolynomial::random_binary(num_vars, rng);
-    //     let sig_aggr_data_2 = SignatureAggrData::new(b_2, None, &srs);
-
-    //     ////////////// Aggregation ////////////////
-
-    //     // Now setup Alice, the aggregator
-    //     let aggregator = AggregatorPCD {
-    //         srs: srs.clone(),
-    //         bob_data: sig_aggr_data_1,
-    //         charlie_data: sig_aggr_data_2,
-    //     };
-
-    //     // TODO
-    // }
 }
 
       
