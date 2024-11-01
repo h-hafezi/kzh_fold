@@ -170,7 +170,12 @@ where
         }
     }
 
-    pub fn prove(srs: &AccSRS<E>, acc_1: &Accumulator<E>, acc_2: &Accumulator<E>, transcript: &mut Transcript<E::ScalarField>) -> (AccInstance<E>, AccWitness<E>, E::G1Affine)
+    pub fn prove(
+        srs: &AccSRS<E>,
+        acc_1: &Accumulator<E>,
+        acc_2: &Accumulator<E>,
+        transcript: &mut Transcript<E::ScalarField>
+    ) -> (AccInstance<E>, AccWitness<E>, E::G1Affine)
     where
         <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb,
     {
@@ -402,8 +407,6 @@ impl<E: Pairing> Accumulator<E> {
         <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb,
         <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
     {
-        let poly_commit = PCSEngine { srs: srs.pc_srs.clone() };
-
         // random bivariate polynomial
         let polynomial1 = MultilinearPolynomial::rand(srs.pc_srs.degree_x.log_2() + srs.pc_srs.degree_y.log_2(), rng);
         let polynomial2 = MultilinearPolynomial::rand(srs.pc_srs.degree_x.log_2() + srs.pc_srs.degree_y.log_2(), rng);
@@ -432,16 +435,16 @@ impl<E: Pairing> Accumulator<E> {
         let z2 = polynomial2.evaluate(&whole_input_2);
 
         // commit to the polynomial
-        let com1 = poly_commit.commit(&polynomial1);
-        let com2 = poly_commit.commit(&polynomial2);
+        let com1 = PCSEngine::commit(&srs.pc_srs, &polynomial1);
+        let com2 = PCSEngine::commit(&srs.pc_srs,&polynomial2);
 
         // open the commitment
-        let open1 = poly_commit.open(&polynomial1, com1.clone(), &x1);
-        let open2 = poly_commit.open(&polynomial2, com2.clone(), &x2);
+        let open1 = PCSEngine::open(&srs.pc_srs,&polynomial1, com1.clone(), &x1);
+        let open2 = PCSEngine::open(&srs.pc_srs,&polynomial2, com2.clone(), &x2);
 
         // verify the proof
-        assert!(poly_commit.verify(&com1, &open1, &x1, &y1, &z1));
-        assert!(poly_commit.verify(&com2, &open2, &x2, &y2, &z2));
+        assert!(PCSEngine::verify(&srs.pc_srs,&com1, &open1, &x1, &y1, &z1));
+        assert!(PCSEngine::verify(&srs.pc_srs,&com2, &open2, &x2, &y2, &z2));
 
         let instance1 = Accumulator::new_accumulator_instance_from_fresh_kzh_instance(&srs, &com1.C, &x1, &y1, &z1);
         let witness1 = Accumulator::new_accumulator_witness_from_fresh_kzh_witness(&srs, open1, &x1, &y1);
@@ -475,7 +478,7 @@ pub mod test {
     #[test]
     fn test_accumulator_end_to_end() {
         let (degree_x, degree_y) = (128usize, 128usize);
-        let srs_pcs: PolynomialCommitmentSRS<E> = PCSEngine::<E>::setup(degree_x, degree_y, &mut thread_rng());
+        let srs_pcs: PolynomialCommitmentSRS<E> = PCSEngine::setup(degree_x, degree_y, &mut thread_rng());
         let srs = Accumulator::setup(srs_pcs.clone(), &mut thread_rng());
 
         let acc1 = Accumulator::random_satisfying_accumulator(&srs, &mut thread_rng());
@@ -501,7 +504,7 @@ pub mod test {
         let degrees = vec![(2, 2), (4, 4), (8, 8), (16, 16), (32, 32)];
 
         for (degree_x, degree_y) in degrees {
-            let srs_pcs: PolynomialCommitmentSRS<E> = PCSEngine::<E>::setup(degree_x, degree_y, &mut thread_rng());
+            let srs_pcs: PolynomialCommitmentSRS<E> = PCSEngine::setup(degree_x, degree_y, &mut thread_rng());
             let srs = Accumulator::setup(srs_pcs.clone(), &mut thread_rng());
 
             let acc = Accumulator::random_satisfying_accumulator(&srs, &mut thread_rng());

@@ -32,41 +32,41 @@ where
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
 {
     type SRS = PolynomialCommitmentSRS<E>;
-    type PolyCommitmentKey = PCSEngine<E>;
-    type EvalVerifierKey = PCSEngine<E>;
+    type PolyCommitmentKey = PolynomialCommitmentSRS<E>;
+    type EvalVerifierKey = PolynomialCommitmentSRS<E>;
     type Commitment = PCSCommitment<E>;
     type PolyCommitmentProof = PCSOpeningProof<E>;
 
     fn commit(poly: &MultilinearPolynomial<E::ScalarField>, ck: &Self::PolyCommitmentKey) -> Self::Commitment {
-        let len = ck.srs.get_x_length() + ck.srs.get_y_length();
+        let len = ck.get_x_length() + ck.get_y_length();
         let poly = poly.extend_number_of_variables(len);
         assert_eq!(poly.num_variables, len);
         assert_eq!(poly.len, 1 << poly.num_variables);
         assert_eq!(poly.evaluation_over_boolean_hypercube.len(), poly.len);
 
-        ck.commit(&poly)
+        PCSEngine::commit(&ck, &poly)
     }
 
     fn prove(C: Option<&Self::Commitment>, poly: &MultilinearPolynomial<E::ScalarField>, r: &[E::ScalarField], ck: &Self::PolyCommitmentKey) -> Self::PolyCommitmentProof {
-        let len = ck.srs.get_x_length() + ck.srs.get_y_length();
+        let len = ck.get_x_length() + ck.get_y_length();
         let poly = poly.extend_number_of_variables(len);
         assert_eq!(poly.num_variables, len);
         assert_eq!(poly.len, 1 << poly.num_variables);
         assert_eq!(poly.evaluation_over_boolean_hypercube.len(), poly.len);
 
-        let length_x = ck.srs.get_x_length();
-        let length_y = ck.srs.get_y_length();
+        let length_x = ck.get_x_length();
+        let length_y = ck.get_y_length();
         let (x, _) = split_between_x_and_y::<F>(length_x, length_y, r, F::ZERO);
-        ck.open(&poly, C.unwrap().clone(), x.as_slice())
+        PCSEngine::open(&ck, &poly, C.unwrap().clone(), x.as_slice())
     }
 
     fn verify(commitment: &Self::Commitment, proof: &Self::PolyCommitmentProof, ck: &Self::EvalVerifierKey, r: &[F], eval: &F) -> Result<(), PCSError> {
-        let length_x = ck.srs.get_x_length();
-        let length_y = ck.srs.get_y_length();
+        let length_x = ck.get_x_length();
+        let length_y = ck.get_y_length();
         let (x, y) = split_between_x_and_y::<F>(length_x, length_y, r, F::ZERO);
 
         // verify the proof
-        assert!(ck.verify(commitment, proof, x.as_slice(), y.as_slice(), eval));
+        assert!(PCSEngine::verify(&ck, commitment, proof, x.as_slice(), y.as_slice(), eval));
 
         Ok(())
     }
@@ -76,13 +76,13 @@ where
         let y = max_poly_vars - x;
         let degree_x = 2usize.pow(x as u32);
         let degree_y = 2usize.pow(y as u32);
-        Ok(PCSEngine::<E>::setup(degree_x, degree_y, rng))
+        Ok(PCSEngine::setup(degree_x, degree_y, rng))
     }
 
     fn trim(srs: &Self::SRS) -> PCSKeys<E, Self> {
         PCSKeys {
-            ck: PCSEngine { srs: srs.clone() },
-            vk: PCSEngine { srs: srs.clone() },
+            ck: srs.clone(),
+            vk: srs.clone(),
         }
     }
 }

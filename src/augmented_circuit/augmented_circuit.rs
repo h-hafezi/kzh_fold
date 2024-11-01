@@ -213,7 +213,7 @@ mod tests {
             spartan_shape.get_num_inputs(),
         );
 
-        let pcs_srs = gens.gens_r1cs_sat.keys.ck.srs.clone();
+        let pcs_srs = gens.gens_r1cs_sat.keys.ck.clone();
         let acc_srs = Accumulator::setup(pcs_srs.clone(), &mut thread_rng());
 
         let mut prover_transcript = Transcript::new(b"example");
@@ -263,7 +263,7 @@ mod tests {
         // Sanity check: verify the opening proof
         assert!(
             PCSEngine::verify(
-                &PCSEngine { srs: pcs_srs.clone() },
+                &pcs_srs,
                 &commitment_w,
                 &opening_proof,
                 x.as_slice(),

@@ -99,7 +99,6 @@ where
 {
     /// Generate a random SignatureAggrData for a network participant
     pub fn rand<R: RngCore>(num_vars: usize, srs: &AccSRS<E>, rng: &mut R) -> Self {
-        let poly_commit = PCSEngine { srs: srs.pc_srs.clone() };
         let mut transcript = Transcript::<F>::new(b"aggr");
 
         // Random polynomials
@@ -107,9 +106,9 @@ where
         let b_2_poly = MultilinearPolynomial::random_binary(num_vars, rng);
         let c_poly = b_1_poly.get_bitfield_union_poly(&b_2_poly);
 
-        let B_1_commitment = MultilinearPolynomial::commit(&b_1_poly, &poly_commit);
-        let B_2_commitment = MultilinearPolynomial::commit(&b_2_poly, &poly_commit);
-        let C_commitment = MultilinearPolynomial::commit(&c_poly, &poly_commit);
+        let B_1_commitment = MultilinearPolynomial::commit(&b_1_poly, &srs.pc_srs);
+        let B_2_commitment = MultilinearPolynomial::commit(&b_2_poly, &srs.pc_srs);
+        let C_commitment = MultilinearPolynomial::commit(&c_poly, &srs.pc_srs);
 
         // Some random stuff for the sig/pk
         let sig = E::G2Affine::rand(rng);
@@ -267,23 +266,21 @@ where
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
     F: PrimeField + Absorb,
 {
-    let poly_commit = PCSEngine { srs: acc_srs.pc_srs.clone() };
-
     let bitfield_commitment=MultilinearPolynomial::commit(
         bitfield_poly,
-        &poly_commit,
+        &acc_srs.pc_srs,
     );
 
     let opening_proof = MultilinearPolynomial::prove(
         Some(&bitfield_commitment),
         &bitfield_poly,
         eval_point,
-        &poly_commit
+        &acc_srs.pc_srs
     );
 
 
-    let length_x = poly_commit.srs.get_x_length();
-    let length_y = poly_commit.srs.get_y_length();
+    let length_x = acc_srs.pc_srs.get_x_length();
+    let length_y = acc_srs.pc_srs.get_y_length();
     let (eval_point_first_half, eval_point_second_half) = split_between_x_and_y::<F>(length_x, length_y, eval_point, F::ZERO);
 
     let acc_instance = KZHAccumulator::new_accumulator_instance_from_fresh_kzh_instance(
@@ -368,7 +365,6 @@ where
     F: PrimeField + Absorb,
 {
     pub fn aggregate(&self, transcript: &mut Transcript<F>) -> SignatureAggrData<E, F> {
-        let poly_commit = PCSEngine { srs: self.srs.acc_srs.pc_srs.clone() };
 
         // Step 1:
         let pk = self.running_public_key + self.bob_data.pk;
@@ -381,7 +377,7 @@ where
         let b_2_poly = &self.bob_data.bitfield_poly;
 
         let c_poly = b_1_poly.get_bitfield_union_poly(&b_2_poly);
-        let C_commitment = MultilinearPolynomial::commit(&c_poly, &poly_commit);
+        let C_commitment = MultilinearPolynomial::commit(&c_poly, &self.srs.acc_srs.pc_srs);
 
         // Step 3: Get r from verifier: it's the evaluation point challenge (for the zerocheck)
         transcript.append_scalars_non_native::<<<E as Pairing>::G1Affine as AffineRepr>::BaseField>(
@@ -575,8 +571,7 @@ pub mod test {
 
         // Generate random running data for Alice
         let alice_bitfield = MultilinearPolynomial::random_binary(num_vars, rng);
-        let poly_commit = PCSEngine { srs: srs.acc_srs.pc_srs.clone() }; // XXX no clone
-        let alice_bitfield_commitment = poly_commit.commit(&alice_bitfield);
+        let alice_bitfield_commitment = PCSEngine::commit(&srs.acc_srs.pc_srs, &alice_bitfield);
         let alice_running_accumulator = SignatureAggrAccumulator::rand(&srs.acc_srs, rng);
         let alice_running_sig = G2Affine::rand(rng);
         let alice_running_pk = G1Affine::rand(rng);

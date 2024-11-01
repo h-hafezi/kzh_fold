@@ -363,7 +363,7 @@ where
 
     // get a random srs
     let srs = {
-        let srs_pcs: PolynomialCommitmentSRS<E> = PCSEngine::<E>::setup(n, m, &mut thread_rng());
+        let srs_pcs: PolynomialCommitmentSRS<E> = PCSEngine::setup(n, m, &mut thread_rng());
         Accumulator::setup(srs_pcs.clone(), &mut thread_rng())
     };
 
