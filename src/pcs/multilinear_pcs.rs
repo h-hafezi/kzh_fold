@@ -164,6 +164,7 @@ impl<E: Pairing> PCSEngine<E> {
                 .iter()
             ).into_affine(),
             aux: (0..self.srs.degree_x)
+                .into_par_iter() // Parallelize the D^{(x)} computation
                 .map(|i| {
                     E::G1::msm_unchecked(
                         self.srs.vec_H.as_slice(),
