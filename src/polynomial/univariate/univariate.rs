@@ -4,9 +4,9 @@ use ark_std::vec::Vec;
 
 
 /// Struct for interpolating a polynomial from given evaluations at distinct points (x_i, f(x_i)).
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PolynomialInterpolator<F: PrimeField> {
-    coefficients: Vec<F>,  // This stores the coefficients after interpolation.
+    pub coefficients: Vec<F>,  // This stores the coefficients after interpolation.
 }
 
 impl<F: PrimeField> PolynomialInterpolator<F> {
@@ -78,7 +78,7 @@ mod test {
     use ark_std::UniformRand;
     use rand::thread_rng;
     use crate::constant_for_curves::ScalarField;
-    use crate::polynomial::univariate::PolynomialInterpolator;
+    use crate::polynomial::univariate::univariate::PolynomialInterpolator;
 
     type F = ScalarField;
 

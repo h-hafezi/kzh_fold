@@ -10,6 +10,7 @@ pub mod eq_poly;
 pub mod identity;
 
 pub mod multilinear_poly;
+
 pub mod univariate;
 
 pub fn boolean_vector_to_decimal<F: Field>(r: &[F]) -> usize {

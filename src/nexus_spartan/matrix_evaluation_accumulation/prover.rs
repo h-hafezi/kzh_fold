@@ -3,7 +3,7 @@ use ark_ff::PrimeField;
 use rand::RngCore;
 
 use crate::nexus_spartan::crr1cs::CRR1CSShape;
-use crate::polynomial::univariate::PolynomialInterpolator;
+use crate::polynomial::univariate::univariate::PolynomialInterpolator;
 use crate::transcript::transcript::Transcript;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -23,7 +23,7 @@ impl<F: PrimeField + Absorb> MatrixEvaluationAccumulator<F> {
 
         Self {
             evaluation_point: (eval_point_x, eval_point_y),
-            evaluations: evaluations,
+            evaluations,
         }
     }
 }
@@ -36,9 +36,15 @@ pub fn fold_matrices_evaluations<F: PrimeField + Absorb>(
     evals_1: (F, F, F),
     evals_2: (F, F, F),
     check_evaluations: bool,
-) -> (F, (F, F, F)) {
+) -> (F, (PolynomialInterpolator<F>, PolynomialInterpolator<F>, PolynomialInterpolator<F>)) {
     let (eval_point_1_x, eval_point_1_y) = eval_point_1.clone();
     let (eval_point_2_x, eval_point_2_y) = eval_point_2.clone();
+
+    let (q_A, q_B, q_C) = compute_q(
+        &shape,
+        eval_point_1.clone(),
+        eval_point_2.clone(),
+    );
 
     // append struct to transcript to generate challenge beta
     transcript.append_scalars(b"matrix evaluations",
@@ -49,9 +55,12 @@ pub fn fold_matrices_evaluations<F: PrimeField + Absorb>(
                                   evals_2,
                               ).as_slice(),
     );
+    transcript.append_scalars(b"quotient polynomial", q_A.coefficients.as_slice());
+    transcript.append_scalars(b"quotient polynomial", q_B.coefficients.as_slice());
+    transcript.append_scalars(b"quotient polynomial", q_C.coefficients.as_slice());
     let beta = transcript.challenge_scalar(b"beta");
 
-
+    // also check evaluation points
     if check_evaluations {
         let expected_evals_1 = shape.inst.inst.evaluate(&eval_point_1_x, &eval_point_1_y);
         assert_eq!(evals_1, expected_evals_1);
@@ -74,12 +83,7 @@ pub fn fold_matrices_evaluations<F: PrimeField + Absorb>(
     // Evaluate the folded r_x_folded and r_y_folded
     let new_evaluation = shape.inst.inst.evaluate(&folded_input_x, &folded_input_y);
 
-    // Calculate the proof values
-    let proof_A = (new_evaluation.0 - ((F::one() - beta) * evals_1.0 + beta * evals_2.0)) / (beta * (F::one() - beta));
-    let proof_B = (new_evaluation.1 - ((F::one() - beta) * evals_1.1 + beta * evals_2.1)) / (beta * (F::one() - beta));
-    let proof_C = (new_evaluation.2 - ((F::one() - beta) * evals_1.2 + beta * evals_2.2)) / (beta * (F::one() - beta));
-
-    (beta, (proof_A, proof_B, proof_C))
+    (beta, (q_A, q_B, q_C))
 }
 
 pub fn compute_q<F: PrimeField + Absorb>(shape: &CRR1CSShape<F>,
@@ -154,7 +158,6 @@ pub fn to_sponge_vector<T: Clone>(eval_point_1: &(Vec<T>, Vec<T>),
 
     res
 }
-
 
 #[cfg(test)]
 pub mod tests {
@@ -259,7 +262,15 @@ pub mod tests {
         };
 
         // Compute the expected evaluation tuple
-        let expected_folded_evaluations = expected_eval(evals_1, evals_2, (proof_A, proof_B, proof_C));
+        let expected_folded_evaluations = expected_eval(
+            evals_1,
+            evals_2,
+            (
+                proof_A.evaluate(beta),
+                proof_B.evaluate(beta),
+                proof_C.evaluate(beta),
+            )
+        );
 
 
         // Perform the random combination for r_x_folded and r_y_folded
@@ -276,41 +287,5 @@ pub mod tests {
         let folded_evaluations: (F, F, F) = shape.inst.inst.evaluate(&folded_input_x, &folded_input_y);
 
         assert_eq!(expected_folded_evaluations, folded_evaluations);
-    }
-
-    #[test]
-    fn test_poly_q() {
-        // ************************************************ set up the spartan proof ************************************************
-        let (shape, eval_point_1_x, eval_point_1_y) = matrix_evaluation_setup::<F, E, G1>();
-
-        // ************************************************ setup params for folding prover ************************************************
-        let mut rng = thread_rng();
-
-        // Generate random elements in the field for r_x_prime and r_y_prime
-        let eval_point_2_x: Vec<F> = (0..eval_point_1_x.len()).map(|_| F::rand(&mut rng)).collect();
-        let eval_point_2_y: Vec<F> = (0..eval_point_1_y.len()).map(|_| F::rand(&mut rng)).collect();
-
-        let evals_1: (F, F, F) = shape.inst.inst.evaluate(&eval_point_1_x, &eval_point_1_y);
-        let evals_2: (F, F, F) = shape.inst.inst.evaluate(&eval_point_2_x, &eval_point_2_y);
-
-        let (beta, (proof_A, proof_B, proof_C)) = fold_matrices_evaluations(
-            &shape,
-            (eval_point_1_x.clone(), eval_point_1_y.clone()),
-            (eval_point_2_x.clone(), eval_point_2_y.clone()),
-            &mut Transcript::new(b"new transcript"),
-            evals_1,
-            evals_2,
-            true,
-        );
-
-        let (Q_A, Q_B, Q_C) = compute_q(
-            &shape,
-            (eval_point_1_x, eval_point_1_y),
-            (eval_point_2_x, eval_point_2_y),
-        );
-
-        assert_eq!(Q_A.evaluate(beta), proof_A);
-        assert_eq!(Q_B.evaluate(beta), proof_B);
-        assert_eq!(Q_C.evaluate(beta), proof_C);
     }
 }

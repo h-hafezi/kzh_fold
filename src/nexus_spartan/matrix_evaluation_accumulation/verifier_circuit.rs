@@ -1,5 +1,7 @@
 use crate::nexus_spartan::crr1cs::CRR1CSShape;
-use crate::nexus_spartan::matrix_evaluation_accumulation::prover::{fold_matrices_evaluations, to_sponge_vector};
+use crate::nexus_spartan::matrix_evaluation_accumulation::prover::{compute_q, to_sponge_vector};
+use crate::polynomial::univariate::univariate::PolynomialInterpolator;
+use crate::polynomial::univariate::univariate_var::PolynomialInterpolatorVar;
 use crate::transcript::transcript::Transcript;
 use crate::transcript::transcript_var::TranscriptVar;
 use ark_crypto_primitives::sponge::Absorb;
@@ -27,8 +29,7 @@ pub struct MatrixEvaluationAccVerifier<F: PrimeField + Absorb> {
     // z' = A(r_x', r_y')
     pub evals_2: (F, F, F),
 
-    // XXX Hossein This should likely be a polynomial q(x). Not its evaluations
-    pub proof: (F, F, F),
+    pub proof: (PolynomialInterpolator<F>, PolynomialInterpolator<F>, PolynomialInterpolator<F>),
 }
 
 impl<F: PrimeField + Absorb> MatrixEvaluationAccVerifier<F> {
@@ -43,6 +44,9 @@ impl<F: PrimeField + Absorb> MatrixEvaluationAccVerifier<F> {
                 self.evals_2)
                 .as_slice(),
         );
+        transcript.append_scalars(b"quotient polynomial", self.proof.0.coefficients.as_slice());
+        transcript.append_scalars(b"quotient polynomial", self.proof.1.coefficients.as_slice());
+        transcript.append_scalars(b"quotient polynomial", self.proof.2.coefficients.as_slice());
         let beta = transcript.challenge_scalar(b"beta");
 
         // parse variables
@@ -69,7 +73,15 @@ impl<F: PrimeField + Absorb> MatrixEvaluationAccVerifier<F> {
         };
 
         // Compute the expected evaluation tuple
-        let next_evaluation = expected_eval(self.evals_1, self.evals_2, self.proof);
+        let next_evaluation = expected_eval(
+            self.evals_1,
+            self.evals_2,
+            (
+                self.proof.0.evaluate(beta),
+                self.proof.1.evaluate(beta),
+                self.proof.2.evaluate(beta),
+            ),
+        );
 
         ((folded_input_x, folded_input_y), next_evaluation)
     }
@@ -84,22 +96,14 @@ impl<F: PrimeField + Absorb> MatrixEvaluationAccVerifier<F> {
 
         let current_A_B_C_evaluations = shape.inst.inst.evaluate(&rx, &ry);
 
-        let (_, matrix_evaluation_proof) = fold_matrices_evaluations(
-            &shape,
-            (rx.clone(), ry.clone()),
-            (r_x_prime.clone(), r_y_prime.clone()),
-            &mut transcript,
-            current_A_B_C_evaluations,
-            z_prime,
-            true,
-        );
+        let (q_A, q_B, q_C) = compute_q(&shape, (rx.clone(), ry.clone()), (r_x_prime.clone(), r_y_prime.clone()));
 
         let verifier = MatrixEvaluationAccVerifier {
             eval_point_1: (rx.clone(), ry.clone()),
             eval_point_2: (r_x_prime.clone(), r_y_prime.clone()),
             evals_1: current_A_B_C_evaluations,
             evals_2: z_prime,
-            proof: matrix_evaluation_proof,
+            proof: (q_A, q_B, q_C),
         };
 
         verifier
@@ -113,7 +117,7 @@ pub struct MatrixEvaluationAccVerifierVar<F: PrimeField + Absorb> {
     pub evals_1: (FpVar<F>, FpVar<F>, FpVar<F>),
     pub evals_2: (FpVar<F>, FpVar<F>, FpVar<F>),
 
-    pub proof: (FpVar<F>, FpVar<F>, FpVar<F>),
+    pub proof: (PolynomialInterpolatorVar<F>, PolynomialInterpolatorVar<F>, PolynomialInterpolatorVar<F>),
 }
 
 // Implement the `AllocVar` and `R1CSVar` traits to integrate with R1CS constraint systems
@@ -142,9 +146,9 @@ impl<F: PrimeField + Absorb> AllocVar<MatrixEvaluationAccVerifier<F>, F> for Mat
         let current_eval_1 = FpVar::<F>::new_variable(cs.clone(), || Ok(instance.evals_2.1), mode)?;
         let current_eval_2 = FpVar::<F>::new_variable(cs.clone(), || Ok(instance.evals_2.2), mode)?;
 
-        let proof_0 = FpVar::<F>::new_variable(cs.clone(), || Ok(instance.proof.0), mode)?;
-        let proof_1 = FpVar::<F>::new_variable(cs.clone(), || Ok(instance.proof.1), mode)?;
-        let proof_2 = FpVar::<F>::new_variable(cs.clone(), || Ok(instance.proof.2), mode)?;
+        let proof_0 = PolynomialInterpolatorVar::<F>::new_variable(cs.clone(), || Ok(instance.proof.0.clone()), mode)?;
+        let proof_1 = PolynomialInterpolatorVar::<F>::new_variable(cs.clone(), || Ok(instance.proof.1.clone()), mode)?;
+        let proof_2 = PolynomialInterpolatorVar::<F>::new_variable(cs.clone(), || Ok(instance.proof.2.clone()), mode)?;
 
         Ok(MatrixEvaluationAccVerifierVar {
             eval_point_1: (eval_point_1_x, eval_point_1_y),
@@ -207,6 +211,9 @@ impl<F: PrimeField + Absorb> MatrixEvaluationAccVerifierVar<F> {
                 self.evals_1.clone(),
                 self.evals_2.clone(),
             ).as_slice());
+        transcript.append_scalars(b"quotient polynomial", self.proof.0.coefficients.as_slice());
+        transcript.append_scalars(b"quotient polynomial", self.proof.1.coefficients.as_slice());
+        transcript.append_scalars(b"quotient polynomial", self.proof.2.coefficients.as_slice());
         let beta = transcript.challenge_scalar(b"beta");
 
         // Parse variables
@@ -242,7 +249,11 @@ impl<F: PrimeField + Absorb> MatrixEvaluationAccVerifierVar<F> {
         let next_evaluation = expected_eval(
             &self.evals_1,
             &self.evals_2,
-            &self.proof,
+            &(
+                self.proof.0.evaluate(&beta).unwrap(),
+                self.proof.1.evaluate(&beta).unwrap(),
+                self.proof.2.evaluate(&beta).unwrap(),
+            ),
         );
 
         ((folded_input_x, folded_input_y), next_evaluation)
@@ -252,8 +263,8 @@ impl<F: PrimeField + Absorb> MatrixEvaluationAccVerifierVar<F> {
 #[cfg(test)]
 pub mod tests {
     use crate::constant_for_curves::{ScalarField, E, G1};
-    use crate::nexus_spartan::matrix_evaluation_accumulation::prover::fold_matrices_evaluations;
     use crate::nexus_spartan::matrix_evaluation_accumulation::prover::tests::matrix_evaluation_setup;
+    use crate::nexus_spartan::matrix_evaluation_accumulation::prover::{compute_q, fold_matrices_evaluations};
     use crate::nexus_spartan::matrix_evaluation_accumulation::verifier_circuit::{MatrixEvaluationAccVerifier, MatrixEvaluationAccVerifierVar};
     use crate::transcript::transcript::Transcript;
     use crate::transcript::transcript_var::TranscriptVar;
@@ -282,7 +293,7 @@ pub mod tests {
         let mut prover_transcript = Transcript::<F>::new(b"new transcript");
         let mut verifier_transcript = prover_transcript.clone();
 
-        let (beta, matrix_evaluation_proof) = fold_matrices_evaluations(
+        let (beta, (q_A, q_B, q_C)) = fold_matrices_evaluations(
             &shape,
             (eval_point_1_x.clone(), eval_point_1_y.clone()),
             (eval_point_2_x.clone(), eval_point_2_y.clone()),
@@ -294,9 +305,9 @@ pub mod tests {
         let verifier = MatrixEvaluationAccVerifier {
             eval_point_1: (eval_point_1_x.clone(), eval_point_1_y.clone()),
             eval_point_2: (eval_point_2_x.clone(), eval_point_2_y.clone()),
-            evals_1: evals_1,
-            evals_2: evals_2,
-            proof: matrix_evaluation_proof,
+            evals_1,
+            evals_2,
+            proof: (q_A, q_B, q_C),
         };
 
         let ((folded_input_x, folded_input_y), folded_evaluations) = verifier.accumulate(&mut verifier_transcript);
@@ -343,22 +354,21 @@ pub mod tests {
             verifier_transcript.clone(),
         );
 
-        let (_, matrix_evaluation_proof) = fold_matrices_evaluations(
+        let (beta, (q_A, q_B, q_C)) = fold_matrices_evaluations(
             &shape,
             (eval_point_1_x.clone(), eval_point_1_y.clone()),
             (eval_point_2_x.clone(), eval_point_2_y.clone()),
             &mut prover_transcript,
-            evals_1,
-            evals_2,
+            evals_1, evals_2,
             true,
         );
 
         let verifier = MatrixEvaluationAccVerifier {
             eval_point_1: (eval_point_1_x.clone(), eval_point_1_y.clone()),
             eval_point_2: (eval_point_2_x.clone(), eval_point_2_y.clone()),
-            evals_1: evals_1,
-            evals_2: evals_2,
-            proof: matrix_evaluation_proof,
+            evals_1,
+            evals_2,
+            proof: (q_A, q_B, q_C),
         };
 
         let verifier_var = MatrixEvaluationAccVerifierVar::new_variable(
