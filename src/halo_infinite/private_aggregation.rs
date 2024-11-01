@@ -46,7 +46,6 @@ where
 pub struct PrivateAggregationProof<E: Pairing> {
     q_commitment: KZGCommitment<E>,
     proof_g_at_r: Option<KZGProof<E>>,
-    g_commitment: Option<KZGCommitment<E>>, // XXX remove (just for testing)
 }
 
 /// Prove that f_i(w_i) = 0
@@ -102,7 +101,7 @@ where
     // Step 3: Compute q(x)
     let step3_time = start_timer!(|| "Step3 time".to_string());
     let mut q_x = DensePolynomial::from_coefficients_vec(vec![F::zero()]);
-    for (rho_i, f_i, z_i) in izip!(&vec_rho, vec_f, &vec_z_i) { // XXX loose the clone
+    for (rho_i, f_i, z_i) in izip!(&vec_rho, vec_f, &vec_z_i) {
         // Compute rho^{i-1}*f_i
         let mut numerator = DensePolynomial::from_coefficients_vec(
             f_i.coeffs.iter().map(|f| *f * rho_i).collect(),
@@ -147,13 +146,9 @@ where
     // Step 7: Compute commitment and proof (NOT NEEDED for private aggregation!)
     // assert_eq!(g_x.evaluate(&r), E::ScalarField::zero());
 
-    // let (g_commitment, g_blinder) = KZG10::<E,DensePolynomial<<E as Pairing>::ScalarField>>::commit(&ck, &g_x, None, None).expect("g commitment failed");
-    // let proof_g_at_r = KZG10::<E,DensePolynomial<<E as Pairing>::ScalarField>>::open(&ck, &g_x, r, &g_blinder).expect("Proof generation failed");
-
     PrivateAggregationProof {
         q_commitment,
         proof_g_at_r: None,
-        g_commitment: None,
     }
 }
 
@@ -222,7 +217,7 @@ pub fn verify<E: Pairing<ScalarField=F>, F: PrimeField + Absorb>(
     // Final check: Check the KZG proof that g(r) == 0
     // NOT NEEDED for accumulation verifier (only for decider)
 
-    // TODO: bug! why need to negate? forgot something.
+    // TODO: bug! why need to negate?
     // let tmp_negated: E::G1Affine = E::G1Affine::zero().sub(C_g).into();
     // let C_g_commitment: KZGCommitment<E> = KZGCommitment(tmp_negated.into());
     // assert_eq!(C_g_commitment, proof.g_commitment);

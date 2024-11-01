@@ -407,8 +407,8 @@ where
             ]
         ).unwrap();
 
-        self.final_cycle_fold_instance_var.X.enforce_equal(&final_instance.X).expect("XXX: panic message");
-        self.final_cycle_fold_instance_var.commitment.enforce_equal(&final_instance.commitment).expect("XXX: panic message");
+        self.final_cycle_fold_instance_var.X.enforce_equal(&final_instance.X).expect("panic");
+        self.final_cycle_fold_instance_var.commitment.enforce_equal(&final_instance.commitment).expect("panic");
 
         // todo: check if possible to do without cloning
         // return result of accumulation and final cycle fold instance
