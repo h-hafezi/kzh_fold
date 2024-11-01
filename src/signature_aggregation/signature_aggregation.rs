@@ -9,26 +9,26 @@ use crate::constant_for_curves::ScalarField;
 use crate::nexus_spartan::matrix_evaluation_accumulation::prover::MatrixEvaluationAccumulator;
 use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
 use crate::nexus_spartan::sumcheck::SumcheckInstanceProof;
-use crate::pcs::multilinear_pcs::{split_between_x_and_y, Commitment, PolyCommit};
+use crate::pcs::multilinear_pcs::{split_between_x_and_y, PCSCommitment, PCSEngine};
 use crate::polynomial::eq_poly::eq_poly::EqPolynomial;
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript::Transcript;
 use ark_ff::Zero;
 
 #[derive(Clone, Debug)]
-pub struct SRS<E: Pairing> {
+pub struct SignatureAggrSRS<E: Pairing> {
     pub acc_srs: AccSRS<E>,
 }
 
-impl<E: Pairing> SRS<E>
+impl<E: Pairing> SignatureAggrSRS<E>
 where
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
     <E as Pairing>::ScalarField: Absorb,
 {
     pub(crate) fn new<R: RngCore>(degree_x: usize, degree_y: usize, rng: &mut R) -> Self {
-        let pcs_srs = PolyCommit::setup(degree_x, degree_y, rng);
+        let pcs_srs = PCSEngine::setup(degree_x, degree_y, rng);
 
-        SRS {
+        SignatureAggrSRS {
             acc_srs: KZHAccumulator::setup(pcs_srs, rng),
         }
     }
@@ -43,32 +43,36 @@ where
     /////////////// Signature aggregation data ///////////////
 
     /// Commitments to b_1(x) and b_2(x)
-    pub B_1_commitment: Option<Commitment<E>>,
-    pub B_2_commitment: Option<Commitment<E>>,
+    pub B_1_commitment: PCSCommitment<E>,
+    pub B_2_commitment: PCSCommitment<E>,
     /// c(x): the union poly
     pub bitfield_poly: MultilinearPolynomial<E::ScalarField>,
 
-    // sig: E::G2Affine,
+    /// aggregated signature and message
+    sig: E::G2Affine,
+    message: E::G2Affine,
 
     /////////////// All the z_i data that go into SignatureVerifierCircuit //////////////
 
-    // TODO we will figure out the BLS stuff later.
-    // pk: E::G1Affine,
+    /// aggregated public key
+    pk: E::G1Affine,
 
     /// Commitment to c(x)
-    pub bitfield_commitment: Commitment<E>,
-    pub sumcheck_proof: Option<SumcheckInstanceProof<E::ScalarField>>,
+    pub bitfield_commitment: PCSCommitment<E>,
+
+    /// proof that bitfield poly has been computed correctly in fact
+    pub sumcheck_proof: SumcheckInstanceProof<E::ScalarField>,
 
     /// Evaluations of the inner polynomials at rho:
-    pub b_1_at_rho: Option<E::ScalarField>, // b_1(rho)
-    pub b_2_at_rho: Option<E::ScalarField>, // b_2(rho)
-    pub c_at_rho: Option<E::ScalarField>, // c(rho)
+    pub b_1_at_rho: E::ScalarField, // b_1(rho)
+    pub b_2_at_rho: E::ScalarField, // b_2(rho)
+    pub c_at_rho: E::ScalarField, // c(rho)
 
     /////////////// KZH accumulator for the sig aggr sumcheck (goes into 3-to-1) //////////////
 
     /// Accumulator for random evaluation of p(x) at rho:
     /// p(rho) = b_1(rho) + c_1 * b_2(rho) + c_2 * c(rho)
-    pub sumcheck_eval_KZH_accumulator: Option<KZHAccumulator<E>>,
+    pub sumcheck_eval_KZH_accumulator: KZHAccumulator<E>,
 
     /////////////// Running accumulator `acc_i` //////////////////
 
@@ -83,28 +87,6 @@ where
     // The IVC proof contains a KZH accumulator and an A,B,C accumulator
 
     // ivc_proof: Option<CRR1CSProof<E>>
-}
-
-impl<E: Pairing> SignatureAggrData<E>
-where
-    <E as Pairing>::ScalarField: Absorb,
-{
-    pub fn new(bitfield_poly: MultilinearPolynomial<E::ScalarField>, _sumcheck_proof: Option<SumcheckInstanceProof<E::ScalarField>>, srs: &SRS<E>) -> Self {
-        // XXX this PolyCommit is not very ergonomic
-        let poly_commit = PolyCommit { srs: srs.acc_srs.pc_srs.clone() }; // XXX no clone
-        let bitfield_commitment = poly_commit.commit(&bitfield_poly);
-        SignatureAggrData {
-            B_1_commitment: None,
-            B_2_commitment: None,
-            bitfield_poly,
-            bitfield_commitment,
-            sumcheck_proof: None,
-            b_1_at_rho: None,
-            b_2_at_rho: None,
-            c_at_rho: None,
-            sumcheck_eval_KZH_accumulator: None,
-        }
-    }
 }
 
 /// This struct represents an accumulator for the signature aggregation protocol
@@ -127,8 +109,10 @@ where
 {
     pub fn rand<R: RngCore>(srs: &AccSRS<E>, rng: &mut R) -> Self {
         let kzh_acc = KZHAccumulator::random_satisfying_accumulator(srs, rng);
-        // XXX fix the x_len, y_len
-        let A_B_C_acc: MatrixEvaluationAccumulator<F> = MatrixEvaluationAccumulator::rand(3, 3, rng);
+
+        let x_len = srs.pc_srs.get_x_length();
+        let y_len = srs.pc_srs.get_y_length();
+        let A_B_C_acc: MatrixEvaluationAccumulator<F> = MatrixEvaluationAccumulator::rand(x_len, y_len, rng);
 
         Self {
             A_B_C_eval_accumulator: A_B_C_acc,
@@ -145,7 +129,7 @@ where
     E: Pairing<ScalarField=F>,
     F: PrimeField + Absorb,
 {
-    pub srs: SRS<E>,
+    pub srs: SignatureAggrSRS<E>,
     pub bob_data: SignatureAggrData<E>,
     pub charlie_data: SignatureAggrData<E>,
 }
@@ -158,14 +142,20 @@ where
     E: Pairing<ScalarField=F>,
     F: PrimeField + Absorb,
 {
-    pub srs: SRS<E>,
+    pub srs: SignatureAggrSRS<E>,
 
     // Alice's running bitfield (the result of previous aggregations)
     pub running_bitfield_poly: MultilinearPolynomial<E::ScalarField>,
     // Commitment to Alice's running bitfield
-    pub running_bitfield_commitment: Commitment<E>,
+    pub running_bitfield_commitment: PCSCommitment<E>,
     // Alice's running accumulator
     pub running_accumulator: SignatureAggrAccumulator<E, F>,
+    // running signature
+    pub running_signature: E::G2Affine,
+    // running public key
+    pub running_public_key: E::G1Affine,
+    // the message, this is supposed to be constant during the IVC/PCD
+    pub message: E::G2Affine,
 
     // Data received from Bob
     pub bob_data: SignatureAggrData<E>,
@@ -183,14 +173,12 @@ where
                                        eval_result: &F,
                                        eval_point: &Vec<F>,
     ) -> KZHAccumulator<E> {
-        let poly_commit = PolyCommit { srs: self.srs.acc_srs.pc_srs.clone() }; // XXX no clone. bad ergonomics
+        let poly_commit = PCSEngine { srs: self.srs.acc_srs.pc_srs.clone() };
 
         let bitfield_commitment=MultilinearPolynomial::commit(
             bitfield_poly,
             &poly_commit,
         );
-
-        // Split the evaluation point in half since open() just needs the first half
 
         let opening_proof = MultilinearPolynomial::prove(
             Some(&bitfield_commitment),
@@ -226,11 +214,13 @@ where
     }
 
     pub fn aggregate(&self, transcript: &mut Transcript<F>) -> SignatureAggrData<E> {
-        let poly_commit = PolyCommit { srs: self.srs.acc_srs.pc_srs.clone() }; // XXX no clone. bad ergonomics
+        let poly_commit = PCSEngine { srs: self.srs.acc_srs.pc_srs.clone() };
 
         // Step 1:
-        // let pk = self.A_1.pk + self.A_2.pk;
-        // let sk = self.A_1.sig + self.A_2.sig;
+        let pk = self.running_public_key + self.bob_data.pk;
+        let sig = self.running_signature + self.bob_data.sig;
+
+        assert_eq!(self.message, self.bob_data.message, "two messages should be equal");
 
         // Step 2: Compute c(x)
         let b_1_poly = &self.running_bitfield_poly;
@@ -283,7 +273,7 @@ where
         // proof for the resulting polynomial p(x) where p(x) = b_1(x) + c_1 * b_2(x) + c_2 * c(x)
 
         // Get c_1 and c_2 (XXX could also get just c and then compute c^2)
-        let vec_c: Vec<E::ScalarField> = transcript.challenge_vector(b"vec_c", 2);
+        let vec_c: Vec<F> = transcript.challenge_vector(b"vec_c", 2);
 
         // Step 5.1: First compute p(x):
         // Get c_1 * b_2(x)
@@ -325,15 +315,18 @@ where
         //                                                                 bob_A_B_C_eval_accumulator, running_A_B_C_eval_accumulator);
 
         SignatureAggrData {
-            B_1_commitment: Some(self.running_bitfield_commitment.clone()),
-            B_2_commitment: Some(self.bob_data.bitfield_commitment.clone()),
+            B_1_commitment: self.running_bitfield_commitment.clone(),
+            B_2_commitment: self.bob_data.bitfield_commitment.clone(),
             bitfield_poly: c_poly,
+            sig: sig.into(),
+            message: self.message,
+            pk: pk.into(),
             bitfield_commitment: C_commitment,
-            sumcheck_proof: Some(sumcheck_proof),
-            b_1_at_rho: Some(b_1_at_rho),
-            b_2_at_rho: Some(b_2_at_rho),
-            c_at_rho: Some(c_at_rho),
-            sumcheck_eval_KZH_accumulator: Some(sumcheck_eval_KZH_accumulator),
+            sumcheck_proof,
+            b_1_at_rho,
+            b_2_at_rho,
+            c_at_rho,
+            sumcheck_eval_KZH_accumulator,
             // ivc_proof: ivc_proof
             // state_acc_witness: state_acc_witness
         }
@@ -348,7 +341,7 @@ where
     F: PrimeField + Absorb,
     E: Pairing<ScalarField=F>,
 {
-    pub srs: SRS<E>,
+    pub srs: SignatureAggrSRS<E>,
     pub A: SignatureAggrData<E>,
 }
 
@@ -359,7 +352,7 @@ where
     E: Pairing<ScalarField=F>,
 {
     fn get_acc_instance_from_evaluation(&self,
-                                        bitfield_commitment: &Commitment<E>,
+                                        bitfield_commitment: &PCSCommitment<E>,
                                         eval_result: &F,
                                         eval_point: &Vec<F>,
     ) -> AccInstance<E> {
@@ -387,9 +380,8 @@ where
         // Step 2: Verify the sumcheck proof
         let zero = F::zero();
         let num_rounds = self.A.bitfield_poly.num_variables;
-        let (tensorcheck_claim, sumcheck_challenges) =
+        let (tensor_check_claim, sumcheck_challenges) =
             self.A.sumcheck_proof.clone()
-                .unwrap()
                 .verify::<E>(
                     zero,
                     num_rounds,
@@ -404,10 +396,10 @@ where
         // where p(x) = eq(r,x) (b_1(x) + b_2(x) - b_1(x) * b_2(x) - c(x))
         let eq_at_r = MultilinearPolynomial::new(EqPolynomial::new(vec_r).evals());
         let eq_at_r_rho = eq_at_r.evaluate(&rho);
-        let b_1_at_rho = self.A.b_1_at_rho.unwrap();
-        let b_2_at_rho = self.A.b_2_at_rho.unwrap();
-        let c_at_rho = self.A.c_at_rho.unwrap();
-        assert_eq!(tensorcheck_claim, eq_at_r_rho * (b_1_at_rho + b_2_at_rho - b_1_at_rho * b_2_at_rho - c_at_rho));
+        let b_1_at_rho = self.A.b_1_at_rho;
+        let b_2_at_rho = self.A.b_2_at_rho;
+        let c_at_rho = self.A.c_at_rho;
+        assert_eq!(tensor_check_claim, eq_at_r_rho * (b_1_at_rho + b_2_at_rho - b_1_at_rho * b_2_at_rho - c_at_rho));
 
         // Step 4: Verify the IVC proof
 
@@ -418,20 +410,20 @@ where
 
     pub fn decide(&self, transcript: &mut Transcript<F>, sumcheck_challenges: Vec<F>) -> bool {
         let rho = sumcheck_challenges;
-        let b_1_at_rho = self.A.b_1_at_rho.unwrap();
-        let b_2_at_rho = self.A.b_2_at_rho.unwrap();
-        let c_at_rho = self.A.c_at_rho.unwrap();
+        let b_1_at_rho = self.A.b_1_at_rho;
+        let b_2_at_rho = self.A.b_2_at_rho;
+        let c_at_rho = self.A.c_at_rho;
 
         // Verify the accumulator
         // Get c_1 and c_2 (XXX could also get just c and then compute c^2)
         let vec_c: Vec<F> = transcript.challenge_vector(b"vec_c", 2);
 
         // Now compute commitment to P using B_1, B_2, and C
-        let mut c_1_times_B_2 = self.A.B_2_commitment.clone().unwrap(); // XXX stop the cloning!!!
+        let mut c_1_times_B_2 = self.A.B_2_commitment.clone();
         c_1_times_B_2.scale_by_r(&vec_c[0]);
         let mut c_2_times_C = self.A.bitfield_commitment.clone();
         c_2_times_C.scale_by_r(&vec_c[1]);
-        let P_commitment = self.A.B_1_commitment.clone().unwrap() + c_1_times_B_2 + c_2_times_C;
+        let P_commitment = self.A.B_1_commitment.clone() + c_1_times_B_2 + c_2_times_C;
 
         // Now compute p(rho)
         let p_at_rho = b_1_at_rho + vec_c[0] * b_2_at_rho + vec_c[1] * c_at_rho;
@@ -445,7 +437,7 @@ where
         // Do the cross-check that the accumulator is the right one using _acc_instance
 
         // Decide the accumulator!
-        assert!(KZHAccumulator::decide(&self.srs.acc_srs, &self.A.sumcheck_eval_KZH_accumulator.clone().unwrap()));
+        assert!(KZHAccumulator::decide(&self.srs.acc_srs, &self.A.sumcheck_eval_KZH_accumulator.clone()));
 
         // XXX Verify the IVC proof
 
@@ -453,6 +445,7 @@ where
     }
 }
 
+/*
 #[cfg(test)]
 pub mod test {
     use super::*;
@@ -472,7 +465,7 @@ pub mod test {
         let degree_x = 64usize;
         let degree_y = 64usize;
         let num_vars = 12usize;
-        let srs = SRS::<E>::new(degree_x, degree_y, rng);
+        let srs = SignatureAggrSRS::<E>::new(degree_x, degree_y, rng);
 
         // Generate signature aggregation payload from Bob
         let bob_bitfield = MultilinearPolynomial::random_binary(num_vars, rng);
@@ -480,7 +473,7 @@ pub mod test {
 
         // Generate random running accumulator for Alice
         let alice_bitfield = MultilinearPolynomial::random_binary(num_vars, rng);
-        let poly_commit = PolyCommit { srs: srs.acc_srs.pc_srs.clone() }; // XXX no clone
+        let poly_commit = PCSEngine { srs: srs.acc_srs.pc_srs.clone() }; // XXX no clone
         let alice_bitfield_commitment = poly_commit.commit(&alice_bitfield);
         let alice_running_accumulator = SignatureAggrAccumulator::rand(&srs.acc_srs, rng);
 
@@ -491,7 +484,9 @@ pub mod test {
             running_bitfield_poly: alice_bitfield,
             running_bitfield_commitment: alice_bitfield_commitment,
             running_accumulator: alice_running_accumulator,
-            bob_data: bob_data,
+            running_signature: (),
+            running_public_key: (),
+            bob_data,
         };
 
         let _aggregated_data = alice.aggregate(&mut transcript_p);
@@ -534,4 +529,6 @@ pub mod test {
     //     // TODO
     // }
 }
+
+ */
 

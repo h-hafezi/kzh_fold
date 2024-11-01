@@ -7,11 +7,11 @@ use rand::RngCore;
 
 use crate::nexus_spartan::polycommitments::error::PCSError;
 use crate::nexus_spartan::polycommitments::{PCSKeys, PolyCommitmentScheme, ToAffine};
-use crate::pcs::multilinear_pcs::{split_between_x_and_y, Commitment, OpeningProof, PolyCommit, SRS};
+use crate::pcs::multilinear_pcs::{split_between_x_and_y, PCSCommitment, PCSOpeningProof, PCSEngine, PolynomialCommitmentSRS};
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript::{AppendToTranscript, Transcript};
 
-impl<E: Pairing, F: PrimeField + Absorb> AppendToTranscript<F> for Commitment<E>
+impl<E: Pairing, F: PrimeField + Absorb> AppendToTranscript<F> for PCSCommitment<E>
 where
     E: Pairing<ScalarField=F>,
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
@@ -21,7 +21,7 @@ where
     }
 }
 
-impl<E: Pairing> ToAffine<E> for Commitment<E> {
+impl<E: Pairing> ToAffine<E> for PCSCommitment<E> {
     fn to_affine(self) -> E::G1Affine {
         self.C
     }
@@ -31,11 +31,11 @@ impl<F: PrimeField + Absorb, E: Pairing<ScalarField=F>> PolyCommitmentScheme<E> 
 where
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
 {
-    type SRS = SRS<E>;
-    type PolyCommitmentKey = PolyCommit<E>;
-    type EvalVerifierKey = PolyCommit<E>;
-    type Commitment = Commitment<E>;
-    type PolyCommitmentProof = OpeningProof<E>;
+    type SRS = PolynomialCommitmentSRS<E>;
+    type PolyCommitmentKey = PCSEngine<E>;
+    type EvalVerifierKey = PCSEngine<E>;
+    type Commitment = PCSCommitment<E>;
+    type PolyCommitmentProof = PCSOpeningProof<E>;
 
     fn commit(poly: &MultilinearPolynomial<E::ScalarField>, ck: &Self::PolyCommitmentKey) -> Self::Commitment {
         let len = ck.srs.get_x_length() + ck.srs.get_y_length();
@@ -76,13 +76,13 @@ where
         let y = max_poly_vars - x;
         let degree_x = 2usize.pow(x as u32);
         let degree_y = 2usize.pow(y as u32);
-        Ok(PolyCommit::<E>::setup(degree_x, degree_y, rng))
+        Ok(PCSEngine::<E>::setup(degree_x, degree_y, rng))
     }
 
     fn trim(srs: &Self::SRS) -> PCSKeys<E, Self> {
         PCSKeys {
-            ck: PolyCommit { srs: srs.clone() },
-            vk: PolyCommit { srs: srs.clone() },
+            ck: PCSEngine { srs: srs.clone() },
+            vk: PCSEngine { srs: srs.clone() },
         }
     }
 }
@@ -94,12 +94,12 @@ pub mod test {
 
     use crate::constant_for_curves::{ScalarField, E};
     use crate::nexus_spartan::polycommitments::{PCSKeys, PolyCommitmentScheme};
-    use crate::pcs::multilinear_pcs::SRS;
+    use crate::pcs::multilinear_pcs::PolynomialCommitmentSRS;
     use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 
     #[test]
     fn test_end_to_end() {
-        let srs: SRS<E> = MultilinearPolynomial::<ScalarField>::setup(5, &mut thread_rng()).unwrap();
+        let srs: PolynomialCommitmentSRS<E> = MultilinearPolynomial::<ScalarField>::setup(5, &mut thread_rng()).unwrap();
         let PCSKeys { vk: _, ck } = MultilinearPolynomial::trim(&srs);
 
         // random bivariate polynomial

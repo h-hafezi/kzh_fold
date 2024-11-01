@@ -16,7 +16,7 @@ use crate::polynomial::eq_poly::eq_poly::EqPolynomial;
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize, Derivative)]
-pub struct SRS<E: Pairing> {
+pub struct PolynomialCommitmentSRS<E: Pairing> {
     pub degree_x: usize,
     pub degree_y: usize,
     pub matrix_H: Vec<Vec<E::G1Affine>>,
@@ -35,24 +35,24 @@ pub struct SRS<E: Pairing> {
     CanonicalDeserialize,
     Derivative
 )]
-pub struct Commitment<E: Pairing> {
+pub struct PCSCommitment<E: Pairing> {
     pub C: E::G1Affine,
     pub aux: Vec<E::G1>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize, Derivative)]
-pub struct OpeningProof<E: Pairing> {
+pub struct PCSOpeningProof<E: Pairing> {
     pub vec_D: Vec<E::G1Affine>,
     pub f_star_poly: MultilinearPolynomial<E::ScalarField>,
 }
 
 // Define the new struct that encapsulates the functionality of polynomial commitment
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize, Derivative)]
-pub struct PolyCommit<E: Pairing> {
-    pub srs: SRS<E>,
+pub struct PCSEngine<E: Pairing> {
+    pub srs: PolynomialCommitmentSRS<E>,
 }
 
-impl<E: Pairing> SRS<E> {
+impl<E: Pairing> PolynomialCommitmentSRS<E> {
     pub fn get_x_length(&self) -> usize {
         self.degree_x.log_2()
     }
@@ -82,8 +82,8 @@ pub fn split_between_x_and_y<T: Clone>(x_length: usize, y_length: usize, r: &[T]
 }
 
 
-impl<E: Pairing> PolyCommit<E> {
-    pub fn setup<T: RngCore>(degree_x: usize, degree_y: usize, rng: &mut T) -> SRS<E> {
+impl<E: Pairing> PCSEngine<E> {
+    pub fn setup<T: RngCore>(degree_x: usize, degree_y: usize, rng: &mut T) -> PolynomialCommitmentSRS<E> {
         // sample G_0, G_1, ..., G_m generators from group one
         let G1_generator_vec = {
             let mut elements = Vec::new();
@@ -141,7 +141,7 @@ impl<E: Pairing> PolyCommit<E> {
         let V_prime = G2_generator.mul(alpha);
 
         // return the output
-        return SRS {
+        return PolynomialCommitmentSRS {
             degree_x,
             degree_y,
             matrix_H,
@@ -151,8 +151,8 @@ impl<E: Pairing> PolyCommit<E> {
         };
     }
 
-    pub fn commit(&self, poly: &MultilinearPolynomial<E::ScalarField>) -> Commitment<E> {
-        Commitment {
+    pub fn commit(&self, poly: &MultilinearPolynomial<E::ScalarField>) -> PCSCommitment<E> {
+        PCSCommitment {
             C: E::G1::sum((0..self.srs.degree_x)
                 .map(|i| {
                     E::G1::msm_unchecked(
@@ -176,8 +176,8 @@ impl<E: Pairing> PolyCommit<E> {
 
     /// Creates a KZH proof for p(x,y) = z.
     /// This function does not actually need y, so we only get the left half of the eval point.
-    pub fn open(&self, poly: &MultilinearPolynomial<E::ScalarField>, com: Commitment<E>, x: &[E::ScalarField]) -> OpeningProof<E> {
-        OpeningProof {
+    pub fn open(&self, poly: &MultilinearPolynomial<E::ScalarField>, com: PCSCommitment<E>, x: &[E::ScalarField]) -> PCSOpeningProof<E> {
+        PCSOpeningProof {
             vec_D: {
                 let mut vec = Vec::new();
                 for g in com.aux {
@@ -190,8 +190,8 @@ impl<E: Pairing> PolyCommit<E> {
     }
 
     pub fn verify(&self,
-                  C: &Commitment<E>,
-                  proof: &OpeningProof<E>,
+                  C: &PCSCommitment<E>,
+                  proof: &PCSOpeningProof<E>,
                   x: &[E::ScalarField],
                   y: &[E::ScalarField],
                   z: &E::ScalarField,
@@ -216,7 +216,7 @@ impl<E: Pairing> PolyCommit<E> {
 }
 
 
-impl<E: Pairing> Commitment<E> {
+impl<E: Pairing> PCSCommitment<E> {
     /// Scales the commitment and its auxiliary elements by a scalar `r`
     pub fn scale_by_r(&mut self, r: &E::ScalarField) {
         // Scale the main commitment C by r
@@ -234,7 +234,7 @@ impl<E: Pairing> Commitment<E> {
 }
 
 
-impl<E: Pairing> Add for Commitment<E> {
+impl<E: Pairing> Add for PCSCommitment<E> {
     type Output = Self;
 
     fn add(self, other: Self) -> Self {
@@ -251,7 +251,7 @@ impl<E: Pairing> Add for Commitment<E> {
             .collect();
 
         // Return a new Commitment with the resulting sums
-        Commitment {
+        PCSCommitment {
             C: new_C,
             aux: new_aux,
         }
@@ -268,14 +268,14 @@ pub mod test {
     use rand::thread_rng;
 
     use crate::constant_for_curves::{ScalarField, E};
-    use crate::pcs::multilinear_pcs::{split_between_x_and_y, PolyCommit, SRS};
+    use crate::pcs::multilinear_pcs::{split_between_x_and_y, PCSEngine, PolynomialCommitmentSRS};
     use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 
     #[test]
     fn test_setup() {
         let degree_y = 4usize;
         let degree_x = 4usize;
-        let srs: SRS<E> = PolyCommit::<E>::setup(degree_x, degree_y, &mut thread_rng());
+        let srs: PolynomialCommitmentSRS<E> = PCSEngine::<E>::setup(degree_x, degree_y, &mut thread_rng());
 
         // asserting the sizes
         assert_eq!(srs.degree_y, degree_y);
@@ -300,7 +300,7 @@ pub mod test {
     fn test_end_to_end() {
         let degree_x = 8usize;
         let degree_y = 32usize;
-        let srs: SRS<E> = PolyCommit::<E>::setup(degree_x, degree_y, &mut thread_rng());
+        let srs: PolynomialCommitmentSRS<E> = PCSEngine::<E>::setup(degree_x, degree_y, &mut thread_rng());
 
         // testing srs functions
         assert_eq!(3, srs.get_x_length());
@@ -330,7 +330,7 @@ pub mod test {
         assert_eq!(y_new, y);
 
         // define the polynomial commitment
-        let poly_commit: PolyCommit<E> = PolyCommit { srs };
+        let poly_commit: PCSEngine<E> = PCSEngine { srs };
 
         // random bivariate polynomial
         let polynomial = MultilinearPolynomial::rand(3 + 5, &mut thread_rng());
@@ -383,10 +383,10 @@ pub mod test {
         let degree_y = 16usize;
         let num_vars = 8; // degree_x.log_2() + degree_y.log_2()
 
-        let srs: SRS<E> = PolyCommit::<E>::setup(degree_x, degree_y, &mut thread_rng());
+        let srs: PolynomialCommitmentSRS<E> = PCSEngine::<E>::setup(degree_x, degree_y, &mut thread_rng());
 
         // define the polynomial commitment
-        let poly_commit: PolyCommit<E> = PolyCommit { srs };
+        let poly_commit: PCSEngine<E> = PCSEngine { srs };
 
         let f_x: MultilinearPolynomial<ScalarField> = MultilinearPolynomial::rand(num_vars, &mut thread_rng());
         let g_x: MultilinearPolynomial<ScalarField> = MultilinearPolynomial::rand(num_vars, &mut thread_rng());

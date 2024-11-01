@@ -110,7 +110,7 @@ pub mod tests {
     use crate::nexus_spartan::crr1csproof::CRR1CSProof;
     use crate::nexus_spartan::matrix_evaluation_accumulation::prover::{fold_matrices_evaluations};
     use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
-    use crate::pcs::multilinear_pcs::SRS;
+    use crate::pcs::multilinear_pcs::PolynomialCommitmentSRS;
     use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
     use crate::transcript::transcript::Transcript;
     use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystem, SynthesisMode};
@@ -146,7 +146,7 @@ pub mod tests {
 
         // convert to the corresponding Spartan types
         let shape = CRR1CSShape::<F>::convert::<G1>(cs.clone());
-        let SRS: SRS<E> = MultilinearPolynomial::setup(4, &mut thread_rng()).unwrap();
+        let SRS: PolynomialCommitmentSRS<E> = MultilinearPolynomial::setup(4, &mut thread_rng()).unwrap();
         let key: CRR1CSKey<E, MultilinearPolynomial<F>> = CRR1CSKey::new(&SRS, shape.get_num_cons(), shape.get_num_vars());
         let instance: CRR1CSInstance<E, MultilinearPolynomial<F>> = CRR1CSInstance::convert(cs.clone(), &key.keys.ck);
         let witness = CRR1CSWitness::<F>::convert(cs.clone());

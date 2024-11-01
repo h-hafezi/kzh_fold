@@ -175,9 +175,9 @@ mod tests {
     use crate::nexus_spartan::crr1csproof::{CRR1CSInstance, CRR1CSKey, CRR1CSShape, CRR1CSWitness};
     use crate::nexus_spartan::polycommitments::{PolyCommitmentScheme, ToAffine};
     use crate::nova::cycle_fold::coprocessor::setup_shape;
-    use crate::pcs::multilinear_pcs::PolyCommit;
+    use crate::pcs::multilinear_pcs::PCSEngine;
     use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
-    use crate::pcs::multilinear_pcs::{SRS};
+    use crate::pcs::multilinear_pcs::{PolynomialCommitmentSRS};
     use crate::transcript::transcript::Transcript;
     use ark_ff::AdditiveGroup;
     use ark_r1cs_std::prelude::Boolean;
@@ -196,7 +196,7 @@ mod tests {
 
     /// Take as input `proof_i` and `running_accumulator_{i}` and produce `proof_{i+1}` and `running_accumulator_{i+1}`.
     fn test_augmented_circuit_helper() {
-        let SRS: SRS<E> = MultilinearPolynomial::setup(18, &mut thread_rng()).unwrap();
+        let SRS: PolynomialCommitmentSRS<E> = MultilinearPolynomial::setup(18, &mut thread_rng()).unwrap();
 
         // ******************************* generate a satisfying instance for Spartan and get structure *******************************
         let num_vars = 131072;
@@ -262,8 +262,8 @@ mod tests {
 
         // Sanity check: verify the opening proof
         assert!(
-            PolyCommit::verify(
-                &PolyCommit { srs: pcs_srs.clone() },
+            PCSEngine::verify(
+                &PCSEngine { srs: pcs_srs.clone() },
                 &commitment_w,
                 &opening_proof,
                 x.as_slice(),

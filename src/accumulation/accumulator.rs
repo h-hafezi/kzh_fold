@@ -14,7 +14,7 @@ use crate::accumulation::eq_tree::EqTree;
 use crate::accumulation::generate_random_elements;
 use crate::gadgets::non_native::util::convert_affine_to_scalars;
 use crate::math::Math;
-use crate::pcs::multilinear_pcs::{OpeningProof, PolyCommit, SRS};
+use crate::pcs::multilinear_pcs::{PCSOpeningProof, PCSEngine, PolynomialCommitmentSRS};
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript::{AppendToTranscript, Transcript};
 use crate::utils::inner_product;
@@ -28,7 +28,7 @@ pub struct AccSRS<E: Pairing> {
     pub k_y: Vec<E::G1Affine>,
 
     pub k_prime: E::G1Affine,
-    pub pc_srs: SRS<E>,
+    pub pc_srs: PolynomialCommitmentSRS<E>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize)]
@@ -96,7 +96,7 @@ where
     <E as Pairing>::ScalarField: Absorb,
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
 {
-    pub fn setup<T: RngCore>(pc_srs: SRS<E>, rng: &mut T) -> AccSRS<E> {
+    pub fn setup<T: RngCore>(pc_srs: PolynomialCommitmentSRS<E>, rng: &mut T) -> AccSRS<E> {
         // return the result
         AccSRS {
             pc_srs: pc_srs.clone(),
@@ -157,7 +157,7 @@ where
         }
     }
 
-    pub fn new_accumulator_witness_from_fresh_kzh_witness(srs: &AccSRS<E>, proof: OpeningProof<E>, x: &[E::ScalarField], y: &[E::ScalarField]) -> AccWitness<E> {
+    pub fn new_accumulator_witness_from_fresh_kzh_witness(srs: &AccSRS<E>, proof: PCSOpeningProof<E>, x: &[E::ScalarField], y: &[E::ScalarField]) -> AccWitness<E> {
         // asserting the sizes are correct
         assert_eq!(1 << x.len(), srs.pc_srs.degree_x, "invalid size of vector x");
         assert_eq!(1 << y.len(), srs.pc_srs.degree_y, "invalid size of vector y");
@@ -402,7 +402,7 @@ impl<E: Pairing> Accumulator<E> {
         <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb,
         <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
     {
-        let poly_commit = PolyCommit { srs: srs.pc_srs.clone() };
+        let poly_commit = PCSEngine { srs: srs.pc_srs.clone() };
 
         // random bivariate polynomial
         let polynomial1 = MultilinearPolynomial::rand(srs.pc_srs.degree_x.log_2() + srs.pc_srs.degree_y.log_2(), rng);
@@ -470,12 +470,12 @@ pub mod test {
 
     use super::*;
     use crate::constant_for_curves::{ScalarField, E};
-    use crate::pcs::multilinear_pcs::{PolyCommit, SRS};
+    use crate::pcs::multilinear_pcs::{PCSEngine, PolynomialCommitmentSRS};
 
     #[test]
     fn test_accumulator_end_to_end() {
         let (degree_x, degree_y) = (128usize, 128usize);
-        let srs_pcs: SRS<E> = PolyCommit::<E>::setup(degree_x, degree_y, &mut thread_rng());
+        let srs_pcs: PolynomialCommitmentSRS<E> = PCSEngine::<E>::setup(degree_x, degree_y, &mut thread_rng());
         let srs = Accumulator::setup(srs_pcs.clone(), &mut thread_rng());
 
         let acc1 = Accumulator::random_satisfying_accumulator(&srs, &mut thread_rng());
@@ -501,7 +501,7 @@ pub mod test {
         let degrees = vec![(2, 2), (4, 4), (8, 8), (16, 16), (32, 32)];
 
         for (degree_x, degree_y) in degrees {
-            let srs_pcs: SRS<E> = PolyCommit::<E>::setup(degree_x, degree_y, &mut thread_rng());
+            let srs_pcs: PolynomialCommitmentSRS<E> = PCSEngine::<E>::setup(degree_x, degree_y, &mut thread_rng());
             let srs = Accumulator::setup(srs_pcs.clone(), &mut thread_rng());
 
             let acc = Accumulator::random_satisfying_accumulator(&srs, &mut thread_rng());

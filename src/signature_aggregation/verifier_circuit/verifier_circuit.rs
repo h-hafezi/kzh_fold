@@ -32,7 +32,7 @@ where
     pub pk_t: E::G1Affine,
 
     /// bitfield commitment, solely used for Fiat-Shamir
-    pub com_bitfield: (G1::BaseField, G1::BaseField),
+    pub com_bitfield: Projective<G1>,
 
     /// XXX: All the cyclefold things should be ideally combined into a single thing
     /// beta used to take linear combination for cycle fold
@@ -47,12 +47,11 @@ where
     /// the sumcheck proof
     pub sumcheck_proof: SumcheckCircuit<F>,
 
-    /// XXX: remove!
-    /// the bitfield polynomial
-    pub bitfield_poly: MultilinearPolynomial<F>,
-
     /// Evaluations of the inner polynomials at rho:
     pub b_1_at_rho: F,
     pub b_2_at_rho: F,
     pub c_at_rho: F,
+
+    /// size of the bitfield
+    pub bitfield_num_variables: usize,
 }

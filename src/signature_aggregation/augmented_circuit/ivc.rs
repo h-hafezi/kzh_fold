@@ -1,4 +1,4 @@
-use crate::accumulation_circuit::verifier_circuit::{AccumulatorVerifier, AccumulatorVerifierVar};
+/*use crate::accumulation_circuit::verifier_circuit::{AccumulatorVerifier, AccumulatorVerifierVar};
 use crate::commitment::CommitmentScheme;
 use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
 use crate::nexus_spartan::matrix_evaluation_accumulation::verifier_circuit::{MatrixEvaluationAccVerifier, MatrixEvaluationAccVerifierVar};
@@ -195,4 +195,4 @@ where
         ).expect("error while enforcing equality");
     }
 }
-
+ */

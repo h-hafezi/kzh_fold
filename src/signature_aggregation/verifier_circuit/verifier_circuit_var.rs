@@ -45,8 +45,8 @@ where
     pk_2_var: NonNativeAffineVar<G1>,
     pk_t_var: NonNativeAffineVar<G1>,
 
-    /// bitfield commitment
-    pub com_bitfield: (NonNativeFieldVar<G1::BaseField, F>, NonNativeFieldVar<G1::BaseField, F>),
+    /// bitfield commitment, non-native only used for fiat shamir and computing random combination P
+    pub com_bitfield: NonNativeAffineVar<G1>,
 
     /// beta
     pub beta: NonNativeFieldVar<G1::BaseField, F>,
@@ -58,9 +58,6 @@ where
     pub cycle_fold_running_instance: RelaxedOvaInstanceVar<G2, C2>,
     pub cycle_fold_new_running_instance: RelaxedOvaInstanceVar<G2, C2>,
 
-    /// the bitfield polynomial
-    bitfield_poly_var: MultilinearPolynomialVar<F>,
-
     /// the sumcheck proof
     sumcheck_proof_var: SumcheckCircuitVar<F>,
 
@@ -69,6 +66,8 @@ where
     b_2_at_rho: FpVar<F>,
     c_at_rho: FpVar<F>,
 
+    /// size of the bitfield
+    pub bitfield_num_variables: usize,
 }
 
 impl<E, F, G1, G2, C2> AllocVar<SignatureVerifierCircuit<E, F, G1, G2, C2>, F> for SignatureVerifierCircuitVar<F, G1, G2, C2>
@@ -123,12 +122,6 @@ where
             mode,
         ).unwrap();
 
-        let bitfield_poly_var = MultilinearPolynomialVar::new_variable(
-            ns!(cs, "bitfield poly var"),
-            || verifier_circuit.map(|e| e.bitfield_poly.clone()),
-            mode,
-        ).unwrap();
-
         let sumcheck_proof_var = SumcheckCircuitVar::new_variable(
             ns!(cs, "sumcheck proof var"),
             || verifier_circuit.map(|e| e.sumcheck_proof.clone()),
@@ -173,15 +166,9 @@ where
             mode,
         ).unwrap();
 
-        let com_bitfield_x = NonNativeFieldVar::new_variable(
-            ns!(cs, "com bitfield x"),
-            || verifier_circuit.map(|e| e.com_bitfield.0.clone()),
-            mode,
-        ).unwrap();
-
-        let com_bitfield_y = NonNativeFieldVar::new_variable(
-            ns!(cs, "com bitfield y"),
-            || verifier_circuit.map(|e| e.com_bitfield.1.clone()),
+        let com_bitfield = NonNativeAffineVar::new_variable(
+            ns!(cs, "Q"),
+            || verifier_circuit.map(|e| e.com_bitfield.clone()),
             mode,
         ).unwrap();
 
@@ -191,6 +178,8 @@ where
             mode,
         ).unwrap();
 
+        let bitfield_num_variables =  verifier_circuit.map(|e| e.bitfield_num_variables).unwrap();
+
         Ok(SignatureVerifierCircuitVar {
             pk_1_var,
             pk_2_var,
@@ -199,13 +188,13 @@ where
             cycle_fold_running_instance,
             cycle_fold_new_running_instance,
             com_pk_var,
-            bitfield_poly_var,
             sumcheck_proof_var,
             b_1_at_rho,
             b_2_at_rho,
             c_at_rho,
-            com_bitfield: (com_bitfield_x, com_bitfield_y),
+            com_bitfield,
             beta,
+            bitfield_num_variables,
         })
     }
 }
@@ -226,17 +215,17 @@ where
 {
     pub fn verify(&self, transcript: &mut TranscriptVar<F>) {
         // Step 1: Get challenge
-        transcript.append_scalar_non_native(b"poly", &self.com_bitfield.0);
-        transcript.append_scalar_non_native(b"poly", &self.com_bitfield.1);
+        transcript.append_scalar_non_native(b"poly", &self.com_bitfield.x);
+        transcript.append_scalar_non_native(b"poly", &self.com_bitfield.y);
 
-        let vec_r = transcript.challenge_vector(b"vec_r", self.bitfield_poly_var.num_variables);
+        let vec_r = transcript.challenge_vector(b"vec_r", self.bitfield_num_variables);
 
         // Step 2: Verify the sumcheck proof
         let zero: FpVar<F> = FpVar::zero();
 
         // assert the sumcheck proof is indeed well-formatted
         self.sumcheck_proof_var.claim.enforce_equal(&zero).expect("equality error");
-        assert_eq!(self.sumcheck_proof_var.num_rounds, self.bitfield_poly_var.num_variables);
+        assert_eq!(self.sumcheck_proof_var.num_rounds, self.bitfield_num_variables);
         assert_eq!(self.sumcheck_proof_var.degree_bound, 3);
 
         let (tensor_check_claim, sumcheck_challenges) = self.sumcheck_proof_var.verify(transcript);

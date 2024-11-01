@@ -7,7 +7,7 @@ use criterion::{Criterion, criterion_group, criterion_main};
 use rand::thread_rng;
 
 use sqrtn_pcs::constant_for_curves::{E, ScalarField};
-use sqrtn_pcs::pcs::multilinear_pcs::{PolyCommit, SRS};
+use sqrtn_pcs::pcs::multilinear_pcs::{PCSEngine, PolynomialCommitmentSRS};
 use sqrtn_pcs::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 
 fn bench_setup(c: &mut Criterion) {
@@ -19,7 +19,7 @@ fn bench_setup(c: &mut Criterion) {
                 let mut total_time = std::time::Duration::new(0, 0);
                 for _ in 0..iters {
                     let start = std::time::Instant::now();
-                    let _srs: SRS<E> = PolyCommit::setup(degree_x, degree_y, &mut thread_rng());
+                    let _srs: PolynomialCommitmentSRS<E> = PCSEngine::setup(degree_x, degree_y, &mut thread_rng());
                     total_time += start.elapsed();
                 }
                 total_time
@@ -31,8 +31,8 @@ fn bench_setup(c: &mut Criterion) {
 fn bench_commit(c: &mut Criterion) {
     let degrees = vec![(4, 4), (8, 8), (16, 16), (32, 32), (64, 64), (128, 128), (256, 256), (512, 512), (1024, 1024)];
     for (degree_x, degree_y) in degrees {
-        let srs: SRS<E> = PolyCommit::setup(degree_x, degree_y, &mut thread_rng());
-        let poly_commit = PolyCommit { srs: srs.clone() };
+        let srs: PolynomialCommitmentSRS<E> = PCSEngine::setup(degree_x, degree_y, &mut thread_rng());
+        let poly_commit = PCSEngine { srs: srs.clone() };
         // random bivariate polynomial
         let polynomial = MultilinearPolynomial::rand(
             srs.get_x_length() + srs.get_y_length(),
@@ -50,8 +50,8 @@ fn bench_commit(c: &mut Criterion) {
 fn bench_open(c: &mut Criterion) {
     let degrees = vec![(4, 4), (8, 8), (16, 16), (32, 32), (64, 64), (128, 128), (256, 256), (512, 512), (1024, 1024)];
     for (degree_x, degree_y) in degrees {
-        let srs: SRS<E> = PolyCommit::setup(degree_x, degree_y, &mut thread_rng());
-        let poly_commit = PolyCommit { srs: srs.clone() };
+        let srs: PolynomialCommitmentSRS<E> = PCSEngine::setup(degree_x, degree_y, &mut thread_rng());
+        let poly_commit = PCSEngine { srs: srs.clone() };
         // random bivariate polynomial
         let polynomial = MultilinearPolynomial::rand(
             srs.get_x_length() + srs.get_y_length(),
@@ -74,8 +74,8 @@ fn bench_open(c: &mut Criterion) {
 fn bench_verify(c: &mut Criterion) {
     let degrees = vec![(4, 4), (8, 8), (16, 16), (32, 32), (64, 64), (128, 128), (256, 256), (512, 512), (1024, 1024)];
     for (degree_x, degree_y) in degrees {
-        let srs: SRS<E> = PolyCommit::setup(degree_x, degree_y, &mut thread_rng());
-        let poly_commit = PolyCommit { srs: srs.clone() };
+        let srs: PolynomialCommitmentSRS<E> = PCSEngine::setup(degree_x, degree_y, &mut thread_rng());
+        let poly_commit = PCSEngine { srs: srs.clone() };
         // random bivariate polynomial
         let polynomial = MultilinearPolynomial::rand(
             srs.get_x_length() + srs.get_y_length(),
