@@ -11,41 +11,52 @@ use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
 use ark_r1cs_std::groups::curves::short_weierstrass::ProjectiveVar;
 use ark_relations::ns;
-use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
+use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef, SynthesisMode};
+use ark_std::UniformRand;
 use rand::thread_rng;
 use sqrtn_pcs::accumulation::accumulator::Accumulator;
 use sqrtn_pcs::accumulation_circuit::instance_circuit::AccumulatorInstanceVar;
-use sqrtn_pcs::accumulation_circuit::prover::AccumulatorVerifierCircuitProver;
+use sqrtn_pcs::accumulation_circuit::prover::{get_random_prover, AccumulatorVerifierCircuitProver};
 use sqrtn_pcs::accumulation_circuit::verifier_circuit::AccumulatorVerifierVar;
 use sqrtn_pcs::commitment::CommitmentScheme;
 use sqrtn_pcs::constant_for_curves::{BaseField, E, G1, G2, ScalarField};
 use sqrtn_pcs::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
 use sqrtn_pcs::gadgets::non_native::util::convert_field_one_to_field_two;
 use sqrtn_pcs::hash::pederson::PedersenCommitment;
-use sqrtn_pcs::nova::cycle_fold::coprocessor_constraints::{R1CSInstanceVar, RelaxedR1CSInstanceVar};
 use sqrtn_pcs::pcs::multilinear_pcs::{PolyCommit, SRS};
+use sqrtn_pcs::transcript::transcript_var::TranscriptVar;
 
 type C2 = PedersenCommitment<Projective<G2>>;
 
 fn setup_benchmark() -> Vec<ScalarField> {
-    // specifying degrees of polynomials
-    let (n, m) = (4, 4);
-
-    // get a random srs
-    let srs = {
-        let srs_pcs: SRS<E> = PolyCommit::<E>::setup(n, m, &mut thread_rng());
-        Accumulator::setup(srs_pcs.clone(), &mut thread_rng())
-    };
-
     // a constraint system
     let cs = ConstraintSystem::<ScalarField>::new_ref();
 
-    let verifier: AccumulatorVerifierVar<G1, G2, C2> = AccumulatorVerifierVar::rand(&srs, cs.clone());
+    // initialise the accumulate verifier circuit
+    let prover: AccumulatorVerifierCircuitProver<G1, G2, C2, E, ScalarField> = get_random_prover();
+    let verifier = AccumulatorVerifierVar::<G1, G2, C2>::new::<E>(
+        cs.clone(),
+        prover.clone()
+    );
 
     println!("number of constraint for initialisation: {}", cs.num_constraints());
-    verifier.accumulate();
-    println!("number of constraint for initialisation: {}", cs.num_constraints());
+
+    let mut transcript_var = TranscriptVar::from_transcript(
+        cs.clone(),
+        prover.initial_transcript.clone()
+    );
+
+    // run the accumulation
+    let _ = verifier.accumulate(&mut transcript_var);
+
+    println!("number of constraint after accumulation: {}", cs.num_constraints());
+
+    // assert the constraint system is satisfied
     assert!(cs.is_satisfied().unwrap());
+
+    // these are required to called CRR1CSShape::convert
+    cs.set_mode(SynthesisMode::Prove { construct_matrices: true });
+    cs.finalize();
 
     // write the witness into a file
     let cs_borrow = cs.borrow().unwrap();

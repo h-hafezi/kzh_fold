@@ -8,7 +8,7 @@ use rand::thread_rng;
 
 use sqrtn_pcs::constant_for_curves::{E, ScalarField};
 use sqrtn_pcs::pcs::multilinear_pcs::{PolyCommit, SRS};
-use sqrtn_pcs::polynomial::multilinear_poly::MultilinearPolynomial;
+use sqrtn_pcs::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 
 fn bench_setup(c: &mut Criterion) {
     let degrees = vec![(4, 4), (8, 8), (16, 16), (32, 32), (64, 64), (128, 128), (256, 256), (512, 512), (1024, 1024)];

@@ -20,4 +20,4 @@ pub mod nexus_spartan;
 pub mod augmented_circuit;
 
 pub mod math;
-mod transcript;
+pub mod transcript;

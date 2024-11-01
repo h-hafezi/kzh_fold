@@ -7,6 +7,7 @@ use rand::thread_rng;
 use sqrtn_pcs::accumulation::accumulator::{AccSRS, Accumulator};
 use sqrtn_pcs::constant_for_curves::E;
 use sqrtn_pcs::pcs::multilinear_pcs::{PolyCommit, SRS};
+use sqrtn_pcs::transcript::transcript::Transcript;
 
 fn get_srs(degree_x: usize, degree_y: usize) -> AccSRS<E> {
     let srs_pcs: SRS<E> = PolyCommit::<E>::setup(degree_x, degree_y, &mut thread_rng());
@@ -36,9 +37,10 @@ fn bench_prove(c: &mut Criterion) {
         let acc_1 = Accumulator::random_satisfying_accumulator(&srs, &mut thread_rng());
         let acc_2 = Accumulator::random_satisfying_accumulator(&srs, &mut thread_rng());
         let bench_name = format!("prove for degrees n={} * m={} (witness size: {})", degree_x, degree_y, degree_x*degree_y);
+        let mut transcript = Transcript::new(b"some label");
         c.bench_function(&bench_name, |b| {
             b.iter(|| {
-                let _ = Accumulator::prove(&srs, &acc_1, &acc_2);
+                let _ = Accumulator::prove(&srs, &acc_1, &acc_2, &mut transcript);
             })
         });
     }
@@ -50,11 +52,13 @@ fn bench_verify(c: &mut Criterion) {
         let srs = get_srs(degree_x, degree_y);
         let acc_1 = Accumulator::random_satisfying_accumulator(&srs, &mut thread_rng());
         let acc_2 = Accumulator::random_satisfying_accumulator(&srs, &mut thread_rng());
-        let (_, _, Q) = Accumulator::prove(&srs, &acc_1, &acc_2);
+        let mut prover_transcript = Transcript::new(b"some label");
+        let mut verifier_transcript = prover_transcript.clone();
+        let (_, _, Q) = Accumulator::prove(&srs, &acc_1, &acc_2, &mut prover_transcript);
         let bench_name = format!("verify for degrees n={} * m={} (witness size: {})", degree_x, degree_y, degree_x*degree_y);
         c.bench_function(&bench_name, |b| {
             b.iter(|| {
-                let _ = Accumulator::verify(&srs, &acc_1.instance, &acc_2.instance, Q);
+                let _ = Accumulator::verify(&srs, &acc_1.instance, &acc_2.instance, Q, &mut verifier_transcript);
             })
         });
     }
