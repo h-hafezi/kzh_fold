@@ -569,7 +569,7 @@ pub mod tests {
 
     use crate::accumulation::accumulator::Accumulator;
     use crate::commitment::CommitmentScheme;
-    use crate::constant_for_curves::{ScalarField, E, G1, G2};
+    use crate::constant_for_curves::{ScalarField, C2, E, G1, G2};
     use crate::hash::pederson::PedersenCommitment;
     use crate::nexus_spartan::crr1csproof::{is_sat, CRR1CSInstance, CRR1CSKey, CRR1CSProof, CRR1CSShape, CRR1CSWitness};
     use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
@@ -578,8 +578,6 @@ pub mod tests {
     use crate::transcript::transcript::Transcript;
 
     use super::*;
-
-    type C2 = PedersenCommitment<Projective<G2>>;
 
     // Test helper
     pub fn get_random_acc_verifier_cs() -> ConstraintSystemRef<ScalarField> {
@@ -633,6 +631,7 @@ pub mod tests {
 
         println!("number of constraint before shape convert: {}", cs.num_constraints());
 
+
         // convert to the corresponding Spartan types
         let shape = CRR1CSShape::<ScalarField>::convert::<G1>(cs.clone());
         let key: CRR1CSKey<E, MultilinearPolynomial<ScalarField>> = CRR1CSKey::new(&SRS, shape.get_num_cons(), shape.get_num_vars());
@@ -676,19 +675,5 @@ pub mod tests {
                 &mut verifier_transcript,
             )
             .is_ok());
-
-        /*
-        // write the witness into a file
-        let cs_borrow = cs.borrow().unwrap();
-        let witness = cs_borrow.witness_assignment.clone();
-        let pub_io = cs_borrow.instance_assignment.clone();
-
-        let file = File::create("witness.txt").unwrap();
-        let mut writer = BufWriter::new(file);
-        for scalar in witness.iter() {
-            let big_int = scalar.into_bigint();
-            writeln!(writer, "{}", big_int.to_string()).expect("error writing the witness into a file");
-        }
-         */
     }
 }

@@ -167,7 +167,7 @@ mod tests {
     use super::*;
     use crate::accumulation::accumulator::Accumulator;
     use crate::accumulation_circuit::prover::AccumulatorVerifierCircuitProver;
-    use crate::constant_for_curves::{ScalarField, E, G1, G2};
+    use crate::constant_for_curves::{ScalarField, C2, E, G1, G2};
     use crate::hash::pederson::PedersenCommitment;
     use crate::nexus_spartan::crr1cs::is_sat;
     use crate::nexus_spartan::crr1cs::produce_synthetic_crr1cs;
@@ -186,7 +186,6 @@ mod tests {
     use rand::thread_rng;
     use crate::nexus_spartan::matrix_evaluation_accumulation::prover::fold_matrices_evaluations;
 
-    type C2 = PedersenCommitment<Projective<G2>>;
     type F = ScalarField;
 
     #[test]

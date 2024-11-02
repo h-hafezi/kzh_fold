@@ -2,6 +2,7 @@ use ark_ec::short_weierstrass::Projective;
 
 pub mod r1cs;
 pub mod ova;
+pub mod conversion;
 
 pub(crate) type R1CSShape<G> = r1cs::R1CSShape<Projective<G>>;
 pub(crate) type R1CSInstance<G, C> = r1cs::R1CSInstance<Projective<G>, C>;
