@@ -32,12 +32,9 @@ where
     if point.is_zero() {
         (E::ScalarField::ONE, E::ScalarField::ZERO)
     } else {
-        type F = <<E as Pairing>::G1Affine as AffineRepr>::BaseField;
-        type Q = <E as Pairing>::ScalarField;
-
         // Extract x and y coordinates and convert them
-        let x = convert_field_one_to_field_two::<F, Q>(point.x().unwrap());
-        let y = convert_field_one_to_field_two::<F, Q>(point.y().unwrap());
+        let x = convert_field_one_to_field_two::<<<E as Pairing>::G1Affine as AffineRepr>::BaseField, <E as Pairing>::ScalarField>(point.x().unwrap());
+        let y = convert_field_one_to_field_two::<<<E as Pairing>::G1Affine as AffineRepr>::BaseField, <E as Pairing>::ScalarField>(point.y().unwrap());
         (x, y)
     }
 }
