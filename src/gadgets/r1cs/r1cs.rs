@@ -15,7 +15,6 @@ use rayon::iter::{
 pub use ark_relations::r1cs::Matrix;
 use crate::gadgets::sparse::{MatrixRef, SparseMatrix};
 use crate::commitment::CommitmentScheme;
-use crate::gadgets::absorb::AbsorbNonNative;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Error {
@@ -251,27 +250,6 @@ impl<G: CurveGroup, C: CommitmentScheme<G>> PartialEq for R1CSInstance<G, C> {
 
 impl<G: CurveGroup, C: CommitmentScheme<G>> Eq for R1CSInstance<G, C> where C::Commitment: Eq {}
 
-impl<G, C> Absorb for R1CSInstance<G, C>
-where
-    G: CurveGroup + AbsorbNonNative<G::ScalarField>,
-    G::ScalarField: Absorb,
-    C: CommitmentScheme<G>,
-    C::Commitment: Into<G>,
-{
-    fn to_sponge_bytes(&self, _: &mut Vec<u8>) {
-        unreachable!()
-    }
-
-    fn to_sponge_field_elements<F: PrimeField>(&self, dest: &mut Vec<F>) {
-        <G as AbsorbNonNative<G::ScalarField>>::to_sponge_field_elements(
-            &self.commitment_W.into(),
-            dest,
-        );
-
-        (&self.X[1..]).to_sponge_field_elements(dest);
-    }
-}
-
 impl<G: CurveGroup> R1CSWitness<G> {
     /// A method to create a witness object using a vector of scalars.
     pub fn new(shape: &R1CSShape<G>, W: &[G::ScalarField]) -> Result<Self, Error> {
@@ -363,31 +341,6 @@ impl<G: CurveGroup, C: CommitmentScheme<G>> PartialEq for RelaxedR1CSInstance<G,
 }
 
 impl<G: CurveGroup, C: CommitmentScheme<G>> Eq for RelaxedR1CSInstance<G, C> where C::Commitment: Eq {}
-
-impl<G, C> Absorb for RelaxedR1CSInstance<G, C>
-where
-    G: CurveGroup + AbsorbNonNative<G::ScalarField>,
-    G::ScalarField: Absorb,
-    C: CommitmentScheme<G>,
-    C::Commitment: Into<G>,
-{
-    fn to_sponge_bytes(&self, _: &mut Vec<u8>) {
-        unreachable!()
-    }
-
-    fn to_sponge_field_elements<F: PrimeField>(&self, dest: &mut Vec<F>) {
-        <G as AbsorbNonNative<G::ScalarField>>::to_sponge_field_elements(
-            &self.commitment_W.into(),
-            dest,
-        );
-        <G as AbsorbNonNative<G::ScalarField>>::to_sponge_field_elements(
-            &self.commitment_E.into(),
-            dest,
-        );
-
-        self.X.to_sponge_field_elements(dest);
-    }
-}
 
 impl<G: CurveGroup, C: CommitmentScheme<G>> From<&R1CSInstance<G, C>>
 for RelaxedR1CSInstance<G, C>

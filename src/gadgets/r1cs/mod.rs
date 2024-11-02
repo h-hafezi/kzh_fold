@@ -14,4 +14,3 @@ pub type OvaWitness<G> = ova::OvaWitness<Projective<G>>;
 pub type RelaxedOvaInstance<G, C> = ova::RelaxedOvaInstance<Projective<G>, C>;
 pub type RelaxedOvaWitness<G> = ova::RelaxedOvaWitness<Projective<G>>;
 
-

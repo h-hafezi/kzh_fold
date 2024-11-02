@@ -1,5 +1,4 @@
 use crate::commitment::{CommitmentScheme, Len};
-use crate::gadgets::absorb::AbsorbNonNative;
 use crate::gadgets::r1cs::r1cs::{Error, R1CSShape};
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::CurveGroup;
