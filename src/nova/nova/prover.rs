@@ -1,12 +1,13 @@
 use crate::accumulation_circuit::affine_to_projective;
-use crate::commitment::CommitmentScheme;
+use crate::commitment::{Commitment, CommitmentScheme};
 use crate::gadgets::r1cs::{OvaInstance, OvaWitness, R1CSInstance, R1CSShape, R1CSWitness, RelaxedOvaInstance, RelaxedOvaWitness, RelaxedR1CSInstance, RelaxedR1CSWitness};
 use crate::transcript::transcript::Transcript;
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
 use ark_ec::short_weierstrass::{Affine, Projective, SWCurveConfig};
-use ark_ec::CurveConfig;
+use ark_ec::{AffineRepr, CurveConfig};
 use ark_ff::PrimeField;
+use crate::gadgets::absorb::relaxed_r1cs_instance_to_sponge_vector;
 use crate::gadgets::non_native::util::convert_field_one_to_field_two;
 use crate::gadgets::r1cs::r1cs::commit_T;
 use crate::nova::cycle_fold::coprocessor::{synthesize, SecondaryCircuit};
@@ -61,6 +62,15 @@ where
         let (_, com_t) = commit_T(&self.shape, &self.commitment_pp, &self.running_accumulator.0, &self.running_accumulator.1, &self.current_accumulator.0, &self.current_accumulator.1).unwrap();
 
         com_t
+    }
+
+    pub fn compute_beta(&mut self) -> F {
+        self.initial_transcript.append_scalars(b"label", relaxed_r1cs_instance_to_sponge_vector(&self.running_accumulator.0).as_slice());
+        self.initial_transcript.append_scalars(b"label", relaxed_r1cs_instance_to_sponge_vector(&self.current_accumulator.0).as_slice());
+
+        let beta = self.initial_transcript.challenge_scalar("challenge");
+
+        beta
     }
 
     pub fn compute_final_accumulator(&self, beta: F) -> (RelaxedR1CSInstance<G1, C1>, RelaxedR1CSWitness<G1>) {

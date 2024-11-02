@@ -1,10 +1,13 @@
+use ark_crypto_primitives::merkle_tree::constraints::ConfigGadget;
 use ark_ec::AffineRepr;
 use ark_ec::pairing::Pairing;
+use ark_ec::short_weierstrass::SWCurveConfig;
 use ark_ff::{AdditiveGroup, BigInteger, Field, PrimeField};
 use ark_r1cs_std::boolean::Boolean;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
 use ark_r1cs_std::{ToBitsGadget, ToConstraintFieldGadget};
+use crate::constant_for_curves::{ScalarField, G1};
 
 pub fn non_native_to_fpvar<ScalarField, BaseField>(
     non_native_var: &NonNativeFieldVar<BaseField, ScalarField>,
@@ -29,9 +32,12 @@ where
     if point.is_zero() {
         (E::ScalarField::ONE, E::ScalarField::ZERO)
     } else {
+        type F = <<E as Pairing>::G1Affine as AffineRepr>::BaseField;
+        type Q = <E as Pairing>::ScalarField;
+
         // Extract x and y coordinates and convert them
-        let x = convert_field_one_to_field_two::<<<E as Pairing>::G1Affine as AffineRepr>::BaseField, E::ScalarField>(point.x().unwrap());
-        let y = convert_field_one_to_field_two::<<<E as Pairing>::G1Affine as AffineRepr>::BaseField, E::ScalarField>(point.y().unwrap());
+        let x = convert_field_one_to_field_two::<F, Q>(point.x().unwrap());
+        let y = convert_field_one_to_field_two::<F, Q>(point.y().unwrap());
         (x, y)
     }
 }
