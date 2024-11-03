@@ -1,4 +1,5 @@
 // borrowed from Nexus: https://github.com/nexus-xyz/nexus-zkvm/blob/f37401c477b680ce5334b2ca523ded8a7273d8c8/nova/src/gadgets/cyclefold/nova/primary.rs
+// these structs are used to implement Nova, e.g. running/new instance on the primary curve
 
 use crate::commitment::CommitmentScheme;
 use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;

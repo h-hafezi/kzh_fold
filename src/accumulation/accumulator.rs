@@ -97,7 +97,6 @@ where
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
 {
     pub fn setup<T: RngCore>(pc_srs: PolynomialCommitmentSRS<E>, rng: &mut T) -> AccSRS<E> {
-        // return the result
         AccSRS {
             pc_srs: pc_srs.clone(),
             k_x: generate_random_elements::<E, T>(2 * pc_srs.degree_x - 1, rng),
@@ -123,8 +122,7 @@ where
         transcript.challenge_scalar(b"challenge scalar")
     }
 
-    /// Given public data for the opening p(x, y) = z
-    /// return an accumulator instance
+    /// Given public data for the opening p(x, y) = z, return an accumulator instance
     pub fn new_accumulator_instance_from_fresh_kzh_instance(
         srs: &AccSRS<E>,
         C: &E::G1Affine,

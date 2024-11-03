@@ -24,7 +24,7 @@ use std::borrow::Borrow;
 use digest::Mac;
 use crate::nexus_spartan::matrix_evaluation_accumulation::verifier_circuit::{MatrixEvaluationAccVerifier, MatrixEvaluationAccVerifierVar};
 
-type Output<G2, C2, G1, F> = (RelaxedOvaInstanceVar<G2, C2>, AccumulatorInstanceVar<G1>, Vec<FpVar<F>>, Vec<FpVar<F>>);
+type Output<'a, G2, C2, G1, F> = (&'a RelaxedOvaInstanceVar<G2, C2>, &'a AccumulatorInstanceVar<G1>, Vec<FpVar<F>>, Vec<FpVar<F>>);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AugmentedCircuit<G1, G2, C2, E, F>

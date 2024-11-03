@@ -3,7 +3,6 @@ use std::borrow::Borrow;
 use std::marker::PhantomData;
 use std::ops::Add;
 
-use ark_std::{end_timer, start_timer};
 use ark_crypto_primitives::sponge::constraints::AbsorbGadget;
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
@@ -22,12 +21,13 @@ use ark_r1cs_std::{R1CSVar, ToBitsGadget};
 use ark_relations::ns;
 use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 use ark_std::UniformRand;
+use ark_std::{end_timer, start_timer};
 use rand::thread_rng;
 
 use crate::accumulation::accumulator::{AccInstance, AccSRS};
 use crate::accumulation_circuit::instance_circuit::AccumulatorInstanceVar;
-use crate::accumulation_circuit::prover::AccumulatorVerifierCircuitProver;
 use crate::accumulation_circuit::prover::get_random_prover;
+use crate::accumulation_circuit::prover::AccumulatorVerifierCircuitProver;
 use crate::accumulation_circuit::randomness_different_formats;
 use crate::commitment::CommitmentScheme;
 use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
@@ -54,22 +54,22 @@ where
     pub beta: G1::ScalarField,
 
     /// auxiliary input which helps to have C'' = (1-beta) * C + beta * C' without scalar multiplication
-    pub auxiliary_input_C: OvaInstance<G2, C2>,
+    pub ova_auxiliary_input_C: OvaInstance<G2, C2>,
     /// auxiliary input which helps to have T'' = (1-beta) * T + beta * T' without scalar multiplication
-    pub auxiliary_input_T: OvaInstance<G2, C2>,
+    pub ova_auxiliary_input_T: OvaInstance<G2, C2>,
     /// auxiliary input which helps to have E_{temp} = (1-beta) * E + beta * E' without scalar multiplication
-    pub auxiliary_input_E_1: OvaInstance<G2, C2>,
+    pub ova_auxiliary_input_E_1: OvaInstance<G2, C2>,
     /// auxiliary input which helps to have E'' = E_{temp} + beta * (1-beta) * Q without scalar multiplication
-    pub auxiliary_input_E_2: OvaInstance<G2, C2>,
+    pub ova_auxiliary_input_E_2: OvaInstance<G2, C2>,
 
     /// accumulation proof for accumulators
-    pub Q: Projective<G1>,
+    pub cross_term_error_commitment_Q: Projective<G1>,
 
     /// accumulation proof for cycle fold (this is also the order of accumulating with cycle_fold_running_instance)
-    pub com_C: Projective<G2>,
-    pub com_T: Projective<G2>,
-    pub com_E_1: Projective<G2>,
-    pub com_E_2: Projective<G2>,
+    pub ova_cross_term_error_commitment_C: Projective<G2>,
+    pub ova_cross_term_error_commitment_T: Projective<G2>,
+    pub ova_cross_term_error_commitment_E_1: Projective<G2>,
+    pub ova_cross_term_error_commitment_E_2: Projective<G2>,
 
     /// the instance to be folded
     pub current_accumulator_instance: AccInstance<E>,
@@ -79,8 +79,8 @@ where
     pub final_accumulator_instance: AccInstance<E>,
 
     /// running cycle fold instance
-    pub running_cycle_fold_instance: RelaxedOvaInstance<G2, C2>,
-    pub final_cycle_fold_instance: RelaxedOvaInstance<G2, C2>,
+    pub ova_running_instance: RelaxedOvaInstance<G2, C2>,
+    pub ova_final_instance: RelaxedOvaInstance<G2, C2>,
 
     // these are constant values
     pub n: u32,
@@ -100,33 +100,33 @@ where
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField>,
 {
     /// auxiliary input which helps to have C'' = (1-beta) * C + beta * C' without scalar multiplication
-    pub auxiliary_input_C_var: OvaInstanceVar<G2, C2>,
+    pub ova_auxiliary_input_C: OvaInstanceVar<G2, C2>,
     /// auxiliary input which helps to have T'' = (1-beta) * T + beta * T' without scalar multiplication
-    pub auxiliary_input_T_var: OvaInstanceVar<G2, C2>,
+    pub ova_auxiliary_input_T: OvaInstanceVar<G2, C2>,
     /// auxiliary input which helps to have E_{temp} = (1-beta) * E + beta * E' without scalar multiplication
-    pub auxiliary_input_E_1_var: OvaInstanceVar<G2, C2>,
+    pub ova_auxiliary_input_E_1: OvaInstanceVar<G2, C2>,
     /// auxiliary input which helps to have E'' = E_{temp} + beta * (1-beta) * Q without scalar multiplication
-    pub auxiliary_input_E_2_var: OvaInstanceVar<G2, C2>,
+    pub ova_auxiliary_input_E_2: OvaInstanceVar<G2, C2>,
 
     /// the randomness used for taking linear combination and its non-native counterpart
     pub beta_var: FpVar<G1::ScalarField>,
     pub beta_var_non_native: NonNativeFieldVar<G1::BaseField, G1::ScalarField>,
 
     /// accumulation proof
-    pub Q_var: NonNativeAffineVar<G1>,
+    pub cross_term_error_commitment_Q: NonNativeAffineVar<G1>,
 
     /// accumulation proof for cycle fold (this is also the order of accumulating with cycle_fold_running_instance)
-    pub com_C_var: ProjectiveVar<G2, FpVar<G2::BaseField>>,
-    pub com_T_var: ProjectiveVar<G2, FpVar<G2::BaseField>>,
-    pub com_E_1_var: ProjectiveVar<G2, FpVar<G2::BaseField>>,
-    pub com_E_2_var: ProjectiveVar<G2, FpVar<G2::BaseField>>,
+    pub ova_cross_term_error_commitment_C: ProjectiveVar<G2, FpVar<G2::BaseField>>,
+    pub ova_cross_term_error_commitment_T: ProjectiveVar<G2, FpVar<G2::BaseField>>,
+    pub ova_cross_term_error_commitment_E_1: ProjectiveVar<G2, FpVar<G2::BaseField>>,
+    pub ova_cross_term_error_commitment_E_2: ProjectiveVar<G2, FpVar<G2::BaseField>>,
 
     pub current_accumulator_instance_var: AccumulatorInstanceVar<G1>,
     pub running_accumulator_instance_var: AccumulatorInstanceVar<G1>,
     pub final_accumulator_instance_var: AccumulatorInstanceVar<G1>,
 
-    pub running_cycle_fold_instance_var: RelaxedOvaInstanceVar<G2, C2>,
-    pub final_cycle_fold_instance_var: RelaxedOvaInstanceVar<G2, C2>,
+    pub ova_running_instance: RelaxedOvaInstanceVar<G2, C2>,
+    pub ova_final_instance: RelaxedOvaInstanceVar<G2, C2>,
 
     // these are constant values
     pub n: u32,
@@ -152,27 +152,27 @@ where
         let circuit = res.as_ref().map(|e| e.borrow()).map_err(|err| *err);
 
         // auxiliary inputs
-        let auxiliary_input_C_var = OvaInstanceVar::new_variable(
+        let ova_auxiliary_input_C = OvaInstanceVar::new_variable(
             ns!(cs, "auxiliary_input_C"),
-            || Ok(circuit.map(|e| e.auxiliary_input_C.clone()).unwrap()),
+            || Ok(circuit.map(|e| e.ova_auxiliary_input_C.clone()).unwrap()),
             mode,
         ).unwrap();
 
-        let auxiliary_input_T_var = OvaInstanceVar::new_variable(
+        let ova_auxiliary_input_T = OvaInstanceVar::new_variable(
             ns!(cs, "auxiliary_input_T"),
-            || Ok(circuit.map(|e| e.auxiliary_input_T.clone()).unwrap()),
+            || Ok(circuit.map(|e| e.ova_auxiliary_input_T.clone()).unwrap()),
             mode,
         ).unwrap();
 
-        let auxiliary_input_E_1_var = OvaInstanceVar::new_variable(
+        let ova_auxiliary_input_E_1 = OvaInstanceVar::new_variable(
             ns!(cs, "auxiliary_input_E_1"),
-            || Ok(circuit.map(|e| e.auxiliary_input_E_1.clone()).unwrap()),
+            || Ok(circuit.map(|e| e.ova_auxiliary_input_E_1.clone()).unwrap()),
             mode,
         ).unwrap();
 
-        let auxiliary_input_E_2_var = OvaInstanceVar::new_variable(
+        let ova_auxiliary_input_E_2 = OvaInstanceVar::new_variable(
             ns!(cs, "auxiliary_input_E_2"),
-            || Ok(circuit.map(|e| e.auxiliary_input_E_2.clone()).unwrap()),
+            || Ok(circuit.map(|e| e.ova_auxiliary_input_E_2.clone()).unwrap()),
             mode,
         ).unwrap();
 
@@ -197,15 +197,15 @@ where
         ).unwrap();
 
         // cycle fold instances
-        let running_cycle_fold_instance_var = RelaxedOvaInstanceVar::new_variable(
+        let ova_running_instance = RelaxedOvaInstanceVar::new_variable(
             ns!(cs, "cycle fold running instance"),
-            || circuit.map(|e| e.running_cycle_fold_instance.clone()),
+            || circuit.map(|e| e.ova_running_instance.clone()),
             mode,
         ).unwrap();
 
-        let final_cycle_fold_instance_var = RelaxedOvaInstanceVar::new_variable(
+        let ova_final_instance = RelaxedOvaInstanceVar::new_variable(
             ns!(cs, "cycle fold running instance"),
-            || circuit.map(|e| e.final_cycle_fold_instance.clone()),
+            || circuit.map(|e| e.ova_final_instance.clone()),
             mode,
         ).unwrap();
 
@@ -223,58 +223,59 @@ where
         ).unwrap();
 
         // folding proofs for cycle fold and accumulator
-        let Q_var = NonNativeAffineVar::new_variable(
+        let cross_term_error_commitment_Q = NonNativeAffineVar::new_variable(
             ns!(cs, "Q"),
-            || circuit.map(|e| e.Q),
+            || circuit.map(|e| e.cross_term_error_commitment_Q),
             mode,
         ).unwrap();
 
-        let com_C_var = ProjectiveVar::new_variable(
+        let ova_cross_term_error_commitment_C = ProjectiveVar::new_variable(
             ns!(cs, "cycle fold running instance"),
-            || circuit.map(|e| e.com_C.clone()),
+            || circuit.map(|e| e.ova_cross_term_error_commitment_C.clone()),
             mode,
         ).unwrap();
 
-        let com_T_var = ProjectiveVar::new_variable(
+        let ova_cross_term_error_commitment_T = ProjectiveVar::new_variable(
             ns!(cs, "cycle fold running instance"),
-            || circuit.map(|e| e.com_T.clone()),
+            || circuit.map(|e| e.ova_cross_term_error_commitment_T.clone()),
             mode,
         ).unwrap();
 
-        let com_E_1_var = ProjectiveVar::new_variable(
+        let ova_cross_term_error_commitment_E_1 = ProjectiveVar::new_variable(
             ns!(cs, "cycle fold running instance"),
-            || circuit.map(|e| e.com_E_1.clone()),
+            || circuit.map(|e| e.ova_cross_term_error_commitment_E_1.clone()),
             mode,
         ).unwrap();
 
-        let com_E_2_var = ProjectiveVar::new_variable(
+        let ova_cross_term_error_commitment_E_2 = ProjectiveVar::new_variable(
             ns!(cs, "cycle fold running instance"),
-            || circuit.map(|e| e.com_E_2.clone()),
+            || circuit.map(|e| e.ova_cross_term_error_commitment_E_2.clone()),
             mode,
         ).unwrap();
 
         Ok(AccumulatorVerifierVar {
-            auxiliary_input_C_var,
-            auxiliary_input_T_var,
-            auxiliary_input_E_1_var,
-            auxiliary_input_E_2_var,
+            ova_auxiliary_input_C,
+            ova_auxiliary_input_T,
+            ova_auxiliary_input_E_1,
+            ova_auxiliary_input_E_2,
             beta_var,
             beta_var_non_native,
-            Q_var,
-            com_C_var,
-            com_T_var,
-            com_E_1_var,
-            com_E_2_var,
+            cross_term_error_commitment_Q,
+            ova_cross_term_error_commitment_C,
+            ova_cross_term_error_commitment_T,
+            ova_cross_term_error_commitment_E_1,
+            ova_cross_term_error_commitment_E_2,
             current_accumulator_instance_var,
             running_accumulator_instance_var,
             final_accumulator_instance_var,
-            running_cycle_fold_instance_var,
-            final_cycle_fold_instance_var,
+            ova_running_instance,
+            ova_final_instance,
             n: circuit.map(|e| e.n).unwrap(),
             m: circuit.map(|e| e.m).unwrap(),
         })
     }
 }
+
 
 /// Here we assume current_acc to be A.X and running_acc to be A.X' ==> beta * running_acc + (1-beta) * current_acc
 impl<G1: SWCurveConfig, G2: SWCurveConfig, C2> AccumulatorVerifierVar<G1, G2, C2>
@@ -287,20 +288,19 @@ where
     C2: CommitmentScheme<Projective<G2>>,
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField>,
 {
-    pub fn accumulate(&self, transcript_var: &mut TranscriptVar<G1::ScalarField>) -> (RelaxedOvaInstanceVar<G2, C2>, AccumulatorInstanceVar<G1>)
+    pub fn accumulate(&self, transcript_var: &mut TranscriptVar<G1::ScalarField>) -> (&RelaxedOvaInstanceVar<G2, C2>, &AccumulatorInstanceVar<G1>)
     where
         <G2 as CurveConfig>::BaseField: Absorb,
     {
         // checking beta and non_native beta are consistent
         let beta_bits = self.beta_var_non_native.to_bits_le().unwrap();
-        let beta_ = Boolean::le_bits_to_fp_var(beta_bits.as_slice()).unwrap();
-        self.beta_var.enforce_equal(&beta_).expect("error while enforcing equality");
+        self.beta_var.enforce_equal(&Boolean::le_bits_to_fp_var(beta_bits.as_slice()).unwrap()).unwrap();
 
-        // compute Poseidon hash and make sure it's consistent with input beta
+        // compute hash and make sure it's consistent with input beta
         transcript_var.append_scalars(b"instance 1", self.current_accumulator_instance_var.to_sponge_field_elements().unwrap().as_slice());
         transcript_var.append_scalars(b"instance 2", self.running_accumulator_instance_var.to_sponge_field_elements().unwrap().as_slice());
-        transcript_var.append_scalars(b"Q", self.Q_var.to_sponge_field_elements().unwrap().as_slice());
-        transcript_var.challenge_scalar(b"challenge scalar").enforce_equal(&self.beta_var).expect("error while enforcing equality");
+        transcript_var.append_scalars(b"Q", self.cross_term_error_commitment_Q.to_sponge_field_elements().unwrap().as_slice());
+        transcript_var.challenge_scalar(b"challenge scalar").enforce_equal(&self.beta_var).unwrap();
 
         // Non-native scalar multiplication: linear combination of C
         let (flag,
@@ -308,17 +308,17 @@ where
             g1,
             g2,
             C_var
-        ) = self.auxiliary_input_C_var.parse_secondary_io::<G1>().unwrap();
+        ) = self.ova_auxiliary_input_C.parse_secondary_io::<G1>().unwrap();
         // g1 == acc.C
-        self.running_accumulator_instance_var.C_var.enforce_equal(&g1).expect("error while enforcing equality");
+        self.running_accumulator_instance_var.C_var.enforce_equal(&g1).unwrap();
         // g2 == instance.C
-        self.current_accumulator_instance_var.C_var.enforce_equal(&g2).expect("error while enforcing equality");
+        self.current_accumulator_instance_var.C_var.enforce_equal(&g2).unwrap();
         // enforce flag to be false
-        flag.enforce_equal(&NonNativeFieldVar::zero()).expect("error while enforcing equality");
+        flag.enforce_equal(&NonNativeFieldVar::zero()).unwrap();
         // check r to be equal to beta
-        r.enforce_equal(&self.beta_var_non_native).expect("error while enforcing equality");
+        r.enforce_equal(&self.beta_var_non_native).unwrap();
         // check out the result C_var is consistent with result_acc
-        C_var.enforce_equal(&self.final_accumulator_instance_var.C_var).expect("error while enforcing equality");
+        C_var.enforce_equal(&self.final_accumulator_instance_var.C_var).unwrap();
 
 
         // Non-native scalar multiplication: linear combination of T
@@ -327,17 +327,17 @@ where
             g1,
             g2,
             T_var
-        ) = self.auxiliary_input_T_var.parse_secondary_io::<G1>().unwrap();
+        ) = self.ova_auxiliary_input_T.parse_secondary_io::<G1>().unwrap();
         // g1 == acc.T
-        self.running_accumulator_instance_var.T_var.enforce_equal(&g1).expect("error while enforcing equality");
+        self.running_accumulator_instance_var.T_var.enforce_equal(&g1).unwrap();
         // g2 == instance.C
-        self.current_accumulator_instance_var.T_var.enforce_equal(&g2).expect("error while enforcing equality");
+        self.current_accumulator_instance_var.T_var.enforce_equal(&g2).unwrap();
         // enforce flag to be false
-        flag.enforce_equal(&NonNativeFieldVar::zero()).expect("error while enforcing equality");
+        flag.enforce_equal(&NonNativeFieldVar::zero()).unwrap();
         // check r to be equal to beta
-        r.enforce_equal(&self.beta_var_non_native).expect("error while enforcing equality");
+        r.enforce_equal(&self.beta_var_non_native).unwrap();
         // check out the result T_var is consistent with result_acc
-        T_var.enforce_equal(&self.final_accumulator_instance_var.T_var).expect("error while enforcing equality");
+        T_var.enforce_equal(&self.final_accumulator_instance_var.T_var).unwrap();
 
 
         // Non-native scalar multiplication: linear combination E_temp = (instance.E * (1-beta) + acc.E * beta)
@@ -346,15 +346,15 @@ where
             g1,
             g2,
             E_temp
-        ) = self.auxiliary_input_E_1_var.parse_secondary_io::<G1>().unwrap();
+        ) = self.ova_auxiliary_input_E_1.parse_secondary_io::<G1>().unwrap();
         // g1 == acc.E
-        self.running_accumulator_instance_var.E_var.enforce_equal(&g1).expect("error while enforcing equality");
+        self.running_accumulator_instance_var.E_var.enforce_equal(&g1).unwrap();
         // g2 == instance.E
-        self.current_accumulator_instance_var.E_var.enforce_equal(&g2).expect("error while enforcing equality");
+        self.current_accumulator_instance_var.E_var.enforce_equal(&g2).unwrap();
         // enforce flag to be false
-        flag.enforce_equal(&NonNativeFieldVar::zero()).expect("error while enforcing equality");
+        flag.enforce_equal(&NonNativeFieldVar::zero()).unwrap();
         // check r to be equal to beta
-        r.enforce_equal(&self.beta_var_non_native).expect("error while enforcing equality");
+        r.enforce_equal(&self.beta_var_non_native).unwrap();
 
 
         // Non-native scalar multiplication: linear combination E'' = E_{temp} + (1-beta) * beta * Q
@@ -363,56 +363,57 @@ where
             g1,
             g2,
             E_var
-        ) = self.auxiliary_input_E_2_var.parse_secondary_io::<G1>().unwrap();
+        ) = self.ova_auxiliary_input_E_2.parse_secondary_io::<G1>().unwrap();
         // g1 == Q
-        g1.enforce_equal(&self.Q_var).expect("error while enforcing equality");
+        g1.enforce_equal(&self.cross_term_error_commitment_Q).unwrap();
         // g2 == E_temp
-        g2.enforce_equal(&E_temp).expect("error while enforcing equality");
+        g2.enforce_equal(&E_temp).unwrap();
         // enforce flag to be true
-        flag.enforce_equal(&NonNativeFieldVar::one()).expect("error while enforcing equality");
+        flag.enforce_equal(&NonNativeFieldVar::one()).unwrap();
         // check r to be equal to beta
         let _beta_times_beta_minus_one = self.beta_var_non_native.clone() - self.beta_var_non_native.square().unwrap();
-        //r.enforce_equal(&beta_times_beta_minus_one).expect("error while enforcing equality");
         // check out the result E_var is consistent with result_acc
-        E_var.enforce_equal(&self.final_accumulator_instance_var.E_var).expect("error while enforcing equality");
+        E_var.enforce_equal(&self.final_accumulator_instance_var.E_var).unwrap();
 
 
         let beta_minus_one = FpVar::<G1::ScalarField>::one() - &self.beta_var;
 
         // Native field operation: linear combination of x
         for i in 0..self.running_accumulator_instance_var.x_var.len() {
-            let x_var = &self.beta_var * &self.running_accumulator_instance_var.x_var[i] + &beta_minus_one * &self.current_accumulator_instance_var.x_var[i];
+            let x_var = &self.beta_var * &self.running_accumulator_instance_var.x_var[i] +
+                &beta_minus_one * &self.current_accumulator_instance_var.x_var[i];
             // check out the result b_var is consistent with result_acc
-            x_var.enforce_equal(&self.final_accumulator_instance_var.x_var[i]).expect("error while enforcing equality");
+            x_var.enforce_equal(&self.final_accumulator_instance_var.x_var[i]).unwrap();
         }
 
         // Native field operation: linear combination of x
         for i in 0..self.running_accumulator_instance_var.y_var.len() {
-            let y_var = &self.beta_var * &self.running_accumulator_instance_var.y_var[i] + &beta_minus_one * &self.current_accumulator_instance_var.y_var[i];
+            let y_var = &self.beta_var * &self.running_accumulator_instance_var.y_var[i] +
+                &beta_minus_one * &self.current_accumulator_instance_var.y_var[i];
             // check out the result b_var is consistent with result_acc
-            y_var.enforce_equal(&self.final_accumulator_instance_var.y_var[i]).expect("error while enforcing equality");
+            y_var.enforce_equal(&self.final_accumulator_instance_var.y_var[i]).unwrap();
         }
 
-        // Native field operation: linear combination of z_c
-        let z_var = &self.beta_var * &self.running_accumulator_instance_var.z_var + &beta_minus_one * &self.current_accumulator_instance_var.z_var;
         // check out the result z_c_var is consistent with result_acc
-        z_var.enforce_equal(&self.final_accumulator_instance_var.z_var).expect("error while enforcing equality");
+        self.final_accumulator_instance_var.z_var.enforce_equal(
+            &self.beta_var * &self.running_accumulator_instance_var.z_var +
+                &beta_minus_one * &self.current_accumulator_instance_var.z_var
+        ).unwrap();
 
         // todo: try later to have different randomness for each of these instances
-        let final_instance = self.running_cycle_fold_instance_var.fold(
-            &[((&self.auxiliary_input_C_var, None), &self.com_C_var, &self.beta_var_non_native, &beta_bits),
-                ((&self.auxiliary_input_T_var, None), &self.com_T_var, &self.beta_var_non_native, &beta_bits),
-                ((&self.auxiliary_input_E_1_var, None), &self.com_E_1_var, &self.beta_var_non_native, &beta_bits),
-                ((&self.auxiliary_input_E_2_var, None), &self.com_E_2_var, &self.beta_var_non_native, &beta_bits),
+        let final_instance = self.ova_running_instance.fold(
+            &[((&self.ova_auxiliary_input_C, None), &self.ova_cross_term_error_commitment_C, &self.beta_var_non_native, &beta_bits),
+                ((&self.ova_auxiliary_input_T, None), &self.ova_cross_term_error_commitment_T, &self.beta_var_non_native, &beta_bits),
+                ((&self.ova_auxiliary_input_E_1, None), &self.ova_cross_term_error_commitment_E_1, &self.beta_var_non_native, &beta_bits),
+                ((&self.ova_auxiliary_input_E_2, None), &self.ova_cross_term_error_commitment_E_2, &self.beta_var_non_native, &beta_bits),
             ]
         ).unwrap();
 
-        self.final_cycle_fold_instance_var.X.enforce_equal(&final_instance.X).expect("panic");
-        self.final_cycle_fold_instance_var.commitment.enforce_equal(&final_instance.commitment).expect("panic");
+        self.ova_final_instance.X.enforce_equal(&final_instance.X).unwrap();
+        self.ova_final_instance.commitment.enforce_equal(&final_instance.commitment).unwrap();
 
-        // todo: check if possible to do without cloning
         // return result of accumulation and final cycle fold instance
-        (self.final_cycle_fold_instance_var.clone(), self.final_accumulator_instance_var.clone())
+        (&self.ova_final_instance, &self.final_accumulator_instance_var)
     }
 }
 
@@ -532,22 +533,22 @@ where
 
 
         let verifier = AccumulatorVerifierVar {
-            auxiliary_input_C_var,
-            auxiliary_input_T_var,
-            auxiliary_input_E_1_var,
-            auxiliary_input_E_2_var,
+            ova_auxiliary_input_C: auxiliary_input_C_var,
+            ova_auxiliary_input_T: auxiliary_input_T_var,
+            ova_auxiliary_input_E_1: auxiliary_input_E_1_var,
+            ova_auxiliary_input_E_2: auxiliary_input_E_2_var,
             beta_var,
             beta_var_non_native,
-            Q_var,
-            com_C_var,
-            com_T_var,
-            com_E_1_var,
-            com_E_2_var,
+            cross_term_error_commitment_Q: Q_var,
+            ova_cross_term_error_commitment_C: com_C_var,
+            ova_cross_term_error_commitment_T: com_T_var,
+            ova_cross_term_error_commitment_E_1: com_E_1_var,
+            ova_cross_term_error_commitment_E_2: com_E_2_var,
             current_accumulator_instance_var,
             running_accumulator_instance_var,
             final_accumulator_instance_var,
-            running_cycle_fold_instance_var,
-            final_cycle_fold_instance_var,
+            ova_running_instance: running_cycle_fold_instance_var,
+            ova_final_instance: final_cycle_fold_instance_var,
             n: prover.n,
             m: prover.m,
         };
@@ -561,22 +562,16 @@ where
 pub mod tests {
     use std::fmt::Debug;
 
-    use ark_ec::short_weierstrass::Projective;
-    use ark_r1cs_std::alloc::AllocVar;
-    use ark_r1cs_std::boolean::Boolean;
     use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef, SynthesisMode};
     use rand::thread_rng;
 
-    use crate::accumulation::accumulator::Accumulator;
-    use crate::commitment::CommitmentScheme;
     use crate::constant_for_curves::{ScalarField, C2, E, G1, G2};
-    use crate::hash::pederson::PedersenCommitment;
-    use crate::nexus_spartan::crr1csproof::{is_sat, CRR1CSInstance, CRR1CSKey, CRR1CSProof, CRR1CSShape, CRR1CSWitness};
+    use crate::nexus_spartan::crr1cs::{is_sat, CRR1CSInstance, CRR1CSKey, CRR1CSShape, CRR1CSWitness};
+    use crate::nexus_spartan::crr1csproof::CRR1CSProof;
     use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
-    use crate::pcs::multilinear_pcs::{PCSEngine, PolynomialCommitmentSRS};
+    use crate::pcs::multilinear_pcs::PolynomialCommitmentSRS;
     use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
     use crate::transcript::transcript::Transcript;
-
     use super::*;
 
     // Test helper
@@ -588,14 +583,14 @@ pub mod tests {
         let prover: AccumulatorVerifierCircuitProver<G1, G2, C2, E, ScalarField> = get_random_prover();
         let verifier = AccumulatorVerifierVar::<G1, G2, C2>::new::<E>(
             cs.clone(),
-            prover.clone()
+            prover.clone(),
         );
 
         println!("number of constraint for initialisation: {}", cs.num_constraints());
 
         let mut transcript_var = TranscriptVar::from_transcript(
             cs.clone(),
-            prover.initial_transcript.clone()
+            prover.initial_transcript.clone(),
         );
 
         // run the accumulation
@@ -631,7 +626,6 @@ pub mod tests {
 
         println!("number of constraint before shape convert: {}", cs.num_constraints());
 
-        /*
         // convert to the corresponding Spartan types
         let shape = CRR1CSShape::<ScalarField>::convert::<G1>(cs.clone());
         let key: CRR1CSKey<E, MultilinearPolynomial<ScalarField>> = CRR1CSKey::new(&SRS, shape.get_num_cons(), shape.get_num_vars());
@@ -675,7 +669,5 @@ pub mod tests {
                 &mut verifier_transcript,
             )
             .is_ok());
-
-      */
     }
 }
