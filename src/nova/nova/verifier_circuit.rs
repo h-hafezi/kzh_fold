@@ -11,6 +11,7 @@ use crate::gadgets::absorb::{r1cs_instance_to_sponge_vector, relaxed_r1cs_instan
 use crate::nova::nova::get_affine_coords;
 use crate::transcript::transcript::Transcript;
 
+#[derive(Clone)]
 pub struct NovaAugmentedCircuit<F, G1, G2, C1, C2>
 where
     G1: SWCurveConfig + Clone,

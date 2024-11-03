@@ -74,6 +74,7 @@ where
         // turn the cross term error for nova into affine
         let affine: Affine<G1> = CurveGroup::into_affine(self.compute_cross_term_error());
         let (com_T_x, com_T_y) = get_affine_coords(&affine);
+
         // make a new transcript and add with the following order: running accumulator instance + current accumulator instance + cross term error
         let mut transcript = Transcript::new(b"new transcript");
         transcript.append_scalars(b"label", relaxed_r1cs_instance_to_sponge_vector(&self.running_accumulator.0).as_slice());
@@ -179,6 +180,7 @@ where
             &cross_term_error_commitment_w,
             &beta_1_non_native,
         ).expect("folding instance error");
+
         let folded_witness = self.cycle_fold_running_witness.fold(
             &ova_witness_w,
             &cross_term_error_w,
