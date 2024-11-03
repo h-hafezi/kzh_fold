@@ -5,6 +5,7 @@ use crate::constant_for_curves::BaseField;
 
 pub mod verifier_circuit;
 pub mod prover;
+mod verifier_circuit_var;
 
 #[inline]
 fn get_affine_coords<F: PrimeField, G: SWCurveConfig<BaseField=F>>(affine: &Affine<G>) -> (F, F) {
