@@ -1,12 +1,15 @@
-use crate::commitment::CommitmentScheme;
+use crate::commitment::{Commitment, CommitmentScheme};
 use crate::gadgets::non_native::util::convert_field_one_to_field_two;
 use crate::gadgets::r1cs::{OvaInstance, R1CSInstance, RelaxedOvaInstance, RelaxedR1CSInstance};
 use crate::nova::nova::prover::NovaProver;
 use ark_crypto_primitives::sponge::Absorb;
-use ark_ec::CurveConfig;
+use ark_ec::{AffineRepr, CurveConfig, CurveGroup};
 use ark_ec::pairing::Pairing;
 use ark_ec::short_weierstrass::{Affine, Projective, SWCurveConfig};
 use ark_ff::PrimeField;
+use crate::gadgets::absorb::{r1cs_instance_to_sponge_vector, relaxed_r1cs_instance_to_sponge_vector};
+use crate::nova::nova::get_affine_coords;
+use crate::transcript::transcript::Transcript;
 
 pub struct NovaAugmentedCircuit<F, G1, G2, C1, C2>
 where
@@ -15,8 +18,8 @@ where
     G1::ScalarField: PrimeField + Absorb,
     G2: SWCurveConfig<BaseField=F> + Clone,
     G2::BaseField: PrimeField,
-    C1: CommitmentScheme<Projective<G1>>,
-    C2: CommitmentScheme<Projective<G2>>,
+    C1: CommitmentScheme<Projective<G1>, PP=Vec<Affine<G1>>, Commitment=Projective<G1>, SetupAux = ()>,
+    C2: CommitmentScheme<Projective<G2>, PP=Vec<Affine<G2>>, Commitment=Projective<G2>, SetupAux = ()>,
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField>,
     F: PrimeField,
 {
@@ -25,11 +28,19 @@ where
     pub current_instance: R1CSInstance<G1, C1>,
 
     /// nova accumulation prof (cross term error)
-    pub nova_cross_term_error: C1::Commitment,
+    pub nova_cross_term_error: Projective<G1>,
 
-    // this is hash of two instance and nova_cross_term_error
+    /// this is hash of two instance and nova_cross_term_error
     pub beta: F,
     pub beta_non_native: G1::BaseField,
+
+    /// beta_1 is the randomness used to fold cycle fold running instance with auxiliary_input_W
+    pub beta_1: F,
+    pub beta_1_non_native: G1::BaseField,
+
+    /// beta_2 is the randomness used to fold cycle fold running instance with auxiliary_input_E
+    pub beta_2: F,
+    pub beta_2_non_native: G1::BaseField,
 
     /// running cycle fold instance
     pub running_cycle_fold_instance: RelaxedOvaInstance<G2, C2>,
@@ -41,8 +52,8 @@ where
     pub auxiliary_input_E_var: OvaInstance<G2, C2>,
 
     /// accumulation proof for cycle fold (this is also the order of accumulating with cycle_fold_running_instance)
-    pub cross_term_error_commitment_w: C2::Commitment,
-    pub cross_term_error_commitment_e: C2::Commitment,
+    pub cross_term_error_commitment_w: Projective<G2>,
+    pub cross_term_error_commitment_e: Projective<G2>,
 }
 
 impl<F, G1, G2, C1, C2> NovaAugmentedCircuit<F, G1, G2, C1, C2>
@@ -53,7 +64,7 @@ where
     G2: SWCurveConfig<BaseField=F> + Clone,
     G2::BaseField: PrimeField,
     C1: CommitmentScheme<Projective<G1>, PP=Vec<Affine<G1>>, Commitment=Projective<G1>, SetupAux = ()>,
-    C2: CommitmentScheme<Projective<G2>, PP=Vec<Affine<G2>>, SetupAux = ()>,
+    C2: CommitmentScheme<Projective<G2>, PP=Vec<Affine<G2>>, Commitment=Projective<G2>, SetupAux = ()>,
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField>,
     F: PrimeField,
 {
@@ -83,20 +94,66 @@ where
         assert_eq!(secondary_circuit_E.flag, true);
 
         let expected_final_cycle_fold_instance = {
-            let temp = self.running_cycle_fold_instance.fold(&self.auxiliary_input_W_var, &self.cross_term_error_commitment_w, &self.beta_non_native).expect("TODO: panic message");
-            temp.fold(&self.auxiliary_input_E_var, &self.cross_term_error_commitment_e, &self.beta_non_native).expect("TODO: panic message")
+            // fold the running cycle fold instance with auxiliary input W using randomness beta_1
+            let temp = self.running_cycle_fold_instance.fold(&self.auxiliary_input_W_var, &self.cross_term_error_commitment_w, &self.beta_1_non_native).expect("TODO: panic message");
+            // fold the running cycle fold instance with auxiliary input E using randomness beta_2
+            temp.fold(&self.auxiliary_input_E_var, &self.cross_term_error_commitment_e, &self.beta_2_non_native).expect("TODO: panic message")
         };
 
         assert_eq!(expected_final_cycle_fold_instance, self.final_cycle_fold_instance);
 
-        // add beta tests too
+        // compute beta
+        let affine: Affine<G1> = CurveGroup::into_affine(self.nova_cross_term_error);
+        let mut transcript = Transcript::new(b"new transcript");
+        transcript.append_scalars(b"label", relaxed_r1cs_instance_to_sponge_vector(&self.running_instance).as_slice());
+        transcript.append_scalars(b"label", r1cs_instance_to_sponge_vector(&self.current_instance).as_slice());
+        transcript.append_scalars_non_native(b"label", &[affine.x().unwrap(), affine.y().unwrap()]);
+        let beta = transcript.challenge_scalar(b"challenge");
+
+        assert_eq!(beta, self.beta);
+        assert_eq!(beta, convert_field_one_to_field_two::<G1::BaseField, F>(self.beta_non_native));
+
+        // compute beta_1
+        let coordinates = get_affine_coords::<G2::BaseField, G2>(&CurveGroup::into_affine(self.cross_term_error_commitment_w));
+        transcript.append_scalars(b"add scalars", &[
+            coordinates.0,
+            coordinates.1,
+        ]);
+
+        // derive beta_1
+        let beta_1 = transcript.challenge_scalar(b"challenge");
+
+        // currently we use the same beta as randomness, this can later change
+        let beta_1_non_native = convert_field_one_to_field_two::<G1::ScalarField, G1::BaseField>(beta_1);
+
+        assert_eq!(beta_1, self.beta_1);
+        assert_eq!(beta_1_non_native, self.beta_1_non_native);
+
+        // compute beta_2
+        let coordinates = get_affine_coords::<G2::BaseField, G2>(&ark_ec::CurveGroup::into_affine(self.cross_term_error_commitment_e));
+        transcript.append_scalars(b"add scalars", &[
+            coordinates.0,
+            coordinates.1,
+        ]);
+
+        // derive beta_2
+        let beta_2 = transcript.challenge_scalar(b"challenge");
+
+        // currently we use the same beta as randomness, this can later change
+        let beta_2_non_native = convert_field_one_to_field_two::<G1::ScalarField, G1::BaseField>(beta_2);
+
+        assert_eq!(beta_2, self.beta_2);
+        assert_eq!(beta_2_non_native, self.beta_2_non_native);
     }
 
     pub fn initialise(prover: NovaProver<F, G1, G2, C1, C2>) -> NovaAugmentedCircuit<F, G1, G2, C1, C2> where <G2 as CurveConfig>::ScalarField: Absorb {
-        let beta = prover.compute_beta();
+        let (beta, transcript) = prover.compute_beta();
         let beta_non_native = convert_field_one_to_field_two::<G1::ScalarField, G1::BaseField>(beta);
         let (final_instance, _, nova_cross_term_error) = prover.compute_final_accumulator(&beta);
-        let (final_cycle_fold_instance, _, cross_term_error_commitment_w, cross_term_error_commitment_e) = prover.compute_final_cycle_fold_instance(&beta);
+        let ((final_cycle_fold_instance, _), (cross_term_error_commitment_w, cross_term_error_commitment_e), (beta_1, beta_2)) = prover.compute_final_cycle_fold_instance();
+
+        let beta_1_non_native = convert_field_one_to_field_two::<G1::ScalarField, G1::BaseField>(beta_1);
+        let beta_2_non_native = convert_field_one_to_field_two::<G1::ScalarField, G1::BaseField>(beta_2);
 
         NovaAugmentedCircuit {
             running_instance: prover.running_accumulator.0.clone(),
@@ -105,6 +162,10 @@ where
             nova_cross_term_error,
             beta,
             beta_non_native,
+            beta_1,
+            beta_1_non_native,
+            beta_2,
+            beta_2_non_native,
             running_cycle_fold_instance: prover.cycle_fold_running_instance.clone(),
             final_cycle_fold_instance,
             auxiliary_input_W_var: prover.compute_auxiliary_input_W(&beta).0,
