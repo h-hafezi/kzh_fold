@@ -1,21 +1,12 @@
-use std::borrow::Borrow;
 use crate::gadgets::non_native::util::non_native_to_fpvar;
-use crate::hash::poseidon::{PoseidonHash, PoseidonHashVar};
+use crate::hash::poseidon::PoseidonHashVar;
 use crate::transcript::transcript::Transcript;
 use ark_crypto_primitives::sponge::Absorb;
-use ark_ec::CurveConfig;
-use ark_ec::pairing::Pairing;
-use ark_ec::short_weierstrass::{Affine, SWCurveConfig};
 use ark_ff::PrimeField;
-use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
+use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
-use ark_relations::ns;
-use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
-use crate::accumulation::accumulator::AccInstance;
-use crate::accumulation_circuit::affine_to_projective;
-use crate::accumulation_circuit::instance_circuit::AccumulatorInstanceVar;
-use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
+use ark_relations::r1cs::ConstraintSystemRef;
 
 pub struct TranscriptVar<F: PrimeField + Absorb> {
     // This will hold the current state of the transcript
@@ -105,7 +96,7 @@ mod tests {
     use crate::constant_for_curves::{BaseField, ScalarField};
     use crate::transcript::transcript::Transcript;
     use crate::transcript::transcript_var::TranscriptVar;
-    use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
+    use ark_r1cs_std::alloc::AllocVar;
     use ark_r1cs_std::fields::fp::FpVar;
     use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
     use ark_r1cs_std::R1CSVar;

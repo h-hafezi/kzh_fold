@@ -10,14 +10,13 @@ use super::errors::ProofVerifyError;
 use super::sumcheck::SumcheckInstanceProof;
 use super::timer::Timer;
 use crate::math::Math;
+use crate::nexus_spartan::sparse_polynomial::sparse_polynomial::SparsePoly;
 use crate::polynomial::eq_poly::eq_poly::EqPolynomial;
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript::{AppendToTranscript, Transcript};
 use ark_ec::pairing::Pairing;
-use ark_ff::{PrimeField};
+use ark_ff::PrimeField;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use crate::nexus_spartan::sparse_polynomial::sparse_polynomial::SparsePoly;
-use crate::nexus_spartan::sumcheck_circuit::sumcheck_circuit::SumcheckCircuit;
 
 #[derive(CanonicalSerialize, CanonicalDeserialize, Debug)]
 pub struct CRR1CSProof<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>, F: PrimeField + Absorb> {

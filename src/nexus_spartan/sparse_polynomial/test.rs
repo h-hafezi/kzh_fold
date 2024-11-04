@@ -1,6 +1,5 @@
 #[cfg(test)]
 mod test {
-    use super::*;
     use crate::constant_for_curves::ScalarField;
     use ark_ff::UniformRand;
     use ark_r1cs_std::fields::fp::FpVar;

@@ -2,20 +2,17 @@
 
 use crate::commitment::{CommitmentScheme, Len};
 use crate::gadgets::r1cs::r1cs::{commit_T, R1CSInstance, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness};
-use crate::gadgets::r1cs::{R1CSShape, RelaxedOvaWitness};
+use crate::gadgets::r1cs::R1CSShape;
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::short_weierstrass::{Projective, SWCurveConfig};
-use ark_ec::CurveGroup;
 use ark_ff::PrimeField;
 use ark_r1cs_std::alloc::AllocVar;
-use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef, SynthesisMode};
-use ark_std::iterable::Iterable;
-use rand::{thread_rng, Rng};
+use rand::{thread_rng};
 
 pub fn convert_constraint_system_into_instance_witness<F, C1, G1>(
-    mut cs: ConstraintSystemRef<F>,
+    cs: ConstraintSystemRef<F>,
     pp: &C1::PP,
 ) -> (R1CSShape<G1>, R1CSInstance<Projective<G1>, C1>, R1CSWitness<Projective<G1>>)
 where
@@ -118,20 +115,20 @@ pub fn get_random_relaxed_r1cs_instance_witness<F, C1, G1>(num_constraints: usiz
     // generate corresponding instance/witness
     let (shape1, instance1, witness1) = convert_constraint_system_into_instance_witness(cs1.clone(), pp);
     let (shape2, instance2, witness2) = convert_constraint_system_into_instance_witness(cs2.clone(), pp);
-    
+
     assert_eq!(shape1, shape2);
 
     // make instance1/witness1 into relaxed
     let relaxed_instance = RelaxedR1CSInstance::from(&instance1);
-    let relaxed_witness= RelaxedR1CSWitness::from_r1cs_witness(&shape1, &witness1);
+    let relaxed_witness = RelaxedR1CSWitness::from_r1cs_witness(&shape1, &witness1);
 
     shape1.is_relaxed_satisfied(&relaxed_instance, &relaxed_witness, pp).expect("not satisfied r1cs instance");
-    
+
     // fold the two instance/witness
-    
+
     let (t, com_t) = commit_T(&shape1, pp, &relaxed_instance, &relaxed_witness, &instance2, &witness2).unwrap();
     let folding_randomness = F::rand(&mut thread_rng());
-    
+
     let folded_instance = relaxed_instance.fold(&instance2, &com_t, &folding_randomness).unwrap();
     let folded_witness = relaxed_witness.fold(&witness2, &t, &folding_randomness).unwrap();
 
@@ -143,11 +140,11 @@ pub fn get_random_relaxed_r1cs_instance_witness<F, C1, G1>(num_constraints: usiz
 
 #[cfg(test)]
 mod tests {
-    use ark_ec::short_weierstrass::{Affine, Projective};
+    use crate::commitment::CommitmentScheme;
     use crate::constant_for_curves::{G1Projective, ScalarField, G1};
     use crate::gadgets::r1cs::conversion::{convert_constraint_system_into_instance_witness, generate_random_constraint_system, get_random_r1cs_instance_witness, get_random_relaxed_r1cs_instance_witness};
     use crate::hash::pederson::PedersenCommitment;
-    use crate::commitment::CommitmentScheme;
+    use ark_ec::short_weierstrass::Affine;
     use ark_r1cs_std::alloc::AllocVar;
     use ark_r1cs_std::eq::EqGadget;
     use ark_r1cs_std::fields::fp::FpVar;
@@ -173,7 +170,7 @@ mod tests {
 
         let pp: Vec<Affine<G1>> = C1::setup(cs.num_witness_variables(), b"test", &());
 
-        let (shape, u, w) = convert_constraint_system_into_instance_witness::<F, C1, G1>(cs.clone(),&pp);
+        let (shape, u, w) = convert_constraint_system_into_instance_witness::<F, C1, G1>(cs.clone(), &pp);
 
         // assert that it's in fact satisfied
         shape.is_satisfied(&u, &w, &pp).expect("cs is not satisfied");
@@ -195,14 +192,14 @@ mod tests {
         // assert the shape is well formatted
         assert_eq!((shape.num_io, shape.num_vars, shape.num_constraints), (num_io, num_vars + num_constraints, num_constraints));
     }
-    
+
     #[test]
     fn test_random_r1cs() {
         let (num_constraints, num_io, num_vars) = (10, 3, 7);
         let pp: Vec<Affine<G1>> = C1::setup(num_constraints + num_vars, b"test", &());
 
         let (shape, instance, witness) = get_random_r1cs_instance_witness::<F, C1, G1>(num_constraints, num_vars, num_io, &pp);
-        
+
         // assert it's satisfied
         shape.is_satisfied(&instance, &witness, &pp).expect("unsatisfied r1cs");
 

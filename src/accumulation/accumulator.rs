@@ -437,8 +437,8 @@ impl<E: Pairing> Accumulator<E> {
         let com2 = PCSEngine::commit(&srs.pc_srs,&polynomial2);
 
         // open the commitment
-        let open1 = PCSEngine::open(&srs.pc_srs,&polynomial1, com1.clone(), &x1);
-        let open2 = PCSEngine::open(&srs.pc_srs,&polynomial2, com2.clone(), &x2);
+        let open1 = PCSEngine::open(&polynomial1, com1.clone(), &x1);
+        let open2 = PCSEngine::open(&polynomial2, com2.clone(), &x2);
 
         // verify the proof
         assert!(PCSEngine::verify(&srs.pc_srs,&com1, &open1, &x1, &y1, &z1));
@@ -506,7 +506,7 @@ pub mod test {
             let srs = Accumulator::setup(srs_pcs.clone(), &mut thread_rng());
 
             let acc = Accumulator::random_satisfying_accumulator(&srs, &mut thread_rng());
-            let witness_len = degree_x*degree_y;
+            let witness_len = degree_x * degree_y;
             let witness_polynomial: MultilinearPolynomial<ScalarField> = MultilinearPolynomial::rand(degree_x.log_2() + degree_y.log_2(), &mut thread_rng());
 
             println!("witness length: {} ({} bytes compressed):\n\taccumulator size: {} bytes (compressed: {} bytes)\n\t\tinstance compressed: {} bytes\n\t\twitness compressed: {} bytes",

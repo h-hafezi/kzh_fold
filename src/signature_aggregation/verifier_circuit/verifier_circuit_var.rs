@@ -1,6 +1,4 @@
-use crate::accumulation::accumulator::AccInstance;
 use crate::accumulation_circuit::affine_to_projective;
-use crate::accumulation_circuit::instance_circuit::AccumulatorInstanceVar;
 use crate::commitment::CommitmentScheme;
 use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
 use crate::nexus_spartan::sumcheck_circuit::sumcheck_circuit_var::SumcheckCircuitVar;
@@ -12,7 +10,6 @@ use crate::transcript::transcript_var::TranscriptVar;
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
 use ark_ec::short_weierstrass::{Affine, Projective, SWCurveConfig};
-use ark_ec::CurveConfig;
 use ark_ff::PrimeField;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::eq::EqGadget;
@@ -24,7 +21,6 @@ use ark_r1cs_std::ToBitsGadget;
 use ark_relations::ns;
 use ark_relations::r1cs::{Namespace, SynthesisError};
 use std::borrow::Borrow;
-use std::marker::PhantomData;
 
 pub struct SignatureVerifierCircuitVar<F, G1, G2, C2>
 where
@@ -178,7 +174,7 @@ where
             mode,
         ).unwrap();
 
-        let bitfield_num_variables =  verifier_circuit.map(|e| e.bitfield_num_variables).unwrap();
+        let bitfield_num_variables = verifier_circuit.map(|e| e.bitfield_num_variables).unwrap();
 
         Ok(SignatureVerifierCircuitVar {
             pk_1_var,

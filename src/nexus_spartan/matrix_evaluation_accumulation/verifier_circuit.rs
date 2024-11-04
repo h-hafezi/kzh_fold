@@ -86,7 +86,7 @@ impl<F: PrimeField + Absorb> MatrixEvaluationAccVerifier<F> {
         ((folded_input_x, folded_input_y), next_evaluation)
     }
 
-    pub fn random_from_eval_point<R: Rng>(shape: &CRR1CSShape<F>, rx: Vec<F>, ry: Vec<F>, mut transcript: Transcript<F>, mut rng: R) -> Self {
+    pub fn random_from_eval_point<R: Rng>(shape: &CRR1CSShape<F>, rx: Vec<F>, ry: Vec<F>, mut rng: R) -> Self {
         // Generate random elements in the field for r_x_prime and r_y_prime
         let r_x_prime: Vec<F> = (0..rx.len()).map(|_| F::rand(&mut rng)).collect();
         let r_y_prime: Vec<F> = (0..ry.len()).map(|_| F::rand(&mut rng)).collect();
@@ -264,7 +264,7 @@ impl<F: PrimeField + Absorb> MatrixEvaluationAccVerifierVar<F> {
 pub mod tests {
     use crate::constant_for_curves::{ScalarField, E, G1};
     use crate::nexus_spartan::matrix_evaluation_accumulation::prover::tests::matrix_evaluation_setup;
-    use crate::nexus_spartan::matrix_evaluation_accumulation::prover::{compute_q, fold_matrices_evaluations};
+    use crate::nexus_spartan::matrix_evaluation_accumulation::prover::{fold_matrices_evaluations};
     use crate::nexus_spartan::matrix_evaluation_accumulation::verifier_circuit::{MatrixEvaluationAccVerifier, MatrixEvaluationAccVerifierVar};
     use crate::transcript::transcript::Transcript;
     use crate::transcript::transcript_var::TranscriptVar;
@@ -354,7 +354,7 @@ pub mod tests {
             verifier_transcript.clone(),
         );
 
-        let (beta, (q_A, q_B, q_C)) = fold_matrices_evaluations(
+        let (_, (q_A, q_B, q_C)) = fold_matrices_evaluations(
             &shape,
             (eval_point_1_x.clone(), eval_point_1_y.clone()),
             (eval_point_2_x.clone(), eval_point_2_y.clone()),

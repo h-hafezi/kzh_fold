@@ -1,17 +1,16 @@
 #[cfg(test)]
 mod tests {
-    use ark_crypto_primitives::sponge::Absorb;
-    use super::*;
     use crate::constant_for_curves::{ScalarField, E};
-    use crate::transcript::transcript::Transcript;
-    use crate::transcript::transcript_var::TranscriptVar;
-    use ark_ff::{PrimeField, UniformRand};
-    use ark_r1cs_std::prelude::*;
-    use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
-    use rand::{thread_rng, Rng};
     use crate::nexus_spartan::sumcheck_circuit::sumcheck_circuit::SumcheckCircuit;
     use crate::nexus_spartan::sumcheck_circuit::sumcheck_circuit_var::SumcheckCircuitVar;
     use crate::nexus_spartan::unipoly::unipoly::CompressedUniPoly;
+    use crate::transcript::transcript::Transcript;
+    use crate::transcript::transcript_var::TranscriptVar;
+    use ark_crypto_primitives::sponge::Absorb;
+    use ark_ff::{PrimeField};
+    use ark_r1cs_std::prelude::*;
+    use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
+    use rand::{thread_rng, Rng};
 
     // Mock implementation of CompressedUniPoly for test purposes
     impl<F: PrimeField + Absorb> CompressedUniPoly<F> {

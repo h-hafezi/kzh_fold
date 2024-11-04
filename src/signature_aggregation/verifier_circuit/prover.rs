@@ -140,7 +140,6 @@ mod test {
     use crate::nova::cycle_fold::coprocessor::setup_shape;
     use crate::signature_aggregation::verifier_circuit::prover::SignatureVerifierProver;
     use ark_ec::short_weierstrass::{Affine, Projective};
-    use ark_std::UniformRand;
     use rand::thread_rng;
 
     type GrumpkinCurveGroup = ark_grumpkin::Projective;

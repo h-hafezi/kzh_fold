@@ -14,10 +14,8 @@ use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
-use ark_r1cs_std::groups::curves::short_weierstrass::ProjectiveVar;
-use ark_r1cs_std::R1CSVar;
 use ark_relations::ns;
-use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
+use ark_relations::r1cs::{Namespace, SynthesisError};
 use std::borrow::Borrow;
 
 pub struct SpartanPartialVerifierVar<F: PrimeField + Absorb, G1>

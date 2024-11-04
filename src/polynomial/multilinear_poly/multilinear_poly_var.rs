@@ -107,12 +107,11 @@ mod tests {
     use crate::constant_for_curves::ScalarField;
     use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
     use crate::polynomial::multilinear_poly::multilinear_poly_var::MultilinearPolynomialVar;
+    use crate::polynomial::{field_vector_into_fpvar, get_random_vector};
     use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
     use ark_r1cs_std::R1CSVar;
     use ark_relations::r1cs::ConstraintSystem;
-    use ark_std::UniformRand;
     use rand::thread_rng;
-    use crate::polynomial::{field_vector_into_fpvar, get_random_vector};
 
     type F = ScalarField;
 
@@ -131,7 +130,7 @@ mod tests {
         // test .value() function to see if works correctly
         assert_eq!(polynomial, polynomial_var.value().unwrap());
 
-        let r :Vec<F> = get_random_vector(num_variables, &mut thread_rng());
+        let r: Vec<F> = get_random_vector(num_variables, &mut thread_rng());
         let r_var = field_vector_into_fpvar(cs.clone(), r.as_slice());
 
         // test .evaluate() works correctly

@@ -1,8 +1,8 @@
-use std::ops::Mul;
-use ark_ec::AffineRepr;
 use ark_ec::pairing::Pairing;
+use ark_ec::AffineRepr;
 use ark_std::UniformRand;
 use rand::Rng;
+use std::ops::Mul;
 
 pub struct BLS;
 
@@ -29,11 +29,10 @@ impl BLS {
 
 #[cfg(test)]
 mod tests {
-    use ark_ec::AffineRepr;
-    use ark_std::{test_rng, UniformRand};
-    use rand::thread_rng;
     use crate::constant_for_curves::{G2Affine, E};
     use crate::signature_aggregation::signature::BLS;
+    use ark_std::{test_rng, UniformRand};
+    use rand::thread_rng;
 
     #[test]
     fn test_bls_signature() {

@@ -1,4 +1,4 @@
-/*use crate::accumulation_circuit::verifier_circuit::{AccumulatorVerifier, AccumulatorVerifierVar};
+use crate::accumulation_circuit::verifier_circuit::{AccumulatorVerifier, AccumulatorVerifierVar};
 use crate::commitment::CommitmentScheme;
 use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
 use crate::nexus_spartan::matrix_evaluation_accumulation::verifier_circuit::{MatrixEvaluationAccVerifier, MatrixEvaluationAccVerifierVar};
@@ -19,10 +19,6 @@ use ark_r1cs_std::fields::FieldVar;
 use ark_relations::r1cs::{Namespace, SynthesisError};
 use itertools::izip;
 use std::borrow::Borrow;
-use rand::Rng;
-use crate::nexus_spartan::crr1cs::CRR1CSShape;
-use crate::nexus_spartan::matrix_evaluation_accumulation::prover::fold_matrices_evaluations;
-use crate::transcript::transcript::Transcript;
 
 pub struct SignatureAugmentedCircuit<G1, G2, C2, E, F>
 where
@@ -195,4 +191,4 @@ where
         ).expect("error while enforcing equality");
     }
 }
- */
+

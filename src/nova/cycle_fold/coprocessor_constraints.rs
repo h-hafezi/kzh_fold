@@ -16,7 +16,6 @@ use ark_r1cs_std::{
     groups::{curves::short_weierstrass::ProjectiveVar, CurveVar},
     select::CondSelectGadget,
     R1CSVar,
-    ToBitsGadget,
 };
 use ark_r1cs_std::eq::EqGadget;
 use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};

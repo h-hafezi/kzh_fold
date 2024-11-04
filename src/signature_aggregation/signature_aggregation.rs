@@ -1,11 +1,4 @@
-use ark_crypto_primitives::sponge::Absorb;
-use ark_ec::pairing::Pairing;
-use ark_ec::AffineRepr;
-use ark_ff::UniformRand;
-use ark_ff::PrimeField;
-use rand::RngCore;
 use crate::accumulation::accumulator::{AccInstance, AccSRS, Accumulator as KZHAccumulator};
-use crate::constant_for_curves::ScalarField;
 use crate::nexus_spartan::matrix_evaluation_accumulation::prover::MatrixEvaluationAccumulator;
 use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
 use crate::nexus_spartan::sumcheck::SumcheckInstanceProof;
@@ -13,7 +6,12 @@ use crate::pcs::multilinear_pcs::{split_between_x_and_y, PCSCommitment, PCSEngin
 use crate::polynomial::eq_poly::eq_poly::EqPolynomial;
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript::Transcript;
-use ark_ff::Zero;
+use ark_crypto_primitives::sponge::Absorb;
+use ark_ec::pairing::Pairing;
+use ark_ec::AffineRepr;
+use ark_ff::PrimeField;
+use ark_ff::UniformRand;
+use rand::RngCore;
 
 #[derive(Clone, Debug)]
 pub struct SignatureAggrSRS<E: Pairing> {
@@ -117,7 +115,7 @@ where
 
         // Perform the sig aggr sumcheck
         let (sumcheck_proof, rho) = perform_sig_aggr_sumcheck::<E, F>(&b_1_poly, &b_2_poly, &c_poly,
-                                                              &mut transcript);
+                                                                      &mut transcript);
 
         // Get the accumulator for the sumcheck
         let (b_1_at_rho, b_2_at_rho, c_at_rho, sumcheck_eval_KZH_accumulator) =
@@ -152,8 +150,8 @@ where
 impl<E, F> SignatureAggrAccumulator<E, F>
 where
     <E as Pairing>::ScalarField: Absorb,
-   <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb,
-   <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
+    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb,
+    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
     E: Pairing<ScalarField=F>,
     F: PrimeField + Absorb,
 {
@@ -166,7 +164,7 @@ where
 
         Self {
             A_B_C_eval_accumulator: A_B_C_acc,
-            KZH_accumulator: kzh_acc
+            KZH_accumulator: kzh_acc,
         }
     }
 }
@@ -221,14 +219,14 @@ pub fn perform_sig_aggr_sumcheck<E, F>(
     transcript: &mut Transcript<F>,
 ) -> (SumcheckInstanceProof<F>, Vec<F>)
 where
-    E: Pairing<ScalarField = F>,
+    E: Pairing<ScalarField=F>,
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
     F: PrimeField + Absorb,
 {
     let vec_r = transcript.challenge_vector(b"vec_r", b_1_poly.num_variables);
     let union_comb_func =
         |eq_poly: &F, b_1_poly: &F, b_2_poly: &F, c_poly: &F|
-             -> F { *eq_poly * (*b_1_poly + *b_2_poly - *b_1_poly * *b_2_poly - *c_poly) };
+         -> F { *eq_poly * (*b_1_poly + *b_2_poly - *b_1_poly * *b_2_poly - *c_poly) };
 
     // Start preparing for the sumcheck
     let num_rounds = c_poly.num_variables;
@@ -262,11 +260,11 @@ fn get_accumulator_from_evaluation<E, F>(acc_srs: &AccSRS<E>,
                                          eval_point: &Vec<F>,
 ) -> KZHAccumulator<E>
 where
-    E: Pairing<ScalarField = F>,
+    E: Pairing<ScalarField=F>,
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
     F: PrimeField + Absorb,
 {
-    let bitfield_commitment=MultilinearPolynomial::commit(
+    let bitfield_commitment = MultilinearPolynomial::commit(
         bitfield_poly,
         &acc_srs.pc_srs,
     );
@@ -275,7 +273,7 @@ where
         Some(&bitfield_commitment),
         &bitfield_poly,
         eval_point,
-        &acc_srs.pc_srs
+        &acc_srs.pc_srs,
     );
 
 
@@ -322,7 +320,7 @@ pub fn compute_signature_aggr_KZH_accumulator<E, F>(
     transcript: &mut Transcript<F>,
 ) -> (F, F, F, KZHAccumulator<E>)
 where
-    E: Pairing<ScalarField = F>,
+    E: Pairing<ScalarField=F>,
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
     F: PrimeField + Absorb,
 {
@@ -548,7 +546,7 @@ where
 #[cfg(test)]
 pub mod test {
     use super::*;
-    use crate::constant_for_curves::{ScalarField, G2Affine, G1Affine, E};
+    use crate::constant_for_curves::{G1Affine, G2Affine, ScalarField, E};
 
     type F = ScalarField;
 
@@ -578,7 +576,7 @@ pub mod test {
 
         ////////////// Aggregation ////////////////
 
-        let alice  = AggregatorIVC {
+        let alice = AggregatorIVC {
             srs: srs.clone(),
             running_bitfield_poly: alice_bitfield,
             running_bitfield_commitment: alice_bitfield_commitment,

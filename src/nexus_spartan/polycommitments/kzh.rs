@@ -57,7 +57,7 @@ where
         let length_x = ck.get_x_length();
         let length_y = ck.get_y_length();
         let (x, _) = split_between_x_and_y::<F>(length_x, length_y, r, F::ZERO);
-        PCSEngine::open(&ck, &poly, C.unwrap().clone(), x.as_slice())
+        PCSEngine::open(&poly, C.unwrap().clone(), x.as_slice())
     }
 
     fn verify(commitment: &Self::Commitment, proof: &Self::PolyCommitmentProof, ck: &Self::EvalVerifierKey, r: &[F], eval: &F) -> Result<(), PCSError> {

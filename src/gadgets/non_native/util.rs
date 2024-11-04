@@ -1,13 +1,10 @@
-use ark_crypto_primitives::merkle_tree::constraints::ConfigGadget;
-use ark_ec::AffineRepr;
 use ark_ec::pairing::Pairing;
-use ark_ec::short_weierstrass::SWCurveConfig;
+use ark_ec::AffineRepr;
 use ark_ff::{AdditiveGroup, BigInteger, Field, PrimeField};
 use ark_r1cs_std::boolean::Boolean;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
-use ark_r1cs_std::{ToBitsGadget, ToConstraintFieldGadget};
-use crate::constant_for_curves::{ScalarField, G1};
+use ark_r1cs_std::{ToBitsGadget};
 
 pub fn non_native_to_fpvar<ScalarField, BaseField>(
     non_native_var: &NonNativeFieldVar<BaseField, ScalarField>,
@@ -43,7 +40,7 @@ where
 pub fn convert_field_one_to_field_two<Fr, Fq>(first_field: Fr) -> Fq
 where
     Fr: PrimeField,
-    Fq: PrimeField ,
+    Fq: PrimeField,
 {
     // Convert the Fr element to its big integer representation
     let bytes = first_field.into_bigint().to_bytes_le();
@@ -57,7 +54,7 @@ where
 #[cfg(test)]
 mod tests {
     use ark_ff::PrimeField;
-    use ark_r1cs_std::alloc::{AllocationMode, AllocVar};
+    use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
     use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
     use ark_r1cs_std::R1CSVar;
     use ark_relations::r1cs::ConstraintSystem;

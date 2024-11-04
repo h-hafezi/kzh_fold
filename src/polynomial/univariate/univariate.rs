@@ -1,5 +1,4 @@
-use ark_crypto_primitives::sponge::Absorb;
-use ark_ff::{PrimeField, Field};
+use ark_ff::{PrimeField};
 use ark_std::vec::Vec;
 
 
@@ -74,11 +73,11 @@ impl<F: PrimeField> PolynomialInterpolator<F> {
 
 #[cfg(test)]
 mod test {
+    use crate::constant_for_curves::ScalarField;
+    use crate::polynomial::univariate::univariate::PolynomialInterpolator;
     use ark_ff::Field;
     use ark_std::UniformRand;
     use rand::thread_rng;
-    use crate::constant_for_curves::ScalarField;
-    use crate::polynomial::univariate::univariate::PolynomialInterpolator;
 
     type F = ScalarField;
 

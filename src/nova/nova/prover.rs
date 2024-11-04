@@ -10,9 +10,8 @@ use crate::nova::cycle_fold::coprocessor::{setup_shape, synthesize, SecondaryCir
 use crate::nova::nova::get_affine_coords;
 use crate::transcript::transcript::Transcript;
 use ark_crypto_primitives::sponge::Absorb;
-use ark_ec::pairing::Pairing;
 use ark_ec::short_weierstrass::{Affine, Projective, SWCurveConfig};
-use ark_ec::{AffineRepr, CurveConfig, CurveGroup};
+use ark_ec::{CurveConfig, CurveGroup};
 use ark_ff::PrimeField;
 
 pub struct NovaProver<F, G1, G2, C1, C2>
@@ -42,8 +41,8 @@ where
     /// running cycle fold instance
     pub ova_shape: R1CSShape<G2>,
     pub ova_commitment_pp: <C2 as CommitmentScheme<Projective<G2>>>::PP,
-    pub cycle_fold_running_instance: RelaxedOvaInstance<G2, C2>,
-    pub cycle_fold_running_witness: RelaxedOvaWitness<G2>,
+    pub ova_running_instance: RelaxedOvaInstance<G2, C2>,
+    pub ova_running_witness: RelaxedOvaWitness<G2>,
 }
 
 impl<F, G1, G2, C1, C2> NovaProver<F, G1, G2, C1, C2>
@@ -58,7 +57,7 @@ where
     C2: CommitmentScheme<Projective<G2>, PP=Vec<Affine<G2>>, SetupAux=()>,
     <G2 as CurveConfig>::ScalarField: Absorb,
 {
-    pub fn compute_cross_term_error(&self) -> Projective<G1> {
+    pub fn compute_nova_cross_term_error(&self) -> Projective<G1> {
         let (_, com_t) = R1CS_commit_T(&self.shape,
                                        &self.commitment_pp,
                                        &self.running_accumulator.0,
@@ -72,7 +71,7 @@ where
 
     pub fn compute_beta(&self) -> (F, Transcript<F>) {
         // turn the cross term error for nova into affine
-        let affine: Affine<G1> = CurveGroup::into_affine(self.compute_cross_term_error());
+        let affine: Affine<G1> = CurveGroup::into_affine(self.compute_nova_cross_term_error());
         let (com_T_x, com_T_y) = get_affine_coords(&affine);
 
         // make a new transcript and add with the following order: running accumulator instance + current accumulator instance + cross term error
@@ -102,21 +101,21 @@ where
         let folded_instance = self.running_accumulator.0.fold(
             &self.current_accumulator.0,
             &nova_cross_term_error_commitment,
-            &beta
+            &beta,
         ).unwrap();
 
         // folding two witnesses
         let folded_witness = self.running_accumulator.1.fold(
             &self.current_accumulator.1,
             &nova_cross_term_error,
-            &beta
+            &beta,
         ).unwrap();
 
         (folded_instance, folded_witness, nova_cross_term_error_commitment)
     }
 
-    pub fn compute_auxiliary_input_E(&self, beta: &F) -> (OvaInstance<G2, C2>, OvaWitness<G2>) {
-        let g1 = self.compute_cross_term_error();
+    pub fn compute_ova_auxiliary_input_E(&self, beta: &F) -> (OvaInstance<G2, C2>, OvaWitness<G2>) {
+        let g1 = self.compute_nova_cross_term_error();
         let g2 = affine_to_projective(self.running_accumulator.0.commitment_E.into());
 
         let g_out = (g1 * beta) + g2;
@@ -130,7 +129,7 @@ where
         }, &self.ova_commitment_pp[0..self.ova_shape.num_vars].to_vec()).unwrap()
     }
 
-    pub fn compute_auxiliary_input_W(&self, beta: &F) -> (OvaInstance<G2, C2>, OvaWitness<G2>) {
+    pub fn compute_ova_auxiliary_input_W(&self, beta: &F) -> (OvaInstance<G2, C2>, OvaWitness<G2>) {
         let g1 = affine_to_projective(self.current_accumulator.0.commitment_W.into());
         let g2 = affine_to_projective(self.running_accumulator.0.commitment_W.into());
         let g_out = (g1 * beta) + g2;
@@ -144,19 +143,19 @@ where
         }, &self.ova_commitment_pp[0..self.ova_shape.num_vars].to_vec()).unwrap()
     }
 
-    pub fn compute_final_cycle_fold_instance(&self) -> ((RelaxedOvaInstance<G2, C2>, RelaxedOvaWitness<G2>), (C2::Commitment, C2::Commitment), (F, F)) {
+    pub fn compute_ova_final_instance(&self) -> ((RelaxedOvaInstance<G2, C2>, RelaxedOvaWitness<G2>), (C2::Commitment, C2::Commitment), (F, F)) {
         // get the random challenge beta
         let (beta, mut transcript) = self.compute_beta();
 
         // get the ova instance/witness for computing the new witness
-        let (ova_instance_w, ova_witness_w) = self.compute_auxiliary_input_W(&beta);
+        let (ova_instance_w, ova_witness_w) = self.compute_ova_auxiliary_input_W(&beta);
 
         // get the cross term proof
         let (cross_term_error_w, cross_term_error_commitment_w) = Ova_commit_T(
             &self.ova_shape,
             &self.ova_commitment_pp[self.ova_shape.num_vars..].to_vec(),
-            &self.cycle_fold_running_instance,
-            &self.cycle_fold_running_witness,
+            &self.ova_running_instance,
+            &self.ova_running_witness,
             &ova_instance_w,
             &ova_witness_w,
         ).unwrap();
@@ -175,20 +174,20 @@ where
         let beta_1_non_native = convert_field_one_to_field_two::<G1::ScalarField, G1::BaseField>(beta_1);
 
         // compute the folded instance and folded witness
-        let folded_instance = self.cycle_fold_running_instance.fold(
+        let folded_instance = self.ova_running_instance.fold(
             &ova_instance_w,
             &cross_term_error_commitment_w,
             &beta_1_non_native,
         ).expect("folding instance error");
 
-        let folded_witness = self.cycle_fold_running_witness.fold(
+        let folded_witness = self.ova_running_witness.fold(
             &ova_witness_w,
             &cross_term_error_w,
             &beta_1_non_native,
         ).expect("folding witness error");
 
         // compute ova instance / witness for the error term
-        let (ova_instance_e, ova_witness_e) = self.compute_auxiliary_input_E(&beta);
+        let (ova_instance_e, ova_witness_e) = self.compute_ova_auxiliary_input_E(&beta);
 
         // compute the cross term error
         let (cross_term_error_e, cross_term_error_commitment_e) = Ova_commit_T(
@@ -263,8 +262,8 @@ where
             current_accumulator: (instance, witness),
             running_accumulator: (relaxed_instance, relaxed_witness),
             ova_commitment_pp,
-            cycle_fold_running_instance: RelaxedOvaInstance::new(&ova_shape),
-            cycle_fold_running_witness: RelaxedOvaWitness::zero(&ova_shape),
+            ova_running_instance: RelaxedOvaInstance::new(&ova_shape),
+            ova_running_witness: RelaxedOvaWitness::zero(&ova_shape),
             ova_shape,
         }
     }
@@ -289,8 +288,8 @@ mod test {
 
         prover.shape.is_relaxed_satisfied(&folded_accumulator.0, &folded_accumulator.1, &prover.commitment_pp).unwrap();
 
-        let circuit_e = prover.compute_auxiliary_input_E(&beta);
-        let circuit_w = prover.compute_auxiliary_input_W(&beta);
+        let circuit_e = prover.compute_ova_auxiliary_input_E(&beta);
+        let circuit_w = prover.compute_ova_auxiliary_input_W(&beta);
 
         // assert both instances are satisfied
         prover.ova_shape.is_ova_satisfied(&circuit_e.0, &circuit_e.1, &prover.ova_commitment_pp).unwrap();
@@ -302,7 +301,7 @@ mod test {
         let secondary_circuit_E = circuit_e.0.parse_secondary_io::<G1>().unwrap();
         assert_eq!(secondary_circuit_E.g_out, folded_accumulator.0.commitment_E);
 
-        let ((final_ova_instance, final_ova_witness), (com_w, com_e), (beta_1, beta_2)) = prover.compute_final_cycle_fold_instance();
+        let ((final_ova_instance, final_ova_witness), (_, _), (_, _)) = prover.compute_ova_final_instance();
         prover.ova_shape.is_relaxed_ova_satisfied(&final_ova_instance, &final_ova_witness, &prover.ova_commitment_pp).unwrap()
     }
 }

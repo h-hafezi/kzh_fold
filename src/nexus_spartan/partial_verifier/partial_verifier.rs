@@ -5,7 +5,7 @@ use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
 use crate::nexus_spartan::sparse_polynomial::sparse_polynomial::SparsePoly;
 use crate::nexus_spartan::sumcheck_circuit::sumcheck_circuit::SumcheckCircuit;
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
-use crate::transcript::transcript::{AppendToTranscript, Transcript};
+use crate::transcript::transcript::{Transcript};
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
 use ark_ec::AffineRepr;

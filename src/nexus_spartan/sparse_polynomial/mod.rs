@@ -1,11 +1,9 @@
-use ark_ff::PrimeField;
-use ark_r1cs_std::boolean::Boolean;
-use ark_r1cs_std::fields::fp::FpVar;
-use ark_r1cs_std::ToBitsGadget;
-
 pub mod sparse_polynomial;
+
 pub mod sparse_polynomial_var;
+
 mod test;
+
 mod uint32;
 
 /*

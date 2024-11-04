@@ -1,8 +1,7 @@
 use ark_std::fmt;
 
-use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::{AdditiveGroup, CurveGroup};
-use ark_ff::{Field, PrimeField};
+use ark_ff::{Field};
 use ark_relations::r1cs::ConstraintSystemRef;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::fmt::Display;

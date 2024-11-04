@@ -1,11 +1,10 @@
 use crate::commitment::CommitmentScheme;
-use crate::gadgets::absorb::{r1cs_instance_to_sponge_vector, r1cs_instance_var_to_sponge_vector, relaxed_r1cs_instance_to_sponge_vector, relaxed_r1cs_instance_var_to_sponge_vector};
+use crate::gadgets::absorb::{r1cs_instance_var_to_sponge_vector, relaxed_r1cs_instance_var_to_sponge_vector};
 use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
 use crate::gadgets::r1cs::r1cs_var::{R1CSInstanceVar, RelaxedR1CSInstanceVar};
-use crate::gadgets::r1cs::{OvaInstance, R1CSInstance, RelaxedOvaInstance, RelaxedR1CSInstance};
 use crate::nova::cycle_fold::coprocessor_constraints::{OvaInstanceVar, RelaxedOvaInstanceVar};
+use crate::nova::nova::get_affine_var_coords;
 use crate::nova::nova::verifier_circuit::NovaAugmentedCircuit;
-use crate::transcript::transcript::Transcript;
 use crate::transcript::transcript_var::TranscriptVar;
 use ark_crypto_primitives::sponge::constraints::AbsorbGadget;
 use ark_crypto_primitives::sponge::Absorb;
@@ -18,11 +17,10 @@ use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
 use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::curves::short_weierstrass::ProjectiveVar;
-use ark_r1cs_std::{R1CSVar, ToBitsGadget};
+use ark_r1cs_std::{ToBitsGadget};
 use ark_relations::ns;
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, Namespace, SynthesisError};
 use std::borrow::Borrow;
-use crate::nova::nova::get_affine_var_coords;
 
 pub struct NovaAugmentedCircuitVar<F, G1, G2, C1, C2>
 where
@@ -165,14 +163,14 @@ where
         // Allocation for running_cycle_fold_instance
         let running_cycle_fold_instance = RelaxedOvaInstanceVar::new_variable(
             ns!(cs, "running_cycle_fold_instance"),
-            || circuit.map(|e| e.running_cycle_fold_instance.clone()),
+            || circuit.map(|e| e.running_ova_instance.clone()),
             mode,
         )?;
 
         // Allocation for final_cycle_fold_instance
         let final_cycle_fold_instance = RelaxedOvaInstanceVar::new_variable(
             ns!(cs, "final_cycle_fold_instance"),
-            || circuit.map(|e| e.final_cycle_fold_instance.clone()),
+            || circuit.map(|e| e.final_ova_instance.clone()),
             mode,
         )?;
 
@@ -312,7 +310,7 @@ where
         // derive beta_1 and its consistency checks
         transcript.append_scalars(
             b"add scalars",
-            get_affine_var_coords(&self.cross_term_error_commitment_w.to_affine()?).as_slice()
+            get_affine_var_coords(&self.cross_term_error_commitment_w.to_affine()?).as_slice(),
         );
         let beta_1 = transcript.challenge_scalar(b"challenge");
         beta_1.enforce_equal(&self.beta_1).expect("error while enforcing equality");
@@ -322,7 +320,7 @@ where
         // derive beta_2 and its consistency checks
         transcript.append_scalars(
             b"add scalars",
-            get_affine_var_coords(&self.cross_term_error_commitment_e.to_affine()?).as_slice()
+            get_affine_var_coords(&self.cross_term_error_commitment_e.to_affine()?).as_slice(),
         );
         let beta_2 = transcript.challenge_scalar(b"challenge");
         beta_2.enforce_equal(&self.beta_2).expect("error while enforcing equality");

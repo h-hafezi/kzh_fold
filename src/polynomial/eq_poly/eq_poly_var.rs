@@ -1,7 +1,7 @@
 use crate::math::Math;
 use crate::polynomial::eq_poly::eq_poly::EqPolynomial;
 use ark_crypto_primitives::sponge::Absorb;
-use ark_ff::{Field, PrimeField};
+use ark_ff::{PrimeField};
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
@@ -105,7 +105,6 @@ mod tests {
     use crate::polynomial::eq_poly::eq_poly_var::EqPolynomialVar;
     use crate::polynomial::{field_vector_into_fpvar, get_random_vector};
     use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
-    use ark_r1cs_std::fields::fp::FpVar;
     use ark_r1cs_std::R1CSVar;
     use ark_relations::r1cs::ConstraintSystem;
     use ark_std::UniformRand;

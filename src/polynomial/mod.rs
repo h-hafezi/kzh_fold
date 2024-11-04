@@ -3,7 +3,7 @@ use ark_ff::{Field, PrimeField};
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_relations::r1cs::ConstraintSystemRef;
-use rand::{thread_rng, RngCore};
+use rand::RngCore;
 
 pub mod eq_poly;
 
@@ -46,10 +46,10 @@ pub fn get_random_vector<F: PrimeField, T: RngCore>(n: usize, rng: &mut T) -> Ve
 pub fn field_vector_into_fpvar<F: PrimeField>(cs: ConstraintSystemRef<F>, input: &[F]) -> Vec<FpVar<F>> {
     input.iter()
         .map(|i| FpVar::new_variable(
-                cs.clone(),
-                || Ok(i.clone()),
-                AllocationMode::Witness,
-            ).unwrap()
+            cs.clone(),
+            || Ok(i.clone()),
+            AllocationMode::Witness,
+        ).unwrap()
         ).collect()
 }
 

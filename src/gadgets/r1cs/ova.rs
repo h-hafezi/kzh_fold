@@ -1,14 +1,12 @@
 use crate::commitment::{CommitmentScheme, Len};
 use crate::gadgets::r1cs::r1cs::{Error, R1CSShape};
-use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::CurveGroup;
-use ark_ff::{AdditiveGroup, PrimeField};
+use ark_ff::{AdditiveGroup};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use rayon::iter::{
     IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator, ParallelIterator,
 };
 use std::fmt;
-use crate::gadgets::r1cs::R1CSInstance;
 
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
 pub struct OvaInstance<G: CurveGroup, C: CommitmentScheme<G>> {

@@ -1,15 +1,14 @@
-use crate::commitment::{Commitment, CommitmentScheme};
+use crate::commitment::{CommitmentScheme};
+use crate::gadgets::absorb::{r1cs_instance_to_sponge_vector, relaxed_r1cs_instance_to_sponge_vector};
 use crate::gadgets::non_native::util::convert_field_one_to_field_two;
 use crate::gadgets::r1cs::{OvaInstance, R1CSInstance, RelaxedOvaInstance, RelaxedR1CSInstance};
-use crate::nova::nova::prover::NovaProver;
-use ark_crypto_primitives::sponge::Absorb;
-use ark_ec::{AffineRepr, CurveConfig, CurveGroup};
-use ark_ec::pairing::Pairing;
-use ark_ec::short_weierstrass::{Affine, Projective, SWCurveConfig};
-use ark_ff::PrimeField;
-use crate::gadgets::absorb::{r1cs_instance_to_sponge_vector, relaxed_r1cs_instance_to_sponge_vector};
 use crate::nova::nova::get_affine_coords;
+use crate::nova::nova::prover::NovaProver;
 use crate::transcript::transcript::Transcript;
+use ark_crypto_primitives::sponge::Absorb;
+use ark_ec::short_weierstrass::{Affine, Projective, SWCurveConfig};
+use ark_ec::{AffineRepr, CurveConfig, CurveGroup};
+use ark_ff::PrimeField;
 
 #[derive(Clone)]
 pub struct NovaAugmentedCircuit<F, G1, G2, C1, C2>
@@ -19,8 +18,8 @@ where
     G1::ScalarField: PrimeField + Absorb,
     G2: SWCurveConfig<BaseField=F> + Clone,
     G2::BaseField: PrimeField,
-    C1: CommitmentScheme<Projective<G1>, PP=Vec<Affine<G1>>, Commitment=Projective<G1>, SetupAux = ()>,
-    C2: CommitmentScheme<Projective<G2>, PP=Vec<Affine<G2>>, Commitment=Projective<G2>, SetupAux = ()>,
+    C1: CommitmentScheme<Projective<G1>, PP=Vec<Affine<G1>>, Commitment=Projective<G1>, SetupAux=()>,
+    C2: CommitmentScheme<Projective<G2>, PP=Vec<Affine<G2>>, Commitment=Projective<G2>, SetupAux=()>,
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField>,
     F: PrimeField,
 {
@@ -44,8 +43,8 @@ where
     pub beta_2_non_native: G1::BaseField,
 
     /// running cycle fold instance
-    pub running_cycle_fold_instance: RelaxedOvaInstance<G2, C2>,
-    pub final_cycle_fold_instance: RelaxedOvaInstance<G2, C2>,
+    pub running_ova_instance: RelaxedOvaInstance<G2, C2>,
+    pub final_ova_instance: RelaxedOvaInstance<G2, C2>,
 
     /// auxiliary input which helps to have W = W_1 + beta * W_2 without scalar multiplication
     pub auxiliary_input_W_var: OvaInstance<G2, C2>,
@@ -64,8 +63,8 @@ where
     G1::ScalarField: PrimeField + Absorb,
     G2: SWCurveConfig<BaseField=F> + Clone,
     G2::BaseField: PrimeField,
-    C1: CommitmentScheme<Projective<G1>, PP=Vec<Affine<G1>>, Commitment=Projective<G1>, SetupAux = ()>,
-    C2: CommitmentScheme<Projective<G2>, PP=Vec<Affine<G2>>, Commitment=Projective<G2>, SetupAux = ()>,
+    C1: CommitmentScheme<Projective<G1>, PP=Vec<Affine<G1>>, Commitment=Projective<G1>, SetupAux=()>,
+    C2: CommitmentScheme<Projective<G2>, PP=Vec<Affine<G2>>, Commitment=Projective<G2>, SetupAux=()>,
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField>,
     F: PrimeField,
 {
@@ -96,12 +95,12 @@ where
 
         let expected_final_cycle_fold_instance = {
             // fold the running cycle fold instance with auxiliary input W using randomness beta_1
-            let temp = self.running_cycle_fold_instance.fold(&self.auxiliary_input_W_var, &self.cross_term_error_commitment_w, &self.beta_1_non_native).expect("TODO: panic message");
+            let temp = self.running_ova_instance.fold(&self.auxiliary_input_W_var, &self.cross_term_error_commitment_w, &self.beta_1_non_native).expect("TODO: panic message");
             // fold the running cycle fold instance with auxiliary input E using randomness beta_2
             temp.fold(&self.auxiliary_input_E_var, &self.cross_term_error_commitment_e, &self.beta_2_non_native).expect("TODO: panic message")
         };
 
-        assert_eq!(expected_final_cycle_fold_instance, self.final_cycle_fold_instance);
+        assert_eq!(expected_final_cycle_fold_instance, self.final_ova_instance);
 
         // compute beta
         let affine: Affine<G1> = CurveGroup::into_affine(self.nova_cross_term_error);
@@ -147,11 +146,15 @@ where
         assert_eq!(beta_2_non_native, self.beta_2_non_native);
     }
 
-    pub fn initialise(prover: NovaProver<F, G1, G2, C1, C2>) -> NovaAugmentedCircuit<F, G1, G2, C1, C2> where <G2 as CurveConfig>::ScalarField: Absorb {
-        let (beta, transcript) = prover.compute_beta();
+    pub fn initialise(prover: NovaProver<F, G1, G2, C1, C2>) -> NovaAugmentedCircuit<F, G1, G2, C1, C2>
+    where
+        <G2 as CurveConfig>::ScalarField: Absorb,
+    {
+        // we don't use the transcript output by prover.compute_beta() since function compute_final_ova_instance calls this internally
+        let (beta, _) = prover.compute_beta();
         let beta_non_native = convert_field_one_to_field_two::<G1::ScalarField, G1::BaseField>(beta);
         let (final_instance, _, nova_cross_term_error) = prover.compute_final_accumulator(&beta);
-        let ((final_cycle_fold_instance, _), (cross_term_error_commitment_w, cross_term_error_commitment_e), (beta_1, beta_2)) = prover.compute_final_cycle_fold_instance();
+        let ((final_cycle_fold_instance, _), (cross_term_error_commitment_w, cross_term_error_commitment_e), (beta_1, beta_2)) = prover.compute_ova_final_instance();
 
         let beta_1_non_native = convert_field_one_to_field_two::<G1::ScalarField, G1::BaseField>(beta_1);
         let beta_2_non_native = convert_field_one_to_field_two::<G1::ScalarField, G1::BaseField>(beta_2);
@@ -167,10 +170,10 @@ where
             beta_1_non_native,
             beta_2,
             beta_2_non_native,
-            running_cycle_fold_instance: prover.cycle_fold_running_instance.clone(),
-            final_cycle_fold_instance,
-            auxiliary_input_W_var: prover.compute_auxiliary_input_W(&beta).0,
-            auxiliary_input_E_var: prover.compute_auxiliary_input_E(&beta).0,
+            running_ova_instance: prover.ova_running_instance.clone(),
+            final_ova_instance: final_cycle_fold_instance,
+            auxiliary_input_W_var: prover.compute_ova_auxiliary_input_W(&beta).0,
+            auxiliary_input_E_var: prover.compute_ova_auxiliary_input_E(&beta).0,
             cross_term_error_commitment_w,
             cross_term_error_commitment_e,
         }

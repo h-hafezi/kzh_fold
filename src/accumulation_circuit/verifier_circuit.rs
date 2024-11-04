@@ -396,8 +396,8 @@ where
 
         // check out the result z_c_var is consistent with result_acc
         self.final_accumulator_instance_var.z_var.enforce_equal(
-            &self.beta_var * &self.running_accumulator_instance_var.z_var +
-                &beta_minus_one * &self.current_accumulator_instance_var.z_var
+            &(&self.beta_var * &self.running_accumulator_instance_var.z_var +
+                &beta_minus_one * &self.current_accumulator_instance_var.z_var)
         ).unwrap();
 
         // todo: try later to have different randomness for each of these instances

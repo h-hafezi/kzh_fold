@@ -2,20 +2,16 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::needless_range_loop)]
 
-use crate::nexus_spartan::errors::ProofVerifyError;
-use crate::nexus_spartan::polycommitments::{PCSKeys, PolyCommitmentScheme};
-use crate::nexus_spartan::product_tree::{DotProductCircuit, ProductCircuit, ProductCircuitEvalProofBatched};
-use crate::nexus_spartan::timer::Timer;
 use crate::math::Math;
+use crate::nexus_spartan::polycommitments::{PCSKeys, PolyCommitmentScheme};
 use crate::polynomial::eq_poly::eq_poly::EqPolynomial;
-use crate::polynomial::identity::IdentityPolynomial;
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript::{AppendToTranscript, Transcript};
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
-use ark_ff::{PrimeField};
+use ark_ff::PrimeField;
 use ark_serialize::*;
-use ark_std::{cmp::max};
+use ark_std::cmp::max;
 
 #[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
 pub struct SparseMatEntry<F: PrimeField> {

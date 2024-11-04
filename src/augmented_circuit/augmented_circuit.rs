@@ -2,27 +2,24 @@ use crate::accumulation_circuit::instance_circuit::AccumulatorInstanceVar;
 use crate::accumulation_circuit::verifier_circuit::{AccumulatorVerifier, AccumulatorVerifierVar};
 use crate::commitment::CommitmentScheme;
 use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
+use crate::nexus_spartan::matrix_evaluation_accumulation::verifier_circuit::{MatrixEvaluationAccVerifier, MatrixEvaluationAccVerifierVar};
 use crate::nexus_spartan::partial_verifier::partial_verifier::SpartanPartialVerifier;
 use crate::nexus_spartan::partial_verifier::partial_verifier_var::SpartanPartialVerifierVar;
 use crate::nova::cycle_fold::coprocessor_constraints::RelaxedOvaInstanceVar;
 use crate::pcs::multilinear_pcs::split_between_x_and_y;
 use crate::transcript::transcript_var::TranscriptVar;
-use ark_std::{end_timer, start_timer};
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
 use ark_ec::short_weierstrass::{Affine, Projective, SWCurveConfig};
-use ark_ec::{AffineRepr, CurveConfig};
 use ark_ff::PrimeField;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
-use ark_r1cs_std::R1CSVar;
 use ark_relations::r1cs::{Namespace, SynthesisError};
+use ark_std::{end_timer, start_timer};
 use itertools::izip;
 use std::borrow::Borrow;
-use digest::Mac;
-use crate::nexus_spartan::matrix_evaluation_accumulation::verifier_circuit::{MatrixEvaluationAccVerifier, MatrixEvaluationAccVerifierVar};
 
 type Output<'a, G2, C2, G1, F> = (&'a RelaxedOvaInstanceVar<G2, C2>, &'a AccumulatorInstanceVar<G1>, Vec<FpVar<F>>, Vec<FpVar<F>>);
 
@@ -168,7 +165,6 @@ mod tests {
     use crate::accumulation::accumulator::Accumulator;
     use crate::accumulation_circuit::prover::AccumulatorVerifierCircuitProver;
     use crate::constant_for_curves::{ScalarField, C2, E, G1, G2};
-    use crate::hash::pederson::PedersenCommitment;
     use crate::nexus_spartan::crr1cs::is_sat;
     use crate::nexus_spartan::crr1cs::produce_synthetic_crr1cs;
     use crate::nexus_spartan::crr1csproof::CRR1CSProof;
@@ -176,15 +172,12 @@ mod tests {
     use crate::nexus_spartan::polycommitments::{PolyCommitmentScheme, ToAffine};
     use crate::nova::cycle_fold::coprocessor::setup_shape;
     use crate::pcs::multilinear_pcs::PCSEngine;
+    use crate::pcs::multilinear_pcs::PolynomialCommitmentSRS;
     use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
-    use crate::pcs::multilinear_pcs::{PolynomialCommitmentSRS};
     use crate::transcript::transcript::Transcript;
     use ark_ff::AdditiveGroup;
-    use ark_r1cs_std::prelude::Boolean;
     use ark_relations::r1cs::{ConstraintSystem, SynthesisMode};
-    use ark_std::UniformRand;
     use rand::thread_rng;
-    use crate::nexus_spartan::matrix_evaluation_accumulation::prover::fold_matrices_evaluations;
 
     type F = ScalarField;
 
@@ -334,7 +327,6 @@ mod tests {
             &spartan_shape,
             rx,
             ry,
-            prover.final_transcript.clone(),
             &mut thread_rng(),
         );
 

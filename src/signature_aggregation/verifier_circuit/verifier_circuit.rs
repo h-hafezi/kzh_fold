@@ -1,7 +1,6 @@
 use crate::commitment::CommitmentScheme;
 use crate::gadgets::r1cs::{OvaInstance, RelaxedOvaInstance};
 use crate::nexus_spartan::sumcheck_circuit::sumcheck_circuit::SumcheckCircuit;
-use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
 use ark_ec::short_weierstrass::{Affine, Projective, SWCurveConfig};

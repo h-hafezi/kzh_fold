@@ -3,7 +3,6 @@ use std::ops::{Add, Mul};
 
 use ark_ec::pairing::Pairing;
 use ark_ec::{CurveGroup, VariableBaseMSM};
-use ark_ff::{AdditiveGroup, Zero};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::UniformRand;
 use derivative::Derivative;
@@ -175,7 +174,7 @@ impl PCSEngine {
 
     /// Creates a KZH proof for p(x,y) = z.
     /// This function does not actually need y, so we only get the left half of the eval point.
-    pub fn open<E: Pairing>(srs: &PolynomialCommitmentSRS<E>, poly: &MultilinearPolynomial<E::ScalarField>, com: PCSCommitment<E>, x: &[E::ScalarField]) -> PCSOpeningProof<E> {
+    pub fn open<E: Pairing>(poly: &MultilinearPolynomial<E::ScalarField>, com: PCSCommitment<E>, x: &[E::ScalarField]) -> PCSOpeningProof<E> {
         PCSOpeningProof {
             vec_D: {
                 let mut vec = Vec::new();
@@ -189,11 +188,11 @@ impl PCSEngine {
     }
 
     pub fn verify<E: Pairing>(srs: &PolynomialCommitmentSRS<E>,
-                  C: &PCSCommitment<E>,
-                  proof: &PCSOpeningProof<E>,
-                  x: &[E::ScalarField],
-                  y: &[E::ScalarField],
-                  z: &E::ScalarField,
+                              C: &PCSCommitment<E>,
+                              proof: &PCSOpeningProof<E>,
+                              x: &[E::ScalarField],
+                              y: &[E::ScalarField],
+                              z: &E::ScalarField,
     ) -> bool {
         // first condition
         let pairing_rhs = E::multi_pairing(proof.vec_D.clone(), &srs.vec_V);
@@ -357,7 +356,7 @@ pub mod test {
         let com = PCSEngine::commit(&srs, &polynomial);
 
         // open the commitment
-        let open = PCSEngine::open(&srs, &polynomial, com.clone(), &x);
+        let open = PCSEngine::open(&polynomial, com.clone(), &x);
 
         // re compute x and y
         // verify the proof
@@ -403,7 +402,7 @@ pub mod test {
         let P = PCSEngine::commit(&srs, &p_x);
 
         // Open p_x at rho
-        let proof_P_at_rho = PCSEngine::open(&srs, &p_x, P.clone(), &rho_first_half);
+        let proof_P_at_rho = PCSEngine::open(&p_x, P.clone(), &rho_first_half);
         let p_at_rho = p_x.evaluate(&rho);
 
         // Verifier:

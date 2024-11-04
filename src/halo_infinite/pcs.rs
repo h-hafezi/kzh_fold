@@ -1,6 +1,5 @@
 /// This is basically KZG with a modified Eval function
 
-
 /// Prover for PCS:
 /// Step 1) Run the HPI protocol
 /// Step 2) Run a KZG eval on the log verification scalars
@@ -12,13 +11,12 @@
 
 #[cfg(test)]
 mod tests {
+    use crate::kzg::{trim, KZG10};
     use ark_bn254::{Bn254, Fr};
     use ark_ec::pairing::Pairing;
-    use ark_poly::{DenseUVPolynomial, Polynomial};
     use ark_poly::univariate::DensePolynomial;
+    use ark_poly::{DenseUVPolynomial, Polynomial};
     use ark_std::{test_rng, UniformRand};
-    use crate::kzg::{trim, KZG10};
-    use super::*;
 
     type F = Fr;
     type E = Bn254;

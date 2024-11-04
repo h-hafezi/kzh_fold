@@ -165,7 +165,7 @@ pub mod tests {
     use crate::nexus_spartan::conversion::tests::TrivialCircuit;
     use crate::nexus_spartan::crr1cs::{is_sat, CRR1CSInstance, CRR1CSKey, CRR1CSShape, CRR1CSWitness};
     use crate::nexus_spartan::crr1csproof::CRR1CSProof;
-    use crate::nexus_spartan::matrix_evaluation_accumulation::prover::{compute_q, fold_matrices_evaluations};
+    use crate::nexus_spartan::matrix_evaluation_accumulation::prover::fold_matrices_evaluations;
     use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
     use crate::pcs::multilinear_pcs::PolynomialCommitmentSRS;
     use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
@@ -269,7 +269,7 @@ pub mod tests {
                 proof_A.evaluate(beta),
                 proof_B.evaluate(beta),
                 proof_C.evaluate(beta),
-            )
+            ),
         );
 
 

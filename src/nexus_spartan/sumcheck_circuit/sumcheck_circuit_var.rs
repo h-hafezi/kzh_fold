@@ -1,4 +1,6 @@
-use std::borrow::Borrow;
+use crate::nexus_spartan::sumcheck_circuit::sumcheck_circuit::SumcheckCircuit;
+use crate::nexus_spartan::unipoly::unipoly_var::{CompressedUniPolyVar, UniPolyVar};
+use crate::transcript::transcript_var::{AppendToTranscriptVar, TranscriptVar};
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ff::PrimeField;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
@@ -6,10 +8,7 @@ use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::R1CSVar;
 use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
-use crate::nexus_spartan::sumcheck_circuit::sumcheck_circuit::SumcheckCircuit;
-use crate::nexus_spartan::unipoly::unipoly::CompressedUniPoly;
-use crate::nexus_spartan::unipoly::unipoly_var::{CompressedUniPolyVar, UniPolyVar};
-use crate::transcript::transcript_var::{AppendToTranscriptVar, TranscriptVar};
+use std::borrow::Borrow;
 
 pub struct SumcheckCircuitVar<F: PrimeField + Absorb> {
     pub compressed_polys: Vec<CompressedUniPolyVar<F>>,
@@ -86,7 +85,7 @@ impl<F: PrimeField + Absorb> AllocVar<SumcheckCircuit<F>, F> for SumcheckCircuit
         let claim_var = FpVar::new_variable(
             cs.clone(),
             || Ok(sumcheck_circuit.claim),
-            mode
+            mode,
         ).unwrap();
 
         // Directly set the `num_rounds` and `degree_bound` without allocation
