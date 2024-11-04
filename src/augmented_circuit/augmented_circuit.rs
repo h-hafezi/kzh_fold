@@ -201,7 +201,14 @@ mod tests {
 
         // this generates a new instance/witness for spartan as well as PCS parameters
         let (spartan_shape, instance, witness, gens) = produce_synthetic_crr1cs::<E, MultilinearPolynomial<F>>(num_cons, num_vars, num_inputs);
-        assert!(is_sat(&spartan_shape, &instance, &witness, &gens.gens_r1cs_sat).unwrap());
+        assert!(
+            is_sat(
+                &spartan_shape,
+                &instance,
+                &witness,
+                &gens.gens_r1cs_sat
+            ).unwrap()
+        );
 
         let (num_cons, num_vars, _num_inputs) = (
             spartan_shape.get_num_cons(),
