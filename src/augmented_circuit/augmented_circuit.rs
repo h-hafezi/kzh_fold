@@ -21,7 +21,11 @@ use ark_std::{end_timer, start_timer};
 use itertools::izip;
 use std::borrow::Borrow;
 
-type Output<'a, G2, C2, G1, F> = (&'a RelaxedOvaInstanceVar<G2, C2>, &'a AccumulatorInstanceVar<G1>, Vec<FpVar<F>>, Vec<FpVar<F>>);
+type Output<'a, G2, C2, G1, F> = (
+    (&'a RelaxedOvaInstanceVar<G2, C2>, &'a AccumulatorInstanceVar<G1>),  // accumulator final instance, Ova final instance
+    (Vec<FpVar<F>>, Vec<FpVar<F>>), // r_x, r_y
+    (Vec<FpVar<F>>, Vec<FpVar<F>>, (FpVar<F>, FpVar<F>, FpVar<F>)), // (vector_x, vector_y, evaluations)
+);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AugmentedCircuit<G1, G2, C2, E, F>
@@ -154,7 +158,7 @@ where
             &self.kzh_acc_verifier.current_accumulator_instance_var.C_var,
         ).expect("error while enforcing equality");
 
-        (final_cycle_fold_instance, final_accumulator_instance, rx, ry)
+        ((final_cycle_fold_instance, final_accumulator_instance), (rx, ry), (vector_x, vector_y, evaluations))
     }
 }
 

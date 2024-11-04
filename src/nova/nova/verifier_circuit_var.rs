@@ -54,17 +54,17 @@ where
     pub beta_2_non_native: NonNativeFieldVar<G1::BaseField, G1::ScalarField>,
 
     /// running cycle fold instance
-    pub running_cycle_fold_instance: RelaxedOvaInstanceVar<G2, C2>,
-    pub final_cycle_fold_instance: RelaxedOvaInstanceVar<G2, C2>,
+    pub ova_running_instance: RelaxedOvaInstanceVar<G2, C2>,
+    pub ova_final_instance: RelaxedOvaInstanceVar<G2, C2>,
 
     /// auxiliary input which helps to have W = W_1 + beta * W_2 without scalar multiplication
-    pub auxiliary_input_W_var: OvaInstanceVar<G2, C2>,
+    pub ova_auxiliary_input_W: OvaInstanceVar<G2, C2>,
     /// auxiliary input which helps to have E = E_1 + beta * com_T without scalar multiplication
-    pub auxiliary_input_E_var: OvaInstanceVar<G2, C2>,
+    pub ova_auxiliary_input_E: OvaInstanceVar<G2, C2>,
 
     /// accumulation proof for cycle fold (this is also the order of accumulating with cycle_fold_running_instance)
-    pub cross_term_error_commitment_w: ProjectiveVar<G2, FpVar<G2::BaseField>>,
-    pub cross_term_error_commitment_e: ProjectiveVar<G2, FpVar<G2::BaseField>>,
+    pub ova_cross_term_error_commitment_w: ProjectiveVar<G2, FpVar<G2::BaseField>>,
+    pub ova_cross_term_error_commitment_e: ProjectiveVar<G2, FpVar<G2::BaseField>>,
 }
 
 impl<F, G1, G2, C1, C2> AllocVar<NovaAugmentedCircuit<F, G1, G2, C1, C2>, G1::ScalarField> for NovaAugmentedCircuitVar<F, G1, G2, C1, C2>
@@ -175,28 +175,28 @@ where
         )?;
 
         // Allocation for auxiliary_input_W_var
-        let auxiliary_input_W_var = OvaInstanceVar::new_variable(
+        let ova_auxiliary_input_W = OvaInstanceVar::new_variable(
             ns!(cs, "auxiliary_input_W_var"),
             || circuit.map(|e| e.auxiliary_input_W_var.clone()),
             mode,
         )?;
 
         // Allocation for auxiliary_input_E_var
-        let auxiliary_input_E_var = OvaInstanceVar::new_variable(
+        let ova_auxiliary_input_E = OvaInstanceVar::new_variable(
             ns!(cs, "auxiliary_input_E_var"),
             || circuit.map(|e| e.auxiliary_input_E_var.clone()),
             mode,
         )?;
 
         // Allocation for cross_term_error_commitment_w
-        let cross_term_error_commitment_w = ProjectiveVar::new_variable(
+        let ova_cross_term_error_commitment_w = ProjectiveVar::new_variable(
             ns!(cs, "cross_term_error_commitment_w"),
             || circuit.map(|e| e.cross_term_error_commitment_w.clone()),
             mode,
         )?;
 
         // Allocation for cross_term_error_commitment_e
-        let cross_term_error_commitment_e = ProjectiveVar::new_variable(
+        let ova_cross_term_error_commitment_e = ProjectiveVar::new_variable(
             ns!(cs, "cross_term_error_commitment_e"),
             || circuit.map(|e| e.cross_term_error_commitment_e.clone()),
             mode,
@@ -213,12 +213,12 @@ where
             beta_1_non_native,
             beta_2,
             beta_2_non_native,
-            running_cycle_fold_instance,
-            final_cycle_fold_instance,
-            auxiliary_input_W_var,
-            auxiliary_input_E_var,
-            cross_term_error_commitment_w,
-            cross_term_error_commitment_e,
+            ova_running_instance: running_cycle_fold_instance,
+            ova_final_instance: final_cycle_fold_instance,
+            ova_auxiliary_input_W,
+            ova_auxiliary_input_E,
+            ova_cross_term_error_commitment_w,
+            ova_cross_term_error_commitment_e,
         })
     }
 }
@@ -252,7 +252,7 @@ where
             g1,
             g2,
             g_out
-        ) = self.auxiliary_input_W_var.parse_secondary_io::<G1>().unwrap();
+        ) = self.ova_auxiliary_input_W.parse_secondary_io::<G1>().unwrap();
 
         r.enforce_equal(&self.beta_non_native).expect("error while enforcing equality");
         flag.enforce_equal(&NonNativeFieldVar::one()).expect("error while enforcing equality");
@@ -267,7 +267,7 @@ where
             g1,
             g2,
             g_out
-        ) = self.auxiliary_input_E_var.parse_secondary_io::<G1>().unwrap();
+        ) = self.ova_auxiliary_input_E.parse_secondary_io::<G1>().unwrap();
 
         r.enforce_equal(&self.beta_non_native).expect("error while enforcing equality");
         flag.enforce_equal(&NonNativeFieldVar::one()).expect("error while enforcing equality");
@@ -280,14 +280,14 @@ where
         let beta_1_bits: Vec<Boolean<F>> = self.beta_1_non_native.to_bits_le().unwrap();
         let beta_2_bits: Vec<Boolean<F>> = self.beta_2_non_native.to_bits_le().unwrap();
 
-        let final_instance = self.running_cycle_fold_instance.fold(
-            &[((&self.auxiliary_input_W_var, None), &self.cross_term_error_commitment_w, &self.beta_1_non_native, &beta_1_bits),
-                ((&self.auxiliary_input_E_var, None), &self.cross_term_error_commitment_e, &self.beta_2_non_native, &beta_2_bits)
+        let final_instance = self.ova_running_instance.fold(
+            &[((&self.ova_auxiliary_input_W, None), &self.ova_cross_term_error_commitment_w, &self.beta_1_non_native, &beta_1_bits),
+                ((&self.ova_auxiliary_input_E, None), &self.ova_cross_term_error_commitment_e, &self.beta_2_non_native, &beta_2_bits)
             ]
         ).unwrap();
 
-        self.final_cycle_fold_instance.X.enforce_equal(&final_instance.X).expect("panic");
-        self.final_cycle_fold_instance.commitment.enforce_equal(&final_instance.commitment).expect("panic");
+        self.ova_final_instance.X.enforce_equal(&final_instance.X).expect("panic");
+        self.ova_final_instance.commitment.enforce_equal(&final_instance.commitment).expect("panic");
 
 
         // compute beta, beta_1, beta_2 and check their correctness as well consistency with their non-native representation
@@ -310,7 +310,7 @@ where
         // derive beta_1 and its consistency checks
         transcript.append_scalars(
             b"add scalars",
-            get_affine_var_coords(&self.cross_term_error_commitment_w.to_affine()?).as_slice(),
+            get_affine_var_coords(&self.ova_cross_term_error_commitment_w.to_affine()?).as_slice(),
         );
         let beta_1 = transcript.challenge_scalar(b"challenge");
         beta_1.enforce_equal(&self.beta_1).expect("error while enforcing equality");
@@ -320,7 +320,7 @@ where
         // derive beta_2 and its consistency checks
         transcript.append_scalars(
             b"add scalars",
-            get_affine_var_coords(&self.cross_term_error_commitment_e.to_affine()?).as_slice(),
+            get_affine_var_coords(&self.ova_cross_term_error_commitment_e.to_affine()?).as_slice(),
         );
         let beta_2 = transcript.challenge_scalar(b"challenge");
         beta_2.enforce_equal(&self.beta_2).expect("error while enforcing equality");
