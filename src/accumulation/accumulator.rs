@@ -306,15 +306,15 @@ where
                     len: witness_1.f_star_poly.len(),
                 },
                 tree_x: EqTree {
-                    nodes: witness_2.tree_x.nodes.iter()
-                        .zip(witness_1.tree_x.nodes.iter())
+                    nodes: witness_2.tree_x.nodes.par_iter()
+                        .zip(witness_1.tree_x.nodes.par_iter())
                         .map(|(&w2, &w1)| w2 * two - w1)
                         .collect(),
                     depth: witness_1.tree_x.depth,
                 },
                 tree_y: EqTree {
-                    nodes: witness_2.tree_y.nodes.iter()
-                        .zip(witness_1.tree_y.nodes.iter())
+                    nodes: witness_2.tree_y.nodes.par_iter()
+                        .zip(witness_1.tree_y.nodes.par_iter())
                         .map(|(&w2, &w1)| w2 * two - w1)
                         .collect(),
                     depth: witness_1.tree_y.depth,
@@ -378,16 +378,33 @@ where
             &witness.f_star_poly.evaluation_over_boolean_hypercube,
             &acc.witness.tree_y.get_leaves(),
         ) - instance.z;
-        let E_G = {
-            let lhs = E::G1::msm_unchecked(
-                srs.pc_srs.vec_H.as_slice(),
-                witness.f_star_poly.evaluation_over_boolean_hypercube.as_slice(),
+
+        // Optimize E_G computation by doing one big MSM
+        let E_G =
+        {
+            // Prepare the right-hand-side scalars to be negated
+            let tree_x_leaves = acc.witness.tree_x.get_leaves();
+            let negated_tree_x_leaves: Vec<E::ScalarField> = tree_x_leaves.iter().map(|&x| -x).collect();
+
+            // Concatenate the scalar vectors
+            let mut scalars = Vec::with_capacity(
+                witness.f_star_poly.evaluation_over_boolean_hypercube.len() + negated_tree_x_leaves.len(),
             );
-            let rhs = E::G1::msm_unchecked(
-                witness.vec_D.as_slice(),
-                acc.witness.tree_x.get_leaves(),
+            scalars.extend_from_slice(
+                witness
+                    .f_star_poly
+                    .evaluation_over_boolean_hypercube
+                    .as_slice(),
             );
-            lhs.sub(rhs)
+            scalars.extend_from_slice(&negated_tree_x_leaves);
+
+
+            // Concatenate the base point vectors
+            let mut bases = Vec::with_capacity(srs.pc_srs.vec_H.len() + witness.vec_D.len());
+            bases.extend_from_slice(srs.pc_srs.vec_H.as_slice());
+            bases.extend_from_slice(witness.vec_D.as_slice());
+
+            E::G1::msm_unchecked(&bases, &scalars)
         };
 
         let error_tree_x = acc.witness.tree_x.difference(acc.instance.x.as_slice());
