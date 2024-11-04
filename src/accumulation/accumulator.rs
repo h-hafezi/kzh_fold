@@ -1,5 +1,7 @@
 use std::ops::{Add, Mul, Neg, Sub};
-
+use rayon::iter::IntoParallelRefIterator;
+use rayon::iter::ParallelIterator;
+use rayon::iter::IndexedParallelIterator;
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
 use ark_ec::{AffineRepr, CurveGroup, VariableBaseMSM};
@@ -196,13 +198,13 @@ where
 
         // get the accumulated witness
         let new_witness = AccWitness {
-            vec_D: witness_1.vec_D.iter().zip(witness_2.vec_D.iter())
+            vec_D: witness_1.vec_D.par_iter().zip(witness_2.vec_D.par_iter())
                 .map(|(&d_1, &d_2)| d_1.mul(one_minus_beta).add(d_2.mul(beta)).into_affine())
                 .collect(),
             f_star_poly: MultilinearPolynomial {
                 num_variables: witness_1.f_star_poly.num_variables,
-                evaluation_over_boolean_hypercube: witness_1.f_star_poly.evaluation_over_boolean_hypercube.iter()
-                    .zip(witness_2.f_star_poly.evaluation_over_boolean_hypercube.iter())
+                evaluation_over_boolean_hypercube: witness_1.f_star_poly.evaluation_over_boolean_hypercube.par_iter()
+                    .zip(witness_2.f_star_poly.evaluation_over_boolean_hypercube.par_iter())
                     .map(
                         |(&a, &b)|
                             a * (one_minus_beta) + (b * beta)
@@ -211,8 +213,8 @@ where
                 len: witness_1.f_star_poly.len(),
             },
             tree_x: EqTree {
-                nodes: witness_1.tree_x.nodes.iter()
-                    .zip(witness_2.tree_x.nodes.iter())
+                nodes: witness_1.tree_x.nodes.par_iter()
+                    .zip(witness_2.tree_x.nodes.par_iter())
                     .map(
                         |(&a, &b)|
                             a * (one_minus_beta) + (b * beta)
@@ -221,8 +223,8 @@ where
                 depth: witness_1.tree_x.depth,
             },
             tree_y: EqTree {
-                nodes: witness_1.tree_y.nodes.iter()
-                    .zip(witness_2.tree_y.nodes.iter())
+                nodes: witness_1.tree_y.nodes.par_iter()
+                    .zip(witness_2.tree_y.nodes.par_iter())
                     .map(
                         |(&a, &b)|
                             a * (one_minus_beta) + (b * beta)
@@ -291,14 +293,14 @@ where
         // build the accumulator from linear combination to run helper_function_V on it
         let temp_acc = Accumulator {
             witness: AccWitness {
-                vec_D: witness_2.vec_D.iter()
-                    .zip(witness_1.vec_D.iter())
+                vec_D: witness_2.vec_D.par_iter()
+                    .zip(witness_1.vec_D.par_iter())
                     .map(|(&d2, &d1)| d2.mul(two).sub(d1).into_affine())
                     .collect(),
                 f_star_poly: MultilinearPolynomial {
                     num_variables: witness_1.f_star_poly.num_variables,
-                    evaluation_over_boolean_hypercube: witness_2.f_star_poly.evaluation_over_boolean_hypercube.iter()
-                        .zip(witness_1.f_star_poly.evaluation_over_boolean_hypercube.iter())
+                    evaluation_over_boolean_hypercube: witness_2.f_star_poly.evaluation_over_boolean_hypercube.par_iter()
+                        .zip(witness_1.f_star_poly.evaluation_over_boolean_hypercube.par_iter())
                         .map(|(&e2, &e1)| e2 * two - e1)
                         .collect(),
                     len: witness_1.f_star_poly.len(),
@@ -324,12 +326,12 @@ where
                 T: E::G1Affine::zero(),
                 E: E::G1Affine::zero(),
                 // used by the helper function
-                x: instance_2.x.iter()
-                    .zip(instance_1.x.iter())
+                x: instance_2.x.par_iter()
+                    .zip(instance_1.x.par_iter())
                     .map(|(&e2, &e1)| e2 * two - e1)
                     .collect(),
-                y: instance_2.y.iter()
-                    .zip(instance_1.y.iter())
+                y: instance_2.y.par_iter()
+                    .zip(instance_1.y.par_iter())
                     .map(|(&e2, &e1)| e2 * two - e1)
                     .collect(),
                 z: two * instance_2.z - instance_1.z,
