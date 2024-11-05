@@ -1,4 +1,5 @@
 use crate::accumulation::accumulator::{AccInstance, AccSRS, Accumulator as KZHAccumulator, Accumulator};
+use crate::nexus_spartan::matrix_evaluation_accumulation::prover::MatrixEvaluationAccumulator;
 use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
 use crate::nexus_spartan::sumcheck::SumcheckInstanceProof;
 use crate::pcs::multilinear_pcs::{split_between_x_and_y, PCSCommitment, PCSEngine};
@@ -33,7 +34,7 @@ where
 
 /// This is the data sent by an aggregator node to the next aggregator node on the network
 #[derive(Clone, Debug)]
-pub struct SignatureAggregationRunningData<E, F>
+pub struct SignatureAggrData<E, F>
 where
     E: Pairing<ScalarField=F>,
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
@@ -71,15 +72,29 @@ where
     /// Accumulator for random evaluation of p(x) at rho:
     /// p(rho) = b_1(rho) + c_1 * b_2(rho) + c_2 * c(rho)
     pub sumcheck_eval_KZH_accumulator: KZHAccumulator<E>,
+
+    /////////////// Running accumulator `acc_i` //////////////////
+
+    // Running KZH accumulator (goes into 3-to-1)
+    // pub running_KZH_accumulator: Option<KZHAccumulator<E>>,
+
+    // Running multilinear eval accumulator
+    // pub running_A_B_C_eval_accumulator: ???
+
+    /////////////// IVC proof for all the previous steps `\pi_i` //////////////////
+
+    // The IVC proof contains a KZH accumulator and an A,B,C accumulator
+
+    // ivc_proof: Option<CRR1CSProof<E>>
 }
 
-impl<E, F> SignatureAggregationRunningData<E, F>
+impl<E, F> SignatureAggrData<E, F>
 where
     E: Pairing<ScalarField=F>,
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
     F: PrimeField + Absorb,
 {
-    /// Generate a random SignatureAggregationRunningData for a network participant
+    /// Generate a random SignatureAggrData for a network participant
     pub fn rand<R: RngCore>(num_vars: usize, srs: &AccSRS<E>, rng: &mut R) -> Self {
         let mut transcript = Transcript::<F>::new(b"aggr");
 
@@ -97,13 +112,9 @@ where
         let pk = E::G1Affine::rand(rng);
         // let message = E::G2Affine::rand(rng);
 
-        // Perform the signature aggregation sumcheck
-        let (sumcheck_proof, rho) = perform_sig_aggr_sumcheck::<E, F>(
-            &b_1_poly,
-            &b_2_poly,
-            &c_poly,
-            &mut transcript,
-        );
+        // Perform the sig aggr sumcheck
+        let (sumcheck_proof, rho) = perform_sig_aggr_sumcheck::<E, F>(&b_1_poly, &b_2_poly, &c_poly,
+                                                                      &mut transcript);
 
         // Get the accumulator for the sumcheck
         let (b_1_at_rho, b_2_at_rho, c_at_rho, sumcheck_eval_KZH_accumulator) =
@@ -125,6 +136,37 @@ where
     }
 }
 
+/// This struct represents an accumulator for the signature aggregation protocol
+pub struct SignatureAggrAccumulator<E, F>
+where
+    E: Pairing<ScalarField=F>,
+    F: PrimeField + Absorb,
+{
+    A_B_C_eval_accumulator: MatrixEvaluationAccumulator<F>,
+    KZH_accumulator: KZHAccumulator<E>,
+}
+
+impl<E, F> SignatureAggrAccumulator<E, F>
+where
+    <E as Pairing>::ScalarField: Absorb,
+    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb,
+    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
+    E: Pairing<ScalarField=F>,
+    F: PrimeField + Absorb,
+{
+    pub fn rand<R: RngCore>(srs: &AccSRS<E>, rng: &mut R) -> Self {
+        let kzh_acc = KZHAccumulator::random_satisfying_accumulator(srs, rng);
+
+        let x_len = srs.pc_srs.get_x_length();
+        let y_len = srs.pc_srs.get_y_length();
+        let A_B_C_acc: MatrixEvaluationAccumulator<F> = MatrixEvaluationAccumulator::rand(x_len, y_len, rng);
+
+        Self {
+            A_B_C_eval_accumulator: A_B_C_acc,
+            KZH_accumulator: kzh_acc,
+        }
+    }
+}
 
 /// This struct represents an IVC aggregator, Alice, that receives network data from a single party, Bob, and also has
 /// her own running accumulator. It aggregates the received data with the running accumulator and produces her own
@@ -151,7 +193,7 @@ where
     // pub message: E::G2Affine,
 
     // Data received from Bob
-    pub bob_data: SignatureAggregationRunningData<E, F>,
+    pub bob_data: SignatureAggrData<E, F>,
 }
 
 // Perform sumcheck for the following polynomial: eq(r,x) * (b_1 + b_2 - b_1 * b_2 - c)
@@ -305,7 +347,7 @@ where
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
     F: PrimeField + Absorb,
 {
-    pub fn aggregate(&self, transcript: &mut Transcript<F>) -> SignatureAggregationRunningData<E, F> {
+    pub fn aggregate(&self, transcript: &mut Transcript<F>) -> SignatureAggrData<E, F> {
 
         // Step 1:
         let pk = self.running_public_key + self.bob_data.pk;
@@ -352,7 +394,7 @@ where
         // let (ivc_proof, state_accumulator) = self.accumulate_everything(sumcheck_eval_accumulator, bob_accumulator, running_accumulator,
         //                                                                 bob_A_B_C_eval_accumulator, running_A_B_C_eval_accumulator);
 
-        SignatureAggregationRunningData {
+        SignatureAggrData {
             B_1_commitment: self.running_bitfield_commitment.clone(),
             B_2_commitment: self.bob_data.bitfield_commitment.clone(),
             bitfield_poly: c_poly,
@@ -381,7 +423,7 @@ where
     E: Pairing<ScalarField=F>,
 {
     pub srs: SignatureAggrSRS<E>,
-    pub A: SignatureAggregationRunningData<E, F>,
+    pub A: SignatureAggrData<E, F>,
 }
 
 impl<E, F> Verifier<E, F>
@@ -508,7 +550,7 @@ pub mod test {
         let srs = SignatureAggrSRS::<E>::new(degree_x, degree_y, rng);
 
         // Generate signature aggregation payload from Bob
-        let bob_data = SignatureAggregationRunningData::rand(num_vars, &srs.acc_srs, rng);
+        let bob_data = SignatureAggrData::rand(num_vars, &srs.acc_srs, rng);
 
         // Generate random running data for Alice
         let alice_bitfield = MultilinearPolynomial::random_binary(num_vars, rng);
