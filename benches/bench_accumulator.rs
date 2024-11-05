@@ -34,8 +34,8 @@ fn bench_prove(c: &mut Criterion) {
     let degrees = vec![(2, 2), (4, 4), (8, 8), (16, 16), (32, 32), (64, 64), (128, 128), (256, 256), (512, 512), (1024, 1024)];
     for (degree_x, degree_y) in degrees {
         let srs = get_srs(degree_x, degree_y);
-        let acc_1 = Accumulator::random_satisfying_accumulator(&srs, &mut thread_rng());
-        let acc_2 = Accumulator::random_satisfying_accumulator(&srs, &mut thread_rng());
+        let acc_1 = Accumulator::rand(&srs, &mut thread_rng());
+        let acc_2 = Accumulator::rand(&srs, &mut thread_rng());
         let bench_name = format!("prove for degrees n={} * m={} (witness size: {})", degree_x, degree_y, degree_x*degree_y);
         let mut transcript = Transcript::new(b"some label");
         c.bench_function(&bench_name, |b| {
@@ -50,8 +50,8 @@ fn bench_verify(c: &mut Criterion) {
     let degrees = vec![(2, 2), (4, 4), (8, 8), (16, 16), (32, 32), (64, 64), (128, 128), (256, 256), (512, 512), (1024, 1024)];
     for (degree_x, degree_y) in degrees {
         let srs = get_srs(degree_x, degree_y);
-        let acc_1 = Accumulator::random_satisfying_accumulator(&srs, &mut thread_rng());
-        let acc_2 = Accumulator::random_satisfying_accumulator(&srs, &mut thread_rng());
+        let acc_1 = Accumulator::rand(&srs, &mut thread_rng());
+        let acc_2 = Accumulator::rand(&srs, &mut thread_rng());
         let mut prover_transcript = Transcript::new(b"some label");
         let mut verifier_transcript = prover_transcript.clone();
         let (_, _, Q) = Accumulator::prove(&srs, &acc_1, &acc_2, &mut prover_transcript);
@@ -68,7 +68,7 @@ fn bench_decide(c: &mut Criterion) {
     let degrees = vec![(2, 2), (4, 4), (8, 8), (16, 16), (32, 32), (64, 64), (128, 128), (256, 256), (512, 512), (1024, 1024)];
     for (degree_x, degree_y) in degrees {
         let srs = get_srs(degree_x, degree_y);
-        let acc = Accumulator::random_satisfying_accumulator(&srs, &mut thread_rng());
+        let acc = Accumulator::rand(&srs, &mut thread_rng());
         let bench_name = format!("decide for degrees n={} * m={} (witness size: {})", degree_x, degree_y, degree_x*degree_y);
         c.bench_function(&bench_name, |b| {
             b.iter(|| {

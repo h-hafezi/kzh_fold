@@ -377,8 +377,8 @@ where
     let commitment_pp = AccumulatorVerifierCircuitProver::<G1, G2, C2, E, F>::get_commitment_pp(&shape);
 
     // get two random accumulators
-    let current_accumulator = Accumulator::random_satisfying_accumulator(&srs, &mut thread_rng());
-    let running_accumulator = Accumulator::random_satisfying_accumulator(&srs, &mut thread_rng());
+    let current_accumulator = Accumulator::rand(&srs, &mut thread_rng());
+    let running_accumulator = Accumulator::rand(&srs, &mut thread_rng());
 
 
     let prover: AccumulatorVerifierCircuitProver<G1, G2, C2, E, F> = AccumulatorVerifierCircuitProver::new(

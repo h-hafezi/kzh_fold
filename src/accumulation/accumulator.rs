@@ -107,7 +107,7 @@ where
         }
     }
 
-    pub fn new_accumulator(instance: &AccInstance<E>, witness: &AccWitness<E>) -> Accumulator<E> {
+    pub fn new(instance: &AccInstance<E>, witness: &AccWitness<E>) -> Accumulator<E> {
         Accumulator {
             witness: witness.clone(),
             instance: instance.clone(),
@@ -418,7 +418,7 @@ where
 }
 
 impl<E: Pairing> Accumulator<E> {
-    pub fn random_satisfying_accumulator<R: RngCore>(srs: &AccSRS<E>, rng: &mut R) -> Accumulator<E>
+    pub fn rand<R: RngCore>(srs: &AccSRS<E>, rng: &mut R) -> Accumulator<E>
     where
         <E as Pairing>::ScalarField: Absorb,
         <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb,
@@ -468,8 +468,8 @@ impl<E: Pairing> Accumulator<E> {
         let instance2 = Accumulator::new_accumulator_instance_from_fresh_kzh_instance(&srs, &com2.C, &x2, &y2, &z2);
         let witness2 = Accumulator::new_accumulator_witness_from_fresh_kzh_witness(&srs, open2, &x2, &y2);
 
-        let acc1 = Accumulator::new_accumulator(&instance1, &witness1);
-        let acc2 = Accumulator::new_accumulator(&instance2, &witness2);
+        let acc1 = Accumulator::new(&instance1, &witness1);
+        let acc2 = Accumulator::new(&instance2, &witness2);
         assert!(Accumulator::decide(&srs, &acc1));
         assert!(Accumulator::decide(&srs, &acc2));
 
@@ -477,7 +477,7 @@ impl<E: Pairing> Accumulator<E> {
 
         let (new_instance, new_witness, Q) = Accumulator::prove(&srs, &acc1, &acc2, &mut prover_transcript);
 
-        let new_acc = Accumulator::new_accumulator(&new_instance, &new_witness);
+        let new_acc = Accumulator::new(&new_instance, &new_witness);
         assert!(Accumulator::decide(&srs, &new_acc));
 
         new_acc
@@ -498,8 +498,8 @@ pub mod test {
         let srs_pcs: PolynomialCommitmentSRS<E> = PCSEngine::setup(degree_x, degree_y, &mut thread_rng());
         let srs = Accumulator::setup(srs_pcs.clone(), &mut thread_rng());
 
-        let acc1 = Accumulator::random_satisfying_accumulator(&srs, &mut thread_rng());
-        let acc2 = Accumulator::random_satisfying_accumulator(&srs, &mut thread_rng());
+        let acc1 = Accumulator::rand(&srs, &mut thread_rng());
+        let acc2 = Accumulator::rand(&srs, &mut thread_rng());
 
         let mut prover_transcript = Transcript::new(b"new_transcript");
         let mut verifier_transcript = prover_transcript.clone();
@@ -524,7 +524,7 @@ pub mod test {
             let srs_pcs: PolynomialCommitmentSRS<E> = PCSEngine::setup(degree_x, degree_y, &mut thread_rng());
             let srs = Accumulator::setup(srs_pcs.clone(), &mut thread_rng());
 
-            let acc = Accumulator::random_satisfying_accumulator(&srs, &mut thread_rng());
+            let acc = Accumulator::rand(&srs, &mut thread_rng());
             let witness_len = degree_x * degree_y;
             let witness_polynomial: MultilinearPolynomial<ScalarField> = MultilinearPolynomial::rand(degree_x.log_2() + degree_y.log_2(), &mut thread_rng());
 

@@ -291,7 +291,7 @@ mod tests {
             y.as_slice(),
         );
 
-        let current_acc = Accumulator::new_accumulator(&acc_instance, &acc_witness);
+        let current_acc = Accumulator::new(&acc_instance, &acc_witness);
 
         // Check that the accumulator is valid
         assert!(
@@ -303,7 +303,7 @@ mod tests {
 
         // ******************************* Get the running accumulator for the IVC scheme *******************************
 
-        let running_acc = Accumulator::random_satisfying_accumulator(&acc_srs, &mut thread_rng());
+        let running_acc = Accumulator::rand(&acc_srs, &mut thread_rng());
 
         // ******************************* Construct the KZH AccVerifier circuit *******************************
 

@@ -1,6 +1,7 @@
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ff::PrimeField;
 use rand::RngCore;
+use rayon::prelude::IntoParallelRefIterator;
 use crate::math::Math;
 use crate::nexus_spartan::crr1cs::CRR1CSShape;
 use crate::polynomial::univariate::univariate::PolynomialInterpolator;
@@ -94,12 +95,12 @@ pub fn compute_q<F: PrimeField + Absorb>(shape: &CRR1CSShape<F>,
         let beta = F::from(i as u128);
 
         // Perform the random combination for r_x_folded and r_y_folded
-        let folded_input_x: Vec<F> = eval_point_1_x.iter()
+        let folded_input_x: Vec<F> = eval_point_1_x.par_iter()
             .zip(eval_point_2_x.iter())
             .map(|(rx, rx_prime)| *rx * (F::one() - beta) + *rx_prime * beta)
             .collect();
 
-        let folded_input_y: Vec<F> = eval_point_1_y.iter()
+        let folded_input_y: Vec<F> = eval_point_1_y.par_iter()
             .zip(eval_point_2_y.iter())
             .map(|(ry, ry_prime)| *ry * (F::one() - beta) + *ry_prime * beta)
             .collect();

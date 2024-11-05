@@ -513,7 +513,7 @@ pub mod test {
         // Generate random running data for Alice
         let alice_bitfield = MultilinearPolynomial::random_binary(num_vars, rng);
         let alice_bitfield_commitment = PCSEngine::commit(&srs.acc_srs.pc_srs, &alice_bitfield);
-        let alice_running_accumulator = Accumulator::random_satisfying_accumulator(&srs.acc_srs, rng);
+        let alice_running_accumulator = Accumulator::rand(&srs.acc_srs, rng);
         let alice_running_sig = G2Affine::rand(rng);
         let alice_running_pk = G1Affine::rand(rng);
 
