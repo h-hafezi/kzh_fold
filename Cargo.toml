@@ -88,3 +88,7 @@ name = "bench_accumulator"
 [[bench]]
 harness = false
 name = "bench_witness_commitment"
+
+[[bench]]
+harness = false
+name = "bench_bls"
