@@ -73,14 +73,6 @@ where
     /// p(rho) = b_1(rho) + c_1 * b_2(rho) + c_2 * c(rho)
     pub sumcheck_eval_KZH_accumulator: KZHAccumulator<E>,
 
-    /////////////// Running accumulator `acc_i` //////////////////
-
-    // Running KZH accumulator (goes into 3-to-1)
-    // pub running_KZH_accumulator: Option<KZHAccumulator<E>>,
-
-    // Running multilinear eval accumulator
-    // pub running_A_B_C_eval_accumulator: ???
-
     /////////////// IVC proof for all the previous steps `\pi_i` //////////////////
 
     // The IVC proof contains a KZH accumulator and an A,B,C accumulator
@@ -383,11 +375,11 @@ where
         // Step 6: Aggregate accumulators 3-to-1:
         // Hossein: At this point we will also have two more KZH accumulators: one from our running accumulator, and another one from Bob
         // Hossein: Accumulate thet three accumulators into one
-        // let bob_KZH_accumulator = self.A_1.ivc_proof.KZH_accumulator;
+        // let bob_KZH_accumulator = self.bob_data.ivc_proof.KZH_accumulator;
         // let running_KZH_accumulator = self.running_accumulator.KZH_accumulator
 
         // Hossein: We will also have two A,B,C accumulators: one from our running accumulator, and one from Bob
-        // let bob_A_B_C_eval_accumulator = self.A_1.ivc_proof.A_B_C_eval_accumulator;
+        // let bob_A_B_C_eval_accumulator = self.bob_data.ivc_proof.A_B_C_eval_accumulator;
         // let running_A_B_C_eval_accumulator=  self.running_accumulator.A_B_C_eval_accumulator;
 
         // Hossein: Accumulate everything!
@@ -451,7 +443,7 @@ where
         )
     }
 
-    pub fn verify(&self, transcript: &mut Transcript<F>) -> (bool, Vec<F>) {
+    pub fn verify(&self, transcript: &mut Transcript<F>) -> (bool, Vec<F>, PCSCommitment<E>) {
         // Step 1: Get r challenge from verifier
         transcript.append_scalars_non_native::<<<E as Pairing>::G1Affine as AffineRepr>::BaseField>(
             b"poly",
@@ -483,27 +475,24 @@ where
         let c_at_rho = self.A.c_at_rho;
         assert_eq!(tensor_check_claim, eq_at_r_rho * (b_1_at_rho + b_2_at_rho - b_1_at_rho * b_2_at_rho - c_at_rho));
 
-        (true, rho)
-    }
-
-    pub fn decide(&self, transcript: &mut Transcript<F>, sumcheck_challenges: Vec<F>) -> bool {
-        let rho = sumcheck_challenges;
-        let b_1_at_rho = self.A.b_1_at_rho;
-        let b_2_at_rho = self.A.b_2_at_rho;
-        let c_at_rho = self.A.c_at_rho;
-
-        // Verify the accumulator
-        // Get c_1 and c_2 (XXX could also get just c and then compute c^2)
+        // Step 4: Compute aggregated commitment P to check against accumulator
         let vec_c: Vec<F> = transcript.challenge_vector(b"vec_c", 2);
-
-        // Now compute commitment to P using B_1, B_2, and C
         let mut c_1_times_B_2 = self.A.B_2_commitment.clone();
         c_1_times_B_2.scale_by_r(&vec_c[0]);
         let mut c_2_times_C = self.A.bitfield_commitment.clone();
         c_2_times_C.scale_by_r(&vec_c[1]);
         let P_commitment = self.A.B_1_commitment.clone() + c_1_times_B_2 + c_2_times_C;
 
-        // Now compute p(rho)
+        (true, rho, P_commitment)
+    }
+
+    pub fn decide(&self, P_commitment: PCSCommitment<E>, vec_c: Vec<F>, sumcheck_challenges: Vec<F>) -> bool {
+        let rho = sumcheck_challenges;
+        let b_1_at_rho = self.A.b_1_at_rho;
+        let b_2_at_rho = self.A.b_2_at_rho;
+        let c_at_rho = self.A.c_at_rho;
+
+        // Verify the accumulator
         let p_at_rho = b_1_at_rho + vec_c[0] * b_2_at_rho + vec_c[1] * c_at_rho;
 
         // Compute the decider's accumulator instance
