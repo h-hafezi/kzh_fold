@@ -209,7 +209,6 @@ where
     let num_rounds = c_poly.num_variables;
     let eq_at_r = MultilinearPolynomial::new(EqPolynomial::new(vec_r).evals());
 
-    // Sanity check: This is not true in general, but it's true for our tests
     assert_eq!(b_1_poly.len, b_2_poly.len);
     assert_eq!(b_1_poly.len, c_poly.len);
     assert_eq!(b_1_poly.len, eq_at_r.len);
