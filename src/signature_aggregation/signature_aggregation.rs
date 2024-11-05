@@ -147,7 +147,7 @@ where
     F: PrimeField + Absorb,
 {
     pub fn rand<R: RngCore>(srs: &AccSRS<E>, rng: &mut R) -> Self {
-        let kzh_acc = KZHAccumulator::random_satisfying_accumulator(srs, rng);
+        let kzh_acc = KZHAccumulator::rand(srs, rng);
 
         let x_len = srs.pc_srs.get_x_length();
         let y_len = srs.pc_srs.get_y_length();
@@ -354,9 +354,9 @@ where
         let C_commitment = MultilinearPolynomial::commit(&c_poly, &self.srs.acc_srs.pc_srs);
 
         // Step 3: Get r from verifier: it's the evaluation point challenge (for the zerocheck)
-        transcript.append_scalars_non_native::<<<E as Pairing>::G1Affine as AffineRepr>::BaseField>(
+        transcript.append_point::<E>(
             b"poly",
-            &[C_commitment.C.x().unwrap(), C_commitment.C.y().unwrap()],
+            &C_commitment.C,
         );
 
         // Step 4: Do the sumcheck for the following polynomial:
@@ -444,9 +444,9 @@ where
 
     pub fn verify(&self, transcript: &mut Transcript<F>) -> (bool, Vec<F>, PCSCommitment<E>) {
         // Step 1: Get r challenge from verifier
-        transcript.append_scalars_non_native::<<<E as Pairing>::G1Affine as AffineRepr>::BaseField>(
+        transcript.append_point::<E>(
             b"poly",
-            &[self.A.bitfield_commitment.C.x().unwrap(), self.A.bitfield_commitment.C.y().unwrap()],
+            &self.A.bitfield_commitment.C,
         );
         let vec_r = transcript.challenge_vector(b"vec_r", self.A.bitfield_poly.num_variables);
 
