@@ -1,7 +1,7 @@
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ff::PrimeField;
 use rand::RngCore;
-
+use crate::math::Math;
 use crate::nexus_spartan::crr1cs::CRR1CSShape;
 use crate::polynomial::univariate::univariate::PolynomialInterpolator;
 use crate::transcript::transcript::Transcript;
@@ -69,20 +69,6 @@ pub fn fold_matrices_evaluations<F: PrimeField + Absorb>(
         assert_eq!(evals_2, expected_evals_2);
     }
 
-    // Perform the random combination for r_x_folded and r_y_folded
-    let folded_input_x: Vec<F> = eval_point_1_x.iter()
-        .zip(eval_point_2_x.iter())
-        .map(|(rx, rx_prime)| *rx * (F::one() - beta) + *rx_prime * beta)
-        .collect();
-
-    let folded_input_y: Vec<F> = eval_point_1_y.iter()
-        .zip(eval_point_2_y.iter())
-        .map(|(ry, ry_prime)| *ry * (F::one() - beta) + *ry_prime * beta)
-        .collect();
-
-    // Evaluate the folded r_x_folded and r_y_folded
-    // let new_evaluation = shape.inst.inst.evaluate(&folded_input_x, &folded_input_y);
-
     (beta, (q_A, q_B, q_C))
 }
 
@@ -103,8 +89,8 @@ pub fn compute_q<F: PrimeField + Absorb>(shape: &CRR1CSShape<F>,
     let mut Q_B = Vec::new();
     let mut Q_C = Vec::new();
 
-    // we start from 2 because the term (1- x) * x is zero at 0 and 2
-    for i in 2..shape.get_num_cons() + 2 {
+    // we start from 2 because the term (1 - x) * x is zero at 0 and 1
+    for i in 2..(64 *  shape.get_num_cons()).log_2() {
         let beta = F::from(i as u128);
 
         // Perform the random combination for r_x_folded and r_y_folded
