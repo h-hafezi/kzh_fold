@@ -10,7 +10,7 @@ use sqrtn_pcs::pcs::multilinear_pcs::{PCSEngine, PolynomialCommitmentSRS};
 use sqrtn_pcs::transcript::transcript::Transcript;
 
 fn get_srs(degree_x: usize, degree_y: usize) -> AccSRS<E> {
-    let srs_pcs: PolynomialCommitmentSRS<E> = PCSEngine::<E>::setup(degree_x, degree_y, &mut thread_rng());
+    let srs_pcs: PolynomialCommitmentSRS<E> = PCSEngine::setup(degree_x, degree_y, &mut thread_rng());
 
     // return the result
     Accumulator::setup(srs_pcs.clone(), &mut thread_rng())

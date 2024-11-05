@@ -1,5 +1,7 @@
 use std::ops::{Add, Mul, Neg, Sub};
-
+use rayon::iter::IntoParallelRefIterator;
+use rayon::iter::ParallelIterator;
+use rayon::iter::IndexedParallelIterator;
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
 use ark_ec::{AffineRepr, CurveGroup, VariableBaseMSM};
@@ -196,13 +198,13 @@ where
 
         // get the accumulated witness
         let new_witness = AccWitness {
-            vec_D: witness_1.vec_D.iter().zip(witness_2.vec_D.iter())
+            vec_D: witness_1.vec_D.par_iter().zip(witness_2.vec_D.par_iter())
                 .map(|(&d_1, &d_2)| d_1.mul(one_minus_beta).add(d_2.mul(beta)).into_affine())
                 .collect(),
             f_star_poly: MultilinearPolynomial {
                 num_variables: witness_1.f_star_poly.num_variables,
-                evaluation_over_boolean_hypercube: witness_1.f_star_poly.evaluation_over_boolean_hypercube.iter()
-                    .zip(witness_2.f_star_poly.evaluation_over_boolean_hypercube.iter())
+                evaluation_over_boolean_hypercube: witness_1.f_star_poly.evaluation_over_boolean_hypercube.par_iter()
+                    .zip(witness_2.f_star_poly.evaluation_over_boolean_hypercube.par_iter())
                     .map(
                         |(&a, &b)|
                             a * (one_minus_beta) + (b * beta)
@@ -211,8 +213,8 @@ where
                 len: witness_1.f_star_poly.len(),
             },
             tree_x: EqTree {
-                nodes: witness_1.tree_x.nodes.iter()
-                    .zip(witness_2.tree_x.nodes.iter())
+                nodes: witness_1.tree_x.nodes.par_iter()
+                    .zip(witness_2.tree_x.nodes.par_iter())
                     .map(
                         |(&a, &b)|
                             a * (one_minus_beta) + (b * beta)
@@ -221,8 +223,8 @@ where
                 depth: witness_1.tree_x.depth,
             },
             tree_y: EqTree {
-                nodes: witness_1.tree_y.nodes.iter()
-                    .zip(witness_2.tree_y.nodes.iter())
+                nodes: witness_1.tree_y.nodes.par_iter()
+                    .zip(witness_2.tree_y.nodes.par_iter())
                     .map(
                         |(&a, &b)|
                             a * (one_minus_beta) + (b * beta)
@@ -291,28 +293,28 @@ where
         // build the accumulator from linear combination to run helper_function_V on it
         let temp_acc = Accumulator {
             witness: AccWitness {
-                vec_D: witness_2.vec_D.iter()
-                    .zip(witness_1.vec_D.iter())
+                vec_D: witness_2.vec_D.par_iter()
+                    .zip(witness_1.vec_D.par_iter())
                     .map(|(&d2, &d1)| d2.mul(two).sub(d1).into_affine())
                     .collect(),
                 f_star_poly: MultilinearPolynomial {
                     num_variables: witness_1.f_star_poly.num_variables,
-                    evaluation_over_boolean_hypercube: witness_2.f_star_poly.evaluation_over_boolean_hypercube.iter()
-                        .zip(witness_1.f_star_poly.evaluation_over_boolean_hypercube.iter())
+                    evaluation_over_boolean_hypercube: witness_2.f_star_poly.evaluation_over_boolean_hypercube.par_iter()
+                        .zip(witness_1.f_star_poly.evaluation_over_boolean_hypercube.par_iter())
                         .map(|(&e2, &e1)| e2 * two - e1)
                         .collect(),
                     len: witness_1.f_star_poly.len(),
                 },
                 tree_x: EqTree {
-                    nodes: witness_2.tree_x.nodes.iter()
-                        .zip(witness_1.tree_x.nodes.iter())
+                    nodes: witness_2.tree_x.nodes.par_iter()
+                        .zip(witness_1.tree_x.nodes.par_iter())
                         .map(|(&w2, &w1)| w2 * two - w1)
                         .collect(),
                     depth: witness_1.tree_x.depth,
                 },
                 tree_y: EqTree {
-                    nodes: witness_2.tree_y.nodes.iter()
-                        .zip(witness_1.tree_y.nodes.iter())
+                    nodes: witness_2.tree_y.nodes.par_iter()
+                        .zip(witness_1.tree_y.nodes.par_iter())
                         .map(|(&w2, &w1)| w2 * two - w1)
                         .collect(),
                     depth: witness_1.tree_y.depth,
@@ -324,12 +326,12 @@ where
                 T: E::G1Affine::zero(),
                 E: E::G1Affine::zero(),
                 // used by the helper function
-                x: instance_2.x.iter()
-                    .zip(instance_1.x.iter())
+                x: instance_2.x.par_iter()
+                    .zip(instance_1.x.par_iter())
                     .map(|(&e2, &e1)| e2 * two - e1)
                     .collect(),
-                y: instance_2.y.iter()
-                    .zip(instance_1.y.iter())
+                y: instance_2.y.par_iter()
+                    .zip(instance_1.y.par_iter())
                     .map(|(&e2, &e1)| e2 * two - e1)
                     .collect(),
                 z: two * instance_2.z - instance_1.z,
@@ -376,16 +378,33 @@ where
             &witness.f_star_poly.evaluation_over_boolean_hypercube,
             &acc.witness.tree_y.get_leaves(),
         ) - instance.z;
-        let E_G = {
-            let lhs = E::G1::msm_unchecked(
-                srs.pc_srs.vec_H.as_slice(),
-                witness.f_star_poly.evaluation_over_boolean_hypercube.as_slice(),
+
+        // Optimize E_G computation by doing one big MSM
+        let E_G =
+        {
+            // Prepare the right-hand-side scalars to be negated
+            let tree_x_leaves = acc.witness.tree_x.get_leaves();
+            let negated_tree_x_leaves: Vec<E::ScalarField> = tree_x_leaves.iter().map(|&x| -x).collect();
+
+            // Concatenate the scalar vectors
+            let mut scalars = Vec::with_capacity(
+                witness.f_star_poly.evaluation_over_boolean_hypercube.len() + negated_tree_x_leaves.len(),
             );
-            let rhs = E::G1::msm_unchecked(
-                witness.vec_D.as_slice(),
-                acc.witness.tree_x.get_leaves(),
+            scalars.extend_from_slice(
+                witness
+                    .f_star_poly
+                    .evaluation_over_boolean_hypercube
+                    .as_slice(),
             );
-            lhs.sub(rhs)
+            scalars.extend_from_slice(&negated_tree_x_leaves);
+
+
+            // Concatenate the base point vectors
+            let mut bases = Vec::with_capacity(srs.pc_srs.vec_H.len() + witness.vec_D.len());
+            bases.extend_from_slice(srs.pc_srs.vec_H.as_slice());
+            bases.extend_from_slice(witness.vec_D.as_slice());
+
+            E::G1::msm_unchecked(&bases, &scalars)
         };
 
         let error_tree_x = acc.witness.tree_x.difference(acc.instance.x.as_slice());
