@@ -483,10 +483,6 @@ where
         let c_at_rho = self.A.c_at_rho;
         assert_eq!(tensor_check_claim, eq_at_r_rho * (b_1_at_rho + b_2_at_rho - b_1_at_rho * b_2_at_rho - c_at_rho));
 
-        // Step 4: Verify the IVC proof
-
-        // Step 5: Verify the BLS signature
-
         (true, rho)
     }
 
