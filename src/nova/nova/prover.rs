@@ -1,4 +1,5 @@
 use crate::accumulation_circuit::affine_to_projective;
+use ark_serialize::CanonicalSerialize;
 use crate::commitment::{Commitment, CommitmentScheme};
 use crate::gadgets::absorb::{r1cs_instance_to_sponge_vector, relaxed_r1cs_instance_to_sponge_vector};
 use crate::gadgets::non_native::util::convert_field_one_to_field_two;
@@ -273,14 +274,14 @@ where
 #[cfg(test)]
 mod test {
     use crate::constant_for_curves::{ScalarField, C1, C2, G1, G2};
-    use crate::nova::nova::prover::NovaProver;
     use ark_std::UniformRand;
     use rand::thread_rng;
+    use super::*;
 
     type F = ScalarField;
 
     #[test]
-    fn test_compute_final_accumulator() {
+    fn test_nova_compute_final_accumulator() {
         let prover: NovaProver<F, G1, G2, C1, C2> = NovaProver::rand((10, 3, 7));
 
         let beta = F::rand(&mut thread_rng());
@@ -302,6 +303,9 @@ mod test {
         assert_eq!(secondary_circuit_E.g_out, folded_accumulator.0.commitment_E);
 
         let ((final_ova_instance, final_ova_witness), (_, _), (_, _)) = prover.compute_ova_final_instance();
-        prover.ova_shape.is_relaxed_ova_satisfied(&final_ova_instance, &final_ova_witness, &prover.ova_commitment_pp).unwrap()
+        prover.ova_shape.is_relaxed_ova_satisfied(&final_ova_instance, &final_ova_witness, &prover.ova_commitment_pp).unwrap();
+
+        println!("ova instance len: {} bytes", final_ova_instance.compressed_size());
+        println!("ova witness len: {} bytes", final_ova_witness.compressed_size());
     }
 }
