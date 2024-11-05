@@ -287,8 +287,8 @@ where
                initial_transcript: Transcript<F>,
     ) -> AccumulatorVerifierCircuitProver<G1, G2, C2, E, F> {
         // assert accumulators are satisfied
-        assert!(Accumulator::decide(&srs, &running_accumulator));
-        assert!(Accumulator::decide(&srs, &current_accumulator));
+        debug_assert!(Accumulator::decide(&srs, &running_accumulator));
+        debug_assert!(Accumulator::decide(&srs, &current_accumulator));
 
         // the shape of the R1CS instance
         let shape = setup_shape::<G1, G2>().unwrap();

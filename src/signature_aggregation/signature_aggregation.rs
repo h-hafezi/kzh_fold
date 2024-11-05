@@ -1,4 +1,5 @@
 use crate::accumulation::accumulator::{AccInstance, AccSRS, Accumulator as KZHAccumulator, Accumulator};
+use crate::nexus_spartan::matrix_evaluation_accumulation::prover::MatrixEvaluationAccumulator;
 use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
 use crate::nexus_spartan::sumcheck::SumcheckInstanceProof;
 use crate::pcs::multilinear_pcs::{split_between_x_and_y, PCSCommitment, PCSEngine};
@@ -33,7 +34,7 @@ where
 
 /// This is the data sent by an aggregator node to the next aggregator node on the network
 #[derive(Clone, Debug)]
-pub struct SignatureAggregationRunningData<E, F>
+pub struct SignatureAggrData<E, F>
 where
     E: Pairing<ScalarField=F>,
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
@@ -71,15 +72,21 @@ where
     /// Accumulator for random evaluation of p(x) at rho:
     /// p(rho) = b_1(rho) + c_1 * b_2(rho) + c_2 * c(rho)
     pub sumcheck_eval_KZH_accumulator: KZHAccumulator<E>,
+
+    /////////////// IVC proof for all the previous steps `\pi_i` //////////////////
+
+    // The IVC proof contains a KZH accumulator and an A,B,C accumulator
+
+    // ivc_proof: Option<CRR1CSProof<E>>
 }
 
-impl<E, F> SignatureAggregationRunningData<E, F>
+impl<E, F> SignatureAggrData<E, F>
 where
     E: Pairing<ScalarField=F>,
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
     F: PrimeField + Absorb,
 {
-    /// Generate a random SignatureAggregationRunningData for a network participant
+    /// Generate a random SignatureAggrData for a network participant
     pub fn rand<R: RngCore>(num_vars: usize, srs: &AccSRS<E>, rng: &mut R) -> Self {
         let mut transcript = Transcript::<F>::new(b"aggr");
 
@@ -97,13 +104,9 @@ where
         let pk = E::G1Affine::rand(rng);
         // let message = E::G2Affine::rand(rng);
 
-        // Perform the signature aggregation sumcheck
-        let (sumcheck_proof, rho) = perform_sig_aggr_sumcheck::<E, F>(
-            &b_1_poly,
-            &b_2_poly,
-            &c_poly,
-            &mut transcript,
-        );
+        // Perform the sig aggr sumcheck
+        let (sumcheck_proof, rho) = perform_sig_aggr_sumcheck::<E, F>(&b_1_poly, &b_2_poly, &c_poly,
+                                                                      &mut transcript);
 
         // Get the accumulator for the sumcheck
         let (b_1_at_rho, b_2_at_rho, c_at_rho, sumcheck_eval_KZH_accumulator) =
@@ -125,6 +128,37 @@ where
     }
 }
 
+/// This struct represents an accumulator for the signature aggregation protocol
+pub struct SignatureAggrAccumulator<E, F>
+where
+    E: Pairing<ScalarField=F>,
+    F: PrimeField + Absorb,
+{
+    A_B_C_eval_accumulator: MatrixEvaluationAccumulator<F>,
+    KZH_accumulator: KZHAccumulator<E>,
+}
+
+impl<E, F> SignatureAggrAccumulator<E, F>
+where
+    <E as Pairing>::ScalarField: Absorb,
+    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb,
+    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
+    E: Pairing<ScalarField=F>,
+    F: PrimeField + Absorb,
+{
+    pub fn rand<R: RngCore>(srs: &AccSRS<E>, rng: &mut R) -> Self {
+        let kzh_acc = KZHAccumulator::random_satisfying_accumulator(srs, rng);
+
+        let x_len = srs.pc_srs.get_x_length();
+        let y_len = srs.pc_srs.get_y_length();
+        let A_B_C_acc: MatrixEvaluationAccumulator<F> = MatrixEvaluationAccumulator::rand(x_len, y_len, rng);
+
+        Self {
+            A_B_C_eval_accumulator: A_B_C_acc,
+            KZH_accumulator: kzh_acc,
+        }
+    }
+}
 
 /// This struct represents an IVC aggregator, Alice, that receives network data from a single party, Bob, and also has
 /// her own running accumulator. It aggregates the received data with the running accumulator and produces her own
@@ -151,7 +185,7 @@ where
     // pub message: E::G2Affine,
 
     // Data received from Bob
-    pub bob_data: SignatureAggregationRunningData<E, F>,
+    pub bob_data: SignatureAggrData<E, F>,
 }
 
 // Perform sumcheck for the following polynomial: eq(r,x) * (b_1 + b_2 - b_1 * b_2 - c)
@@ -175,7 +209,6 @@ where
     let num_rounds = c_poly.num_variables;
     let eq_at_r = MultilinearPolynomial::new(EqPolynomial::new(vec_r).evals());
 
-    // Sanity check: This is not true in general, but it's true for our tests
     assert_eq!(b_1_poly.len, b_2_poly.len);
     assert_eq!(b_1_poly.len, c_poly.len);
     assert_eq!(b_1_poly.len, eq_at_r.len);
@@ -305,7 +338,7 @@ where
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
     F: PrimeField + Absorb,
 {
-    pub fn aggregate(&self, transcript: &mut Transcript<F>) -> SignatureAggregationRunningData<E, F> {
+    pub fn aggregate(&self, transcript: &mut Transcript<F>) -> SignatureAggrData<E, F> {
 
         // Step 1:
         let pk = self.running_public_key + self.bob_data.pk;
@@ -341,18 +374,18 @@ where
         // Step 6: Aggregate accumulators 3-to-1:
         // Hossein: At this point we will also have two more KZH accumulators: one from our running accumulator, and another one from Bob
         // Hossein: Accumulate thet three accumulators into one
-        // let bob_KZH_accumulator = self.A_1.ivc_proof.KZH_accumulator;
+        // let bob_KZH_accumulator = self.bob_data.ivc_proof.KZH_accumulator;
         // let running_KZH_accumulator = self.running_accumulator.KZH_accumulator
 
         // Hossein: We will also have two A,B,C accumulators: one from our running accumulator, and one from Bob
-        // let bob_A_B_C_eval_accumulator = self.A_1.ivc_proof.A_B_C_eval_accumulator;
+        // let bob_A_B_C_eval_accumulator = self.bob_data.ivc_proof.A_B_C_eval_accumulator;
         // let running_A_B_C_eval_accumulator=  self.running_accumulator.A_B_C_eval_accumulator;
 
         // Hossein: Accumulate everything!
         // let (ivc_proof, state_accumulator) = self.accumulate_everything(sumcheck_eval_accumulator, bob_accumulator, running_accumulator,
         //                                                                 bob_A_B_C_eval_accumulator, running_A_B_C_eval_accumulator);
 
-        SignatureAggregationRunningData {
+        SignatureAggrData {
             B_1_commitment: self.running_bitfield_commitment.clone(),
             B_2_commitment: self.bob_data.bitfield_commitment.clone(),
             bitfield_poly: c_poly,
@@ -381,7 +414,7 @@ where
     E: Pairing<ScalarField=F>,
 {
     pub srs: SignatureAggrSRS<E>,
-    pub A: SignatureAggregationRunningData<E, F>,
+    pub A: SignatureAggrData<E, F>,
 }
 
 impl<E, F> Verifier<E, F>
@@ -409,7 +442,7 @@ where
         )
     }
 
-    pub fn verify(&self, transcript: &mut Transcript<F>) -> (bool, Vec<F>) {
+    pub fn verify(&self, transcript: &mut Transcript<F>) -> (bool, Vec<F>, PCSCommitment<E>) {
         // Step 1: Get r challenge from verifier
         transcript.append_scalars_non_native::<<<E as Pairing>::G1Affine as AffineRepr>::BaseField>(
             b"poly",
@@ -441,31 +474,24 @@ where
         let c_at_rho = self.A.c_at_rho;
         assert_eq!(tensor_check_claim, eq_at_r_rho * (b_1_at_rho + b_2_at_rho - b_1_at_rho * b_2_at_rho - c_at_rho));
 
-        // Step 4: Verify the IVC proof
-
-        // Step 5: Verify the BLS signature
-
-        (true, rho)
-    }
-
-    pub fn decide(&self, transcript: &mut Transcript<F>, sumcheck_challenges: Vec<F>) -> bool {
-        let rho = sumcheck_challenges;
-        let b_1_at_rho = self.A.b_1_at_rho;
-        let b_2_at_rho = self.A.b_2_at_rho;
-        let c_at_rho = self.A.c_at_rho;
-
-        // Verify the accumulator
-        // Get c_1 and c_2 (XXX could also get just c and then compute c^2)
+        // Step 4: Compute aggregated commitment P to check against accumulator
         let vec_c: Vec<F> = transcript.challenge_vector(b"vec_c", 2);
-
-        // Now compute commitment to P using B_1, B_2, and C
         let mut c_1_times_B_2 = self.A.B_2_commitment.clone();
         c_1_times_B_2.scale_by_r(&vec_c[0]);
         let mut c_2_times_C = self.A.bitfield_commitment.clone();
         c_2_times_C.scale_by_r(&vec_c[1]);
         let P_commitment = self.A.B_1_commitment.clone() + c_1_times_B_2 + c_2_times_C;
 
-        // Now compute p(rho)
+        (true, rho, P_commitment)
+    }
+
+    pub fn decide(&self, P_commitment: PCSCommitment<E>, vec_c: Vec<F>, sumcheck_challenges: Vec<F>) -> bool {
+        let rho = sumcheck_challenges;
+        let b_1_at_rho = self.A.b_1_at_rho;
+        let b_2_at_rho = self.A.b_2_at_rho;
+        let c_at_rho = self.A.c_at_rho;
+
+        // Verify the accumulator
         let p_at_rho = b_1_at_rho + vec_c[0] * b_2_at_rho + vec_c[1] * c_at_rho;
 
         // Compute the decider's accumulator instance
@@ -508,7 +534,7 @@ pub mod test {
         let srs = SignatureAggrSRS::<E>::new(degree_x, degree_y, rng);
 
         // Generate signature aggregation payload from Bob
-        let bob_data = SignatureAggregationRunningData::rand(num_vars, &srs.acc_srs, rng);
+        let bob_data = SignatureAggrData::rand(num_vars, &srs.acc_srs, rng);
 
         // Generate random running data for Alice
         let alice_bitfield = MultilinearPolynomial::random_binary(num_vars, rng);
