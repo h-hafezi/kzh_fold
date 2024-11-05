@@ -81,7 +81,7 @@ pub fn fold_matrices_evaluations<F: PrimeField + Absorb>(
         .collect();
 
     // Evaluate the folded r_x_folded and r_y_folded
-    let new_evaluation = shape.inst.inst.evaluate(&folded_input_x, &folded_input_y);
+    // let new_evaluation = shape.inst.inst.evaluate(&folded_input_x, &folded_input_y);
 
     (beta, (q_A, q_B, q_C))
 }

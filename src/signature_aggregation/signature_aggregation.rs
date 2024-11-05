@@ -1,5 +1,4 @@
 use crate::accumulation::accumulator::{AccInstance, AccSRS, Accumulator as KZHAccumulator, Accumulator};
-use crate::nexus_spartan::matrix_evaluation_accumulation::prover::MatrixEvaluationAccumulator;
 use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
 use crate::nexus_spartan::sumcheck::SumcheckInstanceProof;
 use crate::pcs::multilinear_pcs::{split_between_x_and_y, PCSCommitment, PCSEngine};
@@ -50,7 +49,6 @@ where
 
     /// aggregated signature and message
     sig: E::G2Affine,
-    // message: E::G2Affine,
 
     /////////////// All the z_i data that go into SignatureVerifierCircuit //////////////
 
@@ -127,51 +125,6 @@ where
     }
 }
 
-/// This struct represents an accumulator for the signature aggregation protocol
-pub struct SignatureAggrAccumulator<E, F>
-where
-    E: Pairing<ScalarField=F>,
-    F: PrimeField + Absorb,
-{
-    A_B_C_eval_accumulator: MatrixEvaluationAccumulator<F>,
-    KZH_accumulator: KZHAccumulator<E>,
-}
-
-impl<E, F> SignatureAggrAccumulator<E, F>
-where
-    <E as Pairing>::ScalarField: Absorb,
-    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb,
-    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
-    E: Pairing<ScalarField=F>,
-    F: PrimeField + Absorb,
-{
-    pub fn rand<R: RngCore>(srs: &AccSRS<E>, rng: &mut R) -> Self {
-        let kzh_acc = KZHAccumulator::random_satisfying_accumulator(srs, rng);
-
-        let x_len = srs.pc_srs.get_x_length();
-        let y_len = srs.pc_srs.get_y_length();
-        let A_B_C_acc: MatrixEvaluationAccumulator<F> = MatrixEvaluationAccumulator::rand(x_len, y_len, rng);
-
-        Self {
-            A_B_C_eval_accumulator: A_B_C_acc,
-            KZH_accumulator: kzh_acc,
-        }
-    }
-}
-
-/// This struct represents a PCD aggregator, Alice, that receives network data from two parties, Bob and Charlie, and
-/// needs to aggregate them into one. After aggregation, the aggregator produces its own `SignatureAggrData` and
-/// forwards it to the next node.
-pub struct AggregatorPCD<E, F>
-where
-    E: Pairing<ScalarField=F>,
-    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
-    F: PrimeField + Absorb,
-{
-    pub srs: SignatureAggrSRS<E>,
-    pub bob_data: SignatureAggregationRunningData<E, F>,
-    pub charlie_data: SignatureAggregationRunningData<E, F>,
-}
 
 /// This struct represents an IVC aggregator, Alice, that receives network data from a single party, Bob, and also has
 /// her own running accumulator. It aggregates the received data with the running accumulator and produces her own
@@ -189,7 +142,7 @@ where
     // Commitment to Alice's running bitfield
     pub running_bitfield_commitment: PCSCommitment<E>,
     // Alice's running accumulator
-    pub running_accumulator: SignatureAggrAccumulator<E, F>,
+    pub running_accumulator: Accumulator<E>,
     // running signature
     pub running_signature: E::G2Affine,
     // running public key
@@ -560,7 +513,7 @@ pub mod test {
         // Generate random running data for Alice
         let alice_bitfield = MultilinearPolynomial::random_binary(num_vars, rng);
         let alice_bitfield_commitment = PCSEngine::commit(&srs.acc_srs.pc_srs, &alice_bitfield);
-        let alice_running_accumulator = SignatureAggrAccumulator::rand(&srs.acc_srs, rng);
+        let alice_running_accumulator = Accumulator::random_satisfying_accumulator(&srs.acc_srs, rng);
         let alice_running_sig = G2Affine::rand(rng);
         let alice_running_pk = G1Affine::rand(rng);
 

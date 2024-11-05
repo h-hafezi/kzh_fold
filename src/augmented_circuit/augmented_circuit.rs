@@ -368,7 +368,7 @@ mod tests {
 
         let mut transcript_var = TranscriptVar::from_transcript(cs.clone(), verifier_transcript_clone);
 
-        augmented_circuit.verify::<E>(&mut transcript_var);
+        let _ = augmented_circuit.verify::<E>(&mut transcript_var);
 
         assert!(cs.is_satisfied().unwrap());
         println!("augmented circuit constraints: {}", cs.num_constraints());

@@ -33,7 +33,6 @@ where
     /// bitfield commitment, solely used for Fiat-Shamir
     pub com_bitfield: Projective<G1>,
 
-    /// XXX: All the cyclefold things should be ideally combined into a single thing
     /// beta used to take linear combination for cycle fold
     pub beta: G1::BaseField,
     /// the cross term error
