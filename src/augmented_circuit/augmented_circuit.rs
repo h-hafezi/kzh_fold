@@ -21,6 +21,9 @@ use ark_std::{end_timer, start_timer};
 use itertools::izip;
 use std::borrow::Borrow;
 
+const WITNESS_BLOAT: usize = 1;
+const POLY_SETUP: usize = 17;
+
 type Output<'a, G2, C2, G1, F> = (
     (&'a RelaxedOvaInstanceVar<G2, C2>, &'a AccumulatorInstanceVar<G1>),  // accumulator final instance, Ova final instance
     (Vec<FpVar<F>>, Vec<FpVar<F>>), // r_x, r_y
@@ -43,6 +46,7 @@ where
     pub spartan_partial_verifier: SpartanPartialVerifier<F, E>,
     pub kzh_acc_verifier: AccumulatorVerifier<G1, G2, C2, E>,
     pub matrix_evaluation_verifier: MatrixEvaluationAccVerifier<F>,
+    pub witness_vec: Vec<F>,
 }
 
 pub struct AugmentedCircuitVar<G1, G2, C2, F>
@@ -58,6 +62,7 @@ where
     pub spartan_partial_verifier: SpartanPartialVerifierVar<F, G1>,
     pub kzh_acc_verifier: AccumulatorVerifierVar<G1, G2, C2>,
     pub matrix_evaluation_verifier: MatrixEvaluationAccVerifierVar<F>,
+    pub witness_vec: Vec<FpVar<F>>,
 }
 
 impl<G1, G2, C2, E, F> AllocVar<AugmentedCircuit<G1, G2, C2, E, F>, F> for AugmentedCircuitVar<G1, G2, C2, F>
@@ -107,10 +112,13 @@ where
             mode,
         )?;
 
+        let witness_vec = Vec::<FpVar<F>>::new_variable(cs.clone(), || Ok(data.witness_vec.clone()), mode)?;
+
         Ok(AugmentedCircuitVar {
             spartan_partial_verifier,
             kzh_acc_verifier,
             matrix_evaluation_verifier,
+            witness_vec,
         })
     }
 }
@@ -158,6 +166,13 @@ where
             &self.kzh_acc_verifier.current_accumulator_instance_var.C_var,
         ).expect("error while enforcing equality");
 
+        // Add two constraints for every element of `witness_vec`
+        let mut power_of_two = self.witness_vec[0].clone();
+        for i in 0..WITNESS_BLOAT {
+            self.witness_vec[i].enforce_equal(&power_of_two).expect("OMG");
+            power_of_two = &self.witness_vec[0] * power_of_two;
+        }
+
         ((final_cycle_fold_instance, final_accumulator_instance), (rx, ry), (vector_x, vector_y, evaluations))
     }
 }
@@ -180,6 +195,7 @@ mod tests {
     use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
     use crate::transcript::transcript::Transcript;
     use ark_ff::AdditiveGroup;
+    use ark_ff::UniformRand;
     use ark_relations::r1cs::{ConstraintSystem, SynthesisMode};
     use rand::thread_rng;
 
@@ -192,7 +208,7 @@ mod tests {
 
     /// Take as input `proof_i` and `running_accumulator_{i}` and produce `proof_{i+1}` and `running_accumulator_{i+1}`.
     fn test_augmented_circuit_helper() {
-        let SRS: PolynomialCommitmentSRS<E> = MultilinearPolynomial::setup(18, &mut thread_rng()).unwrap();
+        let SRS: PolynomialCommitmentSRS<E> = MultilinearPolynomial::setup(POLY_SETUP, &mut thread_rng()).unwrap();
 
         // ******************************* generate a satisfying instance for Spartan and get structure *******************************
         let num_vars = 131072;
@@ -353,10 +369,24 @@ mod tests {
             AllocationMode::Witness,
         ).unwrap();
 
+        // Add `WITNESS_BLOAT` elements to the witness 
+        let mut witness_vec_var = Vec::new();
+        let mut power_of_two = F::from(2u32);
+        for _ in 0..WITNESS_BLOAT {
+            witness_vec_var.push(FpVar::new_variable(
+                cs.clone(),
+                || Ok(power_of_two),
+                AllocationMode::Witness,
+            ).unwrap());
+            // Update to the next power of 2 in the field.
+            power_of_two *= F::from(2u32);
+        }
+
         let augmented_circuit = AugmentedCircuitVar {
             spartan_partial_verifier: partial_verifier_var,
             kzh_acc_verifier: acc_verifier_var,
             matrix_evaluation_verifier: matrix_evaluation_verifier_var,
+            witness_vec: witness_vec_var,
         };
 
         let mut transcript_var = TranscriptVar::from_transcript(cs.clone(), verifier_transcript_clone);
