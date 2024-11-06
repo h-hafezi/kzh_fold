@@ -14,20 +14,20 @@ use sqrtn_pcs::kzg::{KZG10, trim, KZGPowers, KZGUniversalParams, KZGVerifierKey}
 type Poly = DensePolynomial<<E as Pairing>::ScalarField>;
 
 
-fn bench_setup(c: &mut Criterion) {
-    let mut rng = thread_rng();
-    let sqrt_degrees = vec![4, 8, 16, 32, 64, 128, 256, 512, 1024];
+// fn bench_setup(c: &mut Criterion) {
+//     let mut rng = thread_rng();
+//     let sqrt_degrees = vec![4, 8, 16, 32, 64, 128, 256, 512, 1024];
 
-    for &sqrt_degree in &sqrt_degrees {
-        let degree = sqrt_degree * sqrt_degree;
-        let bench_name = format!("setup for degree {}", degree);
-        c.bench_function(&bench_name, |b| {
-            b.iter(|| {
-                KZG10::<E, Poly>::setup(degree, false, &mut rng).expect("Setup failed")
-            })
-        });
-    }
-}
+//     for &sqrt_degree in &sqrt_degrees {
+//         let degree = sqrt_degree * sqrt_degree;
+//         let bench_name = format!("setup for witness size {}", degree);
+//         c.bench_function(&bench_name, |b| {
+//             b.iter(|| {
+//                 KZG10::<E, Poly>::setup(degree, false, &mut rng).expect("Setup failed")
+//             })
+//         });
+//     }
+// }
 
 fn bench_commit(c: &mut Criterion) {
     let mut rng = thread_rng();
@@ -39,7 +39,7 @@ fn bench_commit(c: &mut Criterion) {
         let (ck, _vk) = trim(&params, degree);
 
         let polynomial = Poly::rand(degree, &mut rng);
-        let bench_name = format!("commit for degree {}", degree);
+        let bench_name = format!("commit for witness size {}", degree);
         c.bench_function(&bench_name, |b| {
             b.iter(|| {
                 KZG10::<E, Poly>::commit(&ck, &polynomial, None, Some(&mut rng)).expect("Commitment failed")
@@ -60,7 +60,7 @@ fn bench_open(c: &mut Criterion) {
         let polynomial = Poly::rand(degree, &mut rng);
         let (_comm, r) = KZG10::<E, Poly>::commit(&ck, &polynomial, None, Some(&mut rng)).expect("Commitment failed");
 
-        let bench_name = format!("open for degree {}", degree);
+        let bench_name = format!("open for witness size {}", degree);
         c.bench_function(&bench_name, |b| {
             b.iter(|| {
                 let point = ScalarField::rand(&mut rng);
@@ -86,7 +86,7 @@ fn bench_verify(c: &mut Criterion) {
         let proof = KZG10::<E, Poly>::open(&ck, &polynomial, point, &r).expect("Proof generation failed");
         let value = polynomial.evaluate(&point);
 
-        let bench_name = format!("verify for degree {}", degree);
+        let bench_name = format!("verify for witness size {}", degree);
         c.bench_function(&bench_name, |b| {
             b.iter(|| {
                 KZG10::<E, Poly>::check(&vk, &comm, point, value, &proof).expect("Verification failed")
@@ -103,7 +103,7 @@ fn custom_criterion_config() -> Criterion {
 criterion_group! {
     name = kzg_benches;
     config = custom_criterion_config();
-    targets = bench_setup, bench_commit, bench_open, bench_verify
+    targets = bench_commit, bench_open, bench_verify
 }
 
 criterion_main!(kzg_benches);

@@ -1,4 +1,7 @@
+use ark_ec::AffineRepr;
+use ark_serialize::Valid;
 use std::iter::Sum;
+use ark_ff::Zero;
 use std::ops::{Add, Mul};
 
 use ark_ec::pairing::Pairing;
@@ -194,22 +197,50 @@ impl PCSEngine {
                               y: &[E::ScalarField],
                               z: &E::ScalarField,
     ) -> bool {
-        // first condition
-        let pairing_rhs = E::multi_pairing(proof.vec_D.clone(), &srs.vec_V);
-        let pairing_lhs = E::pairing(&C.C, &srs.V_prime);
+        // Step 1: pairing check
+        // Combine the pairings into a single multi-pairing
+        let mut g1_elems: Vec<E::G1Affine> = Vec::with_capacity(1 + proof.vec_D.len());
+        g1_elems.push(C.C.clone());
+        for g1 in &proof.vec_D {
+            let g1_neg: E::G1Affine  = (E::G1Affine::zero() - g1).into();
+            g1_elems.push(g1_neg);
+        }
 
-        // second condition
-        let msm_lhs = E::G1::msm_unchecked(&srs.vec_H, proof
-            .f_star_poly
-            .evaluation_over_boolean_hypercube.as_slice(),
+        let mut g2_elems = Vec::with_capacity(1 + srs.vec_V.len());
+        g2_elems.push(srs.V_prime.clone());
+        g2_elems.extend_from_slice(&srs.vec_V);
+
+        // Perform the combined pairing check
+        let pairing_product = E::multi_pairing(&g1_elems, &g2_elems);
+        pairing_product.check().unwrap();
+
+        // Step 2: MSM check
+        // Combine the two MSMs into one
+        let mut negated_eq_evals = EqPolynomial::new(x.to_vec()).evals();
+        for scalar in &mut negated_eq_evals {
+            *scalar = -*scalar;
+        }
+
+        let mut scalars = Vec::with_capacity(
+            proof.f_star_poly.evaluation_over_boolean_hypercube.len() + negated_eq_evals.len(),
         );
-        let msm_rhs = E::G1::msm_unchecked(&proof.vec_D, &EqPolynomial::new(x.to_vec()).evals());
+        scalars.extend_from_slice(&proof.f_star_poly.evaluation_over_boolean_hypercube);
+        scalars.extend_from_slice(&negated_eq_evals);
 
-        // third condition
+        let mut bases = Vec::with_capacity(srs.vec_H.len() + proof.vec_D.len());
+        bases.extend_from_slice(&srs.vec_H);
+        bases.extend_from_slice(&proof.vec_D);
+
+        let msm_result = E::G1::msm_unchecked(&bases, &scalars);
+        assert!(msm_result.is_zero());
+
+
+        // Step 3: complete poly eval
         let y_expected = proof.f_star_poly.evaluate(y);
+        assert_eq!(y_expected, *z);
 
         // checking all three conditions
-        (pairing_lhs == pairing_rhs) && (msm_lhs == msm_rhs) && (y_expected == *z)
+        true
     }
 }
 
