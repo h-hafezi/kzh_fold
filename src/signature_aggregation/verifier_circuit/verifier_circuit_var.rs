@@ -8,8 +8,7 @@ use crate::signature_aggregation::verifier_circuit::verifier_circuit::SignatureV
 use crate::transcript::transcript_var::TranscriptVar;
 use ark_crypto_primitives::sponge::constraints::AbsorbGadget;
 use ark_crypto_primitives::sponge::Absorb;
-use ark_ec::pairing::Pairing;
-use ark_ec::short_weierstrass::{Affine, Projective, SWCurveConfig};
+use ark_ec::short_weierstrass::{Projective, SWCurveConfig};
 use ark_ff::PrimeField;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::boolean::Boolean;
@@ -19,9 +18,9 @@ use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
 use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::curves::short_weierstrass::ProjectiveVar;
 use ark_r1cs_std::ToBitsGadget;
-use ark_relations::ns;
 use ark_relations::r1cs::{Namespace, SynthesisError};
 use std::borrow::Borrow;
+use ark_r1cs_std::R1CSVar;
 
 pub struct SignatureVerifierCircuitVar<F, G1, G2, C2>
 where
@@ -367,19 +366,14 @@ where
 
         // now enforce that the non-native version of c0 and c1 are correct
         self.c_0.enforce_equal(&{
-            let bits = self.c_0.to_bits_le().unwrap();
+            let bits = self.c_0_non_native.to_bits_le().unwrap();
             Boolean::le_bits_to_fp_var(bits.as_slice()).unwrap()
         }).expect("error while enforcing equality");
+
         self.c_1.enforce_equal(&{
-            let bits = self.c_1.to_bits_le().unwrap();
+            let bits = self.c_1_non_native.to_bits_le().unwrap();
             Boolean::le_bits_to_fp_var(bits.as_slice()).unwrap()
         }).expect("error while enforcing equality");
-
-        // derive beta
-        let beta = transcript.challenge_scalar(b"beta");
-
-        // enforce it's consistent with the original challenge beta
-        beta.enforce_equal(&self.beta).expect("error while enforcing equality");
 
         // Non-native scalar multiplication: linear combination temp = B1 + c_0 * B2
         let (flag,
@@ -405,28 +399,77 @@ where
         r.enforce_equal(&self.c_1_non_native).expect("error while enforcing equality");
         g_out.enforce_equal(&self.com_homomorphic_bitfield).expect("error while enforcing equality");
 
+        println!("before {}", self.beta.cs().num_constraints());
+        // derive challenge beta
+        transcript.append_scalars_non_native(b"non_native_scalar", self.ova_auxiliary_input_pk.X.as_slice());
+        transcript.append_scalars_non_native(b"non_native_scalar", self.ova_auxiliary_input_bitfield_1.X.as_slice());
+        transcript.append_scalars_non_native(b"non_native_scalar", self.ova_auxiliary_input_bitfield_2.X.as_slice());
+        transcript.append_scalars(
+            b"non_native_scalar",
+            &[
+                self.ova_auxiliary_input_pk.commitment.x.clone(),
+                self.ova_auxiliary_input_pk.commitment.y.clone(),
+                self.ova_auxiliary_input_pk.commitment.z.clone(),
+            ],
+        );
+        transcript.append_scalars(
+            b"non_native_scalar",
+            &[
+                self.ova_auxiliary_input_bitfield_1.commitment.x.clone(),
+                self.ova_auxiliary_input_bitfield_1.commitment.y.clone(),
+                self.ova_auxiliary_input_bitfield_1.commitment.z.clone(),
+            ],
+        );
+        transcript.append_scalars(
+            b"non_native_scalar",
+            &[
+                self.ova_auxiliary_input_bitfield_2.commitment.x.clone(),
+                self.ova_auxiliary_input_bitfield_2.commitment.y.clone(),
+                self.ova_auxiliary_input_bitfield_1.commitment.z.clone(),
+            ],
+        );
+        println!("after {}", self.beta.cs().num_constraints());
+
+        // derive beta
+        let beta = transcript.challenge_scalar(b"beta");
+
+        // enforce it's consistent with the original challenge beta
+        beta.enforce_equal(&self.beta).expect("error while enforcing equality");
+
+        // make sure it's equal to beta non-native
+        self.c_1.enforce_equal(&{
+            let bits = self.c_1.to_bits_le().unwrap();
+            Boolean::le_bits_to_fp_var(bits.as_slice()).unwrap()
+        }).expect("error while enforcing equality");
+
+
+        // we derive a challenge beta and use beta, beta^2 and beta^3 to do the cycle fold folding
+        let beta_1_bits = <NonNativeFieldVar<G1::BaseField, F> as ToBitsGadget<F>>::to_bits_le(&self.beta_non_native).unwrap();
+        let beta_2_non_native = &self.beta_non_native * &self.beta_non_native;
+        let beta_2_bits = <NonNativeFieldVar<G1::BaseField, F> as ToBitsGadget<F>>::to_bits_le(&beta_2_non_native).unwrap();
+        let beta_3_non_native = &beta_2_non_native * &self.beta_non_native;
+        let beta_3_bits = <NonNativeFieldVar<G1::BaseField, F> as ToBitsGadget<F>>::to_bits_le(&beta_3_non_native).unwrap();
 
         // Step 5: fold the cycle fold instance
-        let beta_bits = <NonNativeFieldVar<G1::BaseField, F> as ToBitsGadget<F>>::to_bits_le(&self.beta_non_native).unwrap();
         let final_instance = self.ova_running_instance.fold(
             &[
                 (
                     (&self.ova_auxiliary_input_pk, None),
                     &self.ova_cross_term_error_pk,
                     &self.beta_non_native,
-                    &beta_bits
+                    &beta_1_bits
                 ),
                 (
                     (&self.ova_auxiliary_input_bitfield_1, None),
                     &self.ova_cross_term_error_bitfield_1,
-                    &self.beta_non_native,
-                    &beta_bits
+                    &beta_2_non_native,
+                    &beta_2_bits
                 ),
                 (
                     (&self.ova_auxiliary_input_bitfield_2, None),
                     &self.ova_cross_term_error_bitfield_2,
-                    &self.beta_non_native,
-                    &beta_bits
+                    &beta_3_non_native,
+                    &beta_3_bits
                 ),
             ]
         ).unwrap();
@@ -436,3 +479,112 @@ where
     }
 }
 
+#[cfg(test)]
+mod test {
+    use ark_ec::short_weierstrass::{Affine, Projective};
+    use ark_ff::AdditiveGroup;
+    use ark_r1cs_std::alloc::AllocVar;
+    use ark_r1cs_std::prelude::AllocationMode;
+    use ark_relations::r1cs::ConstraintSystem;
+    use ark_std::UniformRand;
+    use rand::thread_rng;
+    use crate::constant_for_curves::{BaseField, ScalarField, C2, E, G1, G2};
+    use crate::gadgets::r1cs::{OvaInstance, RelaxedOvaInstance};
+    use crate::hash::pederson::PedersenCommitment;
+    use crate::nova::cycle_fold::coprocessor::{setup_shape, synthesize, SecondaryCircuit};
+    use crate::signature_aggregation::verifier_circuit::verifier_circuit::SignatureVerifierCircuit;
+    use crate::commitment::CommitmentScheme;
+    use crate::nexus_spartan::sumcheck_circuit::sumcheck_circuit::SumcheckCircuit;
+    use crate::signature_aggregation::signature_aggregation::{SignatureAggrData, SignatureAggrSRS};
+    use crate::signature_aggregation::verifier_circuit::verifier_circuit_var::SignatureVerifierCircuitVar;
+    use crate::transcript::transcript_var::TranscriptVar;
+
+    type Q = BaseField;
+
+    type F = ScalarField;
+
+    pub fn get_random_ova_instance(
+    ) -> OvaInstance<G2, C2> {
+        let ova_shape = setup_shape::<G1, G2>().unwrap();
+        let ova_commitment_pp: Vec<Affine<G2>> = PedersenCommitment::<Projective<G2>>::setup(
+            ova_shape.num_vars + ova_shape.num_constraints,
+            b"test",
+            &(),
+        );
+        assert_eq!(ova_shape.num_constraints + ova_shape.num_vars, ova_commitment_pp.len());
+
+        let rng = &mut thread_rng();
+        let g1= Projective::<G1>::rand(rng);
+        let g2= Projective::<G1>::rand(rng);
+        let r = ScalarField::rand(rng);
+        let g_out = g1 * r + g2;
+        synthesize::<G1, G2, C2>(SecondaryCircuit {
+            g1 ,
+            g2,
+            g_out,
+            r: BaseField::rand(rng),
+            flag: true,
+        }, &ova_commitment_pp[0..ova_shape.num_vars].to_vec(),
+        ).unwrap().0
+    }
+
+    #[test]
+    fn constraint_count_test() {
+        let rng = &mut thread_rng();
+
+        let signature_aggregation_data = {
+            let degree_x = 64usize;
+            let degree_y = 64usize;
+            let num_vars = 12usize;
+            let srs = SignatureAggrSRS::<E>::new(degree_x, degree_y, rng);
+            SignatureAggrData::rand(num_vars, &srs.acc_srs, rng)
+        };
+
+        // simply fill the circuit with random values in order to count constraints
+        let circuit = SignatureVerifierCircuit::<F, G1, G2, C2> {
+            running_pk: Projective::<G1>::rand(rng),
+            current_pk: Projective::<G1>::rand(rng),
+            final_pk: Projective::<G1>::rand(rng),
+            c_0: F::rand(rng),
+            c_0_non_native: Q::rand(rng),
+            c_1: F::rand(rng),
+            c_1_non_native: Q::rand(rng),
+            com_bitfield_C: Projective::<G1>::rand(rng),
+            com_bitfield_B_1: Projective::<G1>::rand(rng),
+            com_bitfield_B_2: Projective::<G1>::rand(rng),
+            com_homomorphic_bitfield: Projective::<G1>::rand(rng),
+            beta: F::rand(rng),
+            beta_non_native: Q::rand(rng),
+            ova_cross_term_error_pk: Projective::<G2>::rand(rng),
+            ova_auxiliary_input_pk: get_random_ova_instance(),
+            ova_cross_term_error_bitfield_1: Projective::<G2>::rand(rng),
+            ova_auxiliary_input_bitfield_1: get_random_ova_instance(),
+            ova_cross_term_error_bitfield_2: Projective::<G2>::rand(rng),
+            ova_auxiliary_input_bitfield_2: get_random_ova_instance(),
+            ova_running_instance: RelaxedOvaInstance::from(&get_random_ova_instance()),
+            ova_final_instance: RelaxedOvaInstance::from(&get_random_ova_instance()),
+            sumcheck_proof: SumcheckCircuit{
+                compressed_polys: signature_aggregation_data.sumcheck_proof.compressed_polys.clone(),
+                claim: F::ZERO,
+                num_rounds: signature_aggregation_data.sumcheck_proof.compressed_polys.len(),
+                degree_bound: 3,
+            },
+            b_1_at_rho: F::rand(rng),
+            b_2_at_rho: F::rand(rng),
+            c_at_rho: F::rand(rng),
+            bitfield_num_variables: signature_aggregation_data.sumcheck_proof.compressed_polys.len(),
+        };
+
+        let cs = ConstraintSystem::<F>::new_ref();
+        let circuit_var = SignatureVerifierCircuitVar::new_variable(
+            cs.clone(),
+            || Ok(circuit),
+            AllocationMode::Input,
+        ).unwrap();
+
+        let mut transcript_var= TranscriptVar::new(cs.clone(), b"test");
+
+        circuit_var.verify(&mut transcript_var);
+        println!("{}", cs.num_constraints());
+    }
+}

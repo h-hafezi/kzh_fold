@@ -245,12 +245,8 @@ where
 #[cfg(test)]
 mod test {
     use std::ops::Mul;
-    use crate::commitment::CommitmentScheme;
-    use crate::constant_for_curves::{BaseField, G1Affine, ScalarField, C2, E, G1, G2};
-    use crate::hash::pederson::PedersenCommitment;
-    use crate::nova::cycle_fold::coprocessor::setup_shape;
+    use crate::constant_for_curves::{BaseField, ScalarField, C2, E, G1, G2};
     use crate::signature_aggregation::verifier_circuit::prover::SignatureVerifierProver;
-    use ark_ec::short_weierstrass::{Affine, Projective};
     use ark_ff::Field;
     use ark_std::UniformRand;
     use rand::thread_rng;
@@ -276,7 +272,6 @@ mod test {
 
     #[test]
     fn test_get_auxiliary_input_for_public_keys() {
-        let rng = &mut thread_rng();
         let prover = get_random_prover();
         let (instance, witness) = prover.get_ova_auxiliary_input_pk();
 

@@ -2,9 +2,7 @@ use crate::commitment::CommitmentScheme;
 use crate::gadgets::r1cs::{OvaInstance, RelaxedOvaInstance};
 use crate::nexus_spartan::sumcheck_circuit::sumcheck_circuit::SumcheckCircuit;
 use ark_crypto_primitives::sponge::Absorb;
-use ark_ec::pairing::Pairing;
-use ark_ec::short_weierstrass::{Affine, Projective, SWCurveConfig};
-use ark_ec::CurveConfig;
+use ark_ec::short_weierstrass::{Projective, SWCurveConfig};
 use ark_ff::PrimeField;
 
 pub struct SignatureVerifierCircuit<F, G1, G2, C2>
