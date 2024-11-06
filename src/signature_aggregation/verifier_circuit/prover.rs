@@ -4,12 +4,16 @@ use crate::gadgets::r1cs::ova::commit_T;
 use crate::gadgets::r1cs::{OvaInstance, OvaWitness, R1CSShape, RelaxedOvaInstance, RelaxedOvaWitness};
 use crate::hash::pederson::PedersenCommitment;
 use crate::nova::cycle_fold::coprocessor::{setup_shape, synthesize, SecondaryCircuit};
+use crate::signature_aggregation::signature_aggregation::SignatureAggrData;
 use ark_ec::pairing::Pairing;
 use ark_ec::short_weierstrass::{Affine, Projective, SWCurveConfig};
+use ark_ec::CurveConfig;
 use ark_ff::{Field, PrimeField};
 use ark_std::UniformRand;
 use rand::Rng;
 use std::marker::PhantomData;
+use ark_crypto_primitives::sponge::Absorb;
+use crate::gadgets::non_native::util::convert_field_one_to_field_two;
 
 pub struct SignatureVerifierProver<G1, G2, C2, E>
 where
@@ -25,15 +29,19 @@ where
     pub beta: G2::ScalarField,
 
     /// pk_t = pk_1 + pk_2
-    pub pk_1: E::G1Affine,
-    pub pk_2: E::G1Affine,
-    pub pk_t: E::G1Affine,
+    pub running_pk: E::G1Affine,
+    pub current_pk: E::G1Affine,
+
+    /// commitments to bitfields
+    pub com_bitfield_C: E::G1Affine,
+    pub com_bitfield_B_1: E::G1Affine,
+    pub com_bitfield_B_2: E::G1Affine,
 
     /// running cycle fold instance
-    pub shape: R1CSShape<G2>,
-    pub commitment_pp: <C2 as CommitmentScheme<Projective<G2>>>::PP,
-    pub cycle_fold_running_instance: RelaxedOvaInstance<G2, C2>,
-    pub cycle_fold_running_witness: RelaxedOvaWitness<G2>,
+    pub ova_shape: R1CSShape<G2>,
+    pub ova_commitment_pp: <C2 as CommitmentScheme<Projective<G2>>>::PP,
+    pub ova_running_instance: RelaxedOvaInstance<G2, C2>,
+    pub ova_running_witness: RelaxedOvaWitness<G2>,
 
     pub phantom: PhantomData<G1>,
 }
@@ -48,148 +56,272 @@ where
     C2: CommitmentScheme<Projective<G2>, PP=Vec<Affine<G2>>>,
     E: Pairing<G1Affine=Affine<G1>, ScalarField=G1::ScalarField>,
 {
-    pub fn rand<R: Rng>(rng: &mut R, beta: G2::ScalarField) -> Self {
-        let (pk_1, pk_2, pk_t) = SignatureVerifierProver::<G1, G2, C2, E>::get_satisfying_public_keys(rng);
-        let shape = setup_shape::<G1, G2>().unwrap();
-        let commitment_pp: Vec<Affine<G2>> = PedersenCommitment::<Projective<G2>>::setup(shape.num_vars + shape.num_constraints, b"test", &());
-        let (cycle_fold_running_instance, cycle_fold_running_witness) = SignatureVerifierProver::<G1, G2, C2, E>::get_satisfying_running_instance_witness(&shape, &commitment_pp, rng);
+    // given a signature_aggregate_data, it returns a random prover
+    pub fn rand<R: Rng>(rng: &mut R, signature_aggregate_data: SignatureAggrData<E, G1::ScalarField>, beta: G2::ScalarField) -> Self
+    where
+        <G2 as CurveConfig>::ScalarField: Absorb,
+        <G2 as CurveConfig>::BaseField: Absorb
+    {
+        // get ova shape
+        let ova_shape = setup_shape::<G1, G2>().unwrap();
+
+        // get ova commitment public parameters according to the shape
+        let ova_commitment_pp: Vec<Affine<G2>> = PedersenCommitment::<Projective<G2>>::setup(
+            ova_shape.num_vars + ova_shape.num_constraints,
+            b"test",
+            &(),
+        );
+
         SignatureVerifierProver {
             beta,
-            pk_1,
-            pk_2,
-            pk_t,
-            shape,
-            commitment_pp,
-            cycle_fold_running_instance,
-            cycle_fold_running_witness,
+            running_pk: E::G1Affine::rand(rng),
+            current_pk: signature_aggregate_data.pk,
+            com_bitfield_C: signature_aggregate_data.bitfield_commitment.C,
+            com_bitfield_B_1: signature_aggregate_data.B_1_commitment.C,
+            com_bitfield_B_2: signature_aggregate_data.B_2_commitment.C,
+            ova_commitment_pp,
+            ova_running_instance: RelaxedOvaInstance::new(&ova_shape),
+            ova_running_witness: RelaxedOvaWitness::zero(&ova_shape),
             phantom: Default::default(),
+            ova_shape,
         }
     }
 
-    pub fn get_satisfying_public_keys<R: Rng>(rng: &mut R) -> (E::G1Affine, E::G1Affine, E::G1Affine) {
-        let (pk_1, pk_2) = (E::G1Affine::rand(rng), E::G1Affine::rand(rng));
+    // get ova auxiliary input for pk
+    pub fn get_ova_auxiliary_input_pk(
+        &self,
+    ) -> (OvaInstance<G2, C2>, OvaWitness<G2>) {
+        assert_eq!(self.ova_shape.num_constraints + self.ova_shape.num_vars, self.ova_commitment_pp.len());
+        let running_pk = affine_to_projective(self.running_pk.clone());
+        let current_pk = affine_to_projective(self.current_pk.clone());
 
-        (pk_1, pk_2, (pk_1 + pk_2).into())
-    }
-
-    pub fn get_auxiliary_input_for_public_keys(shape: &R1CSShape<G2>, commitment_pp: &C2::PP, pk_1: E::G1Affine, pk_2: E::G1Affine) -> (OvaInstance<G2, C2>, OvaWitness<G2>) {
-        assert_eq!(shape.num_constraints + shape.num_vars, commitment_pp.len());
-        let pk1 = affine_to_projective(pk_1.clone());
-        let pk2 = affine_to_projective(pk_2.clone());
-
-        // pk_t =  pk_1 + pk_2
+        // final_pk =  running_pk + current_pk
         synthesize::<G1, G2, C2>(SecondaryCircuit {
-            g1: pk1,
-            g2: pk2,
-            g_out: pk1 + pk2,
+            g1: running_pk,
+            g2: current_pk,
+            g_out: running_pk + current_pk,
             r: G2::ScalarField::ONE,
             flag: true,
-        }, &commitment_pp[0..shape.num_vars].to_vec(),
+        }, &self.ova_commitment_pp[0..self.ova_shape.num_vars].to_vec(),
         ).unwrap()
     }
 
-    pub fn get_satisfying_running_instance_witness<R: Rng>(shape: &R1CSShape<G2>, commitment_pp: &C2::PP, rng: &mut R) -> (
-        RelaxedOvaInstance<G2, C2>,
-        RelaxedOvaWitness<G2>
-    ) {
-        // check the length of the commitment keys
-        assert_eq!(shape.num_constraints + shape.num_vars, commitment_pp.len());
+    // get ova auxiliary input for B1 + B2 * c_0
+    pub fn get_ova_auxiliary_input_bitfield_1(
+        &self,
+        r: G1::ScalarField,
+    ) -> (Projective<G1>, (OvaInstance<G2, C2>, OvaWitness<G2>)) {
+        assert_eq!(self.ova_shape.num_constraints + self.ova_shape.num_vars, self.ova_commitment_pp.len());
+        let B1 = affine_to_projective(self.com_bitfield_B_1.clone());
+        let B2 = affine_to_projective(self.com_bitfield_B_2.clone());
 
-        // get a random satisfying instance/witness
-        let (instance, witness) = SignatureVerifierProver::<G1, G2, C2, E>::get_auxiliary_input_for_public_keys(
-            shape,
-            commitment_pp,
-            E::G1Affine::rand(rng),
-            E::G1Affine::rand(rng),
-        );
-
-        // convert to relaxed ova instance/witness
-        let relaxed_ova_instance = RelaxedOvaInstance::from(&instance);
-        let relaxed_ova_witness = RelaxedOvaWitness::from(&shape, &witness);
-
-        (relaxed_ova_instance, relaxed_ova_witness)
+        // temp = B1 + B2 * c_0
+        (B1 + (B2 * r), synthesize::<G1, G2, C2>(SecondaryCircuit {
+            g1: B2,
+            g2: B1,
+            g_out: B1 + (B2 * r),
+            r: convert_field_one_to_field_two::<G1::ScalarField, G1::BaseField>(r),
+            flag: true,
+        }, &self.ova_commitment_pp[0..self.ova_shape.num_vars].to_vec(),
+        ).unwrap())
     }
 
-    pub fn compute_cycle_fold_proofs_and_final_instance(&self, instance: &OvaInstance<G2, C2>, witness: &OvaWitness<G2>) -> (
-        C2::Commitment,
+    // get ova auxiliary input for res = temp + C * c_1
+    pub fn get_ova_auxiliary_input_bitfield_2(
+        &self,
+        temp: Projective<G1>,
+        r: G1::ScalarField,
+    ) -> (OvaInstance<G2, C2>, OvaWitness<G2>) {
+        assert_eq!(self.ova_shape.num_constraints + self.ova_shape.num_vars, self.ova_commitment_pp.len());
+        let C = affine_to_projective(self.com_bitfield_C.clone());
+
+        // pk_t =  C * r + temp
+        synthesize::<G1, G2, C2>(SecondaryCircuit {
+            g1: C,
+            g2: temp,
+            g_out: temp + (C * r),
+            r: convert_field_one_to_field_two::<G1::ScalarField, G1::BaseField>(r),
+            flag: true,
+        }, &self.ova_commitment_pp[0..self.ova_shape.num_vars].to_vec(),
+        ).unwrap()
+    }
+
+    pub fn compute_ova_final_instance(&self, (c_0, c_1): (G1::ScalarField, G1::ScalarField)) -> (
         RelaxedOvaInstance<G2, C2>,
-        RelaxedOvaWitness<G2>
+        RelaxedOvaWitness<G2>,
+        (
+            C2::Commitment,
+            C2::Commitment,
+            C2::Commitment,
+        )
     ) {
-        let (T, com_T) = commit_T(
-            &self.shape,
-            &self.commitment_pp[self.shape.num_vars..].to_vec(),
-            &self.cycle_fold_running_instance,
-            &self.cycle_fold_running_witness,
-            instance,
-            witness,
+        // *********************************** fold pk ***********************************
+        let (instance_pk, witness_pk) = self.get_ova_auxiliary_input_pk();
+
+        let (cross_term_error_pk, cross_term_error_commitment_pk) = commit_T(
+            &self.ova_shape,
+            &self.ova_commitment_pp[self.ova_shape.num_vars..].to_vec(),
+            &self.ova_running_instance,
+            &self.ova_running_witness,
+            &instance_pk,
+            &witness_pk,
         ).unwrap();
 
         // Fold the running instance and witness with the first proof
-        let new_running_instance = self.cycle_fold_running_instance.fold(instance, &com_T, &self.beta).unwrap();
-        let new_running_witness = self.cycle_fold_running_witness.fold(witness, &T, &self.beta).unwrap();
+        let folded_instance_1 = self.ova_running_instance.fold(
+            &instance_pk,
+            &cross_term_error_commitment_pk,
+            &self.beta,
+        ).unwrap();
 
-        (com_T, new_running_instance, new_running_witness)
+        let folded_witness_1 = self.ova_running_witness.fold(
+            &witness_pk,
+            &cross_term_error_pk,
+            &self.beta,
+        ).unwrap();
+
+        // *********************************** fold bitfield_1 ***********************************
+        let (temp, (instance_bitfield_1, witness_bitfield_1)) = self.get_ova_auxiliary_input_bitfield_1(c_0);
+
+        let (cross_term_error_bitfield_1, cross_term_error_commitment_bitfield_1) = commit_T(
+            &self.ova_shape,
+            &self.ova_commitment_pp[self.ova_shape.num_vars..].to_vec(),
+            &folded_instance_1,
+            &folded_witness_1,
+            &instance_bitfield_1,
+            &witness_bitfield_1,
+        ).unwrap();
+
+        // Fold the running instance and witness with the first proof
+        let folded_instance_2 = folded_instance_1.fold(
+            &instance_bitfield_1,
+            &cross_term_error_commitment_bitfield_1,
+            &self.beta,
+        ).unwrap();
+
+        let folded_witness_2 = folded_witness_1.fold(
+            &witness_bitfield_1,
+            &cross_term_error_bitfield_1,
+            &self.beta,
+        ).unwrap();
+
+        // *********************************** fold bitfield_2 ***********************************
+        let (instance_bitfield_2, witness_bitfield_2) = self.get_ova_auxiliary_input_bitfield_2(temp, c_1);
+
+        let (cross_term_error_bitfield_2, cross_term_error_commitment_bitfield_2) = commit_T(
+            &self.ova_shape,
+            &self.ova_commitment_pp[self.ova_shape.num_vars..].to_vec(),
+            &folded_instance_2,
+            &folded_witness_2,
+            &instance_bitfield_2,
+            &witness_bitfield_2,
+        ).unwrap();
+
+        // Fold the running instance and witness with the first proof
+        let final_instance = folded_instance_2.fold(
+            &instance_bitfield_2,
+            &cross_term_error_commitment_bitfield_2,
+            &self.beta,
+        ).unwrap();
+
+        let final_witness = folded_witness_2.fold(
+            &witness_bitfield_2,
+            &cross_term_error_bitfield_2,
+            &self.beta,
+        ).unwrap();
+
+        (
+            final_instance, final_witness,
+            (
+                cross_term_error_commitment_pk,
+                cross_term_error_commitment_bitfield_1,
+                cross_term_error_commitment_bitfield_2
+            )
+        )
     }
 }
 
+
 #[cfg(test)]
 mod test {
+    use std::ops::Mul;
     use crate::commitment::CommitmentScheme;
-    use crate::constant_for_curves::{BaseField, G1Affine, E, G1, G2};
+    use crate::constant_for_curves::{BaseField, G1Affine, ScalarField, C2, E, G1, G2};
     use crate::hash::pederson::PedersenCommitment;
     use crate::nova::cycle_fold::coprocessor::setup_shape;
     use crate::signature_aggregation::verifier_circuit::prover::SignatureVerifierProver;
     use ark_ec::short_weierstrass::{Affine, Projective};
+    use ark_ff::Field;
+    use ark_std::UniformRand;
     use rand::thread_rng;
+    use crate::signature_aggregation::signature_aggregation::{SignatureAggrData, SignatureAggrSRS};
 
-    type GrumpkinCurveGroup = ark_grumpkin::Projective;
-    type C2 = PedersenCommitment<GrumpkinCurveGroup>;
     type Q = BaseField;
+    type F = ScalarField;
 
-    #[test]
-    fn test_satisfying_public_key() {
+    fn get_random_prover() -> SignatureVerifierProver<G1, G2, C2, E> {
         let rng = &mut thread_rng();
-        let (pk_1, pk_2, pk_t): (G1Affine, G1Affine, G1Affine) = SignatureVerifierProver::<G1, G2, C2, E>::get_satisfying_public_keys(rng);
+        let signature_aggregation_data = {
+            let degree_x = 64usize;
+            let degree_y = 64usize;
+            let num_vars = 12usize;
+            let srs = SignatureAggrSRS::<E>::new(degree_x, degree_y, rng);
+            SignatureAggrData::rand(num_vars, &srs.acc_srs, rng)
+        };
+        let beta = Q::rand(rng);
+        let prover = SignatureVerifierProver::rand(rng, signature_aggregation_data, beta);
 
-        assert_eq!(pk_1 + pk_2, pk_t)
+        prover
     }
 
     #[test]
     fn test_get_auxiliary_input_for_public_keys() {
-        let shape = setup_shape::<G1, G2>().unwrap();
-        let commitment_pp: Vec<Affine<G2>> = PedersenCommitment::<Projective<G2>>::setup(shape.num_vars + shape.num_constraints, b"test", &());
         let rng = &mut thread_rng();
-        let (pk_1, pk_2, _): (G1Affine, G1Affine, G1Affine) = SignatureVerifierProver::<G1, G2, C2, E>::get_satisfying_public_keys(rng);
-        let (instance, witness) = SignatureVerifierProver::<G1, G2, C2, E>::get_auxiliary_input_for_public_keys(&shape, &commitment_pp, pk_1, pk_2);
-        shape.is_ova_satisfied(&instance, &witness, &commitment_pp).unwrap()
+        let prover = get_random_prover();
+        let (instance, witness) = prover.get_ova_auxiliary_input_pk();
+
+        prover.ova_shape.is_ova_satisfied(
+            &instance,
+            &witness,
+            &prover.ova_commitment_pp
+        ).unwrap();
+
+        let secondary_circuit_pk = instance.parse_secondary_io::<G1>().unwrap();
+        assert_eq!(secondary_circuit_pk.g_out, prover.running_pk + prover.current_pk);
+        assert_eq!(secondary_circuit_pk.r, Q::ONE);
     }
 
     #[test]
-    fn test_get_satisfying_running_instance_witness() {
-        let shape = setup_shape::<G1, G2>().unwrap();
-        let commitment_pp: Vec<Affine<G2>> = PedersenCommitment::<Projective<G2>>::setup(shape.num_vars + shape.num_constraints, b"test", &());
-        let (relaxed_instance, relaxed_witness) = SignatureVerifierProver::<G1, G2, C2, E>::get_satisfying_running_instance_witness(&shape, &commitment_pp, &mut thread_rng());
-        shape.is_relaxed_ova_satisfied(&relaxed_instance, &relaxed_witness, &commitment_pp).unwrap()
-    }
-
-    #[test]
-    fn test_compute_cycle_fold_proofs_and_final_instance() {
+    fn test_get_auxiliary_input_for_bitfield() {
         let rng = &mut thread_rng();
+        let prover = get_random_prover();
+        let (c_0, c_1) = (F::rand(rng), F::rand(rng));
+        let (temp, (instance_1, witness_1)) = prover.get_ova_auxiliary_input_bitfield_1(c_0);
 
-        // get a random prover
-        let prover = SignatureVerifierProver::<G1, G2, C2, E>::rand(rng, Q::from(2u8));
+        prover.ova_shape.is_ova_satisfied(
+            &instance_1,
+            &witness_1,
+            &prover.ova_commitment_pp
+        ).unwrap();
 
-        // get a set of random public keys
-        let (pk_1, pk_2, _): (G1Affine, G1Affine, G1Affine) = SignatureVerifierProver::<G1, G2, C2, E>::get_satisfying_public_keys(rng);
+        let secondary_circuit_bitfield_1 = instance_1.parse_secondary_io::<G1>().unwrap();
+        assert_eq!(secondary_circuit_bitfield_1.g1, prover.com_bitfield_B_2);
+        assert_eq!(secondary_circuit_bitfield_1.g2, prover.com_bitfield_B_1);
+        assert_eq!(secondary_circuit_bitfield_1.g_out, temp);
+        assert_eq!(secondary_circuit_bitfield_1.flag, true);
 
-        // get corresponding instance/witness of (pk_1, pk_2, pk_t)
-        let (instance, witness) = SignatureVerifierProver::<G1, G2, C2, E>::get_auxiliary_input_for_public_keys(&prover.shape, &prover.commitment_pp, pk_1, pk_2);
-        prover.shape.is_ova_satisfied(&instance, &witness, &prover.commitment_pp).unwrap();
+        let (instance_2, witness_2) = prover.get_ova_auxiliary_input_bitfield_2(temp, c_1);
 
-        // fold it with the prover's running instance/witness
-        let (_, new_running_instance, new_running_witness) = prover.compute_cycle_fold_proofs_and_final_instance(&instance, &witness);
+        prover.ova_shape.is_ova_satisfied(
+            &instance_2,
+            &witness_2,
+            &prover.ova_commitment_pp
+        ).unwrap();
 
-        // check validity
-        prover.shape.is_relaxed_ova_satisfied(&new_running_instance, &new_running_witness, &prover.commitment_pp).unwrap();
+        let secondary_circuit_bitfield_2 = instance_2.parse_secondary_io::<G1>().unwrap();
+        assert_eq!(secondary_circuit_bitfield_2.g1, prover.com_bitfield_C);
+        assert_eq!(secondary_circuit_bitfield_2.g2, temp);
+        assert_eq!(secondary_circuit_bitfield_2.g_out, prover.com_bitfield_B_1 + prover.com_bitfield_B_2.mul(c_0) + prover.com_bitfield_C.mul(c_1));
+        assert_eq!(secondary_circuit_bitfield_2.flag, true);
     }
 }

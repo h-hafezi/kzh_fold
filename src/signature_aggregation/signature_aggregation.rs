@@ -54,7 +54,7 @@ where
     /////////////// All the z_i data that go into SignatureVerifierCircuit //////////////
 
     /// aggregated public key
-    pk: E::G1Affine,
+    pub pk: E::G1Affine,
 
     /// Commitment to c(x)
     pub bitfield_commitment: PCSCommitment<E>,
