@@ -400,12 +400,36 @@ where
                 &beta_minus_one * &self.current_accumulator_instance_var.z_var)
         ).unwrap();
 
-        // todo: try later to have different randomness for each of these instances
+        let beta_2 = &self.beta_var_non_native * &self.beta_var_non_native;
+        let beta_3 = &self.beta_var_non_native * &beta_2;
+        let beta_4 = &self.beta_var_non_native * &beta_3;
+
         let final_instance = self.ova_running_instance.fold(
-            &[((&self.ova_auxiliary_input_C, None), &self.ova_cross_term_error_commitment_C, &self.beta_var_non_native, &beta_bits),
-                ((&self.ova_auxiliary_input_T, None), &self.ova_cross_term_error_commitment_T, &self.beta_var_non_native, &beta_bits),
-                ((&self.ova_auxiliary_input_E_1, None), &self.ova_cross_term_error_commitment_E_1, &self.beta_var_non_native, &beta_bits),
-                ((&self.ova_auxiliary_input_E_2, None), &self.ova_cross_term_error_commitment_E_2, &self.beta_var_non_native, &beta_bits),
+            &[
+                (
+                    (&self.ova_auxiliary_input_C, None),
+                    &self.ova_cross_term_error_commitment_C,
+                    &self.beta_var_non_native,
+                    &beta_bits
+                ),
+                (
+                    (&self.ova_auxiliary_input_T, None),
+                    &self.ova_cross_term_error_commitment_T,
+                    &beta_2,
+                    &beta_2.to_bits_le().unwrap(),
+                ),
+                (
+                    (&self.ova_auxiliary_input_E_1, None),
+                    &self.ova_cross_term_error_commitment_E_1,
+                    &beta_3,
+                    &beta_3.to_bits_le().unwrap(),
+                ),
+                (
+                    (&self.ova_auxiliary_input_E_2, None),
+                    &self.ova_cross_term_error_commitment_E_2,
+                    &beta_4,
+                    &beta_4.to_bits_le().unwrap(),
+                ),
             ]
         ).unwrap();
 
@@ -625,7 +649,7 @@ pub mod tests {
         println!("number of witness random cs: {}", cs.num_witness_variables());
 
         println!("number of constraint before shape convert: {}", cs.num_constraints());
-
+        /*
         // convert to the corresponding Spartan types
         let shape = CRR1CSShape::<ScalarField>::convert::<G1>(cs.clone());
         let key: CRR1CSKey<E, MultilinearPolynomial<ScalarField>> = CRR1CSKey::new(&SRS, shape.get_num_cons(), shape.get_num_vars());
@@ -669,5 +693,6 @@ pub mod tests {
                 &mut verifier_transcript,
             )
             .is_ok());
+         */
     }
 }

@@ -237,13 +237,14 @@ where
 
 
         // first fold auxiliary_input_T with the running instance
+        let beta_2: <G2 as CurveConfig>::ScalarField = beta_non_native * beta_non_native;
         let (instance_T, witness_T) = self.compute_auxiliary_input_T();
         let (com_T, new_running_witness, new_running_instance) = compute_commit_and_fold(
             &new_running_witness,
             &new_running_instance,
             &witness_T,
             &instance_T,
-            &beta_non_native,
+            &beta_2,
         );
 
         self.shape.is_ova_satisfied(&instance_T, &witness_T, &self.commitment_pp).unwrap();
@@ -251,12 +252,13 @@ where
 
         // first fold auxiliary_input_E_1 with the running instance
         let (instance_E_1, witness_E_1) = self.compute_auxiliary_input_E_1();
+        let beta_3: <G2 as CurveConfig>::ScalarField = beta_2 * beta_non_native;
         let (com_E_1, new_running_witness, new_running_instance) = compute_commit_and_fold(
             &new_running_witness,
             &new_running_instance,
             &witness_E_1,
             &instance_E_1,
-            &beta_non_native,
+            &beta_3,
         );
 
         self.shape.is_ova_satisfied(&instance_E_1, &witness_E_1, &self.commitment_pp).unwrap();
@@ -264,12 +266,13 @@ where
 
         // first fold auxiliary_input_E_1 with the running instance
         let (instance_E_2, witness_E_2) = self.compute_auxiliary_input_E_2();
+        let beta_4: <G2 as CurveConfig>::ScalarField = beta_3 * beta_non_native;
         let (com_E_2, new_running_witness, new_running_instance) = compute_commit_and_fold(
             &new_running_witness,
             &new_running_instance,
             &witness_E_2,
             &instance_E_2,
-            &beta_non_native,
+            &beta_4,
         );
 
         self.shape.is_ova_satisfied(&instance_E_2, &witness_E_2, &self.commitment_pp).unwrap();
