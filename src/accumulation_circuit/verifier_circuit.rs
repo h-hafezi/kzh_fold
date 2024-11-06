@@ -80,7 +80,6 @@ where
 
     /// running cycle fold instance
     pub ova_running_instance: RelaxedOvaInstance<G2, C2>,
-    pub ova_final_instance: RelaxedOvaInstance<G2, C2>,
 
     // these are constant values
     pub n: u32,
@@ -126,7 +125,6 @@ where
     pub final_accumulator_instance_var: AccumulatorInstanceVar<G1>,
 
     pub ova_running_instance: RelaxedOvaInstanceVar<G2, C2>,
-    pub ova_final_instance: RelaxedOvaInstanceVar<G2, C2>,
 
     // these are constant values
     pub n: u32,
@@ -203,12 +201,6 @@ where
             mode,
         ).unwrap();
 
-        let ova_final_instance = RelaxedOvaInstanceVar::new_variable(
-            ns!(cs, "cycle fold running instance"),
-            || circuit.map(|e| e.ova_final_instance.clone()),
-            mode,
-        ).unwrap();
-
         // randomness variables
         let beta_var = FpVar::new_variable(
             ns!(cs, "beta"),
@@ -269,7 +261,6 @@ where
             running_accumulator_instance_var,
             final_accumulator_instance_var,
             ova_running_instance,
-            ova_final_instance,
             n: circuit.map(|e| e.n).unwrap(),
             m: circuit.map(|e| e.m).unwrap(),
         })
@@ -288,7 +279,7 @@ where
     C2: CommitmentScheme<Projective<G2>>,
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField>,
 {
-    pub fn accumulate(&self, transcript_var: &mut TranscriptVar<G1::ScalarField>) -> (&RelaxedOvaInstanceVar<G2, C2>, &AccumulatorInstanceVar<G1>)
+    pub fn accumulate(&self, transcript_var: &mut TranscriptVar<G1::ScalarField>) -> (RelaxedOvaInstanceVar<G2, C2>, &AccumulatorInstanceVar<G1>)
     where
         <G2 as CurveConfig>::BaseField: Absorb,
     {
@@ -400,9 +391,58 @@ where
                 &beta_minus_one * &self.current_accumulator_instance_var.z_var)
         ).unwrap();
 
-        let beta_2 = &self.beta_var_non_native * &self.beta_var_non_native;
-        let beta_3 = &self.beta_var_non_native * &beta_2;
-        let beta_4 = &self.beta_var_non_native * &beta_3;
+        transcript_var.append_scalars_non_native(b"label", self.ova_auxiliary_input_C.X.as_slice());
+        transcript_var.append_scalars_non_native(b"label", self.ova_auxiliary_input_T.X.as_slice());
+        transcript_var.append_scalars_non_native(b"label", self.ova_auxiliary_input_E_1.X.as_slice());
+        transcript_var.append_scalars_non_native(b"label", self.ova_auxiliary_input_E_2.X.as_slice());
+        transcript_var.append_scalars(
+            b"label",
+            &[
+                self.ova_auxiliary_input_C.commitment.x.clone(),
+                self.ova_auxiliary_input_C.commitment.x.clone(),
+                self.ova_auxiliary_input_C.commitment.x.clone(),
+                self.ova_cross_term_error_commitment_C.x.clone(),
+                self.ova_cross_term_error_commitment_C.y.clone(),
+                self.ova_cross_term_error_commitment_C.z.clone(),
+            ],
+        );
+        transcript_var.append_scalars(
+            b"label",
+            &[
+                self.ova_auxiliary_input_T.commitment.x.clone(),
+                self.ova_auxiliary_input_T.commitment.x.clone(),
+                self.ova_auxiliary_input_T.commitment.x.clone(),
+                self.ova_cross_term_error_commitment_T.x.clone(),
+                self.ova_cross_term_error_commitment_T.y.clone(),
+                self.ova_cross_term_error_commitment_T.z.clone(),
+            ],
+        );
+        transcript_var.append_scalars(
+            b"label",
+            &[
+                self.ova_auxiliary_input_E_1.commitment.x.clone(),
+                self.ova_auxiliary_input_E_1.commitment.x.clone(),
+                self.ova_auxiliary_input_E_1.commitment.x.clone(),
+                self.ova_cross_term_error_commitment_E_1.x.clone(),
+                self.ova_cross_term_error_commitment_E_1.y.clone(),
+                self.ova_cross_term_error_commitment_E_1.z.clone(),
+            ],
+        );
+        transcript_var.append_scalars(
+            b"label",
+            &[
+                self.ova_auxiliary_input_E_2.commitment.x.clone(),
+                self.ova_auxiliary_input_E_2.commitment.x.clone(),
+                self.ova_auxiliary_input_E_2.commitment.x.clone(),
+                self.ova_cross_term_error_commitment_E_2.x.clone(),
+                self.ova_cross_term_error_commitment_E_2.y.clone(),
+                self.ova_cross_term_error_commitment_E_2.z.clone(),
+            ],
+        );
+
+        let beta_2_non_native = &self.beta_var_non_native * &self.beta_var_non_native;
+        let beta_3_non_native = &self.beta_var_non_native * &beta_2_non_native;
+        let beta_4_non_native = &self.beta_var_non_native * &beta_3_non_native;
 
         let final_instance = self.ova_running_instance.fold(
             &[
@@ -415,29 +455,27 @@ where
                 (
                     (&self.ova_auxiliary_input_T, None),
                     &self.ova_cross_term_error_commitment_T,
-                    &beta_2,
-                    &beta_2.to_bits_le().unwrap(),
+                    &beta_2_non_native,
+                    &beta_2_non_native.to_bits_le().unwrap(),
                 ),
                 (
                     (&self.ova_auxiliary_input_E_1, None),
                     &self.ova_cross_term_error_commitment_E_1,
-                    &beta_3,
-                    &beta_3.to_bits_le().unwrap(),
+                    &beta_3_non_native,
+                    &beta_3_non_native.to_bits_le().unwrap(),
                 ),
                 (
                     (&self.ova_auxiliary_input_E_2, None),
                     &self.ova_cross_term_error_commitment_E_2,
-                    &beta_4,
-                    &beta_4.to_bits_le().unwrap(),
+                    &beta_4_non_native,
+                    &beta_4_non_native.to_bits_le().unwrap(),
                 ),
             ]
         ).unwrap();
 
-        self.ova_final_instance.X.enforce_equal(&final_instance.X).unwrap();
-        self.ova_final_instance.commitment.enforce_equal(&final_instance.commitment).unwrap();
 
         // return result of accumulation and final cycle fold instance
-        (&self.ova_final_instance, &self.final_accumulator_instance_var)
+        (final_instance, &self.final_accumulator_instance_var)
     }
 }
 
@@ -548,13 +586,6 @@ where
             AllocationMode::Input,
         ).unwrap();
 
-        // initialise cycle fold running instance var
-        let final_cycle_fold_instance_var = RelaxedOvaInstanceVar::new_variable(
-            ns!(cs, "final cycle fold instance var"),
-            || Ok(cycle_fold_proof.4),
-            AllocationMode::Input,
-        ).unwrap();
-
 
         let verifier = AccumulatorVerifierVar {
             ova_auxiliary_input_C: auxiliary_input_C_var,
@@ -572,7 +603,6 @@ where
             running_accumulator_instance_var,
             final_accumulator_instance_var,
             ova_running_instance: running_cycle_fold_instance_var,
-            ova_final_instance: final_cycle_fold_instance_var,
             n: prover.n,
             m: prover.m,
         };
@@ -589,14 +619,11 @@ pub mod tests {
     use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef, SynthesisMode};
     use rand::thread_rng;
 
+    use super::*;
     use crate::constant_for_curves::{ScalarField, C2, E, G1, G2};
-    use crate::nexus_spartan::crr1cs::{is_sat, CRR1CSInstance, CRR1CSKey, CRR1CSShape, CRR1CSWitness};
-    use crate::nexus_spartan::crr1csproof::CRR1CSProof;
     use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
     use crate::pcs::multilinear_pcs::PolynomialCommitmentSRS;
     use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
-    use crate::transcript::transcript::Transcript;
-    use super::*;
 
     // Test helper
     pub fn get_random_acc_verifier_cs() -> ConstraintSystemRef<ScalarField> {

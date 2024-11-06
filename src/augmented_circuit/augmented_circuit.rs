@@ -25,7 +25,7 @@ const WITNESS_BLOAT: usize = 1;
 const POLY_SETUP: usize = 17;
 
 type Output<'a, G2, C2, G1, F> = (
-    (&'a RelaxedOvaInstanceVar<G2, C2>, &'a AccumulatorInstanceVar<G1>),  // accumulator final instance, Ova final instance
+    (RelaxedOvaInstanceVar<G2, C2>, &'a AccumulatorInstanceVar<G1>),  // accumulator final instance, Ova final instance
     (Vec<FpVar<F>>, Vec<FpVar<F>>), // r_x, r_y
     (Vec<FpVar<F>>, Vec<FpVar<F>>, (FpVar<F>, FpVar<F>, FpVar<F>)), // (vector_x, vector_y, evaluations)
 );
@@ -195,7 +195,6 @@ mod tests {
     use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
     use crate::transcript::transcript::Transcript;
     use ark_ff::AdditiveGroup;
-    use ark_ff::UniformRand;
     use ark_relations::r1cs::{ConstraintSystem, SynthesisMode};
     use rand::thread_rng;
 

@@ -29,7 +29,8 @@ where
     E: Pairing<G1Affine=Affine<G1>, ScalarField=F>,
     <G2 as CurveConfig>::ScalarField: Absorb,
 {
-    /// the randomness used for taking linear combination, it should be input from Accumulator::compute_fiat_shammir_challenge()
+    /// the randomness used for taking linear combination, between two accumulations
+    /// it should be input from Accumulator::compute_fiat_shamir_challenge()
     pub beta: F,
 
     pub initial_transcript: Transcript<F>,
