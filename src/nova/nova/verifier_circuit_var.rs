@@ -17,7 +17,7 @@ use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
 use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::curves::short_weierstrass::ProjectiveVar;
-use ark_r1cs_std::{ToBitsGadget};
+use ark_r1cs_std::ToBitsGadget;
 use ark_relations::ns;
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, Namespace, SynthesisError};
 use std::borrow::Borrow;
@@ -55,7 +55,6 @@ where
 
     /// running cycle fold instance
     pub ova_running_instance: RelaxedOvaInstanceVar<G2, C2>,
-    pub ova_final_instance: RelaxedOvaInstanceVar<G2, C2>,
 
     /// auxiliary input which helps to have W = W_1 + beta * W_2 without scalar multiplication
     pub ova_auxiliary_input_W: OvaInstanceVar<G2, C2>,
@@ -167,13 +166,6 @@ where
             mode,
         )?;
 
-        // Allocation for final_cycle_fold_instance
-        let final_cycle_fold_instance = RelaxedOvaInstanceVar::new_variable(
-            ns!(cs, "final_cycle_fold_instance"),
-            || circuit.map(|e| e.final_ova_instance.clone()),
-            mode,
-        )?;
-
         // Allocation for auxiliary_input_W_var
         let ova_auxiliary_input_W = OvaInstanceVar::new_variable(
             ns!(cs, "auxiliary_input_W_var"),
@@ -214,7 +206,6 @@ where
             beta_2,
             beta_2_non_native,
             ova_running_instance: running_cycle_fold_instance,
-            ova_final_instance: final_cycle_fold_instance,
             ova_auxiliary_input_W,
             ova_auxiliary_input_E,
             ova_cross_term_error_commitment_w,
@@ -280,15 +271,11 @@ where
         let beta_1_bits: Vec<Boolean<F>> = self.beta_1_non_native.to_bits_le().unwrap();
         let beta_2_bits: Vec<Boolean<F>> = self.beta_2_non_native.to_bits_le().unwrap();
 
-        let final_instance = self.ova_running_instance.fold(
+        let _ova_final_instance = self.ova_running_instance.fold(
             &[((&self.ova_auxiliary_input_W, None), &self.ova_cross_term_error_commitment_w, &self.beta_1_non_native, &beta_1_bits),
                 ((&self.ova_auxiliary_input_E, None), &self.ova_cross_term_error_commitment_e, &self.beta_2_non_native, &beta_2_bits)
             ]
         ).unwrap();
-
-        self.ova_final_instance.X.enforce_equal(&final_instance.X).expect("panic");
-        self.ova_final_instance.commitment.enforce_equal(&final_instance.commitment).expect("panic");
-
 
         // compute beta, beta_1, beta_2 and check their correctness as well consistency with their non-native representation
 
@@ -325,6 +312,34 @@ where
         let beta_2 = transcript.challenge_scalar(b"challenge");
         beta_2.enforce_equal(&self.beta_2).expect("error while enforcing equality");
         beta_2.enforce_equal(&Boolean::le_bits_to_fp_var(beta_2_bits.as_slice()).unwrap()).expect("error while enforcing equality");
+
+        // this randomness should be used to get the randomness beta_1 and beta_2, we currently simply add them but don't use them
+        transcript.append_scalars_non_native(
+            b"label",
+            self.ova_running_instance.X.as_slice(),
+        );
+        transcript.append_scalars_non_native(
+            b"label",
+            self.ova_auxiliary_input_E.X.as_slice(),
+        );
+        transcript.append_scalars_non_native(
+            b"label",
+            self.ova_auxiliary_input_W.X.as_slice(),
+        );
+        transcript.append_scalars(
+            b"label",
+            &[
+                self.ova_auxiliary_input_W.commitment.x.clone(),
+                self.ova_auxiliary_input_W.commitment.y.clone(),
+                self.ova_auxiliary_input_W.commitment.z.clone(),
+                self.ova_auxiliary_input_E.commitment.x.clone(),
+                self.ova_auxiliary_input_E.commitment.y.clone(),
+                self.ova_auxiliary_input_E.commitment.z.clone(),
+                self.ova_running_instance.commitment.x.clone(),
+                self.ova_running_instance.commitment.y.clone(),
+                self.ova_running_instance.commitment.z.clone(),
+            ],
+        );
 
         Ok(())
     }
