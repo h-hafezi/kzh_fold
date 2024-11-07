@@ -16,10 +16,12 @@ use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
-use ark_relations::r1cs::{Namespace, SynthesisError};
+use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 use ark_std::{end_timer, start_timer};
 use itertools::izip;
 use std::borrow::Borrow;
+use rand::thread_rng;
+use crate::hash::poseidon::PoseidonHashVar;
 
 const WITNESS_BLOAT: usize = 1;
 const POLY_SETUP: usize = 17;
@@ -46,7 +48,6 @@ where
     pub spartan_partial_verifier: SpartanPartialVerifier<F, E>,
     pub kzh_acc_verifier: AccumulatorVerifier<G1, G2, C2, E>,
     pub matrix_evaluation_verifier: MatrixEvaluationAccVerifier<F>,
-    pub witness_vec: Vec<F>,
 }
 
 pub struct AugmentedCircuitVar<G1, G2, C2, F>
@@ -62,7 +63,6 @@ where
     pub spartan_partial_verifier: SpartanPartialVerifierVar<F, G1>,
     pub kzh_acc_verifier: AccumulatorVerifierVar<G1, G2, C2>,
     pub matrix_evaluation_verifier: MatrixEvaluationAccVerifierVar<F>,
-    pub witness_vec: Vec<FpVar<F>>,
 }
 
 impl<G1, G2, C2, E, F> AllocVar<AugmentedCircuit<G1, G2, C2, E, F>, F> for AugmentedCircuitVar<G1, G2, C2, F>
@@ -112,13 +112,10 @@ where
             mode,
         )?;
 
-        let witness_vec = Vec::<FpVar<F>>::new_variable(cs.clone(), || Ok(data.witness_vec.clone()), mode)?;
-
         Ok(AugmentedCircuitVar {
             spartan_partial_verifier,
             kzh_acc_verifier,
             matrix_evaluation_verifier,
-            witness_vec,
         })
     }
 }
@@ -133,7 +130,7 @@ where
     C2: CommitmentScheme<Projective<G2>>,
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField> + Clone,
 {
-    fn verify<E: Pairing>(&self, transcript: &mut TranscriptVar<F>) -> Output<G2, C2, G1, F> {
+    fn verify<E: Pairing>(&self, cs: ConstraintSystemRef<F>, transcript: &mut TranscriptVar<F>) -> Output<G2, C2, G1, F> {
         let (rx, ry) = self.spartan_partial_verifier.verify(transcript);
         let (final_cycle_fold_instance, final_accumulator_instance) = self.kzh_acc_verifier.accumulate(transcript);
 
@@ -166,11 +163,15 @@ where
             &self.kzh_acc_verifier.current_accumulator_instance_var.C_var,
         ).expect("error while enforcing equality");
 
-        // Add two constraints for every element of `witness_vec`
-        let mut power_of_two = self.witness_vec[0].clone();
-        for i in 0..WITNESS_BLOAT {
-            self.witness_vec[i].enforce_equal(&power_of_two).expect("OMG");
-            power_of_two = &self.witness_vec[0] * power_of_two;
+        // pad it with some random poseidon hash
+        let mut hash = PoseidonHashVar::new(cs.clone());
+        for _ in 0..WITNESS_BLOAT {
+            // get a random element
+            let r = FpVar::new_variable(cs.clone(), || Ok(F::rand(&mut thread_rng())), AllocationMode::Witness).unwrap();
+            // update sponge with this random element
+            hash.update_sponge(vec![r]);
+            // output the hash
+            let _ = hash.output();
         }
 
         ((final_cycle_fold_instance, final_accumulator_instance), (rx, ry), (vector_x, vector_y, evaluations))
@@ -196,7 +197,9 @@ mod tests {
     use crate::transcript::transcript::Transcript;
     use ark_ff::AdditiveGroup;
     use ark_relations::r1cs::{ConstraintSystem, SynthesisMode};
+    use ark_std::UniformRand;
     use rand::thread_rng;
+    use crate::hash::poseidon::PoseidonHashVar;
 
     type F = ScalarField;
 
@@ -352,6 +355,8 @@ mod tests {
 
         let cs = ConstraintSystem::<F>::new_ref();
 
+        println!("number of constraints after padding and before add augmented circuit: {}", cs.num_constraints());
+
         let partial_verifier_var = SpartanPartialVerifierVar::new_variable(
             cs.clone(),
             || Ok(partial_verifier.clone()),
@@ -366,29 +371,15 @@ mod tests {
             AllocationMode::Witness,
         ).unwrap();
 
-        // Add `WITNESS_BLOAT` elements to the witness 
-        let mut witness_vec_var = Vec::new();
-        let mut power_of_two = F::from(2u32);
-        for _ in 0..WITNESS_BLOAT {
-            witness_vec_var.push(FpVar::new_variable(
-                cs.clone(),
-                || Ok(power_of_two),
-                AllocationMode::Witness,
-            ).unwrap());
-            // Update to the next power of 2 in the field.
-            power_of_two *= F::from(2u32);
-        }
-
         let augmented_circuit = AugmentedCircuitVar {
             spartan_partial_verifier: partial_verifier_var,
             kzh_acc_verifier: acc_verifier_var,
             matrix_evaluation_verifier: matrix_evaluation_verifier_var,
-            witness_vec: witness_vec_var,
         };
 
         let mut transcript_var = TranscriptVar::from_transcript(cs.clone(), verifier_transcript_clone);
 
-        let _ = augmented_circuit.verify::<E>(&mut transcript_var);
+        let _ = augmented_circuit.verify::<E>(cs.clone(), &mut transcript_var);
 
         assert!(cs.is_satisfied().unwrap());
         println!("augmented circuit constraints: {}", cs.num_constraints());
