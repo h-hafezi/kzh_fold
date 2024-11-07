@@ -31,7 +31,7 @@ use crate::accumulation_circuit::prover::AccumulatorVerifierCircuitProver;
 use crate::accumulation_circuit::randomness_different_formats;
 use crate::commitment::CommitmentScheme;
 use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
-use crate::gadgets::non_native::util::{convert_field_one_to_field_two, non_native_to_fpvar};
+use crate::gadgets::non_native::util::{cast_field, non_native_to_fpvar};
 use crate::gadgets::r1cs::{OvaInstance, RelaxedOvaInstance};
 use crate::hash::poseidon::PoseidonHashVar;
 use crate::nova::cycle_fold::coprocessor::{synthesize, SecondaryCircuit as SecondaryCircuit};
@@ -210,7 +210,7 @@ where
 
         let beta_var_non_native = NonNativeFieldVar::new_variable(
             ns!(cs, "non native beta"),
-            || circuit.map(|e| convert_field_one_to_field_two::<G1::ScalarField, G1::BaseField>(e.beta.clone())),
+            || circuit.map(|e| cast_field::<G1::ScalarField, G1::BaseField>(e.beta.clone())),
             mode,
         ).unwrap();
 

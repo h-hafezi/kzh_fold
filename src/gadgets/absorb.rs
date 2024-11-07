@@ -1,5 +1,5 @@
 use crate::commitment::{Commitment, CommitmentScheme};
-use crate::gadgets::non_native::util::convert_field_one_to_field_two;
+use crate::gadgets::non_native::util::cast_field;
 use crate::gadgets::r1cs::r1cs_var::{R1CSInstanceVar, RelaxedR1CSInstanceVar};
 use crate::gadgets::r1cs::{R1CSInstance, RelaxedR1CSInstance};
 use ark_crypto_primitives::sponge::constraints::AbsorbGadget;
@@ -23,8 +23,8 @@ where
 
         // convert group into native field elements
         let w = self.commitment_W.into_affine().xy().unwrap();
-        let x = convert_field_one_to_field_two::<G::BaseField, G::ScalarField>(w.0);
-        let y = convert_field_one_to_field_two::<G::BaseField, G::ScalarField>(w.1);
+        let x = cast_field::<G::BaseField, G::ScalarField>(w.0);
+        let y = cast_field::<G::BaseField, G::ScalarField>(w.1);
         res.extend(vec![x, y]);
 
         res
@@ -63,14 +63,14 @@ where
 
         // convert group into native field elements
         let w = self.commitment_W.into_affine().xy().unwrap();
-        let x = convert_field_one_to_field_two::<G::BaseField, G::ScalarField>(w.0);
-        let y = convert_field_one_to_field_two::<G::BaseField, G::ScalarField>(w.1);
+        let x = cast_field::<G::BaseField, G::ScalarField>(w.0);
+        let y = cast_field::<G::BaseField, G::ScalarField>(w.1);
         res.extend(vec![x, y]);
 
         // convert group into native field elements
         let e = self.commitment_E.into_affine().xy().unwrap();
-        let x = convert_field_one_to_field_two::<G::BaseField, G::ScalarField>(e.0);
-        let y = convert_field_one_to_field_two::<G::BaseField, G::ScalarField>(e.1);
+        let x = cast_field::<G::BaseField, G::ScalarField>(e.0);
+        let y = cast_field::<G::BaseField, G::ScalarField>(e.1);
         res.extend(vec![x, y]);
 
         res

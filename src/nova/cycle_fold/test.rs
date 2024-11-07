@@ -4,13 +4,13 @@ pub(crate) mod tests {
     use crate::gadgets::r1cs::{RelaxedOvaInstance, RelaxedOvaWitness};
     pub use crate::hash::pederson::PedersenCommitment;
     use crate::nova::cycle_fold::coprocessor::{setup_shape, synthesize, SecondaryCircuit};
-    use crate::utils::cast_field_element;
     use ark_ff::PrimeField;
     use ark_pallas::{Fq, Fr, PallasConfig, Projective};
     use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystem};
     use ark_std::UniformRand;
     use ark_vesta::VestaConfig;
     use rand::thread_rng;
+    use crate::gadgets::non_native::util::cast_field;
     use crate::gadgets::r1cs::ova::commit_T;
 
     pub fn get_random_circuit() -> SecondaryCircuit<PallasConfig> {
@@ -20,7 +20,7 @@ pub(crate) mod tests {
 
         let val = u64::rand(&mut rng);
         let r = <Fq as PrimeField>::BigInt::from(val).into();
-        let r_scalar = unsafe { cast_field_element::<Fq, Fr>(&r) };
+        let r_scalar = cast_field::<Fq, Fr>(r);
 
         let g_out = g1 * r_scalar + g2;
 

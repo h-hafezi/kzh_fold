@@ -33,11 +33,11 @@ where
         (E::ScalarField::ONE, E::ScalarField::ZERO)
     } else {
         // Extract x and y coordinates and convert them
-        let x = convert_field_one_to_field_two::<
+        let x = cast_field::<
             <<E as Pairing>::G1Affine as AffineRepr>::BaseField,
             <E as Pairing>::ScalarField,
         >(point.x().unwrap());
-        let y = convert_field_one_to_field_two::<
+        let y = cast_field::<
             <<E as Pairing>::G1Affine as AffineRepr>::BaseField,
             <E as Pairing>::ScalarField,
         >(point.y().unwrap());
@@ -48,7 +48,7 @@ where
 }
 
 
-pub fn convert_field_one_to_field_two<Fr, Fq>(first_field: Fr) -> Fq
+pub fn cast_field<Fr, Fq>(first_field: Fr) -> Fq
 where
     Fr: PrimeField,
     Fq: PrimeField,
@@ -73,7 +73,7 @@ mod tests {
     use rand::thread_rng;
 
     use crate::constant_for_curves::{BaseField, ScalarField};
-    use crate::gadgets::non_native::util::{convert_field_one_to_field_two, non_native_to_fpvar};
+    use crate::gadgets::non_native::util::{cast_field, non_native_to_fpvar};
 
     // This test makes sure non_native_to_fpvar works correctly but generating a
     // random non-native value and then converting it into FpVar, it's the zk version
@@ -105,6 +105,6 @@ mod tests {
     #[test]
     fn test_conversion2() {
         let g = BaseField::rand(&mut thread_rng());
-        assert_eq!(g.into_bigint(), convert_field_one_to_field_two::<BaseField, ScalarField>(g).into_bigint());
+        assert_eq!(g.into_bigint(), cast_field::<BaseField, ScalarField>(g).into_bigint());
     }
 }

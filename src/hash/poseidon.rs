@@ -125,7 +125,7 @@ mod tests {
     use super::*;
 
     use crate::constant_for_curves::{BaseField, ScalarField};
-    use crate::gadgets::non_native::util::{convert_field_one_to_field_two, non_native_to_fpvar};
+    use crate::gadgets::non_native::util::{cast_field, non_native_to_fpvar};
 
 
     // In this test, we have a Poseidon and PoseidonVar, we feed them on native and
@@ -135,7 +135,7 @@ mod tests {
     fn hash_test() {
         let mut hash_object: PoseidonHash<ScalarField> = PoseidonHash::new();
         hash_object.update_sponge(vec![ScalarField::ONE, ScalarField::ONE]);
-        hash_object.update_sponge(vec![convert_field_one_to_field_two::<BaseField, ScalarField>(BaseField::ONE)]);
+        hash_object.update_sponge(vec![cast_field::<BaseField, ScalarField>(BaseField::ONE)]);
 
         let cs = ConstraintSystem::new_ref();
 

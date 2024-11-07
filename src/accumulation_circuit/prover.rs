@@ -1,7 +1,7 @@
 use crate::accumulation::accumulator::{AccInstance, AccSRS, Accumulator};
 use crate::accumulation_circuit::affine_to_projective;
 use crate::commitment::CommitmentScheme;
-use crate::gadgets::non_native::util::convert_field_one_to_field_two;
+use crate::gadgets::non_native::util::cast_field;
 use crate::gadgets::r1cs::ova::commit_T;
 use crate::gadgets::r1cs::{OvaInstance, OvaWitness, R1CSShape, RelaxedOvaInstance, RelaxedOvaWitness};
 use crate::hash::pederson::PedersenCommitment;
@@ -114,7 +114,7 @@ where
             g1,
             g2,
             g_out,
-            r: convert_field_one_to_field_two::<G1::ScalarField, G1::BaseField>(self.beta),
+            r: cast_field::<G1::ScalarField, G1::BaseField>(self.beta),
             flag: false,
         }, &self.commitment_pp[0..self.shape.num_vars].to_vec()).unwrap()
     }
@@ -130,7 +130,7 @@ where
             g1,
             g2,
             g_out,
-            r: convert_field_one_to_field_two::<G1::ScalarField, G1::BaseField>(self.beta),
+            r: cast_field::<G1::ScalarField, G1::BaseField>(self.beta),
             flag: false,
         }, &self.commitment_pp[0..self.shape.num_vars].to_vec()).unwrap()
     }
@@ -146,7 +146,7 @@ where
             g1,
             g2,
             g_out,
-            r: convert_field_one_to_field_two::<G1::ScalarField, G1::BaseField>(self.beta),
+            r: cast_field::<G1::ScalarField, G1::BaseField>(self.beta),
             flag: false,
         }, &self.commitment_pp[0..self.shape.num_vars].to_vec()).unwrap()
     }
@@ -164,7 +164,7 @@ where
             g1: Q,
             g2: E_temp,
             g_out,
-            r: convert_field_one_to_field_two::<G1::ScalarField, G1::BaseField>(self.beta * (F::ONE - self.beta)),
+            r: cast_field::<G1::ScalarField, G1::BaseField>(self.beta * (F::ONE - self.beta)),
             flag: true,
         }, &self.commitment_pp[0..self.shape.num_vars].to_vec()).unwrap()
     }
@@ -221,7 +221,7 @@ where
                 (com_T, new_running_witness, new_running_instance)
             };
 
-        let beta_non_native = convert_field_one_to_field_two::<G1::ScalarField, G1::BaseField>(self.beta);
+        let beta_non_native = cast_field::<G1::ScalarField, G1::BaseField>(self.beta);
 
         // first fold auxiliary_input_C with the running instance
         let (instance_C, witness_C) = self.compute_auxiliary_input_C();
@@ -412,7 +412,7 @@ pub mod tests {
     use crate::accumulation::accumulator::Accumulator;
     use crate::accumulation_circuit::prover::{get_random_prover, AccumulatorVerifierCircuitProver};
     use crate::constant_for_curves::{BaseField, ScalarField, E, G1, G2};
-    use crate::gadgets::non_native::util::convert_field_one_to_field_two;
+    use crate::gadgets::non_native::util::cast_field;
     use crate::hash::pederson::PedersenCommitment;
 
     type GrumpkinCurveGroup = ark_grumpkin::Projective;
@@ -435,7 +435,7 @@ pub mod tests {
             &mut prover.initial_transcript.clone(),
         ).0;
 
-        assert_eq!(secondary_circuit.r, convert_field_one_to_field_two::<F, BaseField>(prover.beta));
+        assert_eq!(secondary_circuit.r, cast_field::<F, BaseField>(prover.beta));
         assert_eq!(secondary_circuit.flag, false);
         assert_eq!(secondary_circuit.g1, prover.running_accumulator.instance.C);
         assert_eq!(secondary_circuit.g2, prover.current_accumulator.instance.C);
@@ -457,7 +457,7 @@ pub mod tests {
             &mut prover.initial_transcript.clone(),
         ).0;
 
-        assert_eq!(secondary_circuit.r, convert_field_one_to_field_two::<F, BaseField>(prover.beta));
+        assert_eq!(secondary_circuit.r, cast_field::<F, BaseField>(prover.beta));
         assert_eq!(secondary_circuit.flag, false);
         assert_eq!(secondary_circuit.g1, prover.running_accumulator.instance.T);
         assert_eq!(secondary_circuit.g2, prover.current_accumulator.instance.T);
@@ -490,8 +490,8 @@ pub mod tests {
         assert_eq!(secondary_circuit_E_2.flag, true);
 
         // checking correctness of randomness
-        assert_eq!(secondary_circuit_E_1.r, convert_field_one_to_field_two::<F, Q>(prover.beta));
-        assert_eq!(secondary_circuit_E_2.r, convert_field_one_to_field_two::<F, Q>(prover.beta * (F::ONE - prover.beta)));
+        assert_eq!(secondary_circuit_E_1.r, cast_field::<F, Q>(prover.beta));
+        assert_eq!(secondary_circuit_E_2.r, cast_field::<F, Q>(prover.beta * (F::ONE - prover.beta)));
 
         // check E_temp is present in two circuits
         assert_eq!(secondary_circuit_E_1.g_out, secondary_circuit_E_2.g2);

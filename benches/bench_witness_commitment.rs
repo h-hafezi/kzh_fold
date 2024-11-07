@@ -21,7 +21,7 @@ use sqrtn_pcs::accumulation_circuit::verifier_circuit::AccumulatorVerifierVar;
 use sqrtn_pcs::commitment::CommitmentScheme;
 use sqrtn_pcs::constant_for_curves::{BaseField, E, G1, G2, ScalarField};
 use sqrtn_pcs::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
-use sqrtn_pcs::gadgets::non_native::util::convert_field_one_to_field_two;
+use sqrtn_pcs::gadgets::non_native::util::cast_field;
 use sqrtn_pcs::hash::pederson::PedersenCommitment;
 use sqrtn_pcs::pcs::multilinear_pcs::{PCSEngine, PolynomialCommitmentSRS};
 use sqrtn_pcs::transcript::transcript_var::TranscriptVar;

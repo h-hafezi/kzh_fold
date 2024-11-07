@@ -13,7 +13,7 @@ use ark_std::UniformRand;
 use rand::Rng;
 use std::marker::PhantomData;
 use ark_crypto_primitives::sponge::Absorb;
-use crate::gadgets::non_native::util::convert_field_one_to_field_two;
+use crate::gadgets::non_native::util::cast_field;
 
 pub struct SignatureVerifierProver<G1, G2, C2, E>
 where
@@ -120,7 +120,7 @@ where
             g1: B2,
             g2: B1,
             g_out: B1 + (B2 * r),
-            r: convert_field_one_to_field_two::<G1::ScalarField, G1::BaseField>(r),
+            r: cast_field::<G1::ScalarField, G1::BaseField>(r),
             flag: true,
         }, &self.ova_commitment_pp[0..self.ova_shape.num_vars].to_vec(),
         ).unwrap())
@@ -140,7 +140,7 @@ where
             g1: C,
             g2: temp,
             g_out: temp + (C * r),
-            r: convert_field_one_to_field_two::<G1::ScalarField, G1::BaseField>(r),
+            r: cast_field::<G1::ScalarField, G1::BaseField>(r),
             flag: true,
         }, &self.ova_commitment_pp[0..self.ova_shape.num_vars].to_vec(),
         ).unwrap()

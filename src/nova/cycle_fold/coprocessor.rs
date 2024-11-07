@@ -202,9 +202,8 @@ mod tests {
     use ark_pallas::{Fq, Fr, PallasConfig, Projective};
     use ark_std::UniformRand;
     use ark_vesta::VestaConfig;
-
+    use crate::gadgets::non_native::util::cast_field;
     use crate::hash::pederson::PedersenCommitment;
-    use crate::utils::cast_field_element;
 
     use super::*;
 
@@ -216,7 +215,7 @@ mod tests {
 
         let val = u64::rand(&mut rng);
         let r = <Fq as PrimeField>::BigInt::from(val).into();
-        let r_scalar = unsafe { cast_field_element::<Fq, Fr>(&r) };
+        let r_scalar = cast_field::<Fq, Fr>(r);
 
         let g_out = g1 * r_scalar + g2;
 
@@ -232,7 +231,7 @@ mod tests {
             g_out.x,
             g_out.y,
             g_out.z,
-            unsafe { cast_field_element(&r) },
+            cast_field(r),
             Fq::ONE,
         ];
 
@@ -278,7 +277,7 @@ mod tests {
 
         let val = u64::rand(&mut rng);
         let r = <Fq as PrimeField>::BigInt::from(val).into();
-        let r_scalar = unsafe { cast_field_element::<Fq, Fr>(&r) };
+        let r_scalar =  cast_field::<Fq, Fr>(r);
 
         let g_out = g1 * r_scalar + g2;
 
@@ -305,7 +304,7 @@ mod tests {
         let g2 = Projective::rand(&mut rng);
 
         let r = <Fq as PrimeField>::BigInt::from(u64::rand(&mut rng)).into();
-        let r_scalar = unsafe { cast_field_element::<Fq, Fr>(&r) };
+        let r_scalar = cast_field::<Fq, Fr>(r);
 
         let g_out = g1 * r_scalar + g2;
 
@@ -325,7 +324,7 @@ mod tests {
         let g2 = Projective::rand(&mut rng);
 
         let r = <Fq as PrimeField>::BigInt::from(u64::rand(&mut rng)).into();
-        let r_scalar = unsafe { cast_field_element::<Fq, Fr>(&r) };
+        let r_scalar = cast_field::<Fq, Fr>(r) ;
 
         let g_out = g1 * r_scalar + g2 * (Fr::ONE - r_scalar);
 

@@ -27,4 +27,5 @@ pub type G1Projective = Projective<G1>;
 pub type G2Projective = Projective<GrumpkinConfig>;
 
 pub type C1 = PedersenCommitment<G1Projective>;
+
 pub type C2 = PedersenCommitment<G2Projective>;

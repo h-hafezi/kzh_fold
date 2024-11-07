@@ -1,5 +1,5 @@
 use crate::commitment::{CommitmentScheme};
-use crate::gadgets::non_native::util::convert_field_one_to_field_two;
+use crate::gadgets::non_native::util::cast_field;
 use crate::gadgets::r1cs::{OvaInstance, R1CSInstance, RelaxedOvaInstance, RelaxedR1CSInstance};
 use crate::nova::nova::get_affine_coords;
 use crate::nova::nova::prover::NovaProver;
@@ -110,7 +110,7 @@ where
         let beta = transcript.challenge_scalar(b"challenge");
 
         assert_eq!(beta, self.beta);
-        assert_eq!(beta, convert_field_one_to_field_two::<G1::BaseField, F>(self.beta_non_native));
+        assert_eq!(beta, cast_field::<G1::BaseField, F>(self.beta_non_native));
 
         // compute beta_1
         let coordinates = get_affine_coords::<G2::BaseField, G2>(&CurveGroup::into_affine(self.cross_term_error_commitment_w));
@@ -123,7 +123,7 @@ where
         let beta_1 = transcript.challenge_scalar(b"challenge");
 
         // currently we use the same beta as randomness, this can later change
-        let beta_1_non_native = convert_field_one_to_field_two::<G1::ScalarField, G1::BaseField>(beta_1);
+        let beta_1_non_native = cast_field::<G1::ScalarField, G1::BaseField>(beta_1);
 
         assert_eq!(beta_1, self.beta_1);
         assert_eq!(beta_1_non_native, self.beta_1_non_native);
@@ -139,7 +139,7 @@ where
         let beta_2 = transcript.challenge_scalar(b"challenge");
 
         // currently we use the same beta as randomness, this can later change
-        let beta_2_non_native = convert_field_one_to_field_two::<G1::ScalarField, G1::BaseField>(beta_2);
+        let beta_2_non_native = cast_field::<G1::ScalarField, G1::BaseField>(beta_2);
 
         assert_eq!(beta_2, self.beta_2);
         assert_eq!(beta_2_non_native, self.beta_2_non_native);
@@ -151,12 +151,12 @@ where
     {
         // we don't use the transcript output by prover.compute_beta() since function compute_final_ova_instance calls this internally
         let (beta, _) = prover.compute_beta();
-        let beta_non_native = convert_field_one_to_field_two::<G1::ScalarField, G1::BaseField>(beta);
+        let beta_non_native = cast_field::<G1::ScalarField, G1::BaseField>(beta);
         let (final_instance, _, nova_cross_term_error) = prover.compute_final_accumulator(&beta);
         let ((final_cycle_fold_instance, _), (cross_term_error_commitment_w, cross_term_error_commitment_e), (beta_1, beta_2)) = prover.compute_ova_final_instance();
 
-        let beta_1_non_native = convert_field_one_to_field_two::<G1::ScalarField, G1::BaseField>(beta_1);
-        let beta_2_non_native = convert_field_one_to_field_two::<G1::ScalarField, G1::BaseField>(beta_2);
+        let beta_1_non_native = cast_field::<G1::ScalarField, G1::BaseField>(beta_1);
+        let beta_2_non_native = cast_field::<G1::ScalarField, G1::BaseField>(beta_2);
 
         NovaAugmentedCircuit {
             running_instance: prover.running_accumulator.0.clone(),

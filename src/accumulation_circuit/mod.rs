@@ -8,7 +8,7 @@ use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
 use ark_relations::ns;
 use ark_relations::r1cs::ConstraintSystemRef;
-use crate::gadgets::non_native::util::convert_field_one_to_field_two;
+use crate::gadgets::non_native::util::cast_field;
 
 pub mod instance_circuit;
 
@@ -34,7 +34,7 @@ pub fn randomness_different_formats<E: Pairing>(cs: ConstraintSystemRef<E::Scala
     FpVar<E::ScalarField>,
     NonNativeFieldVar<E::BaseField, E::ScalarField>
 ) {
-    let beta_base = convert_field_one_to_field_two::<E::ScalarField, E::BaseField>(beta);
+    let beta_base = cast_field::<E::ScalarField, E::BaseField>(beta);
     let beta_var = FpVar::new_variable(
         ns!(cs, "beta var"),
         || Ok(beta.clone()),

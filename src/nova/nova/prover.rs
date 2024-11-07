@@ -1,7 +1,7 @@
 use crate::accumulation_circuit::affine_to_projective;
 use ark_serialize::CanonicalSerialize;
 use crate::commitment::{Commitment, CommitmentScheme};
-use crate::gadgets::non_native::util::convert_field_one_to_field_two;
+use crate::gadgets::non_native::util::cast_field;
 use crate::gadgets::r1cs::conversion::{get_random_r1cs_instance_witness, get_random_relaxed_r1cs_instance_witness};
 use crate::gadgets::r1cs::ova::commit_T as Ova_commit_T;
 use crate::gadgets::r1cs::r1cs::commit_T as R1CS_commit_T;
@@ -124,7 +124,7 @@ where
             g1,
             g2,
             g_out,
-            r: convert_field_one_to_field_two::<G1::ScalarField, G1::BaseField>(*beta),
+            r: cast_field::<G1::ScalarField, G1::BaseField>(*beta),
             flag: true,
         }, &self.ova_commitment_pp[0..self.ova_shape.num_vars].to_vec()).unwrap()
     }
@@ -138,7 +138,7 @@ where
             g1,
             g2,
             g_out,
-            r: convert_field_one_to_field_two::<G1::ScalarField, G1::BaseField>(*beta),
+            r: cast_field::<G1::ScalarField, G1::BaseField>(*beta),
             flag: true,
         }, &self.ova_commitment_pp[0..self.ova_shape.num_vars].to_vec()).unwrap()
     }
@@ -171,7 +171,7 @@ where
         let beta_1 = transcript.challenge_scalar(b"challenge");
 
         // currently we use the same beta as randomness, this can later change
-        let beta_1_non_native = convert_field_one_to_field_two::<G1::ScalarField, G1::BaseField>(beta_1);
+        let beta_1_non_native = cast_field::<G1::ScalarField, G1::BaseField>(beta_1);
 
         // compute the folded instance and folded witness
         let folded_instance = self.ova_running_instance.fold(
@@ -210,7 +210,7 @@ where
         let beta_2 = transcript.challenge_scalar(b"challenge");
 
         // currently we use the same beta as randomness, this can later change
-        let beta_2_non_native = convert_field_one_to_field_two::<G1::ScalarField, G1::BaseField>(beta_2);
+        let beta_2_non_native = cast_field::<G1::ScalarField, G1::BaseField>(beta_2);
 
         // compute the next folded instance / witness
         let final_folded_instance = folded_instance.fold(
