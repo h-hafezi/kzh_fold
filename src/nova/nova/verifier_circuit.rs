@@ -1,5 +1,4 @@
 use crate::commitment::{CommitmentScheme};
-use crate::gadgets::absorb::{r1cs_instance_to_sponge_vector, relaxed_r1cs_instance_to_sponge_vector};
 use crate::gadgets::non_native::util::convert_field_one_to_field_two;
 use crate::gadgets::r1cs::{OvaInstance, R1CSInstance, RelaxedOvaInstance, RelaxedR1CSInstance};
 use crate::nova::nova::get_affine_coords;
@@ -105,8 +104,8 @@ where
         // compute beta
         let affine: Affine<G1> = CurveGroup::into_affine(self.nova_cross_term_error);
         let mut transcript = Transcript::new(b"new transcript");
-        transcript.append_scalars(b"label", relaxed_r1cs_instance_to_sponge_vector(&self.running_instance).as_slice());
-        transcript.append_scalars(b"label", r1cs_instance_to_sponge_vector(&self.current_instance).as_slice());
+        transcript.append_scalars(b"label", &self.running_instance.to_sponge_field_elements().as_slice());
+        transcript.append_scalars(b"label", &self.current_instance.to_sponge_field_elements().as_slice());
         transcript.append_scalars_non_native(b"label", &[affine.x().unwrap(), affine.y().unwrap()]);
         let beta = transcript.challenge_scalar(b"challenge");
 

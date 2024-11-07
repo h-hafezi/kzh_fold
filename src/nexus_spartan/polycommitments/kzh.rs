@@ -66,7 +66,7 @@ where
         let (x, y) = split_between_x_and_y::<F>(length_x, length_y, r, F::ZERO);
 
         // verify the proof
-        assert!(PCSEngine::verify(&ck, commitment, proof, x.as_slice(), y.as_slice(), eval));
+        PCSEngine::verify(&ck, commitment, proof, x.as_slice(), y.as_slice(), eval);
 
         Ok(())
     }

@@ -21,6 +21,7 @@ impl<F: PrimeField + Absorb> Transcript<F> {
     }
 }
 
+/// the current implementation discards all labels
 impl<F: PrimeField + Absorb> Transcript<F> {
     pub fn append_u64(&mut self, _label: &'static [u8], n: u64) {
         let f = F::from(n);
@@ -71,9 +72,10 @@ impl<F: PrimeField + Absorb> Transcript<F> {
     }
 
     pub(crate) fn append_protocol_name(&mut self, _protocol_name: &'static [u8]) {
-        // I'm not sure if it's important to implement this
+        // not implemented
     }
 
+    /// appends E::G1Affine points, by first converting them through convert_affine_to_scalars
     pub fn append_point<E: Pairing<ScalarField=F>>(&mut self, label: &'static [u8], point: &E::G1Affine)
     where
         <<E as Pairing>::G1Affine as ark_ec::AffineRepr>::BaseField: PrimeField,
@@ -83,6 +85,7 @@ impl<F: PrimeField + Absorb> Transcript<F> {
         self.append_scalar(label, &y);
     }
 
+    /// calls append_point multiple times
     pub fn append_points<E: Pairing<ScalarField=F>>(&mut self, label: &'static [u8], points: &[E::G1Affine])
     where
         <<E as Pairing>::G1Affine as ark_ec::AffineRepr>::BaseField: PrimeField,

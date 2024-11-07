@@ -51,7 +51,7 @@ impl<F: PrimeField + Absorb> AllocVar<MultilinearPolynomial<F>, F> for Multiline
 impl<F: PrimeField + Absorb> R1CSVar<F> for MultilinearPolynomialVar<F> {
     type Value = MultilinearPolynomial<F>;
 
-    // This method returns the constraint system that the variables are attached to
+    /// This method returns the constraint system that the variables are attached to
     fn cs(&self) -> ConstraintSystemRef<F> {
         let mut result = ConstraintSystemRef::None;
         for val in &self.evaluation_over_boolean_hypercube {
@@ -60,7 +60,7 @@ impl<F: PrimeField + Absorb> R1CSVar<F> for MultilinearPolynomialVar<F> {
         result
     }
 
-    // This method returns the underlying values of the variables, if available
+    /// This method returns the underlying values of the variables, if available
     fn value(&self) -> Result<Self::Value, SynthesisError> {
         let mut evaluation_over_boolean_hypercube = Vec::new();
         for val in &self.evaluation_over_boolean_hypercube {

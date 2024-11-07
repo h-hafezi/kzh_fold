@@ -8,6 +8,7 @@ use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
 use ark_relations::r1cs::ConstraintSystemRef;
 
+/// The zk (circuit) version of Transcript
 pub struct TranscriptVar<F: PrimeField + Absorb> {
     // This will hold the current state of the transcript
     pub state: FpVar<F>,
@@ -25,6 +26,7 @@ impl<F: Absorb + PrimeField> TranscriptVar<F> {
         }
     }
 
+    /// the function takes a transcript and converts it into a Transcript var with the same state
     pub fn from_transcript(cs: ConstraintSystemRef<F>, transcript: Transcript<F>) -> TranscriptVar<F> {
         let state = FpVar::new_witness(
             cs.clone(),
@@ -43,7 +45,7 @@ impl<F: Absorb + PrimeField> TranscriptVar<F> {
     }
 }
 
-
+/// All labels are discarded
 impl<F: PrimeField + Absorb> TranscriptVar<F> {
     pub fn append_message(&mut self, _label: &'static [u8], _message: &[u8]) {
         // do not do anything
@@ -53,6 +55,7 @@ impl<F: PrimeField + Absorb> TranscriptVar<F> {
         self.poseidon_hash.update_sponge(vec![scalar.clone()]);
     }
 
+    /// this function calls non_native_to_fpvar
     pub fn append_scalar_non_native<Q: PrimeField>(&mut self, _label: &'static [u8], scalar: &NonNativeFieldVar<Q, F>) {
         let converted_scalar = non_native_to_fpvar(&scalar);
         self.poseidon_hash.update_sponge(vec![converted_scalar.clone()]);

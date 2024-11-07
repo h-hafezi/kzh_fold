@@ -11,16 +11,14 @@
 
 #[cfg(test)]
 mod tests {
+    use crate::constant_for_curves::{ScalarField, E};
     use crate::kzg::{trim, KZG10};
-    use ark_bn254::{Bn254, Fr};
-    use ark_ec::pairing::Pairing;
     use ark_poly::univariate::DensePolynomial;
     use ark_poly::{DenseUVPolynomial, Polynomial};
     use ark_std::{test_rng, UniformRand};
 
-    type F = Fr;
-    type E = Bn254;
-    type Poly = DensePolynomial<<E as Pairing>::ScalarField>;
+    type F = ScalarField;
+    type Poly = DensePolynomial<F>;
 
     #[test]
     pub fn halo_infinite_pcs() {

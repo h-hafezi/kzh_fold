@@ -12,8 +12,6 @@ use ark_crypto_primitives::sponge::Absorb;
 use std::ops::Mul;
 
 pub struct HPIProof<E: Pairing> {
-    //    B_c: E::G1Projective,
-    //    B_d: E::G1Projective,
     vec_Y_L: Vec<E::G1Affine>,
     vec_Y_R: Vec<E::G1Affine>,
     x_final: E::ScalarField,
@@ -22,7 +20,6 @@ pub struct HPIProof<E: Pairing> {
 pub fn prove<E, F>(
     crs_G_vec: Vec<E::G1Affine>,
     vec_x: Vec<F>,
-    // _y: E::ScalarField, // XXX
     transcript: &mut Transcript<F>,
 ) -> HPIProof<E> where
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,

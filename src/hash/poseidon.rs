@@ -78,6 +78,9 @@ impl<F: Absorb + PrimeField> PoseidonHashVar<F> {
         }
     }
 
+    /// the function takes a PoseidonHash object and converts it into a
+    /// PoseidonVar object by transforming it states from F into FpVar<F>,
+    /// but the rest of arguments e.g. parameters and mode, do not change
     pub fn from_poseidon_hash(cs: ConstraintSystemRef<F>, poseidon_hash: PoseidonHash<F>) -> Self {
         // convert state from F into FpVar
         let state = {
@@ -124,6 +127,9 @@ mod tests {
     use crate::constant_for_curves::{BaseField, ScalarField};
     use crate::gadgets::non_native::util::{convert_field_one_to_field_two, non_native_to_fpvar};
 
+
+    // In this test, we have a Poseidon and PoseidonVar, we feed them on native and
+    // non-native data on both, at the end we check if the results are equal
 
     #[test]
     fn hash_test() {

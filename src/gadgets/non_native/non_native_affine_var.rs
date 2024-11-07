@@ -20,6 +20,9 @@ use ark_std::Zero;
 
 use crate::gadgets::non_native::util::non_native_to_fpvar;
 
+// Borrowed from Nexus
+// It's an implementation of NonNativeAffineVar, supporting function as into_projective, into_sponge and enoforce_equal
+
 #[must_use]
 #[derive(Debug)]
 pub struct NonNativeAffineVar<G1>

@@ -272,15 +272,13 @@ mod tests {
         let (x, y) = split_between_x_and_y::<F>(pcs_srs.get_x_length(), pcs_srs.get_y_length(), &ry[1..], F::ZERO);
 
         // Sanity check: verify the opening proof
-        assert!(
-            PCSEngine::verify(
-                &pcs_srs,
-                &commitment_w,
-                &opening_proof,
-                x.as_slice(),
-                y.as_slice(),
-                &spartan_proof.eval_vars_at_ry
-            )
+        PCSEngine::verify(
+            &pcs_srs,
+            &commitment_w,
+            &opening_proof,
+            x.as_slice(),
+            y.as_slice(),
+            &spartan_proof.eval_vars_at_ry,
         );
 
         // Get accumulator from the opening proof

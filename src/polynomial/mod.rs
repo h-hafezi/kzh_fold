@@ -7,8 +7,6 @@ use rand::RngCore;
 
 pub mod eq_poly;
 
-pub mod identity;
-
 pub mod multilinear_poly;
 
 pub mod univariate;

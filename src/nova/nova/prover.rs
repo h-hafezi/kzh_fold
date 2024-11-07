@@ -1,7 +1,6 @@
 use crate::accumulation_circuit::affine_to_projective;
 use ark_serialize::CanonicalSerialize;
 use crate::commitment::{Commitment, CommitmentScheme};
-use crate::gadgets::absorb::{r1cs_instance_to_sponge_vector, relaxed_r1cs_instance_to_sponge_vector};
 use crate::gadgets::non_native::util::convert_field_one_to_field_two;
 use crate::gadgets::r1cs::conversion::{get_random_r1cs_instance_witness, get_random_relaxed_r1cs_instance_witness};
 use crate::gadgets::r1cs::ova::commit_T as Ova_commit_T;
@@ -77,8 +76,8 @@ where
 
         // make a new transcript and add with the following order: running accumulator instance + current accumulator instance + cross term error
         let mut transcript = Transcript::new(b"new transcript");
-        transcript.append_scalars(b"label", relaxed_r1cs_instance_to_sponge_vector(&self.running_accumulator.0).as_slice());
-        transcript.append_scalars(b"label", r1cs_instance_to_sponge_vector(&self.current_accumulator.0).as_slice());
+        transcript.append_scalars(b"label", self.running_accumulator.0.to_sponge_field_elements().as_slice());
+        transcript.append_scalars(b"label", self.current_accumulator.0.to_sponge_field_elements().as_slice());
         transcript.append_scalars_non_native(b"label", &[com_T_x, com_T_y]);
 
         // derive the challenge

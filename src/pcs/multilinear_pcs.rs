@@ -19,7 +19,9 @@ use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial
 
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize, Derivative)]
 pub struct PolynomialCommitmentSRS<E: Pairing> {
+    /// degree_x = 2 ^ length of x variable
     pub degree_x: usize,
+    /// degree_y = 2 ^ length of y variable
     pub degree_y: usize,
     pub matrix_H: Vec<Vec<E::G1Affine>>,
     pub vec_H: Vec<E::G1Affine>,
@@ -38,7 +40,9 @@ pub struct PolynomialCommitmentSRS<E: Pairing> {
     Derivative
 )]
 pub struct PCSCommitment<E: Pairing> {
+    /// the commitment C to the polynomial
     pub C: E::G1Affine,
+    /// auxiliary data which is in fact pederson commitments to rows of the polynomial
     pub aux: Vec<E::G1>,
 }
 
@@ -48,7 +52,7 @@ pub struct PCSOpeningProof<E: Pairing> {
     pub f_star_poly: MultilinearPolynomial<E::ScalarField>,
 }
 
-// Define the new struct that encapsulates the functionality of polynomial commitment
+/// Define the new struct that encapsulates the functionality of polynomial commitment
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize, Derivative)]
 pub struct PCSEngine;
 
@@ -63,6 +67,8 @@ impl<E: Pairing> PolynomialCommitmentSRS<E> {
 }
 
 /// the function receives an input r and splits into two sub-vectors x and y to be used for PCS
+/// It's used later when we have a constant SRS, and we pad the polynomial so we can commit to it via SRS
+/// This function in fact pads to polynomial inputs by appends necessary zeros and split the input into x and y input
 pub fn split_between_x_and_y<T: Clone>(x_length: usize, y_length: usize, r: &[T], zero: T) -> (Vec<T>, Vec<T>) {
     let total_length = x_length + y_length;
 
@@ -82,7 +88,10 @@ pub fn split_between_x_and_y<T: Clone>(x_length: usize, y_length: usize, r: &[T]
 }
 
 
+/// all functions assume that poly size is already compatible with srs size, if not there's an interface that does padding
+/// in the beginning in kzh.rs
 impl PCSEngine {
+    /// set up the PCS srs
     pub fn setup<T: RngCore, E: Pairing>(degree_x: usize, degree_y: usize, rng: &mut T) -> PolynomialCommitmentSRS<E> {
         // sample G_0, G_1, ..., G_m generators from group one
         let G1_generator_vec = {
@@ -196,7 +205,7 @@ impl PCSEngine {
                               x: &[E::ScalarField],
                               y: &[E::ScalarField],
                               z: &E::ScalarField,
-    ) -> bool {
+    ) {
         // Step 1: pairing check
         // Combine the pairings into a single multi-pairing
         let mut g1_elems: Vec<E::G1Affine> = Vec::with_capacity(1 + proof.vec_D.len());
@@ -238,9 +247,6 @@ impl PCSEngine {
         // Step 3: complete poly eval
         let y_expected = proof.f_star_poly.evaluate(y);
         assert_eq!(y_expected, *z);
-
-        // checking all three conditions
-        true
     }
 }
 
@@ -327,14 +333,14 @@ pub mod test {
 
     #[test]
     fn test_end_to_end() {
-        let degree_x = 8usize;
-        let degree_y = 32usize;
+        let (degree_x, degree_y) = (8usize, 32usize);
         let srs: PolynomialCommitmentSRS<E> = PCSEngine::setup(degree_x, degree_y, &mut thread_rng());
 
         // testing srs functions
         assert_eq!(3, srs.get_x_length());
         assert_eq!(5, srs.get_y_length());
 
+        // ********************** test the input padding function split_between_x_and_y **********************
         let mut r = vec![
             ScalarField::rand(&mut thread_rng()),
             ScalarField::rand(&mut thread_rng()),
@@ -358,6 +364,8 @@ pub mod test {
         assert_eq!(x_new, x);
         assert_eq!(y_new, y);
 
+        // ********************** test the input padding function split_between_x_and_y **********************
+
         // random bivariate polynomial
         let polynomial = MultilinearPolynomial::rand(3 + 5, &mut thread_rng());
 
@@ -374,14 +382,15 @@ pub mod test {
             ScalarField::rand(&mut thread_rng()),
             ScalarField::rand(&mut thread_rng()),
         ];
-        let concat = {
+        // concat inputs x and y, to evaluate the function
+        let input = {
             let mut res = vec![];
             res.extend(x.clone());
             res.extend(y.clone());
             res
         };
 
-        let z = polynomial.evaluate(&concat);
+        let z = polynomial.evaluate(&input);
 
         // commit to the polynomial
         let com = PCSEngine::commit(&srs, &polynomial);
@@ -389,9 +398,8 @@ pub mod test {
         // open the commitment
         let open = PCSEngine::open(&polynomial, com.clone(), &x);
 
-        // re compute x and y
-        // verify the proof
-        assert!(PCSEngine::verify(&srs, &com, &open, &x, &y, &z));
+        // re compute x and y verify the proof
+        PCSEngine::verify(&srs, &com, &open, &x, &y, &z);
     }
 
     /// Given f(x) and g(x) and their KZH commitments F and G.
@@ -444,7 +452,7 @@ pub mod test {
         r_times_G.scale_by_r(&r);
         let P_verifier = F + r_times_G;
 
-        assert!(PCSEngine::verify(&srs, &P_verifier, &proof_P_at_rho, rho_first_half, rho_second_half, &p_at_rho));
+        PCSEngine::verify(&srs, &P_verifier, &proof_P_at_rho, rho_first_half, rho_second_half, &p_at_rho);
     }
 }
 

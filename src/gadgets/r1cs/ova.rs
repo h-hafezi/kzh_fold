@@ -200,6 +200,7 @@ impl<G: CurveGroup, C: CommitmentScheme<G>> RelaxedOvaInstance<G, C> {
     }
 }
 
+/// it;s the counterpart for Nova commit_T, the computation is the same too, only the arguments passed are different
 pub fn commit_T<G: CurveGroup, C: CommitmentScheme<G>>(
     shape: &R1CSShape<G>,
     pp: &C::PP,

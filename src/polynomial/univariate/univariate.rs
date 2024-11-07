@@ -1,6 +1,8 @@
 use ark_ff::{PrimeField};
 use ark_std::vec::Vec;
 
+/// This file is used to matrix_evaluation_accumulator that given some
+/// evaluations, we need to interpolate the underlying polynomial Q
 
 /// Struct for interpolating a polynomial from given evaluations at distinct points (x_i, f(x_i)).
 #[derive(Debug, Clone, PartialEq, Eq)]

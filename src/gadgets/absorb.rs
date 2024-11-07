@@ -4,79 +4,93 @@ use crate::gadgets::r1cs::r1cs_var::{R1CSInstanceVar, RelaxedR1CSInstanceVar};
 use crate::gadgets::r1cs::{R1CSInstance, RelaxedR1CSInstance};
 use ark_crypto_primitives::sponge::constraints::AbsorbGadget;
 use ark_ec::short_weierstrass::{Projective, SWCurveConfig};
-use ark_ec::{AffineRepr, CurveConfig};
+use ark_ec::{AffineRepr};
 use ark_ff::PrimeField;
 use ark_r1cs_std::fields::fp::FpVar;
 
-pub fn r1cs_instance_to_sponge_vector<G: SWCurveConfig, C: CommitmentScheme<Projective<G>>>(instance: &R1CSInstance<G, C>) -> Vec<G::ScalarField>
+// Functions below are used by Nova, since in Nova we require to hash R1CS instances
+
+impl<G: SWCurveConfig, C: CommitmentScheme<Projective<G>>> R1CSInstance<G, C>
 where
-    <G as CurveConfig>::BaseField: PrimeField,
+    G::BaseField: PrimeField
 {
-    let mut res = Vec::<G::ScalarField>::new();
+    /// This function should be consistent with the counterpart for R1CSInstanceVar as below
+    pub fn to_sponge_field_elements(&self) -> Vec<G::ScalarField> {
+        let mut res = Vec::<G::ScalarField>::new();
 
-    // append vector X
-    res.extend(instance.X.clone());
+        // append vector X
+        res.extend(self.X.as_slice());
 
-    // convert group into native field elements
-    let w = instance.commitment_W.into_affine().xy().unwrap();
-    let x = convert_field_one_to_field_two::<G::BaseField, G::ScalarField>(w.0);
-    let y = convert_field_one_to_field_two::<G::BaseField, G::ScalarField>(w.1);
-    res.extend(vec![x, y]);
+        // convert group into native field elements
+        let w = self.commitment_W.into_affine().xy().unwrap();
+        let x = convert_field_one_to_field_two::<G::BaseField, G::ScalarField>(w.0);
+        let y = convert_field_one_to_field_two::<G::BaseField, G::ScalarField>(w.1);
+        res.extend(vec![x, y]);
 
-    res
+        res
+    }
 }
 
-pub fn r1cs_instance_var_to_sponge_vector<F, G1, C1>(instance: &R1CSInstanceVar<G1, C1>) -> Vec<FpVar<F>>
+impl<F, G1, C1> R1CSInstanceVar<G1, C1>
 where
-    G1: SWCurveConfig<ScalarField=F>,
+    G1: SWCurveConfig<ScalarField = F>,
     G1::BaseField: PrimeField,
-    F: ark_ff::PrimeField,
+    F: PrimeField
 {
-    let mut res = Vec::<FpVar<F>>::new();
+    pub fn to_sponge_field_elements(&self) -> Vec<FpVar<F>> {
+        let mut res = Vec::<FpVar<F>>::new();
 
-    // append vector X
-    res.extend(instance.X.clone());
-    res.extend(instance.commitment_W.to_sponge_field_elements().unwrap());
+        // append vector X
+        res.extend(self.X.clone());
+        // function commitment_W.to_sponge_field_elements() is consistent with the output of
+        // convert_field_one_to_field_two::<G::BaseField, G::ScalarField>()
+        res.extend(self.commitment_W.to_sponge_field_elements().unwrap());
 
-    res
+        res
+    }
 }
 
-pub fn relaxed_r1cs_instance_to_sponge_vector<G: SWCurveConfig, C: CommitmentScheme<Projective<G>>>(instance: &RelaxedR1CSInstance<G, C>) -> Vec<G::ScalarField>
+impl<G: SWCurveConfig, C: CommitmentScheme<Projective<G>>> RelaxedR1CSInstance<G, C>
 where
-    <G as CurveConfig>::BaseField: ark_ff::PrimeField,
+    G::BaseField: PrimeField
 {
-    let mut res = Vec::<G::ScalarField>::new();
+    /// This function should be consistent with the counterpart for RelaxedR1CSInstanceVar as below
+    pub fn to_sponge_field_elements(&self) -> Vec<G::ScalarField> {
+        let mut res = Vec::<G::ScalarField>::new();
 
-    // append vector X
-    res.extend(instance.X.clone());
+        // append vector X
+        res.extend(self.X.as_slice());
 
-    // convert group into native field elements
-    let w = instance.commitment_W.into_affine().xy().unwrap();
-    let x = convert_field_one_to_field_two::<G::BaseField, G::ScalarField>(w.0);
-    let y = convert_field_one_to_field_two::<G::BaseField, G::ScalarField>(w.1);
-    res.extend(vec![x, y]);
+        // convert group into native field elements
+        let w = self.commitment_W.into_affine().xy().unwrap();
+        let x = convert_field_one_to_field_two::<G::BaseField, G::ScalarField>(w.0);
+        let y = convert_field_one_to_field_two::<G::BaseField, G::ScalarField>(w.1);
+        res.extend(vec![x, y]);
 
-    // convert group into native field elements
-    let e = instance.commitment_E.into_affine().xy().unwrap();
-    let x = convert_field_one_to_field_two::<G::BaseField, G::ScalarField>(e.0);
-    let y = convert_field_one_to_field_two::<G::BaseField, G::ScalarField>(e.1);
-    res.extend(vec![x, y]);
+        // convert group into native field elements
+        let e = self.commitment_E.into_affine().xy().unwrap();
+        let x = convert_field_one_to_field_two::<G::BaseField, G::ScalarField>(e.0);
+        let y = convert_field_one_to_field_two::<G::BaseField, G::ScalarField>(e.1);
+        res.extend(vec![x, y]);
 
-    res
+        res
+    }
 }
 
-pub fn relaxed_r1cs_instance_var_to_sponge_vector<F, G1, C1>(instance: &RelaxedR1CSInstanceVar<G1, C1>) -> Vec<FpVar<F>>
+impl<F, G1, C1> RelaxedR1CSInstanceVar<G1, C1>
 where
-    G1: SWCurveConfig<ScalarField=F>,
+    G1: SWCurveConfig<ScalarField = F>,
     G1::BaseField: PrimeField,
-    F: ark_ff::PrimeField,
+    F: PrimeField
 {
-    let mut res = Vec::<FpVar<F>>::new();
+    pub fn to_sponge_field_elements(&self) -> Vec<FpVar<F>> {
+        let mut res = Vec::<FpVar<F>>::new();
 
-    // append vector X
-    res.extend(instance.X.clone());
-    res.extend(instance.commitment_W.to_sponge_field_elements().unwrap());
-    res.extend(instance.commitment_E.to_sponge_field_elements().unwrap());
+        // append vector X
+        res.extend(self.X.clone());
+        res.extend(self.commitment_W.to_sponge_field_elements().unwrap());
+        res.extend(self.commitment_E.to_sponge_field_elements().unwrap());
 
-    res
+        res
+    }
 }

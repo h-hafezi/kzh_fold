@@ -1,4 +1,4 @@
-// we do conversion from a constraint system into the R1CS abstract here
+// we do conversion from a constraint system into the R1CS abstract used by Nexus
 
 use crate::commitment::{CommitmentScheme, Len};
 use crate::gadgets::r1cs::r1cs::{commit_T, R1CSInstance, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness};
@@ -11,6 +11,7 @@ use ark_r1cs_std::fields::fp::FpVar;
 use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef, SynthesisMode};
 use rand::{thread_rng};
 
+/// given a ConstraintSystem object, returns corresponding R1CSShape, R1CSInstance and R1CSWitness
 pub fn convert_constraint_system_into_instance_witness<F, C1, G1>(
     cs: ConstraintSystemRef<F>,
     pp: &C1::PP,
@@ -20,20 +21,20 @@ where
     C1: CommitmentScheme<Projective<G1>>,
     G1: SWCurveConfig<ScalarField=F>,
 {
+    // the cs has to be finalised before the matrices A, B and C are generated
     cs.set_mode(SynthesisMode::Prove { construct_matrices: true });
     cs.finalize();
 
     // make sure cs is already satisfied
-    assert!(cs.is_satisfied().unwrap());
+    assert!(cs.is_satisfied().unwrap(), "the passed constraint system isn't satisfied");
 
     let shape = R1CSShape::from(cs.clone());
-
     let cs_borrow = cs.borrow().unwrap();
     let W = cs_borrow.witness_assignment.clone();
     let X = cs_borrow.instance_assignment.clone();
 
     // make sure pp has the right length
-    assert_eq!(W.len(), pp.len());
+    assert_eq!(W.len(), pp.len(), "the length of the witness and commitment public params are inconsistent");
 
     let w = R1CSWitness { W };
 
@@ -41,6 +42,7 @@ where
     let u = R1CSInstance { commitment_W, X };
 
     assert!(shape.is_satisfied(&u, &w, pp).is_ok());
+
     (shape, u, w)
 }
 

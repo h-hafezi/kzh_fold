@@ -3,7 +3,7 @@ use ark_serialize::CanonicalSerialize;
 
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize)]
 pub struct EqTree<F: PrimeField> {
-    // vector of length 2 * 2^depth - 1
+    /// vector of length 2 * 2 ^ depth - 1
     pub nodes: Vec<F>,
     pub depth: usize,
 }
@@ -11,7 +11,8 @@ pub struct EqTree<F: PrimeField> {
 impl<F: PrimeField> EqTree<F> {
     /// generates the eq tree given a vector of length depth
     pub fn new(x: &[F]) -> Self {
-        // reversing the array
+        // reversing the array, this is essential to make its ordering comparable with the MultilinearPolynomial
+        // which is clone from DensePolynomial is Arkwork
         let x = {
             let mut temp = x.to_vec();
             temp.reverse();
@@ -46,7 +47,8 @@ impl<F: PrimeField> EqTree<F> {
     pub fn difference(&self, x: &[F]) -> Self {
         assert_eq!(x.len(), self.depth, "inconsistent depth");
 
-        // reversing the array
+        // reversing the array, this is essential to make its ordering comparable with the MultilinearPolynomial
+        // which is clone from DensePolynomial is Arkwork
         let x = {
             let mut temp = x.to_vec();
             temp.reverse();
@@ -130,7 +132,7 @@ mod tests {
     fn test_tree() {
         let x = vec![F::ONE, F::ZERO];
         let tree = EqTree::new(x.as_slice());
-        tree.print_tree();
+        // get the tree difference from the original vector and make sure it's zero
         let dif = tree.difference(x.as_slice());
         dif.is_zero();
     }
@@ -145,6 +147,9 @@ mod tests {
             F::rand(&mut thread_rng()),
             F::rand(&mut thread_rng()),
         ];
+
+        // get the tree corresponding to vector x and make sure its leaves are equal
+        // to the result of EqPolynomial::evals()
         let tree = EqTree::new(x.as_slice());
         let results: Vec<F> = EqPolynomial::new(x).evals();
 

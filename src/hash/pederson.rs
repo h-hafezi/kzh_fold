@@ -7,6 +7,8 @@ use sha3::digest::{ExtendableOutput, Update, XofReader};
 
 use crate::commitment::{CommitmentScheme, Len};
 
+// Borrowed code from Nexus
+
 pub(crate) const LOG_TARGET: &str = "nexus-nova";
 
 #[derive(Clone, Debug)]

@@ -1,7 +1,3 @@
-use std::ops::{Add, Mul, Neg, Sub};
-use rayon::iter::IntoParallelRefIterator;
-use rayon::iter::ParallelIterator;
-use rayon::iter::IndexedParallelIterator;
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
 use ark_ec::{AffineRepr, CurveGroup, VariableBaseMSM};
@@ -11,12 +7,16 @@ use ark_serialize::CanonicalSerialize;
 use ark_std::UniformRand;
 use ark_std::{end_timer, start_timer};
 use rand::{Rng, RngCore};
+use rayon::iter::IndexedParallelIterator;
+use rayon::iter::IntoParallelRefIterator;
+use rayon::iter::ParallelIterator;
+use std::ops::{Add, Mul, Neg, Sub};
 
 use crate::accumulation::eq_tree::EqTree;
 use crate::accumulation::generate_random_elements;
 use crate::gadgets::non_native::util::convert_affine_to_scalars;
 use crate::math::Math;
-use crate::pcs::multilinear_pcs::{PCSOpeningProof, PCSEngine, PolynomialCommitmentSRS};
+use crate::pcs::multilinear_pcs::{PCSEngine, PCSOpeningProof, PolynomialCommitmentSRS};
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript::{AppendToTranscript, Transcript};
 use crate::utils::inner_product;
@@ -53,9 +53,11 @@ where
     E::ScalarField: PrimeField,
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
 {
+    /// returns a vector of E::Scalar that can be used to Poseidon hash
+    /// the tricky part is the affine points which are transformed via convert_affine_to_scalars
+    /// which basically converts each coordinate from base field into scalar field
     pub fn to_sponge_field_elements(&self) -> Vec<E::ScalarField> {
         let mut dest = Vec::new();
-        // Define a closure to handle the conversion of affine points to scalars
 
         // Use the closure for C, T, and E
         let (c_x, c_y) = convert_affine_to_scalars::<E>(self.C);
@@ -76,10 +78,10 @@ where
 
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize)]
 pub struct AccWitness<E: Pairing> {
-    // size of degree_x
+    /// size of degree_x
     pub vec_D: Vec<E::G1Affine>,
 
-    // MLP of degree_y
+    /// MLP of degree_y
     pub f_star_poly: MultilinearPolynomial<E::ScalarField>,
 
     pub tree_x: EqTree<E::ScalarField>,
@@ -98,11 +100,11 @@ where
     <E as Pairing>::ScalarField: Absorb,
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
 {
-    pub fn setup<T: RngCore>(pc_srs: PolynomialCommitmentSRS<E>, rng: &mut T) -> AccSRS<E> {
+    pub fn setup<R: RngCore>(pc_srs: PolynomialCommitmentSRS<E>, rng: &mut R) -> AccSRS<E> {
         AccSRS {
             pc_srs: pc_srs.clone(),
-            k_x: generate_random_elements::<E, T>(2 * pc_srs.degree_x - 1, rng),
-            k_y: generate_random_elements::<E, T>(2 * pc_srs.degree_y - 1, rng),
+            k_x: generate_random_elements::<E, R>(2 * pc_srs.degree_x - 1, rng),
+            k_y: generate_random_elements::<E, R>(2 * pc_srs.degree_y - 1, rng),
             k_prime: E::G1Affine::rand(rng),
         }
     }
@@ -114,13 +116,17 @@ where
         }
     }
 
+    /// the fiat-shamir challenge is computed as part the transcript operations via hashing two accumulator instances and proof Q
     pub fn compute_fiat_shamir_challenge(transcript: &mut Transcript<E::ScalarField>, instance_1: &AccInstance<E>, instance_2: &AccInstance<E>, Q: E::G1Affine) -> E::ScalarField {
+        // add the instances to the transcript
         transcript.append_scalars(b"instance 1", instance_1.to_sponge_field_elements().as_slice());
         transcript.append_scalars(b"instance 2", instance_2.to_sponge_field_elements().as_slice());
 
+        // convert the proof Q into scalar field elements and add to the transcript
         let (p1, p2) = convert_affine_to_scalars::<E>(Q);
         transcript.append_scalars(b"Q", &[p1, p2]);
 
+        // return the challenge
         transcript.challenge_scalar(b"challenge scalar")
     }
 
@@ -157,11 +163,18 @@ where
         }
     }
 
-    pub fn new_accumulator_witness_from_fresh_kzh_witness(srs: &AccSRS<E>, proof: PCSOpeningProof<E>, x: &[E::ScalarField], y: &[E::ScalarField]) -> AccWitness<E> {
+    pub fn new_accumulator_witness_from_fresh_kzh_witness(
+        srs: &AccSRS<E>,
+        proof: PCSOpeningProof<E>,
+        x: &[E::ScalarField],
+        y: &[E::ScalarField],
+    ) -> AccWitness<E> {
         // asserting the sizes are correct
         assert_eq!(1 << x.len(), srs.pc_srs.degree_x, "invalid size of vector x");
         assert_eq!(1 << y.len(), srs.pc_srs.degree_y, "invalid size of vector y");
         assert_eq!(proof.vec_D.len(), srs.pc_srs.degree_x, "invalid proof size");
+
+        // return a fresh instance by simply computing the two EqTrees
         AccWitness {
             vec_D: proof.vec_D,
             f_star_poly: proof.f_star_poly,
@@ -174,7 +187,7 @@ where
         srs: &AccSRS<E>,
         acc_1: &Accumulator<E>,
         acc_2: &Accumulator<E>,
-        transcript: &mut Transcript<E::ScalarField>
+        transcript: &mut Transcript<E::ScalarField>,
     ) -> (AccInstance<E>, AccWitness<E>, E::G1Affine)
     where
         <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb,
@@ -188,9 +201,13 @@ where
         // compute the quotient variable Q
         let Q: E::G1Affine = Self::helper_function_Q(srs, acc_1, acc_2);
 
+        // the transcript is cloned because is used twice, once to compute the fiat_shamir challenge beta directly
+        // once to call Self::verify() to get the new accumulated instance, despite that they generate the same randomness
+        // and one can do fewer hashes by computing accumulated instance directly, it's for the sake of cleaner code.
         let mut transcript_clone = transcript.clone();
-        let beta = Accumulator::compute_fiat_shamir_challenge(transcript, instance_1, instance_2, Q);
 
+        // get challenge beta
+        let beta = Accumulator::compute_fiat_shamir_challenge(transcript, instance_1, instance_2, Q);
         let one_minus_beta: E::ScalarField = E::ScalarField::ONE - beta;
 
         // get the accumulated new_instance
@@ -244,6 +261,7 @@ where
         Q: E::G1Affine,
         transcript: &mut Transcript<E::ScalarField>,
     ) -> AccInstance<E> {
+        // compute the fiat-shamir challenge
         let beta = Accumulator::compute_fiat_shamir_challenge(transcript, instance_1, instance_2, Q);
         let one_minus_beta: E::ScalarField = E::ScalarField::ONE - beta;
 
@@ -321,7 +339,7 @@ where
                 },
             },
             instance: AccInstance {
-                // not used by helper function
+                // not used by helper function, so we simply pass them as zero or any other random element
                 C: E::G1Affine::zero(),
                 T: E::G1Affine::zero(),
                 E: E::G1Affine::zero(),
@@ -367,6 +385,7 @@ where
         let verify_lhs = Self::helper_function_decide(srs, acc);
         let verify_rhs = instance.E;
 
+        // return and of all three conditions
         (verify_rhs == verify_lhs.into()) && (ip_lhs == ip_rhs.into()) && (pairing_lhs == pairing_rhs)
     }
 
@@ -380,29 +399,34 @@ where
         ) - instance.z;
 
         // Optimize E_G computation by doing one big MSM
-        let E_G =
-        {
-            // Prepare the right-hand-side scalars to be negated
-            let tree_x_leaves = acc.witness.tree_x.get_leaves();
-            let negated_tree_x_leaves: Vec<E::ScalarField> = tree_x_leaves.iter().map(|&x| -x).collect();
-
+        let E_G = {
             // Concatenate the scalar vectors
-            let mut scalars = Vec::with_capacity(
-                witness.f_star_poly.evaluation_over_boolean_hypercube.len() + negated_tree_x_leaves.len(),
-            );
-            scalars.extend_from_slice(
-                witness
-                    .f_star_poly
-                    .evaluation_over_boolean_hypercube
-                    .as_slice(),
-            );
-            scalars.extend_from_slice(&negated_tree_x_leaves);
+            let scalars: Vec<E::ScalarField> = {
+                // Prepare the right-hand-side scalars to be negated
+                let tree_x_leaves = acc.witness.tree_x.get_leaves();
+                let negated_tree_x_leaves: Vec<E::ScalarField> = tree_x_leaves.iter().map(|&x| -x).collect();
+
+                let mut res = Vec::new();
+                res.extend_from_slice(
+                    witness
+                        .f_star_poly
+                        .evaluation_over_boolean_hypercube
+                        .as_slice(),
+                );
+                res.extend_from_slice(&negated_tree_x_leaves);
+
+                res
+            };
 
 
             // Concatenate the base point vectors
-            let mut bases = Vec::with_capacity(srs.pc_srs.vec_H.len() + witness.vec_D.len());
-            bases.extend_from_slice(srs.pc_srs.vec_H.as_slice());
-            bases.extend_from_slice(witness.vec_D.as_slice());
+            let bases: Vec<E::G1Affine> = {
+                let mut res = Vec::new();
+                res.extend_from_slice(srs.pc_srs.vec_H.as_slice());
+                res.extend_from_slice(witness.vec_D.as_slice());
+
+                res
+            };
 
             E::G1::msm_unchecked(&bases, &scalars)
         };
@@ -418,6 +442,8 @@ where
 }
 
 impl<E: Pairing> Accumulator<E> {
+    /// this function returns a random satisfying accumulator by generating two random frseh accumualtors (KZH openings)
+    /// and then accumulating them, so that the error vector wouldn't be zero
     pub fn rand<R: RngCore>(srs: &AccSRS<E>, rng: &mut R) -> Accumulator<E>
     where
         <E as Pairing>::ScalarField: Absorb,
@@ -425,17 +451,23 @@ impl<E: Pairing> Accumulator<E> {
         <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
     {
         // random bivariate polynomial
-        let polynomial1 = MultilinearPolynomial::rand(srs.pc_srs.degree_x.log_2() + srs.pc_srs.degree_y.log_2(), rng);
-        let polynomial2 = MultilinearPolynomial::rand(srs.pc_srs.degree_x.log_2() + srs.pc_srs.degree_y.log_2(), rng);
+        let polynomial1 = MultilinearPolynomial::rand(
+            srs.pc_srs.degree_x.log_2() + srs.pc_srs.degree_y.log_2(),
+            rng,
+        );
+        let polynomial2 = MultilinearPolynomial::rand(
+            srs.pc_srs.degree_x.log_2() + srs.pc_srs.degree_y.log_2(),
+            rng,
+        );
 
-        // random points and evaluation
+        // random x points
         let mut x1: Vec<E::ScalarField> = Vec::new();
         let mut x2: Vec<E::ScalarField> = Vec::new();
         for _ in 0..srs.pc_srs.degree_x.log_2() {
             x1.push(E::ScalarField::rand(rng));
             x2.push(E::ScalarField::rand(rng));
         }
-        // random points and evaluation
+        // random y points
         let mut y1: Vec<E::ScalarField> = Vec::new();
         let mut y2: Vec<E::ScalarField> = Vec::new();
         for _ in 0..srs.pc_srs.degree_y.log_2() {
@@ -444,24 +476,25 @@ impl<E: Pairing> Accumulator<E> {
         }
 
         // Get vector: (x1, y1)
-        let whole_input_1: Vec<_> = x1.clone().into_iter().chain(y1.clone()).collect();
+        let input_1: Vec<E::ScalarField> = x1.clone().into_iter().chain(y1.clone()).collect();
         // Get vector: (x2, y2)
-        let whole_input_2: Vec<_> = x2.clone().into_iter().chain(y2.clone()).collect();
+        let input_2: Vec<E::ScalarField> = x2.clone().into_iter().chain(y2.clone()).collect();
 
-        let z1 = polynomial1.evaluate(&whole_input_1);
-        let z2 = polynomial2.evaluate(&whole_input_2);
+        // get evaluations z1 and z2
+        let z1 = polynomial1.evaluate(&input_1);
+        let z2 = polynomial2.evaluate(&input_2);
 
         // commit to the polynomial
         let com1 = PCSEngine::commit(&srs.pc_srs, &polynomial1);
-        let com2 = PCSEngine::commit(&srs.pc_srs,&polynomial2);
+        let com2 = PCSEngine::commit(&srs.pc_srs, &polynomial2);
 
         // open the commitment
         let open1 = PCSEngine::open(&polynomial1, com1.clone(), &x1);
         let open2 = PCSEngine::open(&polynomial2, com2.clone(), &x2);
 
         // verify the proof
-        assert!(PCSEngine::verify(&srs.pc_srs,&com1, &open1, &x1, &y1, &z1));
-        assert!(PCSEngine::verify(&srs.pc_srs,&com2, &open2, &x2, &y2, &z2));
+        PCSEngine::verify(&srs.pc_srs, &com1, &open1, &x1, &y1, &z1);
+        PCSEngine::verify(&srs.pc_srs, &com2, &open2, &x2, &y2, &z2);
 
         let instance1 = Accumulator::new_accumulator_instance_from_fresh_kzh_instance(&srs, &com1.C, &x1, &y1, &z1);
         let witness1 = Accumulator::new_accumulator_witness_from_fresh_kzh_witness(&srs, open1, &x1, &y1);
@@ -470,17 +503,21 @@ impl<E: Pairing> Accumulator<E> {
 
         let acc1 = Accumulator::new(&instance1, &witness1);
         let acc2 = Accumulator::new(&instance2, &witness2);
-        assert!(Accumulator::decide(&srs, &acc1));
-        assert!(Accumulator::decide(&srs, &acc2));
+
+        // verify that the fresh accumulators are satisfied
+        debug_assert!(Accumulator::decide(&srs, &acc1));
+        debug_assert!(Accumulator::decide(&srs, &acc2));
 
         let mut prover_transcript = Transcript::new(b"new_transcript");
 
-        let (new_instance, new_witness, Q) = Accumulator::prove(&srs, &acc1, &acc2, &mut prover_transcript);
+        let (accumulated_instance, accumulated_witness, Q) = Accumulator::prove(&srs, &acc1, &acc2, &mut prover_transcript);
 
-        let new_acc = Accumulator::new(&new_instance, &new_witness);
-        assert!(Accumulator::decide(&srs, &new_acc));
+        let accumulated_acc = Accumulator::new(&accumulated_instance, &accumulated_witness);
 
-        new_acc
+        // verify the accumulated instance is satisfied
+        debug_assert!(Accumulator::decide(&srs, &accumulated_acc));
+
+        accumulated_acc
     }
 }
 
@@ -519,14 +556,20 @@ pub mod test {
     fn test_accumulator_sizes() {
         // Hossein: change the degrees later, it takes too long
         let degrees = vec![(2, 2), (4, 4), (8, 8), (16, 16), (32, 32)];
+        let rng = &mut thread_rng();
 
         for (degree_x, degree_y) in degrees {
-            let srs_pcs: PolynomialCommitmentSRS<E> = PCSEngine::setup(degree_x, degree_y, &mut thread_rng());
-            let srs = Accumulator::setup(srs_pcs.clone(), &mut thread_rng());
+            // set accumulator sts
+            let srs_pcs: PolynomialCommitmentSRS<E> = PCSEngine::setup(degree_x, degree_y, rng);
+            let srs_acc = Accumulator::setup(srs_pcs.clone(), rng);
+            // get random accumulator
+            let acc = Accumulator::rand(&srs_acc, rng);
 
-            let acc = Accumulator::rand(&srs, &mut thread_rng());
             let witness_len = degree_x * degree_y;
-            let witness_polynomial: MultilinearPolynomial<ScalarField> = MultilinearPolynomial::rand(degree_x.log_2() + degree_y.log_2(), &mut thread_rng());
+            let witness_polynomial: MultilinearPolynomial<ScalarField> = MultilinearPolynomial::rand(
+                degree_x.log_2() + degree_y.log_2(),
+                rng,
+            );
 
             println!("witness length: {} ({} bytes compressed):\n\taccumulator size: {} bytes (compressed: {} bytes)\n\t\tinstance compressed: {} bytes\n\t\twitness compressed: {} bytes",
                      witness_len, witness_polynomial.compressed_size(),

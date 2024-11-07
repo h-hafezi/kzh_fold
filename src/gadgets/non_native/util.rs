@@ -4,7 +4,7 @@ use ark_ff::{AdditiveGroup, BigInteger, Field, PrimeField};
 use ark_r1cs_std::boolean::Boolean;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
-use ark_r1cs_std::{ToBitsGadget};
+use ark_r1cs_std::ToBitsGadget;
 
 pub fn non_native_to_fpvar<ScalarField, BaseField>(
     non_native_var: &NonNativeFieldVar<BaseField, ScalarField>,
@@ -22,6 +22,9 @@ where
     x
 }
 
+/// given an E::G1Affine, it converts it into a tuple of two scalars by converting each coordinate into a scalar point
+/// finally, in case the point is zero is returns (1, 0) which is standard representation of the infinity point
+/// it's supposed to be consistent with NonNativeAffineVar::to_sponge_field_elements
 pub fn convert_affine_to_scalars<E: Pairing>(point: E::G1Affine) -> (E::ScalarField, E::ScalarField)
 where
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
@@ -30,8 +33,16 @@ where
         (E::ScalarField::ONE, E::ScalarField::ZERO)
     } else {
         // Extract x and y coordinates and convert them
-        let x = convert_field_one_to_field_two::<<<E as Pairing>::G1Affine as AffineRepr>::BaseField, <E as Pairing>::ScalarField>(point.x().unwrap());
-        let y = convert_field_one_to_field_two::<<<E as Pairing>::G1Affine as AffineRepr>::BaseField, <E as Pairing>::ScalarField>(point.y().unwrap());
+        let x = convert_field_one_to_field_two::<
+            <<E as Pairing>::G1Affine as AffineRepr>::BaseField,
+            <E as Pairing>::ScalarField,
+        >(point.x().unwrap());
+        let y = convert_field_one_to_field_two::<
+            <<E as Pairing>::G1Affine as AffineRepr>::BaseField,
+            <E as Pairing>::ScalarField,
+        >(point.y().unwrap());
+
+        // return the converted tuple
         (x, y)
     }
 }
@@ -64,34 +75,36 @@ mod tests {
     use crate::constant_for_curves::{BaseField, ScalarField};
     use crate::gadgets::non_native::util::{convert_field_one_to_field_two, non_native_to_fpvar};
 
+    // This test makes sure non_native_to_fpvar works correctly but generating a
+    // random non-native value and then converting it into FpVar, it's the zk version
     #[test]
     fn test_conversion1() {
-        for _ in 0..100 {
-            let cs = ConstraintSystem::<ScalarField>::new_ref();
+        let cs = ConstraintSystem::<ScalarField>::new_ref();
 
-            let g = BaseField::rand(&mut thread_rng());
+        let g = BaseField::rand(&mut thread_rng());
 
-            // Create the non-native field variable outside the function
-            let non_native_var = NonNativeFieldVar::new_variable(
-                cs.clone(),
-                || Ok(g),
-                AllocationMode::Input,
-            ).unwrap();
+        // Create the non-native field variable outside the function
+        let non_native_var = NonNativeFieldVar::new_variable(
+            cs.clone(),
+            || Ok(g),
+            AllocationMode::Input,
+        ).unwrap();
 
-            println!("constraint counts before: {}", cs.num_constraints());
+        println!("constraint counts before: {}", cs.num_constraints());
 
-            let x = non_native_to_fpvar(&non_native_var);
+        let x = non_native_to_fpvar(&non_native_var);
 
-            assert_eq!(g.into_bigint(), x.value().unwrap().into_bigint());
-            println!("constraint counts after: {}", cs.num_constraints())
-        }
+        println!("constraint counts after: {}", cs.num_constraints());
+
+        // make sure the non-native to fpvar in fact works correctly
+        assert_eq!(g.into_bigint(), x.value().unwrap().into_bigint());
     }
+
+    // equivalent of test above, in non-zk
 
     #[test]
     fn test_conversion2() {
-        for _ in 0..100 {
-            let g = BaseField::rand(&mut thread_rng());
-            assert_eq!(g.into_bigint(), convert_field_one_to_field_two::<BaseField, ScalarField>(g).into_bigint());
-        }
+        let g = BaseField::rand(&mut thread_rng());
+        assert_eq!(g.into_bigint(), convert_field_one_to_field_two::<BaseField, ScalarField>(g).into_bigint());
     }
 }

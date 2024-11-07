@@ -1,5 +1,4 @@
 use crate::commitment::CommitmentScheme;
-use crate::gadgets::absorb::{r1cs_instance_var_to_sponge_vector, relaxed_r1cs_instance_var_to_sponge_vector};
 use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
 use crate::gadgets::r1cs::r1cs_var::{R1CSInstanceVar, RelaxedR1CSInstanceVar};
 use crate::nova::cycle_fold::coprocessor_constraints::{OvaInstanceVar, RelaxedOvaInstanceVar};
@@ -281,8 +280,8 @@ where
 
         // compute beta
         let mut transcript = TranscriptVar::new(cs.clone(), b"new transcript");
-        transcript.append_scalars(b"label", relaxed_r1cs_instance_var_to_sponge_vector(&self.running_instance).as_slice());
-        transcript.append_scalars(b"label", r1cs_instance_var_to_sponge_vector(&self.current_instance).as_slice());
+        transcript.append_scalars(b"label", self.running_instance.to_sponge_field_elements().as_slice());
+        transcript.append_scalars(b"label", self.current_instance.to_sponge_field_elements().as_slice());
         transcript.append_scalars(b"label", self.nova_cross_term_error.to_sponge_field_elements().unwrap().as_slice());
         let beta = transcript.challenge_scalar(b"challenge");
 
