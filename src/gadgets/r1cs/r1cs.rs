@@ -1,7 +1,7 @@
-use ark_std::fmt;
+use ark_std::{fmt, UniformRand};
 
 use ark_ec::{AdditiveGroup, CurveGroup};
-use ark_ff::{Field};
+use ark_ff::Field;
 use ark_relations::r1cs::ConstraintSystemRef;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::fmt::Display;
@@ -11,9 +11,10 @@ use rayon::iter::{
 };
 
 
-pub use ark_relations::r1cs::Matrix;
-use crate::gadgets::sparse::{MatrixRef, SparseMatrix};
 use crate::commitment::CommitmentScheme;
+use crate::gadgets::sparse::{MatrixRef, SparseMatrix};
+pub use ark_relations::r1cs::Matrix;
+use rand::Rng;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Error {
@@ -156,9 +157,9 @@ impl<G: CurveGroup> R1CSShape<G> {
         W: &RelaxedR1CSWitness<G>,
         pp: &C::PP,
     ) -> Result<(), Error> {
-        assert_eq!(W.W.len(), self.num_vars);
-        assert_eq!(U.X.len(), self.num_io);
-        assert_eq!(W.E.len(), self.num_constraints);
+        assert_eq!(W.W.len(), self.num_vars, "invalid witness length");
+        assert_eq!(U.X.len(), self.num_io, "invalid input length");
+        assert_eq!(W.E.len(), self.num_constraints, "invalid error length");
 
         let z = [U.X.as_slice(), W.W.as_slice()].concat();
         let Az = self.A.multiply_vec(&z);
@@ -180,6 +181,57 @@ impl<G: CurveGroup> R1CSShape<G> {
         }
 
         Ok(())
+    }
+
+    pub fn random_relaxed_r1cs<R: Rng, C: CommitmentScheme<G>>(
+        &self,
+        pp: &C::PP,
+        rng: &mut R,
+    ) -> (RelaxedR1CSInstance<G, C>, RelaxedR1CSWitness<G>) {
+        // Create the concatenated vector Z = [X, W]
+        let z = {
+            let mut res = Vec::new();
+            for _ in 0..self.num_io + self.num_vars {
+                res.push(G::ScalarField::rand(rng));
+            }
+            res
+        };
+
+        // Split z into X and W
+        let X = z[..self.num_io].to_vec();
+        let W = z[self.num_io..].to_vec();
+
+        // Commit to W
+        let commitment_W = C::commit(pp, &W);
+
+        // Compute AZ, BZ, CZ
+        let Az = self.A.multiply_vec(&z);
+        let Bz = self.B.multiply_vec(&z);
+        let Cz = self.C.multiply_vec(&z);
+
+        let u = X[0];
+
+        // Generate a random vector e with the same length as the constraints
+        let mut E = Vec::with_capacity(self.num_constraints);
+        for idx in 0..self.num_constraints {
+            let element = Az[idx] * Bz[idx] - u * Cz[idx];
+            E.push(element);
+        }
+
+        // Commit to the vector e
+        let commitment_E = C::commit(pp, &E);
+
+        (
+            RelaxedR1CSInstance {
+                commitment_W,
+                commitment_E,
+                X,
+            },
+            RelaxedR1CSWitness {
+                W,
+                E,
+            }
+        )
     }
 }
 
@@ -571,10 +623,12 @@ pub(crate) mod tests {
 
     use super::*;
 
+    use crate::hash::pederson::PedersenCommitment;
+    use ark_bls12_381::{Fr as Scalar, G1Projective as G};
     use ark_ff::Field;
     use ark_relations::r1cs::Matrix;
-    use ark_bls12_381::{Fr as Scalar, G1Projective as G};
-    use crate::hash::pederson::PedersenCommitment;
+    use rand::thread_rng;
+    use crate::constant_for_curves::C1;
 
     pub(crate) fn to_field_sparse<G: CurveGroup>(matrix: &[&[u64]]) -> Matrix<G::ScalarField> {
         let mut coo_matrix = Matrix::new();
@@ -837,5 +891,40 @@ pub(crate) mod tests {
 
         shape.is_relaxed_satisfied(&folded_U, &folded_W, &pp)?;
         Ok(())
+    }
+
+    #[test]
+    fn test_random_relaxed_r1cs() {
+        let (a, b, c) = {
+            (
+                to_field_sparse::<G>(A),
+                to_field_sparse::<G>(B),
+                to_field_sparse::<G>(C),
+            )
+        };
+
+        const NUM_CONSTRAINTS: usize = 4;
+        const NUM_WITNESS: usize = 4;
+        const NUM_PUBLIC: usize = 2;
+        const r: Scalar = Scalar::ONE;
+
+        let pp = PedersenCommitment::<G>::setup(NUM_WITNESS, b"test", &());
+        let shape = R1CSShape::<G>::new(NUM_CONSTRAINTS, NUM_WITNESS, NUM_PUBLIC, &a, &b, &c).unwrap();
+
+        let X = to_field_elements::<G>(&[1, 35]);
+        let W = to_field_elements::<G>(&[3, 9, 27, 30]);
+        let commitment_W = PedersenCommitment::<G>::commit(&pp, &W);
+
+        let u = R1CSInstance::<G, PedersenCommitment<G>>::new(&shape, &commitment_W, &X).unwrap();
+        let w = R1CSWitness::<G>::new(&shape, &W).unwrap();
+
+        shape.is_satisfied(&u, &w, &pp).unwrap();
+
+        let (relaxed_u, relaxed_w) = shape.random_relaxed_r1cs(
+            &pp,
+            &mut thread_rng(),
+        );
+
+        shape.is_relaxed_satisfied::<PedersenCommitment<G>>(&relaxed_u, &relaxed_w, &pp).unwrap();
     }
 }

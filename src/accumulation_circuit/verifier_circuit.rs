@@ -621,9 +621,12 @@ pub mod tests {
 
     use super::*;
     use crate::constant_for_curves::{ScalarField, C2, E, G1, G2};
+    use crate::nexus_spartan::crr1cs::{is_sat, CRR1CSInstance, CRR1CSKey, CRR1CSShape, CRR1CSWitness};
+    use crate::nexus_spartan::crr1csproof::CRR1CSProof;
     use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
     use crate::pcs::multilinear_pcs::PolynomialCommitmentSRS;
     use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
+    use crate::transcript::transcript::Transcript;
 
     // Test helper
     pub fn get_random_acc_verifier_cs() -> ConstraintSystemRef<ScalarField> {

@@ -9,6 +9,7 @@ use ark_ff::PrimeField;
 use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef, SynthesisMode};
+use num::abs;
 use rand::thread_rng;
 
 /// given a ConstraintSystem object, returns corresponding R1CSShape, R1CSInstance and R1CSWitness
@@ -57,7 +58,6 @@ pub fn generate_random_constraint_system<F: PrimeField>(
     num_vars: usize,
     num_io: usize,
 ) -> ConstraintSystemRef<F> {
-    assert!(num_vars >= num_constraints);
     let cs = ConstraintSystem::<F>::new_ref();
     let rng = &mut thread_rng();
 
@@ -76,7 +76,7 @@ pub fn generate_random_constraint_system<F: PrimeField>(
     // This one is important because it affects the shape of A, B, C which has to be the same for all instance/witnesses we create
     for i in 0..num_constraints {
         // define j in case num_constraint > num_vars, otherwise it wouldn't make a difference
-        let j = i % (num_vars - num_constraints);
+        let j = i % abs((num_vars - num_constraints) as i32) as usize;
         let _ = &witness_vars[j] * &witness_vars[j];
     }
 
@@ -97,8 +97,6 @@ pub fn get_random_r1cs_instance_witness<F, C1, G1>(num_constraints: usize,
     C1: CommitmentScheme<Projective<G1>>,
     G1: SWCurveConfig<ScalarField=F>,
 {
-    assert!(num_vars >= num_constraints);
-
     // generate a constraint system corresponding the shape
     let cs = generate_random_constraint_system(num_constraints, num_vars, num_io);
 
@@ -124,8 +122,6 @@ pub fn get_random_relaxed_r1cs_instance_witness<F, C1, G1>(num_constraints: usiz
     C1: CommitmentScheme<Projective<G1>>,
     G1: SWCurveConfig<ScalarField=F>,
 {
-    assert!(num_vars >= num_constraints);
-
     // generate a constraint system corresponding the shape
     let cs1 = generate_random_constraint_system(num_constraints, num_vars, num_io);
     let cs2 = generate_random_constraint_system(num_constraints, num_vars, num_io);
