@@ -197,9 +197,7 @@ mod tests {
     use crate::transcript::transcript::Transcript;
     use ark_ff::AdditiveGroup;
     use ark_relations::r1cs::{ConstraintSystem, SynthesisMode};
-    use ark_std::UniformRand;
     use rand::thread_rng;
-    use crate::hash::poseidon::PoseidonHashVar;
 
     type F = ScalarField;
 

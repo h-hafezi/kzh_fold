@@ -628,7 +628,6 @@ pub(crate) mod tests {
     use ark_ff::Field;
     use ark_relations::r1cs::Matrix;
     use rand::thread_rng;
-    use crate::constant_for_curves::C1;
 
     pub(crate) fn to_field_sparse<G: CurveGroup>(matrix: &[&[u64]]) -> Matrix<G::ScalarField> {
         let mut coo_matrix = Matrix::new();

@@ -3,7 +3,7 @@ use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
 use crate::gadgets::r1cs::r1cs_var::{R1CSInstanceVar, RelaxedR1CSInstanceVar};
 use crate::nova::cycle_fold::coprocessor_constraints::{OvaInstanceVar, RelaxedOvaInstanceVar};
 use crate::nova::nova::get_affine_var_coords;
-use crate::nova::nova::verifier_circuit::NovaAugmentedCircuit;
+use crate::nova::nova::verifier_circuit::NovaVerifierCircuit;
 use crate::transcript::transcript_var::TranscriptVar;
 use ark_crypto_primitives::sponge::constraints::AbsorbGadget;
 use ark_crypto_primitives::sponge::Absorb;
@@ -21,7 +21,7 @@ use ark_relations::ns;
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, Namespace, SynthesisError};
 use std::borrow::Borrow;
 
-pub struct NovaAugmentedCircuitVar<F, G1, G2, C1, C2>
+pub struct NovaVerifierCircuitVar<F, G1, G2, C1, C2>
 where
     G1: SWCurveConfig + Clone,
     G1::BaseField: PrimeField,
@@ -65,7 +65,7 @@ where
     pub ova_cross_term_error_commitment_e: ProjectiveVar<G2, FpVar<G2::BaseField>>,
 }
 
-impl<F, G1, G2, C1, C2> AllocVar<NovaAugmentedCircuit<F, G1, G2, C1, C2>, G1::ScalarField> for NovaAugmentedCircuitVar<F, G1, G2, C1, C2>
+impl<F, G1, G2, C1, C2> AllocVar<NovaVerifierCircuit<F, G1, G2, C1, C2>, G1::ScalarField> for NovaVerifierCircuitVar<F, G1, G2, C1, C2>
 where
     G1: SWCurveConfig + Clone,
     G1::BaseField: PrimeField,
@@ -77,7 +77,7 @@ where
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField>,
     F: PrimeField,
 {
-    fn new_variable<T: Borrow<NovaAugmentedCircuit<F, G1, G2, C1, C2>>>(
+    fn new_variable<T: Borrow<NovaVerifierCircuit<F, G1, G2, C1, C2>>>(
         cs: impl Into<Namespace<G1::ScalarField>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
@@ -193,7 +193,7 @@ where
             mode,
         )?;
 
-        Ok(NovaAugmentedCircuitVar {
+        Ok(NovaVerifierCircuitVar {
             running_instance,
             final_instance,
             current_instance,
@@ -213,7 +213,7 @@ where
     }
 }
 
-impl<F, G1, G2, C1, C2> ConstraintSynthesizer<F> for NovaAugmentedCircuitVar<F, G1, G2, C1, C2>
+impl<F, G1, G2, C1, C2> ConstraintSynthesizer<F> for NovaVerifierCircuitVar<F, G1, G2, C1, C2>
 where
     G1: SWCurveConfig + Clone,
     G1::BaseField: PrimeField,
@@ -348,8 +348,8 @@ where
 mod test {
     use crate::constant_for_curves::{ScalarField, C1, C2, G1, G2};
     use crate::nova::nova::prover::NovaProver;
-    use crate::nova::nova::verifier_circuit::NovaAugmentedCircuit;
-    use crate::nova::nova::verifier_circuit_var::NovaAugmentedCircuitVar;
+    use crate::nova::nova::verifier_circuit::NovaVerifierCircuit;
+    use crate::nova::nova::verifier_circuit_var::NovaVerifierCircuitVar;
     use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
     use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystem};
 
@@ -360,11 +360,11 @@ mod test {
         let prover: NovaProver<F, G1, G2, C1, C2> = NovaProver::rand((10, 3, 17));
         let cs = ConstraintSystem::<F>::new_ref();
 
-        let augmented_circuit: NovaAugmentedCircuit<F, G1, G2, C1, C2> = NovaAugmentedCircuit::initialise(prover);
+        let augmented_circuit: NovaVerifierCircuit<F, G1, G2, C1, C2> = NovaVerifierCircuit::initialise(prover);
 
         augmented_circuit.verify();
 
-        let augmented_circuit_var: NovaAugmentedCircuitVar<F, G1, G2, C1, C2> = NovaAugmentedCircuitVar::new_variable(
+        let augmented_circuit_var: NovaVerifierCircuitVar<F, G1, G2, C1, C2> = NovaVerifierCircuitVar::new_variable(
             cs.clone(),
             || Ok(augmented_circuit.clone()),
             AllocationMode::Input,

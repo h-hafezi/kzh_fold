@@ -8,7 +8,7 @@ use ark_ec::short_weierstrass::{Projective, SWCurveConfig};
 use ark_ff::PrimeField;
 use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::fields::fp::FpVar;
-use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef, SynthesisMode};
+use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
 use num::abs;
 use rand::thread_rng;
 
@@ -22,10 +22,6 @@ where
     C1: CommitmentScheme<Projective<G1>>,
     G1: SWCurveConfig<ScalarField=F>,
 {
-    // the cs has to be finalised before the matrices A, B and C are generated
-    cs.set_mode(SynthesisMode::Prove { construct_matrices: true });
-    cs.finalize();
-
     // make sure cs is already satisfied
     assert!(cs.is_satisfied().unwrap(), "the passed constraint system isn't satisfied");
 
@@ -163,7 +159,7 @@ mod tests {
     use ark_r1cs_std::eq::EqGadget;
     use ark_r1cs_std::fields::fp::FpVar;
     use ark_r1cs_std::fields::FieldVar;
-    use ark_relations::r1cs::ConstraintSystem;
+    use ark_relations::r1cs::{ConstraintSystem, SynthesisMode};
 
     type F = ScalarField;
     type C1 = PedersenCommitment<G1Projective>;
@@ -183,6 +179,9 @@ mod tests {
         assert!(cs.is_satisfied().unwrap());
 
         let pp: Vec<Affine<G1>> = C1::setup(cs.num_witness_variables(), b"test", &());
+
+        cs.set_mode(SynthesisMode::Prove { construct_matrices: true });
+        cs.finalize();
 
         let (shape, u, w) = convert_constraint_system_into_instance_witness::<F, C1, G1>(cs.clone(), &pp);
 

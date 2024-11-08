@@ -10,7 +10,7 @@ use ark_ec::{AffineRepr, CurveConfig, CurveGroup};
 use ark_ff::PrimeField;
 
 #[derive(Clone)]
-pub struct NovaAugmentedCircuit<F, G1, G2, C1, C2>
+pub struct NovaVerifierCircuit<F, G1, G2, C1, C2>
 where
     G1: SWCurveConfig + Clone,
     G1::BaseField: PrimeField,
@@ -55,7 +55,7 @@ where
     pub cross_term_error_commitment_e: Projective<G2>,
 }
 
-impl<F, G1, G2, C1, C2> NovaAugmentedCircuit<F, G1, G2, C1, C2>
+impl<F, G1, G2, C1, C2> NovaVerifierCircuit<F, G1, G2, C1, C2>
 where
     G1: SWCurveConfig + Clone,
     G1::BaseField: PrimeField,
@@ -145,7 +145,7 @@ where
         assert_eq!(beta_2_non_native, self.beta_2_non_native);
     }
 
-    pub fn initialise(prover: NovaProver<F, G1, G2, C1, C2>) -> NovaAugmentedCircuit<F, G1, G2, C1, C2>
+    pub fn initialise(prover: NovaProver<F, G1, G2, C1, C2>) -> NovaVerifierCircuit<F, G1, G2, C1, C2>
     where
         <G2 as CurveConfig>::ScalarField: Absorb,
     {
@@ -158,7 +158,7 @@ where
         let beta_1_non_native = cast_field::<G1::ScalarField, G1::BaseField>(beta_1);
         let beta_2_non_native = cast_field::<G1::ScalarField, G1::BaseField>(beta_2);
 
-        NovaAugmentedCircuit {
+        NovaVerifierCircuit {
             running_instance: prover.running_accumulator.0.clone(),
             final_instance,
             current_instance: prover.current_accumulator.0.clone(),
@@ -183,7 +183,7 @@ where
 mod test {
     use crate::constant_for_curves::{ScalarField, C1, C2, G1, G2};
     use crate::nova::nova::prover::NovaProver;
-    use crate::nova::nova::verifier_circuit::NovaAugmentedCircuit;
+    use crate::nova::nova::verifier_circuit::NovaVerifierCircuit;
 
     type F = ScalarField;
 
@@ -191,7 +191,7 @@ mod test {
     fn test() {
         let prover: NovaProver<F, G1, G2, C1, C2> = NovaProver::rand((10, 3, 17));
 
-        let augmented_circuit: NovaAugmentedCircuit<F, G1, G2, C1, C2> = NovaAugmentedCircuit::initialise(prover);
+        let augmented_circuit: NovaVerifierCircuit<F, G1, G2, C1, C2> = NovaVerifierCircuit::initialise(prover);
 
         augmented_circuit.verify();
     }

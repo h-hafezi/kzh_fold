@@ -1,8 +1,7 @@
 use crate::accumulation_circuit::affine_to_projective;
-use ark_serialize::CanonicalSerialize;
 use crate::commitment::{Commitment, CommitmentScheme};
 use crate::gadgets::non_native::util::cast_field;
-use crate::gadgets::r1cs::conversion::{get_random_r1cs_instance_witness, get_random_relaxed_r1cs_instance_witness};
+use crate::gadgets::r1cs::conversion::{convert_constraint_system_into_instance_witness, get_random_r1cs_instance_witness, get_random_relaxed_r1cs_instance_witness};
 use crate::gadgets::r1cs::ova::commit_T as Ova_commit_T;
 use crate::gadgets::r1cs::r1cs::commit_T as R1CS_commit_T;
 use crate::gadgets::r1cs::{OvaInstance, OvaWitness, R1CSInstance, R1CSShape, R1CSWitness, RelaxedOvaInstance, RelaxedOvaWitness, RelaxedR1CSInstance, RelaxedR1CSWitness};
@@ -14,6 +13,8 @@ use ark_ec::short_weierstrass::{Affine, Projective, SWCurveConfig};
 use ark_ec::{CurveConfig, CurveGroup};
 use ark_ff::PrimeField;
 use ark_relations::r1cs::ConstraintSystemRef;
+use ark_serialize::CanonicalSerialize;
+use rand::thread_rng;
 
 pub struct NovaProver<F, G1, G2, C1, C2>
 where
@@ -277,26 +278,19 @@ where
         let ova_commitment_pp: Vec<Affine<G2>> = C2::setup(ova_shape.num_vars + ova_shape.num_constraints, b"test", &());
         let commitment_pp: Vec<Affine<G1>> = C1::setup(cs.num_witness_variables(), b"test", &());
 
-        let (shape, instance, witness) = get_random_r1cs_instance_witness::<F, C1, G1>(
-            cs.num_constraints(),
-            cs.num_witness_variables(),
-            cs.num_instance_variables(),
-            &commitment_pp
+        let (shape, instance, witness) = convert_constraint_system_into_instance_witness::<F, C1, G1>(
+            cs.clone(),
+            &commitment_pp,
         );
 
         // assert it's satisfied
         shape.is_satisfied(&instance, &witness, &commitment_pp).expect("unsatisfied r1cs");
 
         // generate a relaxed instance/witness this time
-        let (relaxed_shape, relaxed_instance, relaxed_witness) = get_random_relaxed_r1cs_instance_witness::<F, C1, G1>(
-            cs.num_constraints(),
-            cs.num_witness_variables(),
-            cs.num_instance_variables(),
-            &commitment_pp
+        let (relaxed_instance, relaxed_witness) = shape.random_relaxed_r1cs(
+            &commitment_pp,
+            &mut thread_rng(),
         );
-
-        // assert the shape is equal to the previous shape
-        assert_eq!(shape, relaxed_shape);
 
         // make sure the instance is satisfied
         shape.is_relaxed_satisfied(&relaxed_instance, &relaxed_witness, &commitment_pp).expect("unsatisfied r1cs");
@@ -317,16 +311,17 @@ where
 
 #[cfg(test)]
 mod test {
+    use super::*;
+    use crate::constant_for_curves::{ScalarField, C1, C2, G1, G2};
+    use crate::hash::poseidon::PoseidonHashVar;
+    use crate::nova::nova::verifier_circuit::NovaVerifierCircuit;
+    use crate::nova::nova::verifier_circuit_var::NovaVerifierCircuitVar;
     use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
     use ark_r1cs_std::fields::fp::FpVar;
     use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystem, SynthesisMode};
-    use crate::constant_for_curves::{ScalarField, C1, C2, G1, G2};
     use ark_std::UniformRand;
     use rand::thread_rng;
-    use crate::hash::poseidon::PoseidonHashVar;
-    use crate::nova::nova::verifier_circuit::NovaAugmentedCircuit;
-    use crate::nova::nova::verifier_circuit_var::NovaAugmentedCircuitVar;
-    use super::*;
+    use crate::gadgets::r1cs::r1cs::commit_T;
 
     type F = ScalarField;
 
@@ -363,7 +358,33 @@ mod test {
     fn bench_nova() {
         const POSEIDON_NUM: usize = 3;
 
+        // generate some random prover which for a small R1CS which is supposed to generate some sample NovaVerifierCircuit
+        // this prover is sort of faking the previous step of IVC, but since we don't have it I just use a prover for a small R1CS
+        let prover: NovaProver<F, G1, G2, C1, C2> = NovaProver::rand((10, 3, 17));
+
+        // generate a constraint system
         let cs = ConstraintSystem::<F>::new_ref();
+
+        // generate the Nova verifier circuit
+        let nova_verifier_var: NovaVerifierCircuitVar<F, G1, G2, C1, C2> = {
+            // the non-circuit version
+            let nova_verifier: NovaVerifierCircuit<F, G1, G2, C1, C2> = NovaVerifierCircuit::initialise(prover);
+            nova_verifier.verify();
+
+            // the circuit version and output it
+            let nova_verifier_var: NovaVerifierCircuitVar<F, G1, G2, C1, C2> = NovaVerifierCircuitVar::new_variable(
+                cs.clone(),
+                || Ok(nova_verifier.clone()),
+                AllocationMode::Input,
+            ).unwrap();
+
+            nova_verifier_var
+        };
+
+        // generate constraints
+        nova_verifier_var.generate_constraints(cs.clone()).expect("error");
+
+        println!("Num of constraints for Nova verifier: {}, cs_satisfied: {}", cs.num_constraints(), cs.is_satisfied().unwrap());
 
         // pad it with some random poseidon hash
         let mut hash = PoseidonHashVar::new(cs.clone());
@@ -375,33 +396,41 @@ mod test {
             // output the hash
             let _ = hash.output();
         }
-        println!("{}", cs.num_constraints());
+
+        println!("Number of constraints of the augmented circuit: {}", cs.num_constraints());
 
         // the cs has to be finalised before the matrices A, B and C are generated
         cs.set_mode(SynthesisMode::Prove { construct_matrices: true });
         cs.finalize();
 
+        // now generate a prover for the augmented circuit
         let prover: NovaProver<F, G1, G2, C1, C2> = NovaProver::rand_from_constraint_system(cs.clone());
 
-        let augmented_circuit: NovaAugmentedCircuit<F, G1, G2, C1, C2> = NovaAugmentedCircuit::initialise(prover);
+        // now prover include the running instance + the final instance, so we can benchmark each of these
 
-        augmented_circuit.verify();
-
-        let augmented_circuit_var: NovaAugmentedCircuitVar<F, G1, G2, C1, C2> = NovaAugmentedCircuitVar::new_variable(
-            cs.clone(),
-            || Ok(augmented_circuit.clone()),
-            AllocationMode::Input,
+        // ********************************** Benchmarking The Prover **********************************
+        // prover cost: commit to current witness + compute and commit to cross term error
+        let _ = C1::commit(&prover.commitment_pp, prover.current_accumulator.1.W.as_slice());
+        let (_, _) = commit_T(
+            &prover.shape,
+            &prover.commitment_pp,
+            &prover.running_accumulator.0,
+            &prover.running_accumulator.1,
+            &prover.current_accumulator.0,
+            &prover.current_accumulator.1
         ).unwrap();
-        println!("{}", cs.num_constraints());
 
-        augmented_circuit_var.generate_constraints(cs.clone()).expect("error");
-        println!("{}", cs.num_constraints());
-        assert!(cs.is_satisfied().unwrap());
-        let cs_borrow = cs.borrow().unwrap();
-        let W = cs_borrow.witness_assignment.clone();
-        println!("witness length: {}", W.len());
-        println!("cs {} {} {}", cs.num_constraints(), cs.num_instance_variables(), cs.num_witness_variables());
-
-        let prover: NovaProver<F, G1, G2, C1, C2> = NovaProver::rand_from_constraint_system(cs.clone());
+        // ********************************** Benchmarking The Decider **********************************
+        // decider cost: decide both the running accumulator and the current accumulator
+        prover.shape.is_relaxed_satisfied(
+            &prover.running_accumulator.0,
+            &prover.running_accumulator.1,
+            &prover.commitment_pp,
+        ).unwrap();
+        prover.shape.is_satisfied(
+            &prover.current_accumulator.0,
+            &prover.current_accumulator.1,
+            &prover.commitment_pp,
+        ).unwrap()
     }
 }
