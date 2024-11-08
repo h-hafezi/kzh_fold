@@ -240,7 +240,7 @@ where
 
         // get commitment_pp
         let ova_commitment_pp: Vec<Affine<G2>> = C2::setup(ova_shape.num_vars + ova_shape.num_constraints, b"test", &());
-        let commitment_pp: Vec<Affine<G1>> = C1::setup(num_constraints + num_vars, b"test", &());
+        let commitment_pp: Vec<Affine<G1>> = C1::setup(num_vars, b"test", &());
 
         let (shape, instance, witness) = get_random_r1cs_instance_witness::<F, C1, G1>(num_constraints, num_vars, num_io, &commitment_pp);
 
@@ -281,7 +281,7 @@ mod test {
 
     #[test]
     fn test_nova_compute_final_accumulator() {
-        let prover: NovaProver<F, G1, G2, C1, C2> = NovaProver::rand((10, 3, 7));
+        let prover: NovaProver<F, G1, G2, C1, C2> = NovaProver::rand((10, 3, 17));
 
         let beta = F::rand(&mut thread_rng());
         let folded_accumulator = prover.compute_final_accumulator(&beta);

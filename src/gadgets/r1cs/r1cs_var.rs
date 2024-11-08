@@ -243,8 +243,8 @@ mod test {
     #[test]
     fn test() {
         // simply write a test that allocates R1CSVar and RelaxedR1CSVar and then using .value().unwrap() checks out the result
-        let (num_constraints, num_io, num_vars) = (10, 3, 7);
-        let pp: Vec<Affine<G1>> = C1::setup(num_constraints + num_vars, b"test", &());
+        let (num_constraints, num_io, num_vars) = (10, 3, 17);
+        let pp: Vec<Affine<G1>> = C1::setup(num_vars, b"test", &());
         let cs = ConstraintSystem::new_ref();
 
         let (_, instance, _) = get_random_r1cs_instance_witness::<F, C1, G1>(num_constraints, num_vars, num_io, &pp);

@@ -676,7 +676,7 @@ pub mod tests {
         println!("number of witness random cs: {}", cs.num_witness_variables());
 
         println!("number of constraint before shape convert: {}", cs.num_constraints());
-        /*
+
         // convert to the corresponding Spartan types
         let shape = CRR1CSShape::<ScalarField>::convert::<G1>(cs.clone());
         let key: CRR1CSKey<E, MultilinearPolynomial<ScalarField>> = CRR1CSKey::new(&SRS, shape.get_num_cons(), shape.get_num_vars());
@@ -720,6 +720,5 @@ pub mod tests {
                 &mut verifier_transcript,
             )
             .is_ok());
-         */
     }
 }

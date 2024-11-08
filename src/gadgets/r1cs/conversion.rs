@@ -9,7 +9,7 @@ use ark_ff::PrimeField;
 use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef, SynthesisMode};
-use rand::{thread_rng};
+use rand::thread_rng;
 
 /// given a ConstraintSystem object, returns corresponding R1CSShape, R1CSInstance and R1CSWitness
 pub fn convert_constraint_system_into_instance_witness<F, C1, G1>(
@@ -57,6 +57,7 @@ pub fn generate_random_constraint_system<F: PrimeField>(
     num_vars: usize,
     num_io: usize,
 ) -> ConstraintSystemRef<F> {
+    assert!(num_vars >= num_constraints);
     let cs = ConstraintSystem::<F>::new_ref();
     let rng = &mut thread_rng();
 
@@ -67,7 +68,7 @@ pub fn generate_random_constraint_system<F: PrimeField>(
 
     // Create random variables for the witness
     let mut witness_vars = vec![];
-    for _ in 0..num_vars {
+    for _ in 0..num_vars - num_constraints {
         let var = FpVar::new_witness(cs.clone(), || Ok(F::rand(rng))).unwrap();
         witness_vars.push(var);
     }
@@ -75,9 +76,13 @@ pub fn generate_random_constraint_system<F: PrimeField>(
     // This one is important because it affects the shape of A, B, C which has to be the same for all instance/witnesses we create
     for i in 0..num_constraints {
         // define j in case num_constraint > num_vars, otherwise it wouldn't make a difference
-        let j = i % num_vars;
+        let j = i % (num_vars - num_constraints);
         let _ = &witness_vars[j] * &witness_vars[j];
     }
+
+    assert_eq!(cs.num_constraints(), num_constraints);
+    assert_eq!(cs.num_witness_variables(), num_vars);
+    assert_eq!(cs.num_instance_variables(), num_io);
 
     cs
 }
@@ -92,11 +97,20 @@ pub fn get_random_r1cs_instance_witness<F, C1, G1>(num_constraints: usize,
     C1: CommitmentScheme<Projective<G1>>,
     G1: SWCurveConfig<ScalarField=F>,
 {
+    assert!(num_vars >= num_constraints);
+
     // generate a constraint system corresponding the shape
     let cs = generate_random_constraint_system(num_constraints, num_vars, num_io);
 
     // generate corresponding instance/witness
     let (shape, instance, witness) = convert_constraint_system_into_instance_witness(cs.clone(), pp);
+
+    assert_eq!(cs.num_constraints(), shape.num_constraints);
+    assert_eq!(cs.num_witness_variables(), shape.num_vars);
+    assert_eq!(cs.num_instance_variables(), shape.num_io);
+    assert_eq!(cs.num_constraints(), num_constraints);
+    assert_eq!(cs.num_witness_variables(), num_vars);
+    assert_eq!(cs.num_instance_variables(), num_io);
 
     (shape, instance, witness)
 }
@@ -110,6 +124,8 @@ pub fn get_random_relaxed_r1cs_instance_witness<F, C1, G1>(num_constraints: usiz
     C1: CommitmentScheme<Projective<G1>>,
     G1: SWCurveConfig<ScalarField=F>,
 {
+    assert!(num_vars >= num_constraints);
+
     // generate a constraint system corresponding the shape
     let cs1 = generate_random_constraint_system(num_constraints, num_vars, num_io);
     let cs2 = generate_random_constraint_system(num_constraints, num_vars, num_io);
@@ -180,11 +196,11 @@ mod tests {
 
     #[test]
     fn test_generate_random_constraint_system() {
-        let (num_constraints, num_io, num_vars) = (10, 3, 7);
+        let (num_constraints, num_io, num_vars) = (10, 3, 17);
         let cs = generate_random_constraint_system::<F>(num_constraints, num_vars, num_io);
         cs.finalize();
 
-        let pp: Vec<Affine<G1>> = C1::setup(num_constraints + num_vars, b"test", &());
+        let pp: Vec<Affine<G1>> = C1::setup(num_vars, b"test", &());
 
         let (shape, u, w) = convert_constraint_system_into_instance_witness::<F, C1, G1>(cs.clone(), &pp);
 
@@ -192,13 +208,13 @@ mod tests {
         shape.is_satisfied(&u, &w, &pp).expect("cs is not satisfied");
 
         // assert the shape is well formatted
-        assert_eq!((shape.num_io, shape.num_vars, shape.num_constraints), (num_io, num_vars + num_constraints, num_constraints));
+        assert_eq!((shape.num_io, shape.num_vars, shape.num_constraints), (num_io, num_vars, num_constraints));
     }
 
     #[test]
     fn test_random_r1cs() {
-        let (num_constraints, num_io, num_vars) = (10, 3, 7);
-        let pp: Vec<Affine<G1>> = C1::setup(num_constraints + num_vars, b"test", &());
+        let (num_constraints, num_io, num_vars) = (10, 3, 17);
+        let pp: Vec<Affine<G1>> = C1::setup(num_vars, b"test", &());
 
         let (shape, instance, witness) = get_random_r1cs_instance_witness::<F, C1, G1>(num_constraints, num_vars, num_io, &pp);
 

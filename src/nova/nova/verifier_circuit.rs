@@ -189,7 +189,7 @@ mod test {
 
     #[test]
     fn test() {
-        let prover: NovaProver<F, G1, G2, C1, C2> = NovaProver::rand((10, 3, 7));
+        let prover: NovaProver<F, G1, G2, C1, C2> = NovaProver::rand((10, 3, 17));
 
         let augmented_circuit: NovaAugmentedCircuit<F, G1, G2, C1, C2> = NovaAugmentedCircuit::initialise(prover);
 
