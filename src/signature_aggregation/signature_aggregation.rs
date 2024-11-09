@@ -229,7 +229,6 @@ where
 }
 
 /// Return (A.X, A.W) given f(x), and z and y such that f(z) = y
-/// XXX: This should be moved to the accumulator module
 fn get_accumulator_from_evaluation<E, F>(acc_srs: &AccSRS<E>,
                                          bitfield_poly: &MultilinearPolynomial<F>,
                                          eval_result: &F,
@@ -300,7 +299,7 @@ where
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
     F: PrimeField + Absorb,
 {
-    // Get c_1 and c_2 (XXX could also get just c and then compute c^2)
+    // Get c_1 and c_2 (one could also get just c and then compute c^2)
     let vec_c: Vec<F> = transcript.challenge_vector(b"vec_c", 2);
 
     // Step 5.1: First compute p(x):
@@ -423,7 +422,6 @@ where
     F: PrimeField + Absorb,
     E: Pairing<ScalarField=F>,
 {
-    // XXX: Consider moving to accumulator module
     fn get_acc_instance_from_evaluation(&self,
                                         bitfield_commitment: &PCSCommitment<E>,
                                         eval_result: &F,
