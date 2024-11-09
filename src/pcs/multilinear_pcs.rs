@@ -1,6 +1,5 @@
 use ark_ec::AffineRepr;
 use ark_serialize::Valid;
-use std::iter::Sum;
 use ark_ff::Zero;
 use std::ops::{Add, Mul};
 
@@ -162,16 +161,20 @@ impl PCSEngine {
 
     pub fn commit<E: Pairing>(srs: &PolynomialCommitmentSRS<E>, poly: &MultilinearPolynomial<E::ScalarField>) -> PCSCommitment<E> {
         PCSCommitment {
-            C: E::G1::sum((0..srs.degree_x)
-                .map(|i| {
-                    E::G1::msm_unchecked(
-                        srs.matrix_H[i].as_slice(),
-                        poly.get_partial_evaluation_for_boolean_input(i, srs.degree_y).as_slice(),
-                    )
-                })
-                .collect::<Vec<_>>()
-                .iter()
-            ).into_affine(),
+            C: {
+                // Collect all points and scalars into single vectors
+                let mut base = Vec::new();
+                let mut scalar = Vec::new();
+
+                for i in 0..srs.degree_x {
+                    // Collect points from matrix_H
+                    base.extend_from_slice(srs.matrix_H[i].as_slice());
+                    // Collect corresponding scalars from partial evaluations
+                    scalar.extend_from_slice(poly.get_partial_evaluation_for_boolean_input(i, srs.degree_y).as_slice());
+                }
+
+                E::G1::msm_unchecked(&base, &scalar).into_affine()
+            },
             aux: (0..srs.degree_x)
                 .into_par_iter() // Parallelize the D^{(x)} computation
                 .map(|i| {
