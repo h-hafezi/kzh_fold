@@ -71,10 +71,6 @@ impl<F: PrimeField + Absorb> Transcript<F> {
         res
     }
 
-    pub(crate) fn append_protocol_name(&mut self, _protocol_name: &'static [u8]) {
-        // not implemented
-    }
-
     /// appends E::G1Affine points, by first converting them through convert_affine_to_scalars
     pub fn append_point<E: Pairing<ScalarField=F>>(&mut self, label: &'static [u8], point: &E::G1Affine)
     where

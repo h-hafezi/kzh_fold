@@ -135,25 +135,6 @@ where
     }
 }
 
-impl<G1, C1> RelaxedR1CSInstanceVar<G1, C1>
-where
-    G1: SWCurveConfig,
-    G1::BaseField: PrimeField,
-{
-    pub(super) fn new(
-        commitment_W: NonNativeAffineVar<G1>,
-        commitment_E: NonNativeAffineVar<G1>,
-        X: Vec<FpVar<G1::ScalarField>>,
-    ) -> Self {
-        Self {
-            commitment_W,
-            commitment_E,
-            X,
-            _commitment_scheme: PhantomData,
-        }
-    }
-}
-
 impl<G1, C1> R1CSVar<G1::ScalarField> for RelaxedR1CSInstanceVar<G1, C1>
 where
     G1: SWCurveConfig,

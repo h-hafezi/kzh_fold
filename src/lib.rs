@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 #![allow(non_snake_case)]
 
 pub mod utils;
@@ -16,6 +15,5 @@ pub mod commitment;
 pub mod halo_infinite;
 pub mod nexus_spartan;
 pub mod augmented_circuit;
-
 pub mod math;
 pub mod transcript;

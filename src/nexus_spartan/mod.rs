@@ -11,7 +11,6 @@ pub mod errors;
 pub mod polycommitments;
 mod product_tree;
 pub mod r1csinstance;
-mod random;
 pub mod sparse_polynomial;
 pub mod sumcheck;
 mod timer;

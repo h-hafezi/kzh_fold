@@ -3,8 +3,6 @@
 use ark_ff::PrimeField;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::boolean::Boolean;
-use ark_r1cs_std::eq::EqGadget;
-use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::select::CondSelectGadget;
 use ark_r1cs_std::uint8::UInt8;
 use ark_r1cs_std::{R1CSVar, ToBytesGadget};
@@ -75,10 +73,6 @@ impl<F: PrimeField> Unsigned32Var<F> {
         }
     }
 
-    pub fn to_fpvar(&self) -> Result<FpVar<F>, SynthesisError> {
-        Boolean::le_bits_to_fp_var(&self.bits)
-    }
-
     pub fn increment_inplace(&mut self) {
         let mut carry = Boolean::new_witness(self.cs().clone(), || Ok(true)).unwrap();
         for index in 0..self.bits.len() {
@@ -87,12 +81,6 @@ impl<F: PrimeField> Unsigned32Var<F> {
                 Boolean::conditionally_select(&carry, &self.bits[index].not(), &self.bits[index])
                     .unwrap();
             carry = Boolean::conditionally_select(&prev_bit, &carry, &Boolean::FALSE).unwrap();
-        }
-    }
-
-    pub fn enforce_equal(&self, other: &Self) {
-        for i in 0..self.bits.len() {
-            let _ = &self.bits[i].enforce_equal(&other.bits[i]);
         }
     }
 }
@@ -127,20 +115,6 @@ impl Unsigned32 {
                 }
             },
         )
-    }
-
-    // Converts the U32 boolean vector into a native field element
-    pub fn as_field_elem<F: PrimeField>(&self) -> F {
-        self.bits
-            .iter()
-            .enumerate()
-            .fold(F::zero(), |acc, (index, &bit)| {
-                if bit {
-                    acc + F::from(1u64 << index)
-                } else {
-                    acc
-                }
-            })
     }
 
     // Increment the number by 1

@@ -1,5 +1,4 @@
 use crate::accumulation::accumulator::{AccInstance, AccSRS, Accumulator as KZHAccumulator, Accumulator};
-use crate::nexus_spartan::matrix_evaluation_accumulation::prover::MatrixEvaluationAccumulator;
 use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
 use crate::nexus_spartan::sumcheck::SumcheckInstanceProof;
 use crate::pcs::multilinear_pcs::{split_between_x_and_y, PCSCommitment, PCSEngine};
@@ -124,38 +123,6 @@ where
             b_2_at_rho,
             c_at_rho,
             sumcheck_eval_KZH_accumulator,
-        }
-    }
-}
-
-/// This struct represents an accumulator for the signature aggregation protocol
-pub struct SignatureAggrAccumulator<E, F>
-where
-    E: Pairing<ScalarField=F>,
-    F: PrimeField + Absorb,
-{
-    A_B_C_eval_accumulator: MatrixEvaluationAccumulator<F>,
-    KZH_accumulator: KZHAccumulator<E>,
-}
-
-impl<E, F> SignatureAggrAccumulator<E, F>
-where
-    <E as Pairing>::ScalarField: Absorb,
-    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb,
-    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
-    E: Pairing<ScalarField=F>,
-    F: PrimeField + Absorb,
-{
-    pub fn rand<R: RngCore>(srs: &AccSRS<E>, rng: &mut R) -> Self {
-        let kzh_acc = KZHAccumulator::rand(srs, rng);
-
-        let x_len = srs.pc_srs.get_x_length();
-        let y_len = srs.pc_srs.get_y_length();
-        let A_B_C_acc: MatrixEvaluationAccumulator<F> = MatrixEvaluationAccumulator::rand(x_len, y_len, rng);
-
-        Self {
-            A_B_C_eval_accumulator: A_B_C_acc,
-            KZH_accumulator: kzh_acc,
         }
     }
 }

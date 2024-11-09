@@ -50,7 +50,6 @@ where
         num_cons: usize,
         num_vars: usize,
         num_inputs: usize,
-        num_nz_entries: usize,
     ) -> usize {
         let num_vars_padded = Self::get_num_vars_padded(num_vars, num_inputs);
         let min_num_vars_sat = CRR1CSKey::<E, PC>::get_min_num_vars(num_cons, num_vars_padded);

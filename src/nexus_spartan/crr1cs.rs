@@ -205,7 +205,7 @@ pub fn produce_synthetic_crr1cs<E: Pairing, PC: PolyCommitmentScheme<E>>(
     Z[num_vars] = E::ScalarField::ONE;
 
     // produce public parameters
-    let min_num_vars = CRSNARKKey::<E, PC>::get_min_num_vars(num_cons, num_vars, num_inputs, num_cons);
+    let min_num_vars = CRSNARKKey::<E, PC>::get_min_num_vars(num_cons, num_vars, num_inputs);
     let SRS = PC::setup(min_num_vars, &mut test_rng()).unwrap();
     let gens = CRSNARKKey::<E, PC>::new(&SRS, num_cons, num_vars, num_inputs, num_cons);
 

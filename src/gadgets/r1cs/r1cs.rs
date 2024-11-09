@@ -905,7 +905,6 @@ pub(crate) mod tests {
         const NUM_CONSTRAINTS: usize = 4;
         const NUM_WITNESS: usize = 4;
         const NUM_PUBLIC: usize = 2;
-        const r: Scalar = Scalar::ONE;
 
         let pp = PedersenCommitment::<G>::setup(NUM_WITNESS, b"test", &());
         let shape = R1CSShape::<G>::new(NUM_CONSTRAINTS, NUM_WITNESS, NUM_PUBLIC, &a, &b, &c).unwrap();
