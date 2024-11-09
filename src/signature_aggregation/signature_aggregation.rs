@@ -372,16 +372,16 @@ where
 
 
         // Step 6: Aggregate accumulators 3-to-1:
-        // Hossein: At this point we will also have two more KZH accumulators: one from our running accumulator, and another one from Bob
-        // Hossein: Accumulate thet three accumulators into one
+        // At this point we will also have two more KZH accumulators: one from our running accumulator, and another one from Bob
+        // Accumulate thet three accumulators into one
         // let bob_KZH_accumulator = self.bob_data.ivc_proof.KZH_accumulator;
         // let running_KZH_accumulator = self.running_accumulator.KZH_accumulator
 
-        // Hossein: We will also have two A,B,C accumulators: one from our running accumulator, and one from Bob
+        // We will also have two A,B,C accumulators: one from our running accumulator, and one from Bob
         // let bob_A_B_C_eval_accumulator = self.bob_data.ivc_proof.A_B_C_eval_accumulator;
         // let running_A_B_C_eval_accumulator=  self.running_accumulator.A_B_C_eval_accumulator;
 
-        // Hossein: Accumulate everything!
+        // Accumulate everything!
         // let (ivc_proof, state_accumulator) = self.accumulate_everything(sumcheck_eval_accumulator, bob_accumulator, running_accumulator,
         //                                                                 bob_A_B_C_eval_accumulator, running_A_B_C_eval_accumulator);
 

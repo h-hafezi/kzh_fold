@@ -554,7 +554,7 @@ pub mod test {
 
     #[test]
     fn test_accumulator_sizes() {
-        // Hossein: change the degrees later, it takes too long
+        // change the degrees later, it takes too long
         let degrees = vec![(2, 2), (4, 4), (8, 8), (16, 16), (32, 32)];
         let rng = &mut thread_rng();
 

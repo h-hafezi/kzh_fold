@@ -25,7 +25,7 @@ where
 {
     pub fn new(SRS: &PC::SRS, _num_cons: usize, _num_vars: usize) -> Self {
         // Since we have commitments both to the witness and the error vectors
-        // we need the commitment key to hold the larger of the two (Hossein: previously)
+        // we need the commitment key to hold the larger of the two (previously)
         CRR1CSKey {
             keys: PC::trim(SRS),
         }

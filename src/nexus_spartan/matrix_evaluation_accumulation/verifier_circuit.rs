@@ -15,7 +15,6 @@ use rand::Rng;
 use std::borrow::Borrow;
 use std::ops::Mul;
 
-/// XXX Hossein this should contain two `MatrixEvaluationAccumulator` instead of the raw data
 /// Verify the accumulation of (r_x, r_y, z) and (r_x', r_y', z') into (r_x'', r_y'', z'')
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MatrixEvaluationAccVerifier<F: PrimeField + Absorb> {

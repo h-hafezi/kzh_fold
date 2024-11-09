@@ -206,7 +206,6 @@ where
         unreachable!()
     }
 
-    // todo: remember this might cause some problem later
     fn to_sponge_field_elements(&self) -> Result<Vec<FpVar<G1::ScalarField>>, SynthesisError> {
         // Call to_sponge_field_elements on each NonNativeAffineVar
         let mut fpvar_vec = Vec::new();

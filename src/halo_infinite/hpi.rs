@@ -168,7 +168,7 @@ pub fn verify<E, F>(
     // Step 2
     let (vec_gamma, vec_gamma_inv, vec_s, ) = verification_scalars(proof, n, transcript)?;
 
-    // TODO can be turned into one MSM
+    // it can be turned into one MSM
     let C_prime = E::G1::msm(&proof.vec_Y_L, &vec_gamma).unwrap() + C + E::G1::msm(&proof.vec_Y_R, &vec_gamma_inv).unwrap();
 
     let expected_C = E::G1::msm(&crs_G_vec, &vec_s).unwrap().mul(proof.x_final);
