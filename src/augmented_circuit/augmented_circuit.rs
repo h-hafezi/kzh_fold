@@ -23,8 +23,8 @@ use std::borrow::Borrow;
 use rand::thread_rng;
 use crate::hash::poseidon::PoseidonHashVar;
 
-const WITNESS_BLOAT: usize = 1;
-const POLY_SETUP: usize = 17;
+const WITNESS_BLOAT: usize = 0;
+const POLY_SETUP: usize = 19;
 
 type Output<'a, G2, C2, G1, F> = (
     (RelaxedOvaInstanceVar<G2, C2>, &'a AccumulatorInstanceVar<G1>),  // accumulator final instance, Ova final instance

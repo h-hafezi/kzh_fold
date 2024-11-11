@@ -9,6 +9,7 @@ use crate::nova::cycle_fold::coprocessor::{setup_shape, synthesize, SecondaryCir
 use crate::nova::nova::get_affine_coords;
 use crate::transcript::transcript::Transcript;
 use ark_crypto_primitives::sponge::Absorb;
+use ark_std::{end_timer, start_timer};
 use ark_ec::short_weierstrass::{Affine, Projective, SWCurveConfig};
 use ark_ec::{CurveConfig, CurveGroup};
 use ark_ff::PrimeField;
@@ -356,7 +357,7 @@ mod test {
 
     #[test]
     fn bench_nova() {
-        const POSEIDON_NUM: usize = 3;
+        const POSEIDON_NUM: usize = 2000;
 
         // generate some random prover which for a small R1CS which is supposed to generate some sample NovaVerifierCircuit
         // this prover is sort of faking the previous step of IVC, but since we don't have it I just use a prover for a small R1CS
@@ -410,7 +411,11 @@ mod test {
 
         // ********************************** Benchmarking The Prover **********************************
         // prover cost: commit to current witness + compute and commit to cross term error
+        let prover_timer = start_timer!(|| "prover");
+        let commit_w_timer = start_timer!(|| "commit witness");
         let _ = C1::commit(&prover.commitment_pp, prover.current_accumulator.1.W.as_slice());
+        end_timer!(commit_w_timer);
+        let commit_t_timer = start_timer!(|| "commit crossterm");
         let (_, _) = commit_T(
             &prover.shape,
             &prover.commitment_pp,
@@ -419,9 +424,12 @@ mod test {
             &prover.current_accumulator.0,
             &prover.current_accumulator.1
         ).unwrap();
+        end_timer!(commit_t_timer);
+        end_timer!(prover_timer);
 
         // ********************************** Benchmarking The Decider **********************************
         // decider cost: decide both the running accumulator and the current accumulator
+        let verifier_timer = start_timer!(|| "verifier");
         prover.shape.is_relaxed_satisfied(
             &prover.running_accumulator.0,
             &prover.running_accumulator.1,
@@ -431,6 +439,7 @@ mod test {
             &prover.current_accumulator.0,
             &prover.current_accumulator.1,
             &prover.commitment_pp,
-        ).unwrap()
+        ).unwrap();
+        end_timer!(verifier_timer);
     }
 }

@@ -120,7 +120,7 @@ fn custom_criterion_config() -> Criterion {
 criterion_group! {
     name = pcs_benches;
     config = custom_criterion_config();
-    targets =  bench_commit, bench_open, bench_verify
+    targets =  bench_commit
 }
 
 criterion_main!(pcs_benches);
