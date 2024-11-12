@@ -1,7 +1,7 @@
 use crate::math::Math;
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use ark_ec::pairing::Pairing;
-use ark_ec::VariableBaseMSM;
+use ark_ec::{CurveGroup, VariableBaseMSM};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::UniformRand;
 use derivative::Derivative;
@@ -70,7 +70,7 @@ impl<E: Pairing> KZH3SRS<E> {
             let mut res = Vec::new();
             // i = i_x + degree_x * i_y + (degree_x + degree_y) * i_z
             for i in 0..degree_x * degree_y * degree_z {
-                let (i_x, i_y, i_z) = decompose_index(i, degree_x, degree_y);
+                let (i_x, i_y, i_z) = decompose_index(i, degree_y, degree_z);
                 let h_xyz = g.mul(tau_x[i_x] * tau_y[i_y] * tau_z[i_z]).into();
                 res.push(h_xyz);
             }
@@ -81,7 +81,7 @@ impl<E: Pairing> KZH3SRS<E> {
             let mut res = Vec::new();
             // i = i_y + degree_y * i_z
             for i in 0..degree_y * degree_z {
-                let (i_y, i_z) = (i % degree_y, i / degree_y);
+                let (i_y, i_z) = (i / degree_z, i % degree_z);
                 let h_yz = g.mul(tau_y[i_y] * tau_z[i_z]).into();
                 res.push(h_yz);
             }
@@ -89,10 +89,10 @@ impl<E: Pairing> KZH3SRS<E> {
         };
 
         for i in 0..degree_x * degree_y * degree_z {
-            let (i_x, i_y, i_z) = decompose_index(i, degree_x, degree_y);
-            let kir = i_x + i_y * degree_x + i_z * (degree_x * degree_y);
+            let (i_x, i_y, i_z) = decompose_index(i, degree_y, degree_z);
+            let kir = i_z + i_y * degree_z + i_x * (degree_z * degree_y);
             assert_eq!(kir, i);
-            let i_yz = i_y + degree_y * i_z;
+            let i_yz = i_z + degree_z * i_y;
             assert_eq!(H_xyz[i], H_yz[i_yz].mul(tau_x[i_x]).into());
         }
 
@@ -108,7 +108,7 @@ impl<E: Pairing> KZH3SRS<E> {
 
         for i_y in 0..degree_y {
             for i_z in 0..degree_z {
-                let i = i_y + i_z * (degree_y);
+                let i = i_z + i_y * (degree_z);
                 assert_eq!(H_yz[i], H_z[i_z].mul(tau_y[i_y]).into());
             }
         }
@@ -123,8 +123,8 @@ impl<E: Pairing> KZH3SRS<E> {
         };
 
         for i in 0..degree_x * degree_y * degree_z {
-            let (i_x, i_y, i_z) = decompose_index(i, degree_x, degree_y);
-            let i_yz = i_y + degree_y * i_z;
+            let (i_x, i_y, i_z) = decompose_index(i, degree_y, degree_z);
+            let i_yz = i_z + degree_z * i_y;
             assert_eq!(E::pairing(H_xyz[i], v).0, E::pairing(H_yz[i_yz], V_x[i_x]).0);
         }
 
@@ -182,13 +182,15 @@ pub fn open<E: Pairing>(srs: &KZH3SRS<E>,
             )
         })
         .collect::<Vec<_>>();
-
-    let D_xy = (0..srs.degree_x * srs.degree_y)
+    //Needs to be fixed. Compute f'=f(x,Y,Z); partial evaluation of f using x as the evaluation point. 
+    //And then compute D_xy terms (maybe needs different name) by committing to each eval slice of f'(Y,Z)
+    let f_prime=polynomial.partial_evaluation(x);
+    let D_xy = (0..srs.degree_y)
         .into_par_iter()
         .map(|i| {
             E::G1::msm_unchecked(
                 srs.H_z.as_slice(),
-                polynomial.get_partial_evaluation_for_boolean_input(i, srs.degree_z).as_slice(),
+                f_prime.get_partial_evaluation_for_boolean_input(i, srs.degree_z).as_slice(),
             )
         })
         .collect::<Vec<_>>();
@@ -224,7 +226,7 @@ pub fn verify<E: Pairing>(srs: &KZH3SRS<E>,
     let lhs = E::multi_pairing(&open.D_x, &srs.V_x).0;
     let rhs = E::pairing(c, &srs.v).0;
 
-    //assert_eq!(lhs, rhs);
+    assert_eq!(lhs, rhs);
 
     let new_c = E::G1::msm(
         {
@@ -236,31 +238,34 @@ pub fn verify<E: Pairing>(srs: &KZH3SRS<E>,
         }.as_slice(),
         EqPolynomial::new(x.to_vec()).evals().as_slice(),
     ).unwrap();
-    //let lhs = E::multi_pairing(&open.D_xy, &srs.V_y).0;
-    //let rhs = E::pairing(new_c, &srs.v).0;
-    //assert_eq!(lhs, rhs);
+    let lhs = E::multi_pairing(&open.D_xy, &srs.V_y).0;
+    let rhs = E::pairing(new_c, &srs.v).0;
+    assert_eq!(lhs, rhs);
 
     //let lhs = E::multi_pairing(&open.D_xy, &srs.)
 }
 
-fn decompose_index(i: usize, degree_x: usize, degree_y: usize) -> (usize, usize, usize) {
+fn decompose_index(i: usize, degree_y: usize, degree_z: usize) -> (usize, usize, usize) {
     // Compute i_z first, as it is the highest order term
-    let i_z = i / (degree_x * degree_y);
+    let i_x = i / (degree_y * degree_z);
 
     // Compute the remainder after removing the contribution of i_z
-    let remainder = i % (degree_x * degree_y);
+    let remainder = i % (degree_y * degree_z);
 
     // Compute i_y next, as it is the middle order term
-    let i_y = remainder / degree_x;
+    let i_y = remainder / degree_z;
 
     // Finally, compute i_x as the lowest order term
-    let i_x = remainder % degree_x;
+    let i_z = remainder % degree_z;
 
     (i_x, i_y, i_z)
 }
 
 #[cfg(test)]
 mod tests {
+    use ark_ec::AffineRepr;
+    use ark_ff::{AdditiveGroup, Field};
+    use num_bigint::BigInt;
     use super::*;
     use crate::constant_for_curves::{ScalarField, E};
     use rand::thread_rng;
@@ -268,33 +273,43 @@ mod tests {
     #[test]
     fn test_decompose_index() {
         let i = 1234; // Example index
-        let degree_x = 8;  // Must be a power of 2
+        let degree_z = 8;  // Must be a power of 2
         let degree_y = 16; // Must be a power of 2
 
-        let (i_x, i_y, i_z) = decompose_index(i, degree_x, degree_y);
+        let (i_x, i_y, i_z) = decompose_index(i, degree_y, degree_z);
 
         // Output the decomposed values for verification
         println!("i_x: {}, i_y: {}, i_z: {}", i_x, i_y, i_z);
 
         // Check that recomposing gives the original index
-        let recomposed_i = i_x + degree_x * i_y + degree_x * degree_y * i_z;
+        let recomposed_i = i_z + degree_z * i_y + degree_z * degree_y * i_x;
         assert_eq!(i, recomposed_i, "Decomposition and recomposition did not match");
     }
+    #[test]
+    fn test_setup() {
+        let (degree_x, degree_y, degree_z) = (4usize, 8usize, 16usize);
+        let num_vars = degree_x.log_2() + degree_y.log_2() + degree_z.log_2();
 
+        let srs: KZH3SRS<E> = KZH3SRS::setup(degree_x, degree_y, degree_z, &mut thread_rng());
+        let polynomial: MultilinearPolynomial<ScalarField> = MultilinearPolynomial::rand(num_vars, &mut thread_rng());
+
+        let c = commit(&srs, &polynomial);
+        assert!(!c.is_zero())
+    }
     #[test]
     fn pcs_test() {
-        let (degree_x, degree_y, degree_z) = (16usize, 8usize, 2usize);
+        let (degree_x, degree_y, degree_z) = (4usize, 8usize, 16usize);
         let num_vars = degree_x.log_2() + degree_y.log_2() + degree_z.log_2();
         let x = vec![ScalarField::rand(&mut thread_rng()); degree_x.log_2()];
         let y = vec![ScalarField::rand(&mut thread_rng()); degree_y.log_2()];
         let z = vec![ScalarField::rand(&mut thread_rng()); degree_z.log_2()];
         let srs: KZH3SRS<E> = KZH3SRS::setup(degree_x, degree_y, degree_z, &mut thread_rng());
         let polynomial: MultilinearPolynomial<ScalarField> = MultilinearPolynomial::rand(num_vars, &mut thread_rng());
-
+        println!("{:?}",x);
         let c = commit(&srs, &polynomial);
 
         let open = open(&srs, &polynomial, x.as_slice(), y.as_slice());
-
-        verify(&srs, c, x.as_slice(), y.as_slice(), z.as_slice(), &open, ScalarField::rand(&mut thread_rng()));
+        //change result of eval to real value
+        verify(&srs, c, x.as_slice(), y.as_slice(), z.as_slice(), &open, ScalarField::ZERO);
     }
 }
