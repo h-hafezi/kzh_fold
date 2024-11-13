@@ -86,49 +86,9 @@ impl<F: PrimeField> Unsigned32Var<F> {
 }
 
 impl<F: PrimeField> Unsigned32Var<F> {
-    // Converts the U32 boolean vector into a native u32
-    pub fn representation(&self) -> u32 {
-        self.bits.iter().enumerate().fold(0, |acc, (index, bit)| {
-            if bit.value().unwrap() {
-                acc | (1 << index)
-            } else {
-                acc
-            }
-        })
-    }
-
     pub fn get_bits_canonical_order(&self, n: usize) -> Vec<Boolean<F>> {
         let res: Vec<Boolean<F>> = self.bits.iter().rev().cloned().collect();
         res[res.len() - n..].to_vec()
-    }
-}
-
-impl Unsigned32 {
-    pub fn representation(&self) -> u32 {
-        self.bits.iter().enumerate().fold(
-            0,
-            |acc, (index, bit)| {
-                if *bit {
-                    acc | (1 << index)
-                } else {
-                    acc
-                }
-            },
-        )
-    }
-
-    // Increment the number by 1
-    pub fn increment_inplace(&mut self) {
-        let mut carry = true;
-        for index in 0..self.bits.len() {
-            if carry {
-                carry = self.bits[index];
-                // Flip the bit
-                self.bits[index] = !self.bits[index];
-            } else {
-                break;
-            }
-        }
     }
 }
 
@@ -145,10 +105,53 @@ mod tests {
     use crate::math::Math;
     use crate::nexus_spartan::sparse_polynomial::uint32::{Unsigned32, Unsigned32Var};
     use ark_bls12_381::Fr;
+    use ark_ff::PrimeField;
     use ark_r1cs_std::alloc::AllocVar;
     use ark_r1cs_std::R1CSVar;
     use ark_relations::r1cs::ConstraintSystem;
     use rand::random;
+
+    impl Unsigned32 {
+        pub fn representation(&self) -> u32 {
+            self.bits.iter().enumerate().fold(
+                0,
+                |acc, (index, bit)| {
+                    if *bit {
+                        acc | (1 << index)
+                    } else {
+                        acc
+                    }
+                },
+            )
+        }
+
+        // Increment the number by 1
+        pub fn increment_inplace(&mut self) {
+            let mut carry = true;
+            for index in 0..self.bits.len() {
+                if carry {
+                    carry = self.bits[index];
+                    // Flip the bit
+                    self.bits[index] = !self.bits[index];
+                } else {
+                    break;
+                }
+            }
+        }
+    }
+
+    impl<F: PrimeField> Unsigned32Var<F> {
+        // Converts the U32 boolean vector into a native u32
+        pub fn representation(&self) -> u32 {
+            self.bits.iter().enumerate().fold(0, |acc, (index, bit)| {
+                if bit.value().unwrap() {
+                    acc | (1 << index)
+                } else {
+                    acc
+                }
+            })
+        }
+    }
 
     #[test]
     fn test_u32_increment() {

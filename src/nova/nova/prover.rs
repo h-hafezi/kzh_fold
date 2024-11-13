@@ -9,12 +9,10 @@ use crate::nova::cycle_fold::coprocessor::{setup_shape, synthesize, SecondaryCir
 use crate::nova::nova::get_affine_coords;
 use crate::transcript::transcript::Transcript;
 use ark_crypto_primitives::sponge::Absorb;
-use ark_std::{end_timer, start_timer};
 use ark_ec::short_weierstrass::{Affine, Projective, SWCurveConfig};
 use ark_ec::{CurveConfig, CurveGroup};
 use ark_ff::PrimeField;
 use ark_relations::r1cs::ConstraintSystemRef;
-use ark_serialize::CanonicalSerialize;
 use rand::thread_rng;
 
 pub struct NovaProver<F, G1, G2, C1, C2>
@@ -312,7 +310,6 @@ where
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use crate::constant_for_curves::{ScalarField, C1, C2, G1, G2};
     use crate::hash::poseidon::PoseidonHashVar;
     use crate::nova::nova::verifier_circuit::NovaVerifierCircuit;
@@ -320,9 +317,12 @@ mod test {
     use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
     use ark_r1cs_std::fields::fp::FpVar;
     use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystem, SynthesisMode};
-    use ark_std::UniformRand;
+    use ark_serialize::CanonicalSerialize;
+    use ark_std::{end_timer, start_timer, UniformRand};
     use rand::thread_rng;
     use crate::gadgets::r1cs::r1cs::commit_T;
+    use crate::nova::nova::prover::NovaProver;
+    use crate::commitment::CommitmentScheme;
 
     type F = ScalarField;
 

@@ -1,7 +1,7 @@
 use crate::accumulation::accumulator::{AccInstance, AccSRS, Accumulator as KZHAccumulator, Accumulator};
 use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
 use crate::nexus_spartan::sumcheck::SumcheckInstanceProof;
-use crate::pcs::multilinear_pcs::{split_between_x_and_y, PCSCommitment, PCSEngine};
+use crate::pcs::multilinear_pcs::{split_between_x_and_y, PCSCommitment};
 use crate::polynomial::eq_poly::eq_poly::EqPolynomial;
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript::Transcript;
@@ -17,19 +17,6 @@ pub struct SignatureAggrSRS<E: Pairing> {
     pub acc_srs: AccSRS<E>,
 }
 
-impl<E: Pairing> SignatureAggrSRS<E>
-where
-    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
-    <E as Pairing>::ScalarField: Absorb,
-{
-    pub(crate) fn new<R: RngCore>(degree_x: usize, degree_y: usize, rng: &mut R) -> Self {
-        let pcs_srs = PCSEngine::setup(degree_x, degree_y, rng);
-
-        SignatureAggrSRS {
-            acc_srs: KZHAccumulator::setup(pcs_srs, rng),
-        }
-    }
-}
 
 /// This is the data sent by an aggregator node to the next aggregator node on the network
 #[derive(Clone, Debug)]
@@ -479,8 +466,13 @@ where
 
 #[cfg(test)]
 pub mod test {
-    use super::*;
+    use ark_std::UniformRand;
+    use crate::accumulation::accumulator::Accumulator;
     use crate::constant_for_curves::{G1Affine, G2Affine, ScalarField, E};
+    use crate::pcs::multilinear_pcs::PCSEngine;
+    use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
+    use crate::signature_aggregation::signature_aggregation::{AggregatorIVC, SignatureAggrData, SignatureAggrSRS};
+    use crate::transcript::transcript::Transcript;
 
     type F = ScalarField;
 

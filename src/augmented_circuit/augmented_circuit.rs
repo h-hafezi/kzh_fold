@@ -1,3 +1,5 @@
+#[allow(dead_code)]
+
 use crate::accumulation_circuit::instance_circuit::AccumulatorInstanceVar;
 use crate::accumulation_circuit::verifier_circuit::{AccumulatorVerifier, AccumulatorVerifierVar};
 use crate::commitment::CommitmentScheme;
@@ -17,14 +19,12 @@ use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
 use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
-use ark_std::{end_timer, start_timer};
 use itertools::izip;
 use std::borrow::Borrow;
 use rand::thread_rng;
 use crate::hash::poseidon::PoseidonHashVar;
 
-const WITNESS_BLOAT: usize = 0;
-const POLY_SETUP: usize = 19;
+const WITNESS_BLOAT: usize = 2;
 
 type Output<'a, G2, C2, G1, F> = (
     (RelaxedOvaInstanceVar<G2, C2>, &'a AccumulatorInstanceVar<G1>),  // accumulator final instance, Ova final instance
@@ -181,7 +181,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use ark_ec::pairing::Pairing;
     use crate::accumulation::accumulator::Accumulator;
     use crate::accumulation_circuit::prover::AccumulatorVerifierCircuitProver;
     use crate::constant_for_curves::{ScalarField, C2, E, G1, G2};
@@ -191,16 +191,26 @@ mod tests {
     use crate::nexus_spartan::crr1csproof::{CRR1CSInstance, CRR1CSKey, CRR1CSShape, CRR1CSWitness};
     use crate::nexus_spartan::polycommitments::{PolyCommitmentScheme, ToAffine};
     use crate::nova::cycle_fold::coprocessor::setup_shape;
-    use crate::pcs::multilinear_pcs::PCSEngine;
+    use crate::pcs::multilinear_pcs::{split_between_x_and_y, PCSEngine};
     use crate::pcs::multilinear_pcs::PolynomialCommitmentSRS;
     use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
     use crate::transcript::transcript::Transcript;
     use ark_serialize::CanonicalSerialize;
     use ark_ff::AdditiveGroup;
+    use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
     use ark_relations::r1cs::{ConstraintSystem, SynthesisMode};
+    use ark_std::{end_timer, start_timer};
     use rand::thread_rng;
+    use crate::accumulation_circuit::verifier_circuit::AccumulatorVerifierVar;
+    use crate::augmented_circuit::augmented_circuit::{AugmentedCircuitVar, Output};
+    use crate::nexus_spartan::matrix_evaluation_accumulation::verifier_circuit::{MatrixEvaluationAccVerifier, MatrixEvaluationAccVerifierVar};
+    use crate::nexus_spartan::partial_verifier::partial_verifier::SpartanPartialVerifier;
+    use crate::nexus_spartan::partial_verifier::partial_verifier_var::SpartanPartialVerifierVar;
+    use crate::transcript::transcript_var::TranscriptVar;
 
     type F = ScalarField;
+
+    const POLY_SETUP: usize = 19;
 
     #[test]
     fn test_augmented_circuit() {
@@ -378,7 +388,7 @@ mod tests {
 
         let mut transcript_var = TranscriptVar::from_transcript(cs.clone(), verifier_transcript_clone);
 
-        let _ = augmented_circuit.verify::<E>(cs.clone(), &mut transcript_var);
+        let _output : Output<G2, C2, G1, F> = augmented_circuit.verify::<E>(cs.clone(), &mut transcript_var);
 
         assert!(cs.is_satisfied().unwrap());
         println!("augmented circuit constraints: {}", cs.num_constraints());

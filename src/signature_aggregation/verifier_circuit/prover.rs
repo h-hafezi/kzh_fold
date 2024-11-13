@@ -245,15 +245,34 @@ where
 #[cfg(test)]
 mod test {
     use std::ops::Mul;
+    use ark_crypto_primitives::sponge::Absorb;
+    use ark_ec::AffineRepr;
+    use ark_ec::pairing::Pairing;
     use crate::constant_for_curves::{BaseField, ScalarField, C2, E, G1, G2};
     use crate::signature_aggregation::verifier_circuit::prover::SignatureVerifierProver;
-    use ark_ff::Field;
+    use ark_ff::{Field, PrimeField};
     use ark_std::UniformRand;
-    use rand::thread_rng;
+    use rand::{thread_rng, RngCore};
+    use crate::accumulation::accumulator::Accumulator;
+    use crate::pcs::multilinear_pcs::PCSEngine;
     use crate::signature_aggregation::signature_aggregation::{SignatureAggrData, SignatureAggrSRS};
 
     type Q = BaseField;
     type F = ScalarField;
+
+    impl<E: Pairing> SignatureAggrSRS<E>
+    where
+        <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
+        <E as Pairing>::ScalarField: Absorb,
+    {
+        pub(crate) fn new<R: RngCore>(degree_x: usize, degree_y: usize, rng: &mut R) -> Self {
+            let pcs_srs = PCSEngine::setup(degree_x, degree_y, rng);
+
+            SignatureAggrSRS {
+                acc_srs: Accumulator::setup(pcs_srs, rng),
+            }
+        }
+    }
 
     fn get_random_prover() -> SignatureVerifierProver<G1, G2, C2, E> {
         let rng = &mut thread_rng();

@@ -1,10 +1,8 @@
 use crate::math::Math;
-use crate::nexus_spartan::crr1cs::is_sat;
 use crate::nexus_spartan::crr1csproof::CRR1CSProof;
 use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
 use crate::nexus_spartan::sparse_polynomial::sparse_polynomial::SparsePoly;
 use crate::nexus_spartan::sumcheck_circuit::sumcheck_circuit::SumcheckCircuit;
-use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript::{Transcript};
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
@@ -221,11 +219,18 @@ where
 
 #[cfg(test)]
 pub mod tests {
-    use crate::nexus_spartan::crr1cs::produce_synthetic_crr1cs;
+    use ark_crypto_primitives::sponge::Absorb;
+    use ark_ec::AffineRepr;
+    use ark_ec::pairing::Pairing;
+    use ark_ff::PrimeField;
+    use crate::nexus_spartan::crr1cs::{is_sat, produce_synthetic_crr1cs};
 
-    use super::*;
     use crate::constant_for_curves::{ScalarField, E};
-    use crate::nexus_spartan::polycommitments::ToAffine;
+    use crate::nexus_spartan::crr1csproof::CRR1CSProof;
+    use crate::nexus_spartan::partial_verifier::partial_verifier::SpartanPartialVerifier;
+    use crate::nexus_spartan::polycommitments::{PolyCommitmentScheme, ToAffine};
+    use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
+    use crate::transcript::transcript::Transcript;
 
     #[test]
     pub fn check_verification_proof() {

@@ -1,4 +1,5 @@
 #![allow(non_snake_case)]
+#[cfg_attr(test, allow(dead_code))]
 
 pub mod utils;
 pub mod accumulation;

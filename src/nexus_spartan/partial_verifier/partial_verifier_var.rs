@@ -4,7 +4,6 @@ use crate::math::Math;
 use crate::nexus_spartan::partial_verifier::partial_verifier::SpartanPartialVerifier;
 use crate::nexus_spartan::sparse_polynomial::sparse_polynomial_var::SparsePolyVar;
 use crate::nexus_spartan::sumcheck_circuit::sumcheck_circuit_var::SumcheckCircuitVar;
-use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript_var::TranscriptVar;
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
@@ -223,6 +222,7 @@ mod tests {
     use super::*;
     use crate::constant_for_curves::{ScalarField, E};
     use crate::nexus_spartan::partial_verifier::partial_verifier::tests::partial_verifier_test_helper;
+    use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 
     #[test]
     pub fn test_partial_verifier_circuit() {
