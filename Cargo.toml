@@ -92,3 +92,7 @@ name = "bench_witness_commitment"
 [[bench]]
 harness = false
 name = "bench_bls"
+
+[[bench]]
+harness = false
+name = "bench_kzh3"

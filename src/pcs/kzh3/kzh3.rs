@@ -1,7 +1,7 @@
 use crate::math::Math;
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use ark_ec::pairing::Pairing;
-use ark_ec::{CurveGroup, VariableBaseMSM};
+use ark_ec::{VariableBaseMSM};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::UniformRand;
 use derivative::Derivative;
@@ -31,10 +31,15 @@ pub struct KZH3SRS<E: Pairing> {
 }
 
 pub struct KZH3Opening<E: Pairing> {
-    D_x: Vec<E::G1>,
-    D_xy: Vec<E::G1>,
+    D_y: Vec<E::G1>,
     f_star: MultilinearPolynomial<E::ScalarField>,
 }
+
+pub struct KZH3Commitment<E: Pairing> {
+    D_x: Vec<E::G1>,
+    c: E::G1Affine,
+}
+
 
 impl<E: Pairing> KZH3SRS<E> {
     pub fn setup<R: Rng>(degree_x: usize,
@@ -89,15 +94,6 @@ impl<E: Pairing> KZH3SRS<E> {
             res
         };
 
-        for i in 0..degree_x * degree_y * degree_z {
-            let (i_x, i_y, i_z) = decompose_index(i, degree_y, degree_z);
-            let kir = i_z + i_y * degree_z + i_x * (degree_z * degree_y);
-            assert_eq!(kir, i);
-            let i_yz = i_z + degree_z * i_y;
-            assert_eq!(H_xyz[i], H_yz[i_yz].mul(tau_x[i_x]).into());
-        }
-
-
         let H_z = {
             let mut res = Vec::new();
             for i in 0..degree_z {
@@ -122,12 +118,6 @@ impl<E: Pairing> KZH3SRS<E> {
             }
             res
         };
-
-        for i in 0..degree_x * degree_y * degree_z {
-            let (i_x, i_y, i_z) = decompose_index(i, degree_y, degree_z);
-            let i_yz = i_z + degree_z * i_y;
-            assert_eq!(E::pairing(H_xyz[i], v).0, E::pairing(H_yz[i_yz], V_x[i_x]).0);
-        }
 
         let V_y = {
             let mut res = Vec::new();
@@ -163,10 +153,21 @@ impl<E: Pairing> KZH3SRS<E> {
 }
 
 
-pub fn commit<E: Pairing>(srs: &KZH3SRS<E>, polynomial: &MultilinearPolynomial<E::ScalarField>) -> E::G1Affine {
+pub fn commit<E: Pairing>(srs: &KZH3SRS<E>, polynomial: &MultilinearPolynomial<E::ScalarField>) -> KZH3Commitment<E> {
     assert_eq!(srs.degree_x * srs.degree_y * srs.degree_z, polynomial.len);
 
-    E::G1::msm(&srs.H_xyz, &polynomial.evaluation_over_boolean_hypercube).unwrap().into()
+    KZH3Commitment {
+        D_x: (0..srs.degree_x)
+            .into_par_iter()
+            .map(|i| {
+                E::G1::msm_unchecked(
+                    srs.H_yz.as_slice(),
+                    polynomial.get_partial_evaluation_for_boolean_input(i, srs.degree_y * srs.degree_z).as_slice(),
+                )
+            })
+            .collect::<Vec<_>>(),
+        c: E::G1::msm(&srs.H_xyz, &polynomial.evaluation_over_boolean_hypercube).unwrap().into(),
+    }
 }
 
 pub fn open<E: Pairing>(srs: &KZH3SRS<E>,
@@ -174,19 +175,12 @@ pub fn open<E: Pairing>(srs: &KZH3SRS<E>,
                         x: &[E::ScalarField],
                         y: &[E::ScalarField],
 ) -> KZH3Opening<E> {
-    let D_x = (0..srs.degree_x)
-        .into_par_iter()
-        .map(|i| {
-            E::G1::msm_unchecked(
-                srs.H_yz.as_slice(),
-                polynomial.get_partial_evaluation_for_boolean_input(i, srs.degree_y * srs.degree_z).as_slice(),
-            )
-        })
-        .collect::<Vec<_>>();
-    //Needs to be fixed. Compute f'=f(x,Y,Z); partial evaluation of f using x as the evaluation point. 
-    //And then compute D_xy terms (maybe needs different name) by committing to each eval slice of f'(Y,Z)
-    let f_prime=polynomial.partial_evaluation(x);
-    let D_xy = (0..srs.degree_y)
+    // Compute f'=f(x,Y,Z); partial evaluation of f using x as the evaluation point. And then compute
+    // D_y terms  by committing to each eval slice of f'(Y,Z)
+    let f_prime= polynomial.partial_evaluation(x);
+
+    // this takes O(2/3n) but can be precomputed during commitment too
+    let D_y = (0..srs.degree_y)
         .into_par_iter()
         .map(|i| {
             E::G1::msm_unchecked(
@@ -199,51 +193,71 @@ pub fn open<E: Pairing>(srs: &KZH3SRS<E>,
     assert_eq!(x.len(), srs.degree_x.log_2(), "wrong length");
     assert_eq!(y.len(), srs.degree_y.log_2(), "wrong length");
 
-    let concat = {
+    // compute the partial evaluation of the polynomial
+    let f_star = polynomial.partial_evaluation({
         let mut res = Vec::new();
-        res.extend_from_slice(x);
-        res.extend_from_slice(y);
-
+        res.extend_from_slice(&x);
+        res.extend_from_slice(&y);
         res
-    };
-
-    let f_star = polynomial.partial_evaluation(concat.as_slice());
+    }.as_slice());
 
     KZH3Opening {
-        D_x,
-        D_xy,
+        D_y,
         f_star,
     }
 }
 
 pub fn verify<E: Pairing>(srs: &KZH3SRS<E>,
-                          c: E::G1Affine,
+                          c: &KZH3Commitment<E>,
                           x: &[E::ScalarField],
                           y: &[E::ScalarField],
                           z: &[E::ScalarField],
                           open: &KZH3Opening<E>,
                           output: E::ScalarField,
 ) {
-    let lhs = E::multi_pairing(&open.D_x, &srs.V_x).0;
-    let rhs = E::pairing(c, &srs.v).0;
+    // making sure D_x is well-formatted
+    let lhs = E::multi_pairing(&c.D_x, &srs.V_x).0;
+    let rhs = E::pairing(c.c, &srs.v).0;
 
     assert_eq!(lhs, rhs);
 
+    // making sure D_y is well formatted
     let new_c = E::G1::msm(
         {
             let mut res = Vec::new();
-            for e in &open.D_x {
+            for e in &c.D_x {
                 res.push(e.clone().into());
             }
             res
         }.as_slice(),
         EqPolynomial::new(x.to_vec()).evals().as_slice(),
     ).unwrap();
-    let lhs = E::multi_pairing(&open.D_xy, &srs.V_y).0;
+
+    let lhs = E::multi_pairing(&open.D_y, &srs.V_y).0;
     let rhs = E::pairing(new_c, &srs.v).0;
+
     assert_eq!(lhs, rhs);
 
-    //let lhs = E::multi_pairing(&open.D_xy, &srs.)
+    // making sure f^star is well formatter
+    let lhs = E::G1::msm(
+        srs.H_z.as_slice(),
+        open.f_star.evaluation_over_boolean_hypercube.as_slice(),
+    ).unwrap();
+    let rhs = E::G1::msm(
+        {
+            let mut res = Vec::new();
+            for e in &open.D_y {
+                res.push(e.clone().into());
+            }
+            res
+        }.as_slice(),
+        EqPolynomial::new(y.to_vec()).evals().as_slice(),
+    ).unwrap();
+
+    assert_eq!(lhs, rhs);
+
+    // making sure the output of f_star and the given output are consistent
+    assert_eq!(open.f_star.evaluate(z), output);
 }
 
 fn decompose_index(i: usize, degree_y: usize, degree_z: usize) -> (usize, usize, usize) {
@@ -264,9 +278,6 @@ fn decompose_index(i: usize, degree_y: usize, degree_z: usize) -> (usize, usize,
 
 #[cfg(test)]
 mod tests {
-    use ark_ec::AffineRepr;
-    use ark_ff::{AdditiveGroup, Field};
-    use num_bigint::BigInt;
     use super::*;
     use crate::constant_for_curves::{ScalarField, E};
     use rand::thread_rng;
@@ -279,38 +290,62 @@ mod tests {
 
         let (i_x, i_y, i_z) = decompose_index(i, degree_y, degree_z);
 
-        // Output the decomposed values for verification
-        println!("i_x: {}, i_y: {}, i_z: {}", i_x, i_y, i_z);
-
         // Check that recomposing gives the original index
         let recomposed_i = i_z + degree_z * i_y + degree_z * degree_y * i_x;
         assert_eq!(i, recomposed_i, "Decomposition and recomposition did not match");
     }
-    #[test]
-    fn test_setup() {
-        let (degree_x, degree_y, degree_z) = (4usize, 8usize, 16usize);
-        let num_vars = degree_x.log_2() + degree_y.log_2() + degree_z.log_2();
 
-        let srs: KZH3SRS<E> = KZH3SRS::setup(degree_x, degree_y, degree_z, &mut thread_rng());
-        let polynomial: MultilinearPolynomial<ScalarField> = MultilinearPolynomial::rand(num_vars, &mut thread_rng());
-
-        let c = commit(&srs, &polynomial);
-        assert!(!c.is_zero())
-    }
     #[test]
     fn pcs_test() {
         let (degree_x, degree_y, degree_z) = (4usize, 8usize, 16usize);
         let num_vars = degree_x.log_2() + degree_y.log_2() + degree_z.log_2();
-        let x = vec![ScalarField::rand(&mut thread_rng()); degree_x.log_2()];
-        let y = vec![ScalarField::rand(&mut thread_rng()); degree_y.log_2()];
-        let z = vec![ScalarField::rand(&mut thread_rng()); degree_z.log_2()];
+
+        let x :Vec<ScalarField> = {
+            let mut res = Vec::new();
+            for _ in 0..degree_x.log_2() {
+                res.push(ScalarField::rand(&mut thread_rng()));
+            }
+            res
+        };
+
+        let y :Vec<ScalarField> = {
+            let mut res = Vec::new();
+            for _ in 0..degree_y.log_2() {
+                res.push(ScalarField::rand(&mut thread_rng()));
+            }
+            res
+        };
+
+        let z :Vec<ScalarField> = {
+            let mut res = Vec::new();
+            for _ in 0..degree_z.log_2() {
+                res.push(ScalarField::rand(&mut thread_rng()));
+            }
+            res
+        };
+
+        // build the srs
         let srs: KZH3SRS<E> = KZH3SRS::setup(degree_x, degree_y, degree_z, &mut thread_rng());
+
+        // build a random polynomials
         let polynomial: MultilinearPolynomial<ScalarField> = MultilinearPolynomial::rand(num_vars, &mut thread_rng());
-        println!("{:?}",x);
+
+        // evaluate polynomial
+        let eval = polynomial.evaluate({
+            let mut res = Vec::new();
+            res.extend_from_slice(&x);
+            res.extend_from_slice(&y);
+            res.extend_from_slice(&z);
+            res
+        }.as_slice());
+
+        // commit to the polynomial
         let c = commit(&srs, &polynomial);
 
+        // open it
         let open = open(&srs, &polynomial, x.as_slice(), y.as_slice());
-        //change result of eval to real value
-        verify(&srs, c, x.as_slice(), y.as_slice(), z.as_slice(), &open, ScalarField::ZERO);
+
+        // verify the commit
+        verify(&srs, &c, x.as_slice(), y.as_slice(), z.as_slice(), &open, eval);
     }
 }

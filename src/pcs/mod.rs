@@ -1,3 +1,3 @@
 pub mod multilinear_pcs;
-mod kzh3;
+pub mod kzh3;
 
