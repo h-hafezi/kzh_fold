@@ -1,103 +1,137 @@
 Code Structure
 --------------
 
-.
-├── accumulation
-│   ├── Prover
-│   ├── Verifier
-│   └── Decider
-├── accumulation_circuit
-│   └── Accumulation Verifier Circuit
-├── augmented_circuit
-│   ├── Accumulation Circuit
-│   ├── Spartan Partial Verifier Circuit
-│   └── Matrix Evaluation Accumulator
+```
+├── accumulatio: Prover/Verifier/Decider for accumulation outside of circuit
+│   ├── accumualator.rs
+│   ├── eq_tree.rs
+│   └── mod.rs
+├── accumulation_circuit: Circuit implementation of the accumulation verifier
+│   ├── instance_circuit.rs
+│   ├── mod.rs
+│   ├── prover.rs
+│   └── verifier_circuit.rs
+├── augmented_circuit: Augmented circuit implementation for IVC and its test, it includes accumulation verifier circuit, Spartan partial verifier and matrix evaluation accumulator verifier
+│   ├── augmented_circuit.rs
+│   └── mod.rs
 ├── gadgets
 │   ├── non-native
-│   │   └── NonNativeAffineVar
-│   ├── r1cs
-│   │   ├── R1CS Wrapper
-│   │   ├── Relaxed R1CS
-│   │   ├── Folding Methods
-│   │   ├── OVA Structure
-│   │   ├── Functions for OVA Folding
-│   │   └── R1CSVar (for Nova)
-│   ├── absorb
-│   │   └── into_sponge_field_function
+│   │   ├── mod.rs
+│   │   ├── non_native_affine_var.rs
+│   │   ├── readme.md
+│   │   └── util.rs
+│   ├── r1cs: It includes R1CS and Relaxed R1CS wrapper implementation, Folding methods for R1CS and ova structure, Functions for ova folding inside and outside of the circuit and R1CSVar instance used for Nova implementation
+│   │   ├── conversion.rs
+│   │   ├── mod.rs
+│   │   ├── ova.rs
+│   │   ├── r1cs.rs
+│   │   └── r1cs_var.rs
+│   ├── mod.rs
+│   ├── absorb.rs
 │   └── sparse
-│       └── Sparse Matrix-Vector Evaluation Wrapper
-├── halo_infinite
-│   └── Halo Infinite Private Aggregation
-├── hash
-│   ├── Poseidon
-│   ├── PoseidonVar
-│   └── Pedersen
+├── halo_infinite: Halo Infinite Private Aggregation
+│   │   ├── errors.rs
+│   │   ├── hpi.rs
+│   │   ├── mod.rs
+│   │   ├── pcs.rs
+│   │   ├── private_aggregation.rs
+│   │   └── prover.rs
+├── hash: Poseidon/PoseidonVar wrappers, Pederson implementation
+│   ├── mod.rs
+│   ├── pederson.rs
+│   └── poseidon.rs
 ├── nexus_spartan
-│   ├── matrix_evaluation_accumulator
-│   │   ├── ABC Matrices Accumulator
-│   │   └── Accumulator Verifier (Circuit)
-│   ├── partial_verifier
-│   │   └── Spartan Partial Verifier (Circuit)
-│   ├── polycommitment
-│   │   └── KZH PCS Wrapper
+│   ├── matrix_evaluation_accumulator: Implementation of ABC matrices accumulator + Accumulator verifier inside the circuit
+│   │   ├── mod.rs
+│   │   ├── prover.rs
+│   │   └── verifier_circuit.rs
+│   ├── partial_verifier: Spartan partial verifier implementation inside the circuit
+│   │   ├── mod.rs
+│   │   ├── partial_verifier.rs
+│   │   └── partial_verifier_var.rs
+│   ├── polycommitment: KZH wrapper used for Spartan
+│   │   ├── error.rs
+│   │   ├── kzh.rs
+│   │   └── mod.rs
 │   ├── sparse_polynomial
-│   │   ├── Sparse Polynomial
-│   │   └── Circuit Version
+│   │   ├── mod.rs
+│   │   ├── sparse_polynomial.rs
+│   │   ├── sparse_polynomial_var.rs
+│   │   ├── test.rs
+│   │   └── uint32.rs
 │   ├── sumcheck_circuit
-│   │   └── Sumcheck (Circuit)
+│   │   ├── mod.rs
+│   │   ├── sumcheck_circuit.rs
+│   │   ├── sumcheck_circuit_var.rs
+│   │   └── test.rs
 │   ├── unipoly
-│   │   ├── Univariate Polynomial
-│   │   ├── Circuit Functionalities
-│   │   └── FFT-based Coefficient Interpolation
-│   ├── commitments
-│   ├── committed_relaxed_snark
-│   ├── conversion
-│   ├── ccr1cs
-│   ├── crr1csproof
-│   ├── errors
-│   ├── product_tree
-│   ├── r1csinstance
-│   ├── sparse_mlpoly
-│   └── timer
+│   │   ├── mod.rs
+│   │   ├── unipoly.rs
+│   │   └── unipoly_var.rs
+│   ├── commitments.rs
+│   ├── committed_relaxed_snark.rs
+│   ├── conversion.rs
+│   ├── ccr1cs.rs
+│   ├── crr1csproof.rs
+│   ├── errors.rs
+│   ├── mod.rs
+│   ├── product_tree.rs
+│   ├── r1csinstance.rs
+│   ├── sparse_mlpoly.rs
+│   ├── sumcheck.rs
+│   └── timer.rs
 ├── nova
 │   ├── cycle_fold
-│   │   ├── Secondary Circuit
-│   │   └── OVA Folding Functions
+│   │   ├── coprocessor.rs
+│   │   ├── coprocessor_constraints.rs
+│   │   ├── mod.rs
+│   │   ├── readme.md
+│   │   └── test.rs
 │   ├── nova
-│   │   ├── Nova Implementation
-│   │   └── Benchmarking Utilities
-│   └── util_test
+│   │   ├── mod.rs
+│   │   ├── prover.rs
+│   │   ├── verifier_circuit.rs
+│   │   └── verifier_circuit_var.rs
+│   ├── mod.rs
+│   └── util_test.rs
 ├── pcs
 │   ├── kzh3
-│   │   └── KZH3 Implementation (Comparison)
-│   └── multilienear_pcs
-│       └── KZH PCS Implementation
+│   │   ├── mod.rs
+│   │   └── kzh3.rs
+│   ├── mod.rs
+│   └── multilinear_pcs.rs
 ├── polynomial
 │   ├── eq_poly
-│   │   ├── EqPolynomial
-│   │   └── Circuit Version
+│   │   ├── eq_poly.rs
+│   │   ├── eq_poly_var.rs
+│   │   └── mod.rs
 │   ├── multilinear_poly
-│   │   ├── Multilinear Polynomial
-│   │   └── Circuit Version
+│   │   ├── mod.rs
+│   │   ├── multilinear_poly.rs
+│   │   └── multilinear_poly_var.rs
 │   └── univariate
-│       ├── Univariate Polynomial
-│       └── Circuit Version
+│   │   ├── mod.rs
+│   │   ├── univariate_poly.rs
+│   │   └── univariate_poly_var.rs
+│   └── mod
 ├── signature_aggregation
 │   ├── augmented_circuit
-│   │   ├── Augmented Circuit
-│   │   └── Mock Test (Constraint Counting)
+│   │   ├── ivc.rs
+│   │   └── mod.rs
 │   ├── verifier_circuit
-│   │   └── Signature Aggregation Verifier Circuit
-│   └── signature_aggregation
-│       └── Signature Aggregation Verifier/Prover
+│   │   ├── mod.rs
+│   │   ├── prover.rs
+│   │   ├── verifier_circuit.rs
+│   │   └── verifier_circuit_var.rs
+│   └── mod.rs
+│   └── signature_aggregation.rs
 ├── transcript
-│   ├── transcript
-│   │   └── Poseidon Backend
-│   └── transcript_var
-│       └── PoseidonVar Backend
-├── lib
-├── commitment
-├── kzg
-│   └── KZG Implementation (arkworks)
-├── math
-└── util
+│   ├── mod.rs
+│   ├── transcript.rs
+│   └── transcript_var.rs
+├── commitment.rs
+├── lib.rs
+├── kzg.rs
+├── math.rs
+└── util.rs
+```
