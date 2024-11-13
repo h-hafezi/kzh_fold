@@ -357,7 +357,7 @@ mod test {
 
     #[test]
     fn bench_nova() {
-        const POSEIDON_NUM: usize = 2000;
+        const POSEIDON_NUM: usize = 0;
 
         // generate some random prover which for a small R1CS which is supposed to generate some sample NovaVerifierCircuit
         // this prover is sort of faking the previous step of IVC, but since we don't have it I just use a prover for a small R1CS
@@ -426,6 +426,8 @@ mod test {
         ).unwrap();
         end_timer!(commit_t_timer);
         end_timer!(prover_timer);
+
+        println!("accumulator size: {}", prover.current_accumulator.compressed_size());
 
         // ********************************** Benchmarking The Decider **********************************
         // decider cost: decide both the running accumulator and the current accumulator
