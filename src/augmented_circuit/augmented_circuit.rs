@@ -195,6 +195,7 @@ mod tests {
     use crate::pcs::multilinear_pcs::PolynomialCommitmentSRS;
     use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
     use crate::transcript::transcript::Transcript;
+    use ark_serialize::CanonicalSerialize;
     use ark_ff::AdditiveGroup;
     use ark_relations::r1cs::{ConstraintSystem, SynthesisMode};
     use rand::thread_rng;
@@ -330,7 +331,7 @@ mod tests {
             &acc_srs,
             commitment_pp,
             running_acc,
-            current_acc,
+            current_acc.clone(),
             cycle_fold_running_instance,
             cycle_fold_running_witness,
             prover_transcript,
@@ -407,6 +408,9 @@ mod tests {
             &key,
             &mut prover_transcript,
         );
+
+        println!("proof size: {}", proof.compressed_size());
+        println!("acc size: {}", current_acc.compressed_size());
 
         ////////// Verifier /////////////////
 
