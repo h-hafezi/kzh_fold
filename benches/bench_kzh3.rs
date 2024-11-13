@@ -7,7 +7,8 @@ use sqrtn_pcs::pcs::kzh3::kzh3::{commit, open, verify, KZH3SRS};
 use sqrtn_pcs::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 
 fn bench_commit(c: &mut Criterion) {
-    let degrees = vec![(4, 4, 4), (8, 8, 8)];
+    // alternative degrees: vec![(4, 2, 2), (16, 4, 4), (64, 8, 8), (256, 16, 16), (1024, 32, 32)]
+    let degrees = vec![(4, 4, 4), (8, 8, 8), (16, 16, 16), (32, 32, 32), (64, 64, 64), (128,128, 128)];
     for (degree_x, degree_y, degree_z) in degrees {
         // build the srs
         let srs: KZH3SRS<E> = KZH3SRS::setup(degree_x, degree_y, degree_z, &mut thread_rng());
@@ -27,7 +28,8 @@ fn bench_commit(c: &mut Criterion) {
 }
 
 fn bench_open(c: &mut Criterion) {
-    let degrees = vec![(4, 4, 4), (8, 8, 8)];
+    // alternative degrees: vec![(4, 2, 2), (16, 4, 4), (64, 8, 8), (256, 16, 16), (1024, 32, 32)]
+    let degrees = vec![(4, 4, 4), (8, 8, 8), (16, 16, 16), (32, 32, 32), (64, 64, 64), (128,128, 128)];
     for (degree_x, degree_y, degree_z) in degrees {
         // build the srs
         let srs: KZH3SRS<E> = KZH3SRS::setup(degree_x, degree_y, degree_z, &mut thread_rng());
@@ -71,7 +73,8 @@ fn bench_open(c: &mut Criterion) {
 }
 
 fn bench_verify(c: &mut Criterion) {
-    let degrees = vec![(4, 4, 4), (8, 8, 8)];
+    // alternative degrees: vec![(4, 2, 2), (16, 4, 4), (64, 8, 8), (256, 16, 16), (1024, 32, 32)]
+    let degrees = vec![(4, 4, 4), (8, 8, 8), (16, 16, 16), (32, 32, 32), (64, 64, 64), (128,128, 128)];
     for (degree_x, degree_y, degree_z) in degrees {
         // build the srs
         let srs: KZH3SRS<E> = KZH3SRS::setup(degree_x, degree_y, degree_z, &mut thread_rng());
