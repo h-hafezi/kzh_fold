@@ -1,4 +1,4 @@
-#[allow(dead_code)]
+#![allow(dead_code)]
 
 use crate::accumulation_circuit::instance_circuit::AccumulatorInstanceVar;
 use crate::accumulation_circuit::verifier_circuit::{AccumulatorVerifier, AccumulatorVerifierVar};
