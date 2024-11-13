@@ -9,6 +9,7 @@ use rand::Rng;
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
 use std::ops::Mul;
+use ark_ff::Field;
 use crate::polynomial::eq_poly::eq_poly::EqPolynomial;
 
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize, Derivative)]
@@ -47,21 +48,21 @@ impl<E: Pairing> KZH3SRS<E> {
         let tau_x = {
             let mut elements = Vec::new();
             for _ in 0..degree_x {
-                elements.push(E::ScalarField::rand(rng));
+                elements.push(E::ScalarField::ONE);
             }
             elements
         };
         let tau_y = {
             let mut elements = Vec::new();
             for _ in 0..degree_y {
-                elements.push(E::ScalarField::rand(rng));
+                elements.push(E::ScalarField::ONE);
             }
             elements
         };
         let tau_z = {
             let mut elements = Vec::new();
             for _ in 0..degree_z {
-                elements.push(E::ScalarField::rand(rng));
+                elements.push(E::ScalarField::ONE);
             }
             elements
         };
@@ -224,7 +225,7 @@ pub fn verify<E: Pairing>(srs: &KZH3SRS<E>,
     let lhs = E::multi_pairing(&open.D_x, &srs.V_x).0;
     let rhs = E::pairing(c, &srs.v).0;
 
-    //assert_eq!(lhs, rhs);
+    assert_eq!(lhs, rhs);
 
     let new_c = E::G1::msm(
         {
