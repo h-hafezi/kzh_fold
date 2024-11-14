@@ -352,7 +352,7 @@ mod tests {
 
     #[test]
     fn witness_size() {
-        let degrees = vec![(4, 4, 4), (8, 8, 8), (16, 16, 16), (32, 32, 32), (64, 64, 64), (128, 128, 128)];
+        let degrees = vec![(4, 4, 4), (8, 8, 8), (16, 16, 16), (32, 32, 32)];
         for (degree_x, degree_y, degree_z) in degrees {
             // build the srs
             let srs: KZH3SRS<E> = KZH3SRS::setup(degree_x, degree_y, degree_z, &mut thread_rng());

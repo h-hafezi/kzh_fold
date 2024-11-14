@@ -200,7 +200,6 @@ where
 mod tests {
     use ark_crypto_primitives::sponge::constraints::AbsorbGadget;
     use ark_ec::short_weierstrass::Projective;
-    use ark_ff::{BigInt, PrimeField};
     use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
     use ark_relations::ns;
     use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
