@@ -1,7 +1,9 @@
 use crate::math::Math;
+use crate::polynomial::eq_poly::eq_poly::EqPolynomial;
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use ark_ec::pairing::Pairing;
-use ark_ec::{VariableBaseMSM};
+use ark_ec::VariableBaseMSM;
+use ark_ff::Field;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::UniformRand;
 use derivative::Derivative;
@@ -9,8 +11,6 @@ use rand::Rng;
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
 use std::ops::Mul;
-use ark_ff::Field;
-use crate::polynomial::eq_poly::eq_poly::EqPolynomial;
 
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize, Derivative)]
 pub struct KZH3SRS<E: Pairing> {
@@ -30,6 +30,7 @@ pub struct KZH3SRS<E: Pairing> {
     pub v: E::G2Affine,
 }
 
+#[derive(CanonicalSerialize, CanonicalDeserialize)]
 pub struct KZH3Opening<E: Pairing> {
     D_y: Vec<E::G1>,
     f_star: MultilinearPolynomial<E::ScalarField>,
@@ -177,7 +178,7 @@ pub fn open<E: Pairing>(srs: &KZH3SRS<E>,
 ) -> KZH3Opening<E> {
     // Compute f'=f(x,Y,Z); partial evaluation of f using x as the evaluation point. And then compute
     // D_y terms  by committing to each eval slice of f'(Y,Z)
-    let f_prime= polynomial.partial_evaluation(x);
+    let f_prime = polynomial.partial_evaluation(x);
 
     // this takes O(2/3n) but can be precomputed during commitment too
     let D_y = (0..srs.degree_y)
@@ -300,7 +301,7 @@ mod tests {
         let (degree_x, degree_y, degree_z) = (4usize, 8usize, 16usize);
         let num_vars = degree_x.log_2() + degree_y.log_2() + degree_z.log_2();
 
-        let x :Vec<ScalarField> = {
+        let x: Vec<ScalarField> = {
             let mut res = Vec::new();
             for _ in 0..degree_x.log_2() {
                 res.push(ScalarField::rand(&mut thread_rng()));
@@ -308,7 +309,7 @@ mod tests {
             res
         };
 
-        let y :Vec<ScalarField> = {
+        let y: Vec<ScalarField> = {
             let mut res = Vec::new();
             for _ in 0..degree_y.log_2() {
                 res.push(ScalarField::rand(&mut thread_rng()));
@@ -316,7 +317,7 @@ mod tests {
             res
         };
 
-        let z :Vec<ScalarField> = {
+        let z: Vec<ScalarField> = {
             let mut res = Vec::new();
             for _ in 0..degree_z.log_2() {
                 res.push(ScalarField::rand(&mut thread_rng()));
@@ -347,5 +348,39 @@ mod tests {
 
         // verify the commit
         verify(&srs, &c, x.as_slice(), y.as_slice(), z.as_slice(), &open, eval);
+    }
+
+    #[test]
+    fn witness_size() {
+        let degrees = vec![(4, 4, 4), (8, 8, 8), (16, 16, 16), (32, 32, 32), (64, 64, 64), (128, 128, 128)];
+        for (degree_x, degree_y, degree_z) in degrees {
+            // build the srs
+            let srs: KZH3SRS<E> = KZH3SRS::setup(degree_x, degree_y, degree_z, &mut thread_rng());
+            let num_vars = degree_x.log_2() + degree_y.log_2() + degree_z.log_2();
+
+            // random  polynomial
+            let polynomial: MultilinearPolynomial<ScalarField> = MultilinearPolynomial::rand(num_vars, &mut thread_rng());
+
+            let x: Vec<ScalarField> = {
+                let mut res = Vec::new();
+                for _ in 0..degree_x.log_2() {
+                    res.push(ScalarField::rand(&mut thread_rng()));
+                }
+                res
+            };
+
+            let y: Vec<ScalarField> = {
+                let mut res = Vec::new();
+                for _ in 0..degree_y.log_2() {
+                    res.push(ScalarField::rand(&mut thread_rng()));
+                }
+                res
+            };
+            let open = open(&srs, &polynomial, x.as_slice(), y.as_slice());
+            let degree = degree_x * degree_y * degree_z;
+            println!("witness length in bytes: {} for degree {degree}",
+                     open.compressed_size()
+            );
+        }
     }
 }

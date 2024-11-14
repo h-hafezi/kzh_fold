@@ -2,18 +2,18 @@ use std::borrow::Borrow;
 
 use ark_crypto_primitives::sponge::constraints::AbsorbGadget;
 use ark_ec::{
-    CurveGroup,
     short_weierstrass::{Projective, SWCurveConfig},
+    CurveGroup,
 };
 use ark_ff::{AdditiveGroup, Field, PrimeField};
 use ark_r1cs_std::{
-    alloc::{AllocationMode, AllocVar},
+    alloc::{AllocVar, AllocationMode},
     boolean::Boolean,
     eq::EqGadget,
-    fields::{FieldVar, fp::FpVar, nonnative::NonNativeFieldVar},
-    R1CSVar,
+    fields::{fp::FpVar, nonnative::NonNativeFieldVar, FieldVar},
     select::CondSelectGadget,
     uint8::UInt8,
+    R1CSVar,
 };
 use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 use ark_std::Zero;
@@ -127,7 +127,7 @@ where
         let infinity = Boolean::new_variable(
             cs.clone(),
             || Ok(affine.infinity),
-            mode
+            mode,
         ).unwrap();
 
         Ok(Self { x, y, infinity })
@@ -200,13 +200,14 @@ where
 mod tests {
     use ark_crypto_primitives::sponge::constraints::AbsorbGadget;
     use ark_ec::short_weierstrass::Projective;
-    use ark_r1cs_std::alloc::{AllocationMode, AllocVar};
+    use ark_ff::{BigInt, PrimeField};
+    use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
     use ark_relations::ns;
     use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
     use ark_std::UniformRand;
     use rand::thread_rng;
 
-    use crate::constant_for_curves::{G1, ScalarField};
+    use crate::constant_for_curves::{ScalarField, G1};
     use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
 
     #[test]

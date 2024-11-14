@@ -1,6 +1,6 @@
 use ark_ec::AffineRepr;
-use ark_serialize::Valid;
 use ark_ff::Zero;
+use ark_serialize::Valid;
 use std::ops::{Add, Mul};
 
 use ark_ec::pairing::Pairing;
@@ -214,7 +214,7 @@ impl PCSEngine {
         let mut g1_elems: Vec<E::G1Affine> = Vec::with_capacity(1 + proof.vec_D.len());
         g1_elems.push(C.C.clone());
         for g1 in &proof.vec_D {
-            let g1_neg: E::G1Affine  = (E::G1Affine::zero() - g1).into();
+            let g1_neg: E::G1Affine = (E::G1Affine::zero() - g1).into();
             g1_elems.push(g1_neg);
         }
 
@@ -302,6 +302,7 @@ pub mod test {
 
     use ark_ec::pairing::Pairing;
     use ark_ff::AdditiveGroup;
+    use ark_serialize::CanonicalSerialize;
     use ark_std::UniformRand;
     use rand::thread_rng;
 
@@ -456,6 +457,35 @@ pub mod test {
         let P_verifier = F + r_times_G;
 
         PCSEngine::verify(&srs, &P_verifier, &proof_P_at_rho, rho_first_half, rho_second_half, &p_at_rho);
+    }
+
+    #[test]
+    fn count_witness() {
+        let degrees = vec![(4, 4), (8, 8), (16, 16), (32, 32), (64, 64)];
+        for (degree_x, degree_y) in degrees {
+            let srs: PolynomialCommitmentSRS<E> = PCSEngine::setup(degree_x, degree_y, &mut thread_rng());
+            // random bivariate polynomial
+            let polynomial = MultilinearPolynomial::rand(
+                srs.get_x_length() + srs.get_y_length(),
+                &mut thread_rng(),
+            );
+            let com = PCSEngine::commit(&srs, &polynomial);
+
+            // random points and evaluation
+            let x = {
+                let mut res = Vec::new();
+                for _ in 0..srs.get_x_length() {
+                    res.push(ScalarField::rand(&mut thread_rng()));
+                }
+                res
+            };
+
+            let open = PCSEngine::open(&polynomial, com.clone(), &x);
+            let degree = degree_x * degree_y;
+            println!("witness length in bytes: {} for degree {degree}",
+                     open.compressed_size()
+            );
+        }
     }
 }
 
