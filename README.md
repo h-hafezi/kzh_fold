@@ -1,5 +1,19 @@
-Code Structure
---------------
+# KZH
+
+Implementation of:
+- KZH polynomial commitment scheme
+- KZH accumulation
+- Folding based on KZH
+- Signature aggregation based on KZH
+- HaloInfinite private aggregation
+
+## Building & Running
+
+This library can be compiled with `cargo build` and requires rust nightly.
+
+You can run the tests using `cargo test --release` and the benchmarks using `cargo bench`.
+
+## Code Structure
 
 ```
 src/
@@ -17,3 +31,7 @@ src/
 ├── pcs: Implementation of the KZH and KZH_3 PCS
 ├── signature_aggregation: Implementation of the signature aggregation protocol
 ```
+
+## Acknowledgements
+
+This work would not be possible without the arkworks, Nexus and Spartan projects.
