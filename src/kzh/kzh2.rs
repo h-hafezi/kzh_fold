@@ -60,7 +60,7 @@ pub struct KZH2OpeningProof<E: Pairing> {
 /// Define the new struct that encapsulates the functionality of polynomial commitment
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize, Derivative)]
 pub struct KZH2<E: Pairing> {
-    phatom: PhantomData<E>,
+    phantom: PhantomData<E>,
 }
 
 impl<E: Pairing, F: PrimeField + Absorb> AppendToTranscript<F> for KZH2Commitment<E>
