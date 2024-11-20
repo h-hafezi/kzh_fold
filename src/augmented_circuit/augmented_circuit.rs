@@ -8,7 +8,7 @@ use crate::nexus_spartan::matrix_evaluation_accumulation::verifier_circuit::{Mat
 use crate::nexus_spartan::partial_verifier::partial_verifier::SpartanPartialVerifier;
 use crate::nexus_spartan::partial_verifier::partial_verifier_var::SpartanPartialVerifierVar;
 use crate::nova::cycle_fold::coprocessor_constraints::RelaxedOvaInstanceVar;
-use crate::pcs::multilinear_pcs::split_between_x_and_y;
+use crate::pcs::kzh2::split_between_x_and_y;
 use crate::transcript::transcript_var::TranscriptVar;
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
@@ -191,8 +191,8 @@ mod tests {
     use crate::nexus_spartan::crr1csproof::{CRR1CSInstance, CRR1CSKey, CRR1CSShape, CRR1CSWitness};
     use crate::nexus_spartan::polycommitments::{PolyCommitmentScheme, ToAffine};
     use crate::nova::cycle_fold::coprocessor::setup_shape;
-    use crate::pcs::multilinear_pcs::{split_between_x_and_y, PCSEngine};
-    use crate::pcs::multilinear_pcs::PolynomialCommitmentSRS;
+    use crate::pcs::kzh2::{split_between_x_and_y, PCSEngine};
+    use crate::pcs::kzh2::KZH2SRS;
     use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
     use crate::transcript::transcript::Transcript;
     use ark_serialize::CanonicalSerialize;
@@ -203,6 +203,7 @@ mod tests {
     use rand::thread_rng;
     use crate::accumulation_circuit::verifier_circuit::AccumulatorVerifierVar;
     use crate::augmented_circuit::augmented_circuit::{AugmentedCircuitVar, Output};
+    use crate::math::Math;
     use crate::nexus_spartan::matrix_evaluation_accumulation::verifier_circuit::{MatrixEvaluationAccVerifier, MatrixEvaluationAccVerifierVar};
     use crate::nexus_spartan::partial_verifier::partial_verifier::SpartanPartialVerifier;
     use crate::nexus_spartan::partial_verifier::partial_verifier_var::SpartanPartialVerifierVar;
@@ -219,7 +220,7 @@ mod tests {
 
     /// Take as input `proof_i` and `running_accumulator_{i}` and produce `proof_{i+1}` and `running_accumulator_{i+1}`.
     fn test_augmented_circuit_helper() {
-        let SRS: PolynomialCommitmentSRS<E> = MultilinearPolynomial::setup(POLY_SETUP, &mut thread_rng()).unwrap();
+        let SRS: KZH2SRS<E> = MultilinearPolynomial::setup(POLY_SETUP, &mut thread_rng()).unwrap();
 
         //////////////////// Generate `proof_i`   ////////////////////
 
@@ -264,7 +265,7 @@ mod tests {
         let commitment_w = instance.comm_W.clone();
 
         // Get the evaluation point of the opening proof
-        let (x, y) = split_between_x_and_y::<F>(pcs_srs.get_x_length(), pcs_srs.get_y_length(), &ry[1..], F::ZERO);
+        let (x, y) = split_between_x_and_y::<F>(pcs_srs.degree_x.log_2(), pcs_srs.degree_y.log_2(), &ry[1..], F::ZERO);
 
         // Sanity check: verify the opening proof
         PCSEngine::verify(

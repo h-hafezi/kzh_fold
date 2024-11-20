@@ -4,10 +4,10 @@ use ark_ec::pairing::Pairing;
 use ark_ff::PrimeField;
 use ark_poly_commit::Error;
 use rand::RngCore;
-
+use crate::math::Math;
 use crate::nexus_spartan::polycommitments::error::PCSError;
 use crate::nexus_spartan::polycommitments::{PCSKeys, PolyCommitmentScheme, ToAffine};
-use crate::pcs::multilinear_pcs::{split_between_x_and_y, PCSCommitment, PCSOpeningProof, PCSEngine, PolynomialCommitmentSRS};
+use crate::pcs::kzh2::{split_between_x_and_y, PCSCommitment, PCSOpeningProof, PCSEngine, KZH2SRS};
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript::{AppendToTranscript, Transcript};
 
@@ -31,14 +31,14 @@ impl<F: PrimeField + Absorb, E: Pairing<ScalarField=F>> PolyCommitmentScheme<E> 
 where
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
 {
-    type SRS = PolynomialCommitmentSRS<E>;
-    type PolyCommitmentKey = PolynomialCommitmentSRS<E>;
-    type EvalVerifierKey = PolynomialCommitmentSRS<E>;
+    type SRS = KZH2SRS<E>;
+    type PolyCommitmentKey = KZH2SRS<E>;
+    type EvalVerifierKey = KZH2SRS<E>;
     type Commitment = PCSCommitment<E>;
     type PolyCommitmentProof = PCSOpeningProof<E>;
 
     fn commit(poly: &MultilinearPolynomial<E::ScalarField>, ck: &Self::PolyCommitmentKey) -> Self::Commitment {
-        let len = ck.get_x_length() + ck.get_y_length();
+        let len = ck.degree_x.log_2() + ck.degree_y.log_2();
         let poly = poly.extend_number_of_variables(len);
         assert_eq!(poly.num_variables, len);
         assert_eq!(poly.len, 1 << poly.num_variables);
@@ -48,21 +48,21 @@ where
     }
 
     fn prove(C: Option<&Self::Commitment>, poly: &MultilinearPolynomial<E::ScalarField>, r: &[E::ScalarField], ck: &Self::PolyCommitmentKey) -> Self::PolyCommitmentProof {
-        let len = ck.get_x_length() + ck.get_y_length();
+        let len = ck.degree_x.log_2() + ck.degree_y.log_2();
         let poly = poly.extend_number_of_variables(len);
         assert_eq!(poly.num_variables, len);
         assert_eq!(poly.len, 1 << poly.num_variables);
         assert_eq!(poly.evaluation_over_boolean_hypercube.len(), poly.len);
 
-        let length_x = ck.get_x_length();
-        let length_y = ck.get_y_length();
+        let length_x = ck.degree_x.log_2();
+        let length_y = ck.degree_y.log_2();
         let (x, _) = split_between_x_and_y::<F>(length_x, length_y, r, F::ZERO);
         PCSEngine::open(&poly, C.unwrap().clone(), x.as_slice())
     }
 
     fn verify(commitment: &Self::Commitment, proof: &Self::PolyCommitmentProof, ck: &Self::EvalVerifierKey, r: &[F], eval: &F) -> Result<(), PCSError> {
-        let length_x = ck.get_x_length();
-        let length_y = ck.get_y_length();
+        let length_x = ck.degree_x.log_2();
+        let length_y = ck.degree_y.log_2();
         let (x, y) = split_between_x_and_y::<F>(length_x, length_y, r, F::ZERO);
 
         // verify the proof
@@ -94,12 +94,12 @@ pub mod test {
 
     use crate::constant_for_curves::{ScalarField, E};
     use crate::nexus_spartan::polycommitments::{PCSKeys, PolyCommitmentScheme};
-    use crate::pcs::multilinear_pcs::PolynomialCommitmentSRS;
+    use crate::pcs::kzh2::KZH2SRS;
     use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 
     #[test]
     fn test_end_to_end() {
-        let srs: PolynomialCommitmentSRS<E> = MultilinearPolynomial::<ScalarField>::setup(5, &mut thread_rng()).unwrap();
+        let srs: KZH2SRS<E> = MultilinearPolynomial::<ScalarField>::setup(5, &mut thread_rng()).unwrap();
         let PCSKeys { vk: _, ck } = MultilinearPolynomial::trim(&srs);
 
         // random bivariate polynomial

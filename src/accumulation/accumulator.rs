@@ -16,7 +16,7 @@ use crate::accumulation::eq_tree::EqTree;
 use crate::accumulation::generate_random_elements;
 use crate::gadgets::non_native::util::convert_affine_to_scalars;
 use crate::math::Math;
-use crate::pcs::multilinear_pcs::{PCSEngine, PCSOpeningProof, PolynomialCommitmentSRS};
+use crate::pcs::kzh2::{PCSEngine, PCSOpeningProof, KZH2SRS};
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript::{AppendToTranscript, Transcript};
 use crate::utils::inner_product;
@@ -30,7 +30,7 @@ pub struct AccSRS<E: Pairing> {
     pub k_y: Vec<E::G1Affine>,
 
     pub k_prime: E::G1Affine,
-    pub pc_srs: PolynomialCommitmentSRS<E>,
+    pub pc_srs: KZH2SRS<E>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize)]
@@ -100,7 +100,7 @@ where
     <E as Pairing>::ScalarField: Absorb,
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
 {
-    pub fn setup<R: RngCore>(pc_srs: PolynomialCommitmentSRS<E>, rng: &mut R) -> AccSRS<E> {
+    pub fn setup<R: RngCore>(pc_srs: KZH2SRS<E>, rng: &mut R) -> AccSRS<E> {
         AccSRS {
             pc_srs: pc_srs.clone(),
             k_x: generate_random_elements::<E, R>(2 * pc_srs.degree_x - 1, rng),
@@ -371,7 +371,7 @@ where
         let witness = &acc.witness;
 
         // first condition
-        let pairing_lhs = E::multi_pairing(&witness.vec_D, &srs.pc_srs.vec_V);
+        let pairing_lhs = E::multi_pairing(&witness.vec_D, &srs.pc_srs.V_x);
         let pairing_rhs = E::pairing(instance.C, srs.pc_srs.V_prime);
 
         // second condition
@@ -422,7 +422,7 @@ where
             // Concatenate the base point vectors
             let bases: Vec<E::G1Affine> = {
                 let mut res = Vec::new();
-                res.extend_from_slice(srs.pc_srs.vec_H.as_slice());
+                res.extend_from_slice(srs.pc_srs.H_y.as_slice());
                 res.extend_from_slice(witness.vec_D.as_slice());
 
                 res
@@ -527,12 +527,12 @@ pub mod test {
 
     use super::*;
     use crate::constant_for_curves::{ScalarField, E};
-    use crate::pcs::multilinear_pcs::{PCSEngine, PolynomialCommitmentSRS};
+    use crate::pcs::kzh2::{PCSEngine, KZH2SRS};
 
     #[test]
     fn test_accumulator_end_to_end() {
         let (degree_x, degree_y) = (128usize, 128usize);
-        let srs_pcs: PolynomialCommitmentSRS<E> = PCSEngine::setup(degree_x, degree_y, &mut thread_rng());
+        let srs_pcs: KZH2SRS<E> = PCSEngine::setup(degree_x, degree_y, &mut thread_rng());
         let srs = Accumulator::setup(srs_pcs.clone(), &mut thread_rng());
 
         let acc1 = Accumulator::rand(&srs, &mut thread_rng());
@@ -560,7 +560,7 @@ pub mod test {
 
         for (degree_x, degree_y) in degrees {
             // set accumulator sts
-            let srs_pcs: PolynomialCommitmentSRS<E> = PCSEngine::setup(degree_x, degree_y, rng);
+            let srs_pcs: KZH2SRS<E> = PCSEngine::setup(degree_x, degree_y, rng);
             let srs_acc = Accumulator::setup(srs_pcs.clone(), rng);
             // get random accumulator
             let acc = Accumulator::rand(&srs_acc, rng);

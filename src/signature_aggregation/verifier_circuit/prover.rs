@@ -254,7 +254,7 @@ mod test {
     use ark_std::UniformRand;
     use rand::{thread_rng, RngCore};
     use crate::accumulation::accumulator::Accumulator;
-    use crate::pcs::multilinear_pcs::PCSEngine;
+    use crate::pcs::kzh2::PCSEngine;
     use crate::signature_aggregation::signature_aggregation::{SignatureAggrData, SignatureAggrSRS};
 
     type Q = BaseField;

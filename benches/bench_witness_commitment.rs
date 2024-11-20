@@ -23,7 +23,7 @@ use sqrtn_pcs::constant_for_curves::{BaseField, E, G1, G2, ScalarField};
 use sqrtn_pcs::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
 use sqrtn_pcs::gadgets::non_native::util::cast_field;
 use sqrtn_pcs::hash::pederson::PedersenCommitment;
-use sqrtn_pcs::pcs::multilinear_pcs::{PCSEngine, PolynomialCommitmentSRS};
+use sqrtn_pcs::pcs::kzh2::{PCSEngine, KZH2SRS};
 use sqrtn_pcs::transcript::transcript_var::TranscriptVar;
 
 type C2 = PedersenCommitment<Projective<G2>>;

@@ -1,7 +1,7 @@
 use crate::accumulation::accumulator::{AccInstance, AccSRS, Accumulator as KZHAccumulator, Accumulator};
 use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
 use crate::nexus_spartan::sumcheck::SumcheckInstanceProof;
-use crate::pcs::multilinear_pcs::{split_between_x_and_y, PCSCommitment};
+use crate::pcs::kzh2::{split_between_x_and_y, PCSCommitment};
 use crate::polynomial::eq_poly::eq_poly::EqPolynomial;
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript::Transcript;
@@ -11,6 +11,7 @@ use ark_ec::AffineRepr;
 use ark_ff::PrimeField;
 use ark_ff::UniformRand;
 use rand::RngCore;
+use crate::math::Math;
 
 #[derive(Clone, Debug)]
 pub struct SignatureAggrSRS<E: Pairing> {
@@ -206,8 +207,8 @@ where
     );
 
 
-    let length_x = acc_srs.pc_srs.get_x_length();
-    let length_y = acc_srs.pc_srs.get_y_length();
+    let length_x = acc_srs.pc_srs.degree_x.log_2();
+    let length_y = acc_srs.pc_srs.degree_y.log_2();
     let (eval_point_first_half, eval_point_second_half) = split_between_x_and_y::<F>(length_x, length_y, eval_point, F::ZERO);
 
     let acc_instance = KZHAccumulator::new_accumulator_instance_from_fresh_kzh_instance(
@@ -382,8 +383,8 @@ where
                                         eval_point: &Vec<F>,
     ) -> AccInstance<E> {
         // Split the evaluation point in half since open() just needs the first half
-        let length_x = self.srs.acc_srs.pc_srs.get_x_length();
-        let length_y = self.srs.acc_srs.pc_srs.get_y_length();
+        let length_x = self.srs.acc_srs.pc_srs.degree_x.log_2();
+        let length_y = self.srs.acc_srs.pc_srs.degree_y.log_2();
         let (eval_point_first_half, eval_point_second_half) = split_between_x_and_y::<F>(length_x, length_y, eval_point, F::ZERO);
         KZHAccumulator::new_accumulator_instance_from_fresh_kzh_instance(
             &self.srs.acc_srs,
@@ -469,7 +470,7 @@ pub mod test {
     use ark_std::UniformRand;
     use crate::accumulation::accumulator::Accumulator;
     use crate::constant_for_curves::{G1Affine, G2Affine, ScalarField, E};
-    use crate::pcs::multilinear_pcs::PCSEngine;
+    use crate::pcs::kzh2::PCSEngine;
     use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
     use crate::signature_aggregation::signature_aggregation::{AggregatorIVC, SignatureAggrData, SignatureAggrSRS};
     use crate::transcript::transcript::Transcript;

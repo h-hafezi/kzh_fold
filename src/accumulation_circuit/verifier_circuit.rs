@@ -624,7 +624,7 @@ pub mod tests {
     use crate::nexus_spartan::crr1cs::{is_sat, CRR1CSInstance, CRR1CSKey, CRR1CSShape, CRR1CSWitness};
     use crate::nexus_spartan::crr1csproof::CRR1CSProof;
     use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
-    use crate::pcs::multilinear_pcs::PolynomialCommitmentSRS;
+    use crate::pcs::kzh2::KZH2SRS;
     use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
     use crate::transcript::transcript::Transcript;
 
@@ -664,7 +664,7 @@ pub mod tests {
 
     #[test]
     fn kzh_acc_verifier_circuit_end_to_end_test() {
-        let SRS: PolynomialCommitmentSRS<E> = MultilinearPolynomial::setup(18, &mut thread_rng()).unwrap();
+        let SRS: KZH2SRS<E> = MultilinearPolynomial::setup(18, &mut thread_rng()).unwrap();
 
         let cs = get_random_acc_verifier_cs();
 
