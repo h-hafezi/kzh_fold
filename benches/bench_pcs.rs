@@ -7,7 +7,7 @@ use criterion::{Criterion, criterion_group, criterion_main};
 use rand::thread_rng;
 
 use sqrtn_pcs::constant_for_curves::{E, ScalarField};
-use sqrtn_pcs::pcs::kzh2::{PCSEngine, KZH2SRS};
+use sqrtn_pcs::kzh::kzh2::{KZH2, KZH2SRS};
 use sqrtn_pcs::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 
 // fn bench_setup(c: &mut Criterion) {
@@ -31,7 +31,7 @@ use sqrtn_pcs::polynomial::multilinear_poly::multilinear_poly::MultilinearPolyno
 fn bench_commit(c: &mut Criterion) {
     let degrees = vec![(4, 4), (8, 8), (16, 16), (32, 32), (64, 64), (128, 128), (256, 256), (512, 512), (1024, 1024)];
     for (degree_x, degree_y) in degrees {
-        let srs: KZH2SRS<E> = PCSEngine::setup(degree_x, degree_y, &mut thread_rng());
+        let srs: KZH2SRS<E> = KZH2::setup_1(degree_x, degree_y, &mut thread_rng());
         // random bivariate polynomial
         let polynomial = MultilinearPolynomial::rand(
             srs.get_x_length() + srs.get_y_length(),
@@ -40,7 +40,7 @@ fn bench_commit(c: &mut Criterion) {
         let bench_name = format!("commit for degrees n={} * m={} (witness size: {})", degree_x, degree_y, degree_x*degree_y);
         c.bench_function(&bench_name, |b| {
             b.iter(|| {
-                PCSEngine::commit(&srs, &polynomial)
+                KZH2::commit_1(&srs, &polynomial)
             })
         });
     }
@@ -49,13 +49,13 @@ fn bench_commit(c: &mut Criterion) {
 fn bench_open(c: &mut Criterion) {
     let degrees = vec![(4, 4), (8, 8), (16, 16), (32, 32), (64, 64), (128, 128), (256, 256), (512, 512), (1024, 1024)];
     for (degree_x, degree_y) in degrees {
-        let srs: KZH2SRS<E> = PCSEngine::setup(degree_x, degree_y, &mut thread_rng());
+        let srs: KZH2SRS<E> = KZH2::setup_1(degree_x, degree_y, &mut thread_rng());
         // random bivariate polynomial
         let polynomial = MultilinearPolynomial::rand(
             srs.get_x_length() + srs.get_y_length(),
             &mut thread_rng(),
         );
-        let com = PCSEngine::commit(&srs, &polynomial);
+        let com = KZH2::commit_1(&srs, &polynomial);
 
         let bench_name = format!("open for degrees n={} * m={} (witness size: {})", degree_x, degree_y, degree_x*degree_y);
         c.bench_function(&bench_name, |b| {
@@ -63,7 +63,7 @@ fn bench_open(c: &mut Criterion) {
                 ScalarField::rand(&mut thread_rng()), ScalarField::rand(&mut thread_rng()),
             ];
             b.iter(|| {
-                PCSEngine::open(&polynomial, com.clone(), &x)
+                KZH2::open_1(&polynomial, com.clone(), &x)
             })
         });
     }
@@ -72,13 +72,13 @@ fn bench_open(c: &mut Criterion) {
 fn bench_verify(c: &mut Criterion) {
     let degrees = vec![(4, 4), (8, 8), (16, 16), (32, 32), (64, 64), (128, 128), (256, 256), (512, 512), (1024, 1024)];
     for (degree_x, degree_y) in degrees {
-        let srs: KZH2SRS<E> = PCSEngine::setup(degree_x, degree_y, &mut thread_rng());
+        let srs: KZH2SRS<E> = KZH2::setup_1(degree_x, degree_y, &mut thread_rng());
         // random bivariate polynomial
         let polynomial = MultilinearPolynomial::rand(
             srs.get_x_length() + srs.get_y_length(),
             &mut thread_rng(),
         );
-        let com = PCSEngine::commit(&srs, &polynomial);
+        let com = KZH2::commit_1(&srs, &polynomial);
 
         let bench_name = format!("verify for degrees n={} * m={} (witness size: {})", degree_x, degree_y, degree_x*degree_y);
         c.bench_function(&bench_name, |b| {
@@ -104,9 +104,9 @@ fn bench_verify(c: &mut Criterion) {
                 res
             };
             let z = polynomial.evaluate(&concat);
-            let open = PCSEngine::open(&polynomial, com.clone(), &x);
+            let open = KZH2::open_1(&polynomial, com.clone(), &x);
             b.iter(|| {
-                PCSEngine::verify(&srs, &com, &open, &x, &y, &z)
+                KZH2::verify_1(&srs, &com, &open, &x, &y, &z)
             })
         });
     }

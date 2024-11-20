@@ -624,7 +624,7 @@ pub mod tests {
     use crate::nexus_spartan::crr1cs::{is_sat, CRR1CSInstance, CRR1CSShape, CRR1CSWitness};
     use crate::nexus_spartan::crr1csproof::CRR1CSProof;
     use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
-    use crate::pcs::kzh2::KZH2SRS;
+    use crate::kzh::kzh2::KZH2SRS;
     use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
     use crate::transcript::transcript::Transcript;
 

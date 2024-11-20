@@ -1,20 +1,20 @@
 use ark_ec::AffineRepr;
-use ark_ff::Zero;
+use ark_ff::{AdditiveGroup, Zero};
 use ark_serialize::Valid;
 use std::ops::{Add, Mul};
 
+use crate::kzh::KZH;
+use crate::math::Math;
+use crate::polynomial::eq_poly::eq_poly::EqPolynomial;
+use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use ark_ec::pairing::Pairing;
 use ark_ec::{CurveGroup, VariableBaseMSM};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::UniformRand;
 use derivative::Derivative;
-use rand::RngCore;
+use rand::{Rng, RngCore};
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
-
-use crate::math::Math;
-use crate::polynomial::eq_poly::eq_poly::EqPolynomial;
-use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize, Derivative)]
 pub struct KZH2SRS<E: Pairing> {
@@ -41,7 +41,7 @@ pub struct KZH2SRS<E: Pairing> {
     CanonicalDeserialize,
     Derivative
 )]
-pub struct PCSCommitment<E: Pairing> {
+pub struct KZH2Commitment<E: Pairing> {
     /// the commitment C to the polynomial
     pub C: E::G1Affine,
     /// auxiliary data which is in fact Pedersen commitments to rows of the polynomial
@@ -49,43 +49,45 @@ pub struct PCSCommitment<E: Pairing> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize, Derivative)]
-pub struct PCSOpeningProof<E: Pairing> {
+pub struct KZH2OpeningProof<E: Pairing> {
     pub vec_D: Vec<E::G1Affine>,
     pub f_star_poly: MultilinearPolynomial<E::ScalarField>,
 }
 
 /// Define the new struct that encapsulates the functionality of polynomial commitment
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize, Derivative)]
-pub struct PCSEngine;
+pub struct KZH2;
 
+impl<E: Pairing> KZH<E> for KZH2 {
+    type Degree = (usize, usize);
+    type SRS = KZH2SRS<E>;
+    type Commitment = KZH2Commitment<E>;
+    type Opening = KZH2OpeningProof<E>;
 
-/// the function receives an input r and splits into two sub-vectors x and y to be used for PCS
-/// It's used later when we have a constant SRS, and we pad the polynomial so we can commit to it via SRS
-/// This function in fact pads to polynomial inputs by appends necessary zeros and split the input into x and y input
-pub fn split_between_x_and_y<T: Clone>(x_length: usize, y_length: usize, r: &[T], zero: T) -> (Vec<T>, Vec<T>) {
-    let total_length = x_length + y_length;
+    /// the function receives an input r and splits into two sub-vectors x and y to be used for PCS
+    /// It's used later when we have a constant SRS, and we pad the polynomial so we can commit to it via SRS
+    /// This function in fact pads to polynomial inputs by appends necessary zeros and split the input into x and y input
+    fn split_input(srs: &Self::SRS, input: &[E::ScalarField]) -> Vec<Vec<E::ScalarField>> {
+        let total_length = srs.degree_x.log_2() + srs.degree_y.log_2();
 
-    // If r is smaller than the required length, extend it with zeros at the beginning
-    let mut extended_r = r.to_vec();
-    if r.len() < total_length {
-        let mut zeros = vec![zero; total_length - r.len()];
-        zeros.extend(extended_r);  // Prepend zeros to the beginning
-        extended_r = zeros;
+        // If r is smaller than the required length, extend it with zeros at the beginning
+        let mut extended_r = input.to_vec();
+        if input.len() < total_length {
+            let mut zeros = vec![E::ScalarField::ZERO; total_length - input.len()];
+            zeros.extend(extended_r);  // Prepend zeros to the beginning
+            extended_r = zeros;
+        }
+
+        // Split the vector into two parts
+        let r_x = extended_r[..srs.degree_x.log_2()].to_vec();
+        let r_y = extended_r[srs.degree_x.log_2()..total_length].to_vec();
+
+        vec![r_x, r_y]
     }
 
-    // Split the vector into two parts
-    let r_x = extended_r[..x_length].to_vec();
-    let r_y = extended_r[x_length..total_length].to_vec();
+    fn setup<R: Rng>(degree: &Self::Degree, rng: &mut R) -> Self::SRS {
+        let (degree_x, degree_y) = degree.clone();
 
-    (r_x, r_y)
-}
-
-
-/// all functions assume that poly size is already compatible with srs size, if not there's an interface that does padding
-/// in the beginning in kzh.rs
-impl PCSEngine {
-    /// set up the PCS srs
-    pub fn setup<T: RngCore, E: Pairing>(degree_x: usize, degree_y: usize, rng: &mut T) -> KZH2SRS<E> {
         // sample G_0, G_1, ..., G_m generators from group one
         let G1_generator_vec = {
             let mut elements = Vec::new();
@@ -153,8 +155,209 @@ impl PCSEngine {
         }
     }
 
-    pub fn commit<E: Pairing>(srs: &KZH2SRS<E>, poly: &MultilinearPolynomial<E::ScalarField>) -> PCSCommitment<E> {
-        PCSCommitment {
+    fn commit(srs: &Self::SRS, poly: &MultilinearPolynomial<E::ScalarField>) -> Self::Commitment {
+        let len = srs.degree_x.log_2() + srs.degree_y.log_2();
+        let poly = poly.extend_number_of_variables(len);
+        assert_eq!(poly.num_variables, len);
+        assert_eq!(poly.len, 1 << poly.num_variables);
+        assert_eq!(poly.evaluation_over_boolean_hypercube.len(), poly.len);
+
+        KZH2Commitment {
+            C: {
+                // Collect all points and scalars into single vectors
+                let mut base = Vec::new();
+                let mut scalar = Vec::new();
+
+                for i in 0..srs.degree_x {
+                    // Collect points from matrix_H
+                    base.extend_from_slice(srs.H_xy[i].as_slice());
+                    // Collect corresponding scalars from partial evaluations
+                    scalar.extend_from_slice(poly.get_partial_evaluation_for_boolean_input(i, srs.degree_y).as_slice());
+                }
+
+                E::G1::msm_unchecked(&base, &scalar).into_affine()
+            },
+            aux: (0..srs.degree_x)
+                .into_par_iter() // Parallelize the D^{(x)} computation
+                .map(|i| {
+                    E::G1::msm_unchecked(
+                        srs.H_y.as_slice(),
+                        poly.get_partial_evaluation_for_boolean_input(i, srs.degree_y).as_slice(),
+                    )
+                })
+                .collect::<Vec<_>>(),
+        }
+    }
+
+    fn open(
+        srs: &Self::SRS,
+        input: &[E::ScalarField],
+        com: &Self::Commitment,
+        poly: &MultilinearPolynomial<E::ScalarField>,
+    ) -> Self::Opening {
+        let len = srs.degree_x.log_2() + srs.degree_y.log_2();
+        let poly = poly.extend_number_of_variables(len);
+        assert_eq!(poly.num_variables, len);
+        assert_eq!(poly.len, 1 << poly.num_variables);
+        assert_eq!(poly.evaluation_over_boolean_hypercube.len(), poly.len);
+
+        let split_input = Self::split_input(&srs, input);
+
+        KZH2OpeningProof {
+            vec_D: {
+                let mut vec = Vec::new();
+                for g in com.aux.clone() {
+                    vec.push(g.into());
+                }
+                vec
+            },
+            f_star_poly: poly.partial_evaluation(split_input[0].as_slice()),
+        }
+    }
+
+    fn verify(srs: &Self::SRS, input: &[E::ScalarField], output: &E::ScalarField, com: &Self::Commitment, open: &Self::Opening) {
+        let split_input = Self::split_input(&srs, input);
+
+        // Step 1: pairing check
+        // Combine the pairings into a single multi-pairing
+        let mut g1_elems: Vec<E::G1Affine> = Vec::with_capacity(1 + open.vec_D.len());
+        g1_elems.push(com.C.clone());
+        for g1 in &open.vec_D {
+            let g1_neg: E::G1Affine = (E::G1Affine::zero() - g1).into();
+            g1_elems.push(g1_neg);
+        }
+
+        let mut g2_elems = Vec::with_capacity(1 + srs.V_x.len());
+        g2_elems.push(srs.V_prime.clone());
+        g2_elems.extend_from_slice(&srs.V_x);
+
+        // Perform the combined pairing check
+        let pairing_product = E::multi_pairing(&g1_elems, &g2_elems);
+        pairing_product.check().unwrap();
+
+        // Step 2: MSM check
+        // Combine the two MSMs into one
+        let mut negated_eq_evals = EqPolynomial::new(split_input[0].clone()).evals();
+        for scalar in &mut negated_eq_evals {
+            *scalar = -*scalar;
+        }
+
+        let mut scalars = Vec::with_capacity(
+            open.f_star_poly.evaluation_over_boolean_hypercube.len() + negated_eq_evals.len(),
+        );
+        scalars.extend_from_slice(&open.f_star_poly.evaluation_over_boolean_hypercube);
+        scalars.extend_from_slice(&negated_eq_evals);
+
+        let mut bases = Vec::with_capacity(srs.H_y.len() + open.vec_D.len());
+        bases.extend_from_slice(&srs.H_y);
+        bases.extend_from_slice(&open.vec_D);
+
+        let msm_result = E::G1::msm_unchecked(&bases, &scalars);
+        assert!(msm_result.is_zero());
+
+
+        // Step 3: complete poly eval
+        let y_expected = open.f_star_poly.evaluate(split_input[1].as_slice());
+        assert_eq!(y_expected, *output);
+    }
+}
+
+/// the function receives an input r and splits into two sub-vectors x and y to be used for PCS
+/// It's used later when we have a constant SRS, and we pad the polynomial so we can commit to it via SRS
+/// This function in fact pads to polynomial inputs by appends necessary zeros and split the input into x and y input
+pub fn split_between_x_and_y<T: Clone>(x_length: usize, y_length: usize, r: &[T], zero: T) -> (Vec<T>, Vec<T>) {
+    let total_length = x_length + y_length;
+
+    // If r is smaller than the required length, extend it with zeros at the beginning
+    let mut extended_r = r.to_vec();
+    if r.len() < total_length {
+        let mut zeros = vec![zero; total_length - r.len()];
+        zeros.extend(extended_r);  // Prepend zeros to the beginning
+        extended_r = zeros;
+    }
+
+    // Split the vector into two parts
+    let r_x = extended_r[..x_length].to_vec();
+    let r_y = extended_r[x_length..total_length].to_vec();
+
+    (r_x, r_y)
+}
+
+
+/// all functions assume that poly size is already compatible with srs size, if not there's an interface that does padding
+/// in the beginning in kzh.rs
+impl KZH2 {
+    /// set up the PCS srs
+    pub fn setup_1<T: RngCore, E: Pairing>(degree_x: usize, degree_y: usize, rng: &mut T) -> KZH2SRS<E> {
+        // sample G_0, G_1, ..., G_m generators from group one
+        let G1_generator_vec = {
+            let mut elements = Vec::new();
+            for _ in 0..degree_y {
+                elements.push(E::G1Affine::rand(rng));
+            }
+            elements
+        };
+
+        // sample V, generator for group two
+        let G2_generator = E::G2Affine::rand(rng);
+
+        // sample trapdoors tau_0, tau_1, ..., tau_n, alpha
+        let tau = {
+            let mut elements = Vec::new();
+            for _ in 0..degree_x {
+                elements.push(E::ScalarField::rand(rng));
+            }
+            elements
+        };
+
+        let alpha = E::ScalarField::rand(rng);
+
+        // generate matrix_H
+        let matrix_H: Vec<Vec<_>> = (0..degree_x).into_par_iter()
+            .map(|i| {
+                let mut row = Vec::new();
+                for j in 0..degree_y {
+                    let g = G1_generator_vec[j].mul(tau[i]);
+                    row.push(g.into());
+                }
+                row
+            })
+            .collect();
+
+        // generate vec_H
+        let vec_H = {
+            let mut vec_h = Vec::new();
+            for j in 0..degree_y {
+                vec_h.push(G1_generator_vec[j].mul(alpha).into());
+            }
+            vec_h
+        };
+
+        // generate vec_V
+        let vec_V = {
+            let mut vec_h = Vec::new();
+            for j in 0..degree_x {
+                vec_h.push(G2_generator.mul(tau[j]));
+            }
+            vec_h
+        };
+
+        // generate V_prime
+        let V_prime = G2_generator.mul(alpha);
+
+        // return the output
+        KZH2SRS {
+            degree_x,
+            degree_y,
+            H_xy: matrix_H,
+            H_y: vec_H,
+            V_x: vec_V,
+            V_prime,
+        }
+    }
+
+    pub fn commit_1<E: Pairing>(srs: &KZH2SRS<E>, poly: &MultilinearPolynomial<E::ScalarField>) -> KZH2Commitment<E> {
+        KZH2Commitment {
             C: {
                 // Collect all points and scalars into single vectors
                 let mut base = Vec::new();
@@ -183,8 +386,8 @@ impl PCSEngine {
 
     /// Creates a KZH proof for p(x,y) = z.
     /// This function does not actually need y, so we only get the left half of the eval point.
-    pub fn open<E: Pairing>(poly: &MultilinearPolynomial<E::ScalarField>, com: PCSCommitment<E>, x: &[E::ScalarField]) -> PCSOpeningProof<E> {
-        PCSOpeningProof {
+    pub fn open_1<E: Pairing>(poly: &MultilinearPolynomial<E::ScalarField>, com: KZH2Commitment<E>, x: &[E::ScalarField]) -> KZH2OpeningProof<E> {
+        KZH2OpeningProof {
             vec_D: {
                 let mut vec = Vec::new();
                 for g in com.aux {
@@ -196,12 +399,12 @@ impl PCSEngine {
         }
     }
 
-    pub fn verify<E: Pairing>(srs: &KZH2SRS<E>,
-                              C: &PCSCommitment<E>,
-                              proof: &PCSOpeningProof<E>,
-                              x: &[E::ScalarField],
-                              y: &[E::ScalarField],
-                              z: &E::ScalarField,
+    pub fn verify_1<E: Pairing>(srs: &KZH2SRS<E>,
+                                C: &KZH2Commitment<E>,
+                                proof: &KZH2OpeningProof<E>,
+                                x: &[E::ScalarField],
+                                y: &[E::ScalarField],
+                                z: &E::ScalarField,
     ) {
         // Step 1: pairing check
         // Combine the pairings into a single multi-pairing
@@ -248,7 +451,7 @@ impl PCSEngine {
 }
 
 
-impl<E: Pairing> PCSCommitment<E> {
+impl<E: Pairing> KZH2Commitment<E> {
     /// Scales the commitment and its auxiliary elements by a scalar `r`
     pub fn scale_by_r(&mut self, r: &E::ScalarField) {
         // Scale the main commitment C by r
@@ -266,7 +469,7 @@ impl<E: Pairing> PCSCommitment<E> {
 }
 
 
-impl<E: Pairing> Add for PCSCommitment<E> {
+impl<E: Pairing> Add for KZH2Commitment<E> {
     type Output = Self;
 
     fn add(self, other: Self) -> Self {
@@ -283,7 +486,7 @@ impl<E: Pairing> Add for PCSCommitment<E> {
             .collect();
 
         // Return a new Commitment with the resulting sums
-        PCSCommitment {
+        KZH2Commitment {
             C: new_C,
             aux: new_aux,
         }
@@ -301,14 +504,16 @@ pub mod test {
     use rand::thread_rng;
 
     use crate::constant_for_curves::{ScalarField, E};
-    use crate::pcs::kzh2::{split_between_x_and_y, PCSEngine, KZH2SRS};
+    use crate::kzh::kzh2::{split_between_x_and_y, KZH2, KZH2SRS};
+    use crate::kzh::KZH;
+    use crate::math::Math;
     use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 
     #[test]
     fn test_setup() {
         let degree_y = 4usize;
         let degree_x = 4usize;
-        let srs: KZH2SRS<E> = PCSEngine::setup(degree_x, degree_y, &mut thread_rng());
+        let srs: KZH2SRS<E> = KZH2::setup_1(degree_x, degree_y, &mut thread_rng());
 
         // asserting the sizes
         assert_eq!(srs.degree_y, degree_y);
@@ -332,7 +537,7 @@ pub mod test {
     #[test]
     fn test_end_to_end() {
         let (degree_x, degree_y) = (8usize, 32usize);
-        let srs: KZH2SRS<E> = PCSEngine::setup(degree_x, degree_y, &mut thread_rng());
+        let srs: KZH2SRS<E> = KZH2::setup_1(degree_x, degree_y, &mut thread_rng());
 
         // testing srs functions
         assert_eq!(3, srs.degree_x);
@@ -391,14 +596,66 @@ pub mod test {
         let z = polynomial.evaluate(&input);
 
         // commit to the polynomial
-        let com = PCSEngine::commit(&srs, &polynomial);
+        let com = KZH2::commit_1(&srs, &polynomial);
 
         // open the commitment
-        let open = PCSEngine::open(&polynomial, com.clone(), &x);
+        let open = KZH2::open_1(&polynomial, com.clone(), &x);
 
         // re compute x and y verify the proof
-        PCSEngine::verify(&srs, &com, &open, &x, &y, &z);
+        KZH2::verify_1(&srs, &com, &open, &x, &y, &z);
     }
+
+    #[test]
+    fn test_end_to_end_2() {
+        let (degree_x, degree_y) = (8usize, 32usize);
+        let srs: KZH2SRS<E> = KZH2::setup_1(degree_x, degree_y, &mut thread_rng());
+
+        // testing srs functions
+        assert_eq!(3, srs.degree_x.log_2());
+        assert_eq!(5, srs.degree_y.log_2());
+
+        // random bivariate polynomial
+        let polynomial = MultilinearPolynomial::rand(3 + 5, &mut thread_rng());
+
+        // concat inputs x and y, to evaluate the function
+        // random points and evaluation
+        let x = vec![
+            ScalarField::rand(&mut thread_rng()),
+            ScalarField::rand(&mut thread_rng()),
+            ScalarField::rand(&mut thread_rng()),
+        ];
+        let y = vec![
+            ScalarField::rand(&mut thread_rng()),
+            ScalarField::rand(&mut thread_rng()),
+            ScalarField::rand(&mut thread_rng()),
+            ScalarField::rand(&mut thread_rng()),
+            ScalarField::rand(&mut thread_rng()),
+        ];
+        // concat inputs x and y, to evaluate the function
+        let input = {
+            let mut res = vec![];
+            res.extend(x.clone());
+            res.extend(y.clone());
+            res
+        };
+
+        let z = polynomial.evaluate(&input);
+
+        // commit to the polynomial
+        let com = KZH2::commit(&srs, &polynomial);
+        // commit to the polynomial
+        let com1 = KZH2::commit_1(&srs, &polynomial);
+        assert_eq!(com, com1);
+        // open the commitment
+        let open = KZH2::open(&srs, input.as_slice(), &com, &polynomial);
+        // open the commitment
+        let open1 = KZH2::open_1(&polynomial, com.clone(), &x);
+        assert_eq!(open, open1);
+
+        // re compute x and y verify the proof
+        KZH2::verify(&srs, input.as_slice(), &z, &com, &open);
+    }
+
 
     /// Given f(x) and g(x) and their KZH commitments F and G.
     /// This test computes p(x) = f(x) + r * g(x),
@@ -415,13 +672,13 @@ pub mod test {
         let degree_y = 16usize;
         let num_vars = 8; // degree_x.log_2() + degree_y.log_2()
 
-        let srs: KZH2SRS<E> = PCSEngine::setup(degree_x, degree_y, &mut thread_rng());
+        let srs: KZH2SRS<E> = KZH2::setup_1(degree_x, degree_y, &mut thread_rng());
 
         let f_x: MultilinearPolynomial<ScalarField> = MultilinearPolynomial::rand(num_vars, &mut thread_rng());
         let g_x: MultilinearPolynomial<ScalarField> = MultilinearPolynomial::rand(num_vars, &mut thread_rng());
 
-        let F = PCSEngine::commit(&srs, &f_x);
-        let G = PCSEngine::commit(&srs, &g_x);
+        let F = KZH2::commit_1(&srs, &f_x);
+        let G = KZH2::commit_1(&srs, &g_x);
 
         // Verifier's challenge: for poly batching
         let r = ScalarField::rand(&mut thread_rng());
@@ -436,10 +693,10 @@ pub mod test {
         let mut r_times_g_x = g_x.clone();
         r_times_g_x.scalar_mul(&r);
         let p_x = f_x.clone() + r_times_g_x;
-        let P = PCSEngine::commit(&srs, &p_x);
+        let P = KZH2::commit_1(&srs, &p_x);
 
         // Open p_x at rho
-        let proof_P_at_rho = PCSEngine::open(&p_x, P.clone(), &rho_first_half);
+        let proof_P_at_rho = KZH2::open_1(&p_x, P.clone(), &rho_first_half);
         let p_at_rho = p_x.evaluate(&rho);
 
         // Verifier:
@@ -450,20 +707,20 @@ pub mod test {
         r_times_G.scale_by_r(&r);
         let P_verifier = F + r_times_G;
 
-        PCSEngine::verify(&srs, &P_verifier, &proof_P_at_rho, rho_first_half, rho_second_half, &p_at_rho);
+        KZH2::verify_1(&srs, &P_verifier, &proof_P_at_rho, rho_first_half, rho_second_half, &p_at_rho);
     }
 
     #[test]
     fn count_witness() {
         let degrees = vec![(4, 4), (8, 8), (16, 16), (32, 32), (64, 64)];
         for (degree_x, degree_y) in degrees {
-            let srs: KZH2SRS<E> = PCSEngine::setup(degree_x, degree_y, &mut thread_rng());
+            let srs: KZH2SRS<E> = KZH2::setup_1(degree_x, degree_y, &mut thread_rng());
             // random bivariate polynomial
             let polynomial = MultilinearPolynomial::rand(
                 srs.degree_x + srs.degree_y,
                 &mut thread_rng(),
             );
-            let com = PCSEngine::commit(&srs, &polynomial);
+            let com = KZH2::commit_1(&srs, &polynomial);
 
             // random points and evaluation
             let x = {
@@ -474,7 +731,7 @@ pub mod test {
                 res
             };
 
-            let open = PCSEngine::open(&polynomial, com.clone(), &x);
+            let open = KZH2::open_1(&polynomial, com.clone(), &x);
             let degree = degree_x * degree_y;
             println!("witness length in bytes: {} for degree {degree}",
                      open.compressed_size()

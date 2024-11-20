@@ -6,11 +6,11 @@ use rand::thread_rng;
 
 use sqrtn_pcs::accumulation::accumulator::{AccSRS, Accumulator};
 use sqrtn_pcs::constant_for_curves::E;
-use sqrtn_pcs::pcs::kzh2::{PCSEngine, KZH2SRS};
+use sqrtn_pcs::kzh::kzh2::{KZH2, KZH2SRS};
 use sqrtn_pcs::transcript::transcript::Transcript;
 
 fn get_srs(degree_x: usize, degree_y: usize) -> AccSRS<E> {
-    let srs_pcs: KZH2SRS<E> = PCSEngine::setup(degree_x, degree_y, &mut thread_rng());
+    let srs_pcs: KZH2SRS<E> = KZH2::setup_1(degree_x, degree_y, &mut thread_rng());
 
     // return the result
     Accumulator::setup(srs_pcs.clone(), &mut thread_rng())

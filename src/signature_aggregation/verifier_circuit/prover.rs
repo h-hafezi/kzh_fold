@@ -254,7 +254,7 @@ mod test {
     use ark_std::UniformRand;
     use rand::{thread_rng, RngCore};
     use crate::accumulation::accumulator::Accumulator;
-    use crate::pcs::kzh2::PCSEngine;
+    use crate::kzh::kzh2::KZH2;
     use crate::signature_aggregation::signature_aggregation::{SignatureAggrData, SignatureAggrSRS};
 
     type Q = BaseField;
@@ -266,7 +266,7 @@ mod test {
         <E as Pairing>::ScalarField: Absorb,
     {
         pub(crate) fn new<R: RngCore>(degree_x: usize, degree_y: usize, rng: &mut R) -> Self {
-            let pcs_srs = PCSEngine::setup(degree_x, degree_y, rng);
+            let pcs_srs = KZH2::setup_1(degree_x, degree_y, rng);
 
             SignatureAggrSRS {
                 acc_srs: Accumulator::setup(pcs_srs, rng),

@@ -16,7 +16,7 @@ use crate::accumulation::eq_tree::EqTree;
 use crate::accumulation::generate_random_elements;
 use crate::gadgets::non_native::util::convert_affine_to_scalars;
 use crate::math::Math;
-use crate::pcs::kzh2::{PCSEngine, PCSOpeningProof, KZH2SRS};
+use crate::kzh::kzh2::{KZH2, KZH2OpeningProof, KZH2SRS};
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript::{AppendToTranscript, Transcript};
 use crate::utils::inner_product;
@@ -165,7 +165,7 @@ where
 
     pub fn new_accumulator_witness_from_fresh_kzh_witness(
         srs: &AccSRS<E>,
-        proof: PCSOpeningProof<E>,
+        proof: KZH2OpeningProof<E>,
         x: &[E::ScalarField],
         y: &[E::ScalarField],
     ) -> AccWitness<E> {
@@ -485,16 +485,16 @@ impl<E: Pairing> Accumulator<E> {
         let z2 = polynomial2.evaluate(&input_2);
 
         // commit to the polynomial
-        let com1 = PCSEngine::commit(&srs.pc_srs, &polynomial1);
-        let com2 = PCSEngine::commit(&srs.pc_srs, &polynomial2);
+        let com1 = KZH2::commit_1(&srs.pc_srs, &polynomial1);
+        let com2 = KZH2::commit_1(&srs.pc_srs, &polynomial2);
 
         // open the commitment
-        let open1 = PCSEngine::open(&polynomial1, com1.clone(), &x1);
-        let open2 = PCSEngine::open(&polynomial2, com2.clone(), &x2);
+        let open1 = KZH2::open_1(&polynomial1, com1.clone(), &x1);
+        let open2 = KZH2::open_1(&polynomial2, com2.clone(), &x2);
 
         // verify the proof
-        PCSEngine::verify(&srs.pc_srs, &com1, &open1, &x1, &y1, &z1);
-        PCSEngine::verify(&srs.pc_srs, &com2, &open2, &x2, &y2, &z2);
+        KZH2::verify_1(&srs.pc_srs, &com1, &open1, &x1, &y1, &z1);
+        KZH2::verify_1(&srs.pc_srs, &com2, &open2, &x2, &y2, &z2);
 
         let instance1 = Accumulator::new_accumulator_instance_from_fresh_kzh_instance(&srs, &com1.C, &x1, &y1, &z1);
         let witness1 = Accumulator::new_accumulator_witness_from_fresh_kzh_witness(&srs, open1, &x1, &y1);
@@ -527,12 +527,12 @@ pub mod test {
 
     use super::*;
     use crate::constant_for_curves::{ScalarField, E};
-    use crate::pcs::kzh2::{PCSEngine, KZH2SRS};
+    use crate::kzh::kzh2::{KZH2, KZH2SRS};
 
     #[test]
     fn test_accumulator_end_to_end() {
         let (degree_x, degree_y) = (128usize, 128usize);
-        let srs_pcs: KZH2SRS<E> = PCSEngine::setup(degree_x, degree_y, &mut thread_rng());
+        let srs_pcs: KZH2SRS<E> = KZH2::setup_1(degree_x, degree_y, &mut thread_rng());
         let srs = Accumulator::setup(srs_pcs.clone(), &mut thread_rng());
 
         let acc1 = Accumulator::rand(&srs, &mut thread_rng());
@@ -560,7 +560,7 @@ pub mod test {
 
         for (degree_x, degree_y) in degrees {
             // set accumulator sts
-            let srs_pcs: KZH2SRS<E> = PCSEngine::setup(degree_x, degree_y, rng);
+            let srs_pcs: KZH2SRS<E> = KZH2::setup_1(degree_x, degree_y, rng);
             let srs_acc = Accumulator::setup(srs_pcs.clone(), rng);
             // get random accumulator
             let acc = Accumulator::rand(&srs_acc, rng);

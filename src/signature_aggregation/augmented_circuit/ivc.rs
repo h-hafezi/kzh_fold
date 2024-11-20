@@ -4,7 +4,7 @@ use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
 use crate::nexus_spartan::matrix_evaluation_accumulation::verifier_circuit::{MatrixEvaluationAccVerifier, MatrixEvaluationAccVerifierVar};
 use crate::nexus_spartan::partial_verifier::partial_verifier::SpartanPartialVerifier;
 use crate::nexus_spartan::partial_verifier::partial_verifier_var::SpartanPartialVerifierVar;
-use crate::pcs::multilinear_pcs::split_between_x_and_y;
+use crate::kzh::multilinear_pcs::split_between_x_and_y;
 use crate::signature_aggregation::verifier_circuit::verifier_circuit::SignatureVerifierCircuit;
 use crate::signature_aggregation::verifier_circuit::verifier_circuit_var::SignatureVerifierCircuitVar;
 use crate::transcript::transcript_var::TranscriptVar;

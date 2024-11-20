@@ -6,7 +6,7 @@ use crate::gadgets::r1cs::ova::commit_T;
 use crate::gadgets::r1cs::{OvaInstance, OvaWitness, R1CSShape, RelaxedOvaInstance, RelaxedOvaWitness};
 use crate::hash::pederson::PedersenCommitment;
 use crate::nova::cycle_fold::coprocessor::{setup_shape, synthesize, SecondaryCircuit};
-use crate::pcs::kzh2::{PCSEngine, KZH2SRS};
+use crate::kzh::kzh2::{KZH2, KZH2SRS};
 use crate::transcript::transcript::Transcript;
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
@@ -367,7 +367,7 @@ where
 
     // get a random srs
     let srs = {
-        let srs_pcs: KZH2SRS<E> = PCSEngine::setup(n, m, &mut thread_rng());
+        let srs_pcs: KZH2SRS<E> = KZH2::setup_1(n, m, &mut thread_rng());
         Accumulator::setup(srs_pcs.clone(), &mut thread_rng())
     };
 

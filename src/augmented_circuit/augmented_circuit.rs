@@ -8,7 +8,7 @@ use crate::nexus_spartan::matrix_evaluation_accumulation::verifier_circuit::{Mat
 use crate::nexus_spartan::partial_verifier::partial_verifier::SpartanPartialVerifier;
 use crate::nexus_spartan::partial_verifier::partial_verifier_var::SpartanPartialVerifierVar;
 use crate::nova::cycle_fold::coprocessor_constraints::RelaxedOvaInstanceVar;
-use crate::pcs::kzh2::split_between_x_and_y;
+use crate::kzh::kzh2::split_between_x_and_y;
 use crate::transcript::transcript_var::TranscriptVar;
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
@@ -191,8 +191,8 @@ mod tests {
     use crate::nexus_spartan::crr1csproof::{CRR1CSInstance, CRR1CSShape, CRR1CSWitness};
     use crate::nexus_spartan::polycommitments::{PolyCommitmentScheme, ToAffine};
     use crate::nova::cycle_fold::coprocessor::setup_shape;
-    use crate::pcs::kzh2::{split_between_x_and_y, PCSEngine};
-    use crate::pcs::kzh2::KZH2SRS;
+    use crate::kzh::kzh2::{split_between_x_and_y, KZH2};
+    use crate::kzh::kzh2::KZH2SRS;
     use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
     use crate::transcript::transcript::Transcript;
     use ark_serialize::CanonicalSerialize;
@@ -268,7 +268,7 @@ mod tests {
         let (x, y) = split_between_x_and_y::<F>(pcs_srs.degree_x.log_2(), pcs_srs.degree_y.log_2(), &ry[1..], F::ZERO);
 
         // Sanity check: verify the opening proof
-        PCSEngine::verify(
+        KZH2::verify_1(
             &pcs_srs,
             &commitment_w,
             &opening_proof,

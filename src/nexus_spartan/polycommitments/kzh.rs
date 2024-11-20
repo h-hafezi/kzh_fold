@@ -7,11 +7,11 @@ use rand::RngCore;
 use crate::math::Math;
 use crate::nexus_spartan::polycommitments::error::PCSError;
 use crate::nexus_spartan::polycommitments::{PolyCommitmentScheme, ToAffine};
-use crate::pcs::kzh2::{split_between_x_and_y, PCSCommitment, PCSOpeningProof, PCSEngine, KZH2SRS};
+use crate::kzh::kzh2::{split_between_x_and_y, KZH2Commitment, KZH2OpeningProof, KZH2, KZH2SRS};
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript::{AppendToTranscript, Transcript};
 
-impl<E: Pairing, F: PrimeField + Absorb> AppendToTranscript<F> for PCSCommitment<E>
+impl<E: Pairing, F: PrimeField + Absorb> AppendToTranscript<F> for KZH2Commitment<E>
 where
     E: Pairing<ScalarField=F>,
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
@@ -21,7 +21,7 @@ where
     }
 }
 
-impl<E: Pairing> ToAffine<E> for PCSCommitment<E> {
+impl<E: Pairing> ToAffine<E> for KZH2Commitment<E> {
     fn to_affine(self) -> E::G1Affine {
         self.C
     }
@@ -32,8 +32,8 @@ where
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
 {
     type SRS = KZH2SRS<E>;
-    type Commitment = PCSCommitment<E>;
-    type PolyCommitmentProof = PCSOpeningProof<E>;
+    type Commitment = KZH2Commitment<E>;
+    type PolyCommitmentProof = KZH2OpeningProof<E>;
 
     fn commit(poly: &MultilinearPolynomial<E::ScalarField>, srs: &Self::SRS) -> Self::Commitment {
         let len = srs.degree_x.log_2() + srs.degree_y.log_2();
@@ -42,7 +42,7 @@ where
         assert_eq!(poly.len, 1 << poly.num_variables);
         assert_eq!(poly.evaluation_over_boolean_hypercube.len(), poly.len);
 
-        PCSEngine::commit(&srs, &poly)
+        KZH2::commit_1(&srs, &poly)
     }
 
     fn prove(C: Option<&Self::Commitment>, poly: &MultilinearPolynomial<E::ScalarField>, r: &[E::ScalarField], srs: &Self::SRS) -> Self::PolyCommitmentProof {
@@ -55,7 +55,7 @@ where
         let length_x = srs.degree_x.log_2();
         let length_y = srs.degree_y.log_2();
         let (x, _) = split_between_x_and_y::<F>(length_x, length_y, r, F::ZERO);
-        PCSEngine::open(&poly, C.unwrap().clone(), x.as_slice())
+        KZH2::open_1(&poly, C.unwrap().clone(), x.as_slice())
     }
 
     fn verify(commitment: &Self::Commitment, proof: &Self::PolyCommitmentProof, srs: &Self::SRS, r: &[F], eval: &F) -> Result<(), PCSError> {
@@ -64,7 +64,7 @@ where
         let (x, y) = split_between_x_and_y::<F>(length_x, length_y, r, F::ZERO);
 
         // verify the proof
-        PCSEngine::verify(&srs, commitment, proof, x.as_slice(), y.as_slice(), eval);
+        KZH2::verify_1(&srs, commitment, proof, x.as_slice(), y.as_slice(), eval);
 
         Ok(())
     }
@@ -74,7 +74,7 @@ where
         let y = max_poly_vars - x;
         let degree_x = 2usize.pow(x as u32);
         let degree_y = 2usize.pow(y as u32);
-        Ok(PCSEngine::setup(degree_x, degree_y, rng))
+        Ok(KZH2::setup_1(degree_x, degree_y, rng))
     } }
 
 #[cfg(test)]
@@ -84,7 +84,7 @@ pub mod test {
 
     use crate::constant_for_curves::{ScalarField, E};
     use crate::nexus_spartan::polycommitments::{PolyCommitmentScheme};
-    use crate::pcs::kzh2::KZH2SRS;
+    use crate::kzh::kzh2::KZH2SRS;
     use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 
     #[test]

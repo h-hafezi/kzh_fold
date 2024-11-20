@@ -3,7 +3,7 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use rand::thread_rng;
 use sqrtn_pcs::constant_for_curves::{ScalarField, E};
 use sqrtn_pcs::math::Math;
-use sqrtn_pcs::pcs::kzh3::kzh3::{commit, open, verify, KZH3SRS};
+use sqrtn_pcs::kzh::kzh3::kzh3::{commit, open, verify, KZH3SRS};
 use sqrtn_pcs::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 
 fn bench_commit(c: &mut Criterion) {

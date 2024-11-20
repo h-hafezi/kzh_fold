@@ -1,7 +1,7 @@
 use crate::accumulation::accumulator::{AccInstance, AccSRS, Accumulator as KZHAccumulator, Accumulator};
 use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
 use crate::nexus_spartan::sumcheck::SumcheckInstanceProof;
-use crate::pcs::kzh2::{split_between_x_and_y, PCSCommitment};
+use crate::kzh::kzh2::{split_between_x_and_y, KZH2Commitment};
 use crate::polynomial::eq_poly::eq_poly::EqPolynomial;
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript::Transcript;
@@ -30,8 +30,8 @@ where
     /////////////// Signature aggregation data ///////////////
 
     /// Commitments to b_1(x) and b_2(x)
-    pub B_1_commitment: PCSCommitment<E>,
-    pub B_2_commitment: PCSCommitment<E>,
+    pub B_1_commitment: KZH2Commitment<E>,
+    pub B_2_commitment: KZH2Commitment<E>,
     /// c(x): the union poly
     pub bitfield_poly: MultilinearPolynomial<F>,
 
@@ -44,7 +44,7 @@ where
     pub pk: E::G1Affine,
 
     /// Commitment to c(x)
-    pub bitfield_commitment: PCSCommitment<E>,
+    pub bitfield_commitment: KZH2Commitment<E>,
 
     /// proof that bitfield poly has been computed correctly in fact
     pub sumcheck_proof: SumcheckInstanceProof<F>,
@@ -129,7 +129,7 @@ where
     // Alice's running bitfield (the result of previous aggregations)
     pub running_bitfield_poly: MultilinearPolynomial<E::ScalarField>,
     // Commitment to Alice's running bitfield
-    pub running_bitfield_commitment: PCSCommitment<E>,
+    pub running_bitfield_commitment: KZH2Commitment<E>,
     // Alice's running accumulator
     pub running_accumulator: Accumulator<E>,
     // running signature
@@ -378,7 +378,7 @@ where
     E: Pairing<ScalarField=F>,
 {
     fn get_acc_instance_from_evaluation(&self,
-                                        bitfield_commitment: &PCSCommitment<E>,
+                                        bitfield_commitment: &KZH2Commitment<E>,
                                         eval_result: &F,
                                         eval_point: &Vec<F>,
     ) -> AccInstance<E> {
@@ -395,7 +395,7 @@ where
         )
     }
 
-    pub fn verify(&self, transcript: &mut Transcript<F>) -> (bool, Vec<F>, PCSCommitment<E>) {
+    pub fn verify(&self, transcript: &mut Transcript<F>) -> (bool, Vec<F>, KZH2Commitment<E>) {
         // Step 1: Get r challenge from verifier
         transcript.append_point::<E>(
             b"poly",
@@ -438,7 +438,7 @@ where
         (true, rho, P_commitment)
     }
 
-    pub fn decide(&self, P_commitment: PCSCommitment<E>, vec_c: Vec<F>, sumcheck_challenges: Vec<F>) -> bool {
+    pub fn decide(&self, P_commitment: KZH2Commitment<E>, vec_c: Vec<F>, sumcheck_challenges: Vec<F>) -> bool {
         let rho = sumcheck_challenges;
         let b_1_at_rho = self.A.b_1_at_rho;
         let b_2_at_rho = self.A.b_2_at_rho;
@@ -470,7 +470,7 @@ pub mod test {
     use ark_std::UniformRand;
     use crate::accumulation::accumulator::Accumulator;
     use crate::constant_for_curves::{G1Affine, G2Affine, ScalarField, E};
-    use crate::pcs::kzh2::PCSEngine;
+    use crate::kzh::kzh2::KZH2;
     use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
     use crate::signature_aggregation::signature_aggregation::{AggregatorIVC, SignatureAggrData, SignatureAggrSRS};
     use crate::transcript::transcript::Transcript;
@@ -496,7 +496,7 @@ pub mod test {
 
         // Generate random running data for Alice
         let alice_bitfield = MultilinearPolynomial::random_binary(num_vars, rng);
-        let alice_bitfield_commitment = PCSEngine::commit(&srs.acc_srs.pc_srs, &alice_bitfield);
+        let alice_bitfield_commitment = KZH2::commit_1(&srs.acc_srs.pc_srs, &alice_bitfield);
         let alice_running_accumulator = Accumulator::rand(&srs.acc_srs, rng);
         let alice_running_sig = G2Affine::rand(rng);
         let alice_running_pk = G1Affine::rand(rng);

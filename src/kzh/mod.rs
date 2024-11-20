@@ -1,5 +1,6 @@
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use ark_ec::pairing::Pairing;
+use rand::Rng;
 
 pub mod kzh2;
 
@@ -13,18 +14,19 @@ pub trait KZH<E: Pairing> {
     type Commitment;
     type Opening;
 
-    fn split_input(input: &[E::ScalarField]) -> Vec<E::ScalarField>;
+    fn split_input(srs: &Self::SRS, input: &[E::ScalarField]) -> Vec<Vec<E::ScalarField>>;
 
-    fn setup(degree: &Self::Degree) -> Self::SRS;
+    fn setup<R: Rng>(degree: &Self::Degree, rng: &mut R) -> Self::SRS;
 
     fn commit(
-        degree: &Self::Degree,
+        srs: &Self::SRS,
         poly: &MultilinearPolynomial<E::ScalarField>,
     ) -> Self::Commitment;
 
     fn open(
         srs: &Self::SRS,
         input: &[E::ScalarField],
+        com: &Self::Commitment,
         poly: &MultilinearPolynomial<E::ScalarField>,
     ) -> Self::Opening;
 
@@ -32,6 +34,7 @@ pub trait KZH<E: Pairing> {
         srs: &Self::SRS,
         input: &[E::ScalarField],
         output: &E::ScalarField,
-        poly: &MultilinearPolynomial<E::ScalarField>,
+        com: &Self::Commitment,
+        open: &Self::Opening,
     );
 }
