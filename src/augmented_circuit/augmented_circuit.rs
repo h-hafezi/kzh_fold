@@ -188,7 +188,7 @@ mod tests {
     use crate::nexus_spartan::crr1cs::is_sat;
     use crate::nexus_spartan::crr1cs::produce_synthetic_crr1cs;
     use crate::nexus_spartan::crr1csproof::CRR1CSProof;
-    use crate::nexus_spartan::crr1csproof::{CRR1CSInstance, CRR1CSKey, CRR1CSShape, CRR1CSWitness};
+    use crate::nexus_spartan::crr1csproof::{CRR1CSInstance, CRR1CSShape, CRR1CSWitness};
     use crate::nexus_spartan::polycommitments::{PolyCommitmentScheme, ToAffine};
     use crate::nova::cycle_fold::coprocessor::setup_shape;
     use crate::pcs::kzh2::{split_between_x_and_y, PCSEngine};
@@ -238,7 +238,7 @@ mod tests {
             spartan_shape.get_num_inputs(),
         );
 
-        let pcs_srs = gens.gens_r1cs_sat.keys.ck.clone();
+        let pcs_srs = gens.gens_r1cs_sat.clone();
         let acc_srs = Accumulator::setup(pcs_srs.clone(), &mut thread_rng());
 
         let mut prover_transcript = Transcript::new(b"example");
@@ -407,13 +407,12 @@ mod tests {
 
         // convert to the corresponding Spartan types
         let shape = CRR1CSShape::<ScalarField>::convert::<G1>(cs.clone());
-        let key: CRR1CSKey<E, MultilinearPolynomial<ScalarField>> = CRR1CSKey::new(&SRS, shape.get_num_cons(), shape.get_num_vars());
         // Commitment to w(x) happens here
-        let instance: CRR1CSInstance<E, MultilinearPolynomial<ScalarField>> = CRR1CSInstance::convert(cs.clone(), &key.keys.ck);
+        let instance: CRR1CSInstance<E, MultilinearPolynomial<ScalarField>> = CRR1CSInstance::convert(cs.clone(), &SRS);
         let witness = CRR1CSWitness::<ScalarField>::convert(cs.clone());
 
         // check that the Spartan instance-witness pair is still satisfying
-        assert!(is_sat(&shape, &instance, &witness, &key).unwrap());
+        assert!(is_sat(&shape, &instance, &witness, &SRS).unwrap());
 
         let mut prover_transcript = Transcript::new(b"example");
 
@@ -421,7 +420,7 @@ mod tests {
             &shape,
             &instance,
             witness,
-            &key,
+            &SRS,
             &mut prover_transcript,
         );
 

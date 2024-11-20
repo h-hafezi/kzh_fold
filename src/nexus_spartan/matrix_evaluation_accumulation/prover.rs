@@ -152,7 +152,7 @@ pub fn to_sponge_vector<T: Clone>(eval_point_1: &(Vec<T>, Vec<T>),
 pub mod tests {
     use crate::constant_for_curves::{ScalarField, E, G1};
     use crate::nexus_spartan::conversion::tests::TrivialCircuit;
-    use crate::nexus_spartan::crr1cs::{is_sat, CRR1CSInstance, CRR1CSKey, CRR1CSShape, CRR1CSWitness};
+    use crate::nexus_spartan::crr1cs::{is_sat, CRR1CSInstance, CRR1CSShape, CRR1CSWitness};
     use crate::nexus_spartan::crr1csproof::CRR1CSProof;
     use crate::nexus_spartan::matrix_evaluation_accumulation::prover::fold_matrices_evaluations;
     use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
@@ -198,11 +198,10 @@ pub mod tests {
         // convert to the corresponding Spartan types
         let shape = CRR1CSShape::<F>::convert::<G1>(cs.clone());
         let SRS: KZH2SRS<E> = MultilinearPolynomial::setup(4, &mut thread_rng()).unwrap();
-        let key: CRR1CSKey<E, MultilinearPolynomial<F>> = CRR1CSKey::new(&SRS, shape.get_num_cons(), shape.get_num_vars());
-        let instance: CRR1CSInstance<E, MultilinearPolynomial<F>> = CRR1CSInstance::convert(cs.clone(), &key.keys.ck);
+        let instance: CRR1CSInstance<E, MultilinearPolynomial<F>> = CRR1CSInstance::convert(cs.clone(), &SRS);
         let witness = CRR1CSWitness::<F>::convert(cs.clone());
         // check that the Spartan instance-witness pair is still satisfying
-        assert!(is_sat(&shape, &instance, &witness, &key).unwrap());
+        assert!(is_sat(&shape, &instance, &witness, &SRS).unwrap());
 
         let mut prover_transcript = Transcript::new(b"example");
 
@@ -210,7 +209,7 @@ pub mod tests {
             &shape,
             &instance,
             witness,
-            &key,
+            &SRS,
             &mut prover_transcript,
         );
 

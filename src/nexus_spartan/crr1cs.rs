@@ -6,35 +6,10 @@ use ark_std::{cmp::max, test_rng, One};
 
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 
-use super::polycommitments::{PCSKeys, PolyCommitmentScheme, VectorCommitmentScheme};
+use super::polycommitments::{PolyCommitmentScheme, VectorCommitmentScheme};
 use super::{committed_relaxed_snark::CRSNARKKey, errors::R1CSError, InputsAssignment, Instance, VarsAssignment};
 use crate::math::Math;
 
-
-#[derive(CanonicalDeserialize, CanonicalSerialize)]
-pub struct CRR1CSKey<E: Pairing, PC: PolyCommitmentScheme<E>>
-where
-    <E as Pairing>::ScalarField: Absorb,
-{
-    pub keys: PCSKeys<E, PC>,
-}
-
-impl<E: Pairing, PC: PolyCommitmentScheme<E>> CRR1CSKey<E, PC>
-where
-    <E as Pairing>::ScalarField: Absorb,
-{
-    pub fn new(SRS: &PC::SRS, _num_cons: usize, _num_vars: usize) -> Self {
-        // Since we have commitments both to the witness and the error vectors
-        // we need the commitment key to hold the larger of the two (previously)
-        CRR1CSKey {
-            keys: PC::trim(SRS),
-        }
-    }
-    pub fn get_min_num_vars(num_cons: usize, num_vars: usize) -> usize {
-        let n = max(num_cons, num_vars);
-        n.log_2()
-    }
-}
 
 #[derive(CanonicalDeserialize, CanonicalSerialize)]
 pub struct CRR1CSShape<F: PrimeField + Absorb> {
@@ -141,7 +116,7 @@ pub fn relaxed_r1cs_is_sat<E: Pairing, PC: PolyCommitmentScheme<E>>(
 pub fn check_commitments<E: Pairing, PC: PolyCommitmentScheme<E>>(
     instance: &CRR1CSInstance<E, PC>,
     witness: &CRR1CSWitness<E::ScalarField>,
-    key: &CRR1CSKey<E, PC>,
+    key: &PC::SRS,
 ) -> bool where
     <E as Pairing>::ScalarField: Absorb,
 {
@@ -152,7 +127,7 @@ pub fn check_commitments<E: Pairing, PC: PolyCommitmentScheme<E>>(
 
     let poly_W = MultilinearPolynomial::new(W);
 
-    let expected_comm_W = PC::commit(&poly_W, &key.keys.ck);
+    let expected_comm_W = PC::commit(&poly_W, &key);
 
     expected_comm_W == *comm_W
 }
@@ -161,7 +136,7 @@ pub fn is_sat<E: Pairing, PC: PolyCommitmentScheme<E>>(
     shape: &CRR1CSShape<E::ScalarField>,
     instance: &CRR1CSInstance<E, PC>,
     witness: &CRR1CSWitness<E::ScalarField>,
-    key: &CRR1CSKey<E, PC>,
+    key: &PC::SRS,
 ) -> Result<bool, R1CSError> where
     <E as Pairing>::ScalarField: Absorb,
 {
@@ -212,7 +187,7 @@ pub fn produce_synthetic_crr1cs<E: Pairing, PC: PolyCommitmentScheme<E>>(
     // compute commitments to the vectors `vars` and `E`.
     let comm_W = <PC as VectorCommitmentScheme<E>>::commit(
         vars.assignment.as_slice(),
-        &gens.gens_r1cs_sat.keys.ck,
+        &gens.gens_r1cs_sat,
     );
 
     (

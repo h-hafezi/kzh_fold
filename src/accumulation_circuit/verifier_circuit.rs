@@ -621,7 +621,7 @@ pub mod tests {
 
     use super::*;
     use crate::constant_for_curves::{ScalarField, C2, E, G1, G2};
-    use crate::nexus_spartan::crr1cs::{is_sat, CRR1CSInstance, CRR1CSKey, CRR1CSShape, CRR1CSWitness};
+    use crate::nexus_spartan::crr1cs::{is_sat, CRR1CSInstance, CRR1CSShape, CRR1CSWitness};
     use crate::nexus_spartan::crr1csproof::CRR1CSProof;
     use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
     use crate::pcs::kzh2::KZH2SRS;
@@ -682,14 +682,13 @@ pub mod tests {
 
         // convert to the corresponding Spartan types
         let shape = CRR1CSShape::<ScalarField>::convert::<G1>(cs.clone());
-        let key: CRR1CSKey<E, MultilinearPolynomial<ScalarField>> = CRR1CSKey::new(&SRS, shape.get_num_cons(), shape.get_num_vars());
         // Commitment to w(x) happens here
-        let instance: CRR1CSInstance<E, MultilinearPolynomial<ScalarField>> = CRR1CSInstance::convert(cs.clone(), &key.keys.ck);
+        let instance: CRR1CSInstance<E, MultilinearPolynomial<ScalarField>> = CRR1CSInstance::convert(cs.clone(), &SRS);
 
         let witness = CRR1CSWitness::<ScalarField>::convert(cs.clone());
 
         // check that the Spartan instance-witness pair is still satisfying
-        assert!(is_sat(&shape, &instance, &witness, &key).unwrap());
+        assert!(is_sat(&shape, &instance, &witness, &SRS).unwrap());
 
         //////////// Prover: ////////////////
 
@@ -699,7 +698,7 @@ pub mod tests {
             &shape,
             &instance,
             witness,
-            &key,
+            &SRS,
             &mut prover_transcript,
         );
 

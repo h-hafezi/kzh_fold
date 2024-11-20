@@ -1,10 +1,12 @@
 #![allow(dead_code)]
-use super::{crr1csproof::CRR1CSKey, polycommitments::PolyCommitmentScheme, r1csinstance::R1CSCommitmentGens};
+use super::{polycommitments::PolyCommitmentScheme, r1csinstance::R1CSCommitmentGens};
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 /// This is mostly a copy of the SNARK implementation in lib.rs, with minor modifications to work with committed relaxed R1CS.
 use core::cmp::max;
+use rand::thread_rng;
+use crate::math::Math;
 
 /// `SNARKGens` holds public parameters for producing and verifying proofs with the Spartan SNARK
 #[derive(CanonicalDeserialize, CanonicalSerialize)]
@@ -12,7 +14,7 @@ pub struct CRSNARKKey<E: Pairing, PC: PolyCommitmentScheme<E>>
 where
     <E as Pairing>::ScalarField: Absorb,
 {
-    pub gens_r1cs_sat: CRR1CSKey<E, PC>,
+    pub gens_r1cs_sat: PC::SRS,
     pub gens_r1cs_eval: R1CSCommitmentGens<E, PC>,
 }
 
@@ -30,9 +32,14 @@ where
         num_nz_entries: usize,
     ) -> Self {
         let num_vars_padded = Self::get_num_vars_padded(num_vars, num_inputs);
-        let gens_r1cs_sat = CRR1CSKey::<E, PC>::new(SRS, num_cons, num_vars_padded);
-        let gens_r1cs_eval =
-            R1CSCommitmentGens::new(SRS, num_cons, num_vars_padded, num_inputs, num_nz_entries);
+        let gens_r1cs_sat = PC::setup(
+            {
+                let n = max(num_cons, num_vars);
+                n.log_2()
+            },
+            &mut thread_rng(),
+        ).unwrap();
+        let gens_r1cs_eval = R1CSCommitmentGens::new(SRS, num_cons, num_vars_padded, num_inputs, num_nz_entries);
         CRSNARKKey {
             gens_r1cs_sat,
             gens_r1cs_eval,
@@ -52,9 +59,8 @@ where
         num_inputs: usize,
     ) -> usize {
         let num_vars_padded = Self::get_num_vars_padded(num_vars, num_inputs);
-        let min_num_vars_sat = CRR1CSKey::<E, PC>::get_min_num_vars(num_cons, num_vars_padded);
-
-        min_num_vars_sat
+        let n = max(num_cons, num_vars_padded);
+        n.log_2()
     }
 }
 

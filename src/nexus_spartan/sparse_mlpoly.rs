@@ -3,7 +3,7 @@
 #![allow(clippy::needless_range_loop)]
 
 use crate::math::Math;
-use crate::nexus_spartan::polycommitments::{PCSKeys, PolyCommitmentScheme};
+use crate::nexus_spartan::polycommitments::{PolyCommitmentScheme};
 use crate::polynomial::eq_poly::eq_poly::EqPolynomial;
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript::{AppendToTranscript, Transcript};
@@ -64,9 +64,9 @@ where
     PC: PolyCommitmentScheme<E>,
     E::ScalarField: Absorb,
 {
-    gens_ops: PCSKeys<E, PC>,
-    gens_mem: PCSKeys<E, PC>,
-    gens_derefs: PCSKeys<E, PC>,
+    gens_ops: PC::SRS,
+    gens_mem: PC::SRS,
+    gens_derefs: PC::SRS,
 }
 
 impl<E: Pairing, PC: PolyCommitmentScheme<E>> SparseMatPolyCommitmentKey<E, PC>
@@ -83,9 +83,9 @@ where
         let (_num_vars_ops, _num_vars_mem, _num_vars_derefs) =
             Self::get_gens_sizes(num_vars_x, num_vars_y, num_nz_entries, batch_size);
 
-        let gens_ops = PC::trim(SRS);
-        let gens_mem = PC::trim(SRS);
-        let gens_derefs = PC::trim(SRS);
+        let gens_ops = SRS.clone();
+        let gens_mem = SRS.clone();
+        let gens_derefs = SRS.clone();
         SparseMatPolyCommitmentKey {
             gens_ops,
             gens_mem,

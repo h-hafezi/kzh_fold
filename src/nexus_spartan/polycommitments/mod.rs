@@ -4,7 +4,6 @@ use ark_poly_commit::Error;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::rand::RngCore;
 use core::fmt::Debug;
-use derivative::Derivative;
 
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript::AppendToTranscript;
@@ -31,27 +30,11 @@ where
     fn commit(vec: &[E::ScalarField], ck: &Self::CommitmentKey) -> Self::VectorCommitment;
 }
 
-#[derive(CanonicalSerialize, CanonicalDeserialize, Derivative, Debug)]
-#[derivative(Clone(bound = ""))]
-pub struct PCSKeys<E, PC>
-where
-    PC: PolyCommitmentScheme<E> + ?Sized,
-    E: Pairing,
-    <E as Pairing>::ScalarField: Absorb,
-{
-    pub ck: PC::PolyCommitmentKey,
-    pub vk: PC::EvalVerifierKey,
-}
-
 pub trait PolyCommitmentScheme<E: Pairing>: Send + Sync
 where
     <E as Pairing>::ScalarField: Absorb,
 {
     type SRS: CanonicalSerialize + CanonicalDeserialize + Clone;
-
-    type PolyCommitmentKey: CanonicalSerialize + CanonicalDeserialize + Clone;
-
-    type EvalVerifierKey: CanonicalSerialize + CanonicalDeserialize + Clone;
 
     type Commitment: AppendToTranscript<E::ScalarField>
     + Debug
@@ -70,20 +53,20 @@ where
     // commitment to the vector of evaluations has already been computed
     fn commit(
         poly: &MultilinearPolynomial<E::ScalarField>,
-        ck: &Self::PolyCommitmentKey,
+        srs: &Self::SRS,
     ) -> Self::Commitment;
 
     fn prove(
         C: Option<&Self::Commitment>,
         poly: &MultilinearPolynomial<E::ScalarField>,
         r: &[E::ScalarField],
-        ck: &Self::PolyCommitmentKey,
+        srs: &Self::SRS,
     ) -> Self::PolyCommitmentProof;
 
     fn verify(
         commitment: &Self::Commitment,
         proof: &Self::PolyCommitmentProof,
-        ck: &Self::EvalVerifierKey,
+        srs: &Self::SRS,
         r: &[E::ScalarField],
         eval: &E::ScalarField,
     ) -> Result<(), error::PCSError>;
@@ -94,8 +77,6 @@ where
         max_poly_vars: usize,
         rng: &mut impl RngCore,
     ) -> Result<Self::SRS, Error>;
-
-    fn trim(srs: &Self::SRS) -> PCSKeys<E, Self>;
 }
 
 impl<E: Pairing, PC: PolyCommitmentScheme<E>> VectorCommitmentScheme<E> for PC
@@ -103,9 +84,9 @@ where
     <E as Pairing>::ScalarField: Absorb,
 {
     type VectorCommitment = PC::Commitment;
-    type CommitmentKey = PC::PolyCommitmentKey;
-    fn commit(vec: &[<E>::ScalarField], ck: &Self::CommitmentKey) -> Self::VectorCommitment {
+    type CommitmentKey = PC::SRS;
+    fn commit(vec: &[<E>::ScalarField], srs: &Self::CommitmentKey) -> Self::VectorCommitment {
         let poly = MultilinearPolynomial::new(vec.to_vec());
-        PC::commit(&poly, ck)
+        PC::commit(&poly, srs)
     }
 }

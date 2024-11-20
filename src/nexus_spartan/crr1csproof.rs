@@ -240,7 +240,7 @@ impl<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>, F: PrimeField + Abs
         shape: &CRR1CSShape<F>,
         instance: &CRR1CSInstance<E, PC>,
         witness: CRR1CSWitness<F>,
-        key: &CRR1CSKey<E, PC>,
+        srs: &PC::SRS,
         transcript: &mut Transcript<F>,
     ) -> (CRR1CSProof<E, PC, F>, Vec<F>, Vec<F>) {
         let timer_prove = Timer::new("CRR1CSProof::prove");
@@ -360,7 +360,7 @@ impl<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>, F: PrimeField + Abs
                 Some(comm_W),
                 &poly_vars,
                 &ry[1..],
-                &key.keys.ck,
+                &srs,
             )
         };
 
@@ -473,7 +473,7 @@ impl<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>, F: PrimeField + Abs
 
     pub fn decide(&self,
                   comm_W: &PC::Commitment,
-                  key: &PC::EvalVerifierKey,
+                  key: &PC::SRS,
                   ry: Vec<F>) -> Result<(), ProofVerifyError> {
         // verify Z(ry) proof against the initial commitment `comm_W`
         PC::verify(
@@ -621,6 +621,6 @@ mod tests {
             )
             .is_ok());
 
-        assert!(proof.decide(&instance.comm_W, &gens.gens_r1cs_sat.keys.vk, ry).is_ok());
+        assert!(proof.decide(&instance.comm_W, &gens.gens_r1cs_sat, ry).is_ok());
     }
 }
