@@ -474,6 +474,7 @@ pub mod test {
     use crate::signature_aggregation::signature_aggregation::{AggregatorIVC, SignatureAggrData, SignatureAggrSRS};
     use crate::transcript::transcript::Transcript;
     use ark_std::UniformRand;
+    use crate::kzh::KZH;
 
     type F = ScalarField;
 
@@ -496,7 +497,7 @@ pub mod test {
 
         // Generate random running data for Alice
         let alice_bitfield = MultilinearPolynomial::random_binary(num_vars, rng);
-        let alice_bitfield_commitment = KZH2::commit_1(&srs.acc_srs.pc_srs, &alice_bitfield);
+        let alice_bitfield_commitment = KZH2::commit(&srs.acc_srs.pc_srs, &alice_bitfield);
         let alice_running_accumulator = Accumulator::rand(&srs.acc_srs, rng);
         let alice_running_sig = G2Affine::rand(rng);
         let alice_running_pk = G1Affine::rand(rng);

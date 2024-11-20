@@ -15,6 +15,8 @@ use ark_ec::{CurveConfig, CurveGroup};
 use ark_ff::Field;
 use ark_ff::PrimeField;
 use rand::thread_rng;
+use crate::kzh::KZH;
+use crate::math::Math;
 
 #[derive(Clone)]
 pub struct AccumulatorVerifierCircuitProver<G1, G2, C2, E, F>
@@ -367,7 +369,7 @@ where
 
     // get a random srs
     let srs = {
-        let srs_pcs: KZH2SRS<E> = KZH2::setup_1(n, m, &mut thread_rng());
+        let srs_pcs: KZH2SRS<E> = KZH2::setup((n * m as usize).log_2(), &mut thread_rng());
         Accumulator::setup(srs_pcs.clone(), &mut thread_rng())
     };
 

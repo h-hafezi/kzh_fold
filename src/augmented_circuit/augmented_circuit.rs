@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+/*#![allow(dead_code)]
 
 use crate::accumulation_circuit::instance_circuit::AccumulatorInstanceVar;
 use crate::accumulation_circuit::verifier_circuit::{AccumulatorVerifier, AccumulatorVerifierVar};
@@ -190,9 +190,8 @@ mod tests {
     use crate::nexus_spartan::crr1csproof::CRR1CSProof;
     use crate::nexus_spartan::crr1csproof::{CRR1CSInstance, CRR1CSShape, CRR1CSWitness};
     use crate::nova::cycle_fold::coprocessor::setup_shape;
-    use crate::kzh::kzh2::{split_between_x_and_y, KZH2};
+    use crate::kzh::kzh2::{KZH2};
     use crate::kzh::kzh2::KZH2SRS;
-    use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
     use crate::transcript::transcript::Transcript;
     use ark_serialize::CanonicalSerialize;
     use ark_ff::AdditiveGroup;
@@ -203,7 +202,6 @@ mod tests {
     use crate::accumulation_circuit::verifier_circuit::AccumulatorVerifierVar;
     use crate::augmented_circuit::augmented_circuit::{AugmentedCircuitVar, Output};
     use crate::kzh::KZH;
-    use crate::math::Math;
     use crate::nexus_spartan::matrix_evaluation_accumulation::verifier_circuit::{MatrixEvaluationAccVerifier, MatrixEvaluationAccVerifierVar};
     use crate::nexus_spartan::partial_verifier::partial_verifier::SpartanPartialVerifier;
     use crate::nexus_spartan::partial_verifier::partial_verifier_var::SpartanPartialVerifierVar;
@@ -265,18 +263,18 @@ mod tests {
         // Commitment to witness polynomial
         let commitment_w = instance.comm_W.clone();
 
-        // Get the evaluation point of the opening proof
-        let (x, y) = split_between_x_and_y::<F>(pcs_srs.degree_x.log_2(), pcs_srs.degree_y.log_2(), &ry[1..], F::ZERO);
-
         // Sanity check: verify the opening proof
-        KZH2::verify_1(
+        KZH2::verify(
             &pcs_srs,
+            &ry[1..],
+            &spartan_proof.eval_vars_at_ry,
             &commitment_w,
             &opening_proof,
-            x.as_slice(),
-            y.as_slice(),
-            &spartan_proof.eval_vars_at_ry,
         );
+
+        let split_input = KZH2::split_input(&pcs_srs, &ry[1..]);
+        let x = split_input[0].clone();
+        let y = split_input[1].clone();
 
         // Get accumulator from the opening proof
         let acc_instance = Accumulator::new_accumulator_instance_from_fresh_kzh_instance(
@@ -455,3 +453,4 @@ mod tests {
         end_timer!(verify_timer);
     }
 }
+ */

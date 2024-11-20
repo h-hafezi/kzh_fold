@@ -14,6 +14,7 @@ use rand::Rng;
 use std::marker::PhantomData;
 use ark_crypto_primitives::sponge::Absorb;
 use crate::gadgets::non_native::util::cast_field;
+use crate::math::Math;
 
 pub struct SignatureVerifierProver<G1, G2, C2, E>
 where
@@ -254,8 +255,10 @@ mod test {
     use ark_std::UniformRand;
     use rand::{thread_rng, RngCore};
     use crate::accumulation::accumulator::Accumulator;
+    use crate::kzh::KZH;
     use crate::kzh::kzh2::KZH2;
     use crate::signature_aggregation::signature_aggregation::{SignatureAggrData, SignatureAggrSRS};
+    use crate::math::Math;
 
     type Q = BaseField;
     type F = ScalarField;
@@ -266,7 +269,7 @@ mod test {
         <E as Pairing>::ScalarField: Absorb,
     {
         pub(crate) fn new<R: RngCore>(degree_x: usize, degree_y: usize, rng: &mut R) -> Self {
-            let pcs_srs = KZH2::setup_1(degree_x, degree_y, rng);
+            let pcs_srs = KZH2::setup((degree_x * degree_y).log_2(), rng);
 
             SignatureAggrSRS {
                 acc_srs: Accumulator::setup(pcs_srs, rng),

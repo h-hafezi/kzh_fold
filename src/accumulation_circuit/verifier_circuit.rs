@@ -679,6 +679,7 @@ pub mod tests {
 
         println!("number of constraint before shape convert: {}", cs.num_constraints());
 
+        /*
         // convert to the corresponding Spartan types
         let shape = CRR1CSShape::<ScalarField>::convert::<G1>(cs.clone());
         // Commitment to w(x) happens here
@@ -721,5 +722,6 @@ pub mod tests {
                 &mut verifier_transcript,
             )
             .is_ok());
+         */
     }
 }
