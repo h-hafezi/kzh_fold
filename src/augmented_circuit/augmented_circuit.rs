@@ -221,7 +221,8 @@ mod tests {
     fn test_augmented_circuit_helper() {
         let SRS: PolynomialCommitmentSRS<E> = MultilinearPolynomial::setup(POLY_SETUP, &mut thread_rng()).unwrap();
 
-        // ******************************* generate a satisfying instance for Spartan and get structure *******************************
+        //////////////////// Generate `proof_i`   ////////////////////
+
         let num_vars = 131072;
         let num_cons = num_vars;
         let num_inputs = 10;
@@ -253,26 +254,8 @@ mod tests {
         // Get A(r_x, r_y), B(r_x, r_y), C(r_x, r_y)
         let current_A_B_C_evaluations = spartan_shape.inst.inst.evaluate(&rx, &ry);
 
-        // ******************************* construct Spartan partial verifier circuit *******************************
-
-        let mut prover_transcript = Transcript::new(b"example");
-        let mut verifier_transcript = prover_transcript.clone();
-        let verifier_transcript_clone = verifier_transcript.clone();
-        let partial_verifier = SpartanPartialVerifier::initialise(
-            &spartan_proof,
-            num_vars,
-            num_cons,
-            (instance.input.assignment, {
-                let com_w: <E as Pairing>::G1Affine = instance.comm_W.clone().to_affine();
-                com_w
-            }),
-            &current_A_B_C_evaluations,
-            &mut prover_transcript,
-        );
-
-        partial_verifier.verify(&mut verifier_transcript);
-
-        // ******************************* Extract current accumulator from the Spartan proof *******************************
+        //////////////////// Extract current accumulator from the Spartan proof ////////////////////
+        // Hossein: This should be a function in the accumulator module
 
         // Get the KZH opening proof from the Spartan proof
         let opening_proof = spartan_proof.proof_eval_vars_at_ry.clone();
@@ -319,13 +302,43 @@ mod tests {
             )
         );
 
-        // ******************************* Get the running accumulator for the IVC scheme *******************************
+        //////////////////// Compute a random `running_accumulator_{i} ////////////////////
 
         let running_acc = Accumulator::rand(&acc_srs, &mut thread_rng());
 
-        // ******************************* Construct the KZH AccVerifier circuit *******************************
+        //////////////////// Construct A,B,C matrix evaluation accumulation verifier circuit ////////////////////
 
-        // Here we will accumulate the current accumulator `current_acc` with the running accumulator `running_acc`
+        let matrix_eval_acc_verifier = MatrixEvaluationAccVerifier::random_from_eval_point(
+            &spartan_shape,
+            rx,
+            ry,
+            &mut thread_rng(),
+        );
+
+        //////////////////// Construct Spartan partial verifier circuit ////////////////////
+
+        let mut prover_transcript = Transcript::new(b"example");
+        let mut verifier_transcript = prover_transcript.clone();
+        let verifier_transcript_clone = verifier_transcript.clone();
+        let partial_verifier = SpartanPartialVerifier::initialise(
+            &spartan_proof,
+            num_vars,
+            num_cons,
+            (instance.input.assignment, {
+                let com_w: <E as Pairing>::G1Affine = instance.comm_W.clone().to_affine();
+                com_w
+            }),
+            &current_A_B_C_evaluations,
+            &mut prover_transcript,
+        );
+
+        partial_verifier.verify(&mut verifier_transcript);
+
+        //////////////////// Construct the KZH AccVerifier circuit ////////////////////
+
+        // Here we accumulate `current_acc` with `running_acc`
+
+        // Hossein: Do all this cyclefold stuff in AccumulatorVerifierCircuitProver::new().
 
         // the shape of the R1CS instance
         let cycle_fold_shape = setup_shape::<G1, G2>().unwrap();
@@ -337,7 +350,7 @@ mod tests {
         let commitment_pp = AccumulatorVerifierCircuitProver::<G1, G2, C2, E, F>::get_commitment_pp(&cycle_fold_shape);
 
 
-        let prover: AccumulatorVerifierCircuitProver<G1, G2, C2, E, F> = AccumulatorVerifierCircuitProver::new(
+        let kzh_acc_verifier_prover: AccumulatorVerifierCircuitProver<G1, G2, C2, E, F> = AccumulatorVerifierCircuitProver::new(
             &acc_srs,
             commitment_pp,
             running_acc,
@@ -348,31 +361,23 @@ mod tests {
         );
 
         // assert it's formated correctly
-        prover.is_satisfied();
+        kzh_acc_verifier_prover.is_satisfied();
 
-        // ******************************* Construct A,B,C matrix evaluation accumulation AccVerifier circuit *******************************
-
-        let matrix_eval_acc_verifier = MatrixEvaluationAccVerifier::random_from_eval_point(
-            &spartan_shape,
-            rx,
-            ry,
-            &mut thread_rng(),
-        );
-
-
-        // ******************************* Construct the augmented circuit *******************************
+        //////////////////// Construct the augmented circuit: piece everything together! ////////////////////
+        // Hossein: There should be a function for all this
 
         let cs = ConstraintSystem::<F>::new_ref();
 
         println!("number of constraints after padding and before add augmented circuit: {}", cs.num_constraints());
 
+        // Hossein: Why is this allocated as input and the ABC one as witness?
         let partial_verifier_var = SpartanPartialVerifierVar::new_variable(
             cs.clone(),
             || Ok(partial_verifier.clone()),
             AllocationMode::Input,
         ).unwrap();
 
-        let acc_verifier_var = AccumulatorVerifierVar::<G1, G2, C2>::new::<E>(cs.clone(), prover);
+        let acc_verifier_var = AccumulatorVerifierVar::<G1, G2, C2>::new::<E>(cs.clone(), kzh_acc_verifier_prover);
 
         let matrix_evaluation_verifier_var = MatrixEvaluationAccVerifierVar::new_variable(
             cs.clone(),
@@ -393,11 +398,11 @@ mod tests {
         assert!(cs.is_satisfied().unwrap());
         println!("augmented circuit constraints: {}", cs.num_constraints());
 
-        // these are required to called CRR1CSShape::convert
+        // Set the mode to Prove before we convert it for spartan
         cs.set_mode(SynthesisMode::Prove { construct_matrices: true });
         cs.finalize();
 
-        ////////// Prover /////////////////
+        ////////// Now run the spartan prover on the augmented circuit /////////////////
 
         // convert to the corresponding Spartan types
         let shape = CRR1CSShape::<ScalarField>::convert::<G1>(cs.clone());
@@ -422,7 +427,7 @@ mod tests {
         println!("proof size: {}", proof.compressed_size());
         println!("acc size: {}", current_acc.compressed_size());
 
-        ////////// Verifier /////////////////
+        //////////////////// Verifier ////////////////////
 
         let A_B_C_eval_timer = start_timer!(|| "ABC evals");
         // evaluate matrices A B C
