@@ -310,7 +310,8 @@ where
 
 #[cfg(test)]
 mod test {
-    use crate::constant_for_curves::{ScalarField, C1, C2, G1, G2};
+    use ark_ec::CurveGroup;
+    use crate::constant_for_curves::{ScalarField, C1, C2, E, G1, G2};
     use crate::hash::poseidon::PoseidonHashVar;
     use crate::nova::nova::verifier_circuit::NovaVerifierCircuit;
     use crate::nova::nova::verifier_circuit_var::NovaVerifierCircuitVar;
@@ -322,7 +323,8 @@ mod test {
     use rand::thread_rng;
     use crate::gadgets::r1cs::r1cs::commit_T;
     use crate::nova::nova::prover::NovaProver;
-    use crate::commitment::CommitmentScheme;
+    use crate::commitment::{CommitmentScheme};
+    use crate::transcript::transcript::Transcript;
 
     type F = ScalarField;
 
@@ -412,11 +414,13 @@ mod test {
         // ********************************** Benchmarking The Prover **********************************
         // prover cost: commit to current witness + compute and commit to cross term error
         let prover_timer = start_timer!(|| "prover");
+
         let commit_w_timer = start_timer!(|| "commit witness");
         let _ = C1::commit(&prover.commitment_pp, prover.current_accumulator.1.W.as_slice());
         end_timer!(commit_w_timer);
+
         let commit_t_timer = start_timer!(|| "commit crossterm");
-        let (_, _) = commit_T(
+        let (_, com_t) = commit_T(
             &prover.shape,
             &prover.commitment_pp,
             &prover.running_accumulator.0,
@@ -425,6 +429,15 @@ mod test {
             &prover.current_accumulator.1
         ).unwrap();
         end_timer!(commit_t_timer);
+
+        let mut transcript = Transcript::new(b"label");
+        let randomness_timer = start_timer!(|| "randomness");
+        transcript.append_point::<E>(b"com_t", &CurveGroup::into_affine(com_t));
+        transcript.append_scalars(b"com_t", prover.running_accumulator.0.to_sponge_field_elements().as_slice());
+        transcript.append_scalars(b"com_t", prover.current_accumulator.0.to_sponge_field_elements().as_slice());
+        let _ = transcript.challenge_scalar(b"challenge");
+        end_timer!(randomness_timer);
+
         end_timer!(prover_timer);
 
         println!("accumulator size: {}", prover.current_accumulator.compressed_size());
