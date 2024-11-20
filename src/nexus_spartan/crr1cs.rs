@@ -2,13 +2,12 @@ use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
 use ark_ff::{Field, PrimeField};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use ark_std::{cmp::max, test_rng, One};
+use ark_std::{test_rng, One};
 use crate::kzh::KZH;
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 
 use super::commitment_traits::{VectorCommitmentScheme};
 use super::{committed_relaxed_snark::CRSNARKKey, errors::R1CSError, InputsAssignment, Instance, VarsAssignment};
-use crate::math::Math;
 
 
 #[derive(CanonicalDeserialize, CanonicalSerialize)]

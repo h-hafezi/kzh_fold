@@ -14,7 +14,6 @@ use rand::Rng;
 use std::marker::PhantomData;
 use ark_crypto_primitives::sponge::Absorb;
 use crate::gadgets::non_native::util::cast_field;
-use crate::math::Math;
 
 pub struct SignatureVerifierProver<G1, G2, C2, E>
 where

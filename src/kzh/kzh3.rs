@@ -187,7 +187,7 @@ where
         }
     }
 
-    fn open(srs: &Self::SRS, input: &[E::ScalarField], com: &Self::Commitment, poly: &MultilinearPolynomial<E::ScalarField>) -> Self::Opening {
+    fn open(srs: &Self::SRS, input: &[E::ScalarField], _com: &Self::Commitment, poly: &MultilinearPolynomial<E::ScalarField>) -> Self::Opening {
         let len = srs.degree_x.log_2() + srs.degree_y.log_2() + srs.degree_z.log_2();
         let poly = poly.extend_number_of_variables(len);
         assert_eq!(poly.num_variables, len);
@@ -377,25 +377,9 @@ mod tests {
         let (degree_x, degree_y, degree_z) = (4usize, 8usize, 16usize);
         let num_vars = degree_x.log_2() + degree_y.log_2() + degree_z.log_2();
 
-        let x: Vec<ScalarField> = {
+        let input: Vec<ScalarField> = {
             let mut res = Vec::new();
-            for _ in 0..degree_x.log_2() {
-                res.push(ScalarField::rand(&mut thread_rng()));
-            }
-            res
-        };
-
-        let y: Vec<ScalarField> = {
-            let mut res = Vec::new();
-            for _ in 0..degree_y.log_2() {
-                res.push(ScalarField::rand(&mut thread_rng()));
-            }
-            res
-        };
-
-        let z: Vec<ScalarField> = {
-            let mut res = Vec::new();
-            for _ in 0..degree_z.log_2() {
+            for _ in 0..num_vars {
                 res.push(ScalarField::rand(&mut thread_rng()));
             }
             res
@@ -406,14 +390,6 @@ mod tests {
 
         // build a random polynomials
         let polynomial: MultilinearPolynomial<ScalarField> = MultilinearPolynomial::rand(num_vars, &mut thread_rng());
-
-        let input: Vec<ScalarField> = {
-            let mut res = Vec::new();
-            res.extend_from_slice(&x);
-            res.extend_from_slice(&y);
-            res.extend_from_slice(&z);
-            res
-        };
 
         // evaluate polynomial
         let eval = polynomial.evaluate(input.as_slice());
@@ -434,25 +410,9 @@ mod tests {
         for (degree_x, degree_y, degree_z) in degrees {
             let num_vars = degree_x.log_2() + degree_y.log_2() + degree_z.log_2();
 
-            let x: Vec<ScalarField> = {
+            let input: Vec<ScalarField> = {
                 let mut res = Vec::new();
-                for _ in 0..degree_x.log_2() {
-                    res.push(ScalarField::rand(&mut thread_rng()));
-                }
-                res
-            };
-
-            let y: Vec<ScalarField> = {
-                let mut res = Vec::new();
-                for _ in 0..degree_y.log_2() {
-                    res.push(ScalarField::rand(&mut thread_rng()));
-                }
-                res
-            };
-
-            let z: Vec<ScalarField> = {
-                let mut res = Vec::new();
-                for _ in 0..degree_z.log_2() {
+                for _ in 0..num_vars {
                     res.push(ScalarField::rand(&mut thread_rng()));
                 }
                 res
@@ -463,17 +423,6 @@ mod tests {
 
             // build a random polynomials
             let polynomial: MultilinearPolynomial<ScalarField> = MultilinearPolynomial::rand(num_vars, &mut thread_rng());
-
-            let input: Vec<ScalarField> = {
-                let mut res = Vec::new();
-                res.extend_from_slice(&x);
-                res.extend_from_slice(&y);
-                res.extend_from_slice(&z);
-                res
-            };
-
-            // evaluate polynomial
-            let eval = polynomial.evaluate(input.as_slice());
 
             // commit to the polynomial
             let c = KZH3::commit(&srs, &polynomial);

@@ -1,9 +1,6 @@
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
-use ark_poly_commit::Error;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use ark_std::rand::RngCore;
-use core::fmt::Debug;
 use crate::kzh::KZH;
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript::AppendToTranscript;

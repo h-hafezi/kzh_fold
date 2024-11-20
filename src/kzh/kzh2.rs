@@ -14,7 +14,7 @@ use ark_serialize::Valid;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::UniformRand;
 use derivative::Derivative;
-use rand::{Rng, RngCore};
+use rand::{Rng};
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
 use std::ops::{Add, Mul};
@@ -361,7 +361,6 @@ impl<E: Pairing> Add for KZH2Commitment<E> {
 
 #[cfg(test)]
 pub mod test {
-    use ark_ec::pairing::Pairing;
     use ark_serialize::CanonicalSerialize;
     use ark_std::UniformRand;
     use rand::thread_rng;
@@ -425,8 +424,6 @@ pub mod test {
     /// and the proof verifies using P = F + r * G
     #[test]
     fn test_homomorphism() {
-        let degree_x = 16usize;
-        let degree_y = 16usize;
         let num_vars = 8; // degree_x.log_2() + degree_y.log_2()
 
         let srs: KZH2SRS<E> = KZH2::setup(8, &mut thread_rng());

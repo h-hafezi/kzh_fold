@@ -156,7 +156,6 @@ pub mod tests {
     use crate::nexus_spartan::crr1csproof::CRR1CSProof;
     use crate::nexus_spartan::matrix_evaluation_accumulation::prover::fold_matrices_evaluations;
     use crate::kzh::kzh2::{KZH2, KZH2SRS};
-    use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
     use crate::transcript::transcript::Transcript;
     use ark_crypto_primitives::sponge::Absorb;
     use ark_ec::pairing::Pairing;

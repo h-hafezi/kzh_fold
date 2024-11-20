@@ -1,57 +1,67 @@
+use crate::kzh::KZH;
+use crate::math::Math;
+use crate::nexus_spartan::commitment_traits::ToAffine;
+use crate::polynomial::eq_poly::eq_poly::EqPolynomial;
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
+use crate::transcript::transcript::{AppendToTranscript, Transcript};
+use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
-use ark_ec::VariableBaseMSM;
+use ark_ec::{AffineRepr, VariableBaseMSM};
+use ark_ff::{AdditiveGroup, PrimeField};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::UniformRand;
 use derivative::Derivative;
 use rand::Rng;
+use std::marker::PhantomData;
 use std::ops::Mul;
-use crate::math::Math;
-use crate::polynomial::eq_poly::eq_poly::EqPolynomial;
 
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize, Derivative)]
-pub struct KZH4SRS<E: Pairing> {
-    /// degree_x = 2 ^ length of x variable
-    pub degree_x: usize,
-    /// degree_y = 2 ^ length of y variable
-    pub degree_y: usize,
-    /// degree_z = 2 ^ length of z variable
-    pub degree_z: usize,
-    /// degree_t = 2 ^ length of t variable
-    pub degree_t: usize,
-
-    pub H_xyzt: Vec<E::G1Affine>,
-    pub H_yzt: Vec<E::G1Affine>,
-    pub H_zt: Vec<E::G1Affine>,
-    pub H_t: Vec<E::G1Affine>,
-
-    pub V_x: Vec<E::G2Affine>,
-    pub V_y: Vec<E::G2Affine>,
-    pub V_z: Vec<E::G2Affine>,
-    pub V_t: Vec<E::G2Affine>,
-
-    pub v: E::G2Affine,
+pub struct KZH4<E: Pairing> {
+    phantom: PhantomData<E>,
 }
 
-#[derive(CanonicalSerialize, CanonicalDeserialize)]
-pub struct KZH4Opening<E: Pairing> {
-    D_x: Vec<E::G1>,
-    D_y: Vec<E::G1>,
-    D_z: Vec<E::G1>,
-    f_star: MultilinearPolynomial<E::ScalarField>,
-}
+impl<E: Pairing> KZH<E> for KZH4<E>
+where
+    <E as Pairing>::ScalarField: Absorb,
+    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
+{
+    type Degree = (usize, usize, usize, usize);
+    type SRS = KZH4SRS<E>;
+    type Commitment = KZH4Commitment<E>;
+    type Opening = KZH4Opening<E>;
 
-pub struct KZH4Commitment<E: Pairing> {
-    c: E::G1Affine,
-}
+    fn split_input(srs: &Self::SRS, input: &[E::ScalarField]) -> Vec<Vec<E::ScalarField>> {
+        let total_length = srs.degree_x.log_2() + srs.degree_y.log_2() + srs.degree_z.log_2() + srs.degree_t.log_2();
 
-impl<E: Pairing> KZH4SRS<E> {
-    pub fn setup<R: Rng>(degree_x: usize,
-                         degree_y: usize,
-                         degree_z: usize,
-                         degree_t: usize,
-                         rng: &mut R,
-    ) -> KZH4SRS<E> {
+        // If r is smaller than the required length, extend it with zeros at the beginning
+        let mut extended_r = input.to_vec();
+        if input.len() < total_length {
+            let mut zeros = vec![E::ScalarField::ZERO; total_length - input.len()];
+            zeros.extend(extended_r);  // Prepend zeros to the beginning
+            extended_r = zeros;
+        }
+
+        // Split the vector into two parts
+        let r_x = extended_r[..srs.degree_x.log_2()].to_vec();
+        let r_y = extended_r[srs.degree_x.log_2()..srs.degree_x.log_2() + srs.degree_y.log_2()].to_vec();
+        let r_z = extended_r[srs.degree_x.log_2() + srs.degree_y.log_2()..srs.degree_x.log_2() + srs.degree_y.log_2() + srs.degree_z.log_2()].to_vec();
+        let r_t = extended_r[srs.degree_x.log_2() + srs.degree_y.log_2() + srs.degree_z.log_2()..].to_vec();
+
+        vec![r_x, r_y, r_z, r_t]
+    }
+
+    fn get_degree_from_maximum_supported_degree(n: usize) -> Self::Degree {
+        (n / 4 + 1, n / 4 + 1, n / 4 + 1, n / 4 + 1)
+    }
+
+    fn setup<R: Rng>(maximum_degree: usize, rng: &mut R) -> Self::SRS {
+        let (degree_x, degree_y, degree_z, degree_t) = Self::get_degree_from_maximum_supported_degree(maximum_degree);
+
+        let degree_x = 1 << degree_x;
+        let degree_y = 1 << degree_y;
+        let degree_z = 1 << degree_z;
+        let degree_t = 1 << degree_t;
+
         let g = E::G1Affine::rand(rng);
         let v = E::G2Affine::rand(rng);
 
@@ -189,153 +199,216 @@ impl<E: Pairing> KZH4SRS<E> {
             v,
         }
     }
-}
 
-pub fn commit<E: Pairing>(srs: &KZH4SRS<E>, polynomial: &MultilinearPolynomial<E::ScalarField>) -> KZH4Commitment<E> {
-    assert_eq!(srs.degree_x * srs.degree_y * srs.degree_z * srs.degree_t, polynomial.len);
+    fn commit(srs: &Self::SRS, poly: &MultilinearPolynomial<E::ScalarField>) -> Self::Commitment {
+        let len = srs.degree_x.log_2() + srs.degree_y.log_2() + srs.degree_z.log_2()+srs.degree_t.log_2();
+        let poly = poly.extend_number_of_variables(len);
+        assert_eq!(poly.num_variables, len);
+        assert_eq!(poly.len, 1 << poly.num_variables);
+        assert_eq!(poly.evaluation_over_boolean_hypercube.len(), poly.len);
 
-    KZH4Commitment {
-        c: E::G1::msm(&srs.H_xyzt, &polynomial.evaluation_over_boolean_hypercube).unwrap().into(),
+        assert_eq!(srs.degree_x * srs.degree_y * srs.degree_z * srs.degree_t, poly.len);
+
+        KZH4Commitment {
+            C: E::G1::msm(&srs.H_xyzt, &poly.evaluation_over_boolean_hypercube).unwrap().into(),
+        }
+    }
+
+    fn open(srs: &Self::SRS, input: &[E::ScalarField], _com: &Self::Commitment, poly: &MultilinearPolynomial<E::ScalarField>) -> Self::Opening {
+        let len = srs.degree_x.log_2() + srs.degree_y.log_2() + srs.degree_z.log_2()+srs.degree_t.log_2();
+        let poly = poly.extend_number_of_variables(len);
+        assert_eq!(poly.num_variables, len);
+        assert_eq!(poly.len, 1 << poly.num_variables);
+        assert_eq!(poly.evaluation_over_boolean_hypercube.len(), poly.len);
+
+        let split_input = Self::split_input(&srs, input);
+
+        let D_x = (0..srs.degree_x)
+            .into_iter()
+            .map(|i| {
+                E::G1::msm_unchecked(
+                    srs.H_yzt.as_slice(),
+                    poly.get_partial_evaluation_for_boolean_input(i, srs.degree_y * srs.degree_z * srs.degree_t).as_slice(),
+                )
+            })
+            .collect::<Vec<_>>();
+
+        let D_y = (0..srs.degree_y)
+            .into_iter()
+            .map(|i| {
+                E::G1::msm_unchecked(
+                    srs.H_zt.as_slice(),
+                    poly.partial_evaluation(split_input[0].as_slice()).get_partial_evaluation_for_boolean_input(i, srs.degree_z * srs.degree_t).as_slice(),
+                )
+            })
+            .collect::<Vec<_>>();
+
+        let D_z = (0..srs.degree_z)
+            .into_iter()
+            .map(|i| {
+                E::G1::msm_unchecked(
+                    srs.H_t.as_slice(),
+                    poly.partial_evaluation(
+                        {
+                            let mut res = Vec::new();
+                            res.extend_from_slice(split_input[0].as_slice());
+                            res.extend_from_slice(split_input[1].as_slice());
+                            res
+                        }.as_slice()
+                    ).get_partial_evaluation_for_boolean_input(i, srs.degree_t).as_slice(),
+                )
+            })
+            .collect::<Vec<_>>();
+
+
+        assert_eq!(split_input[0].len(), srs.degree_x.log_2(), "wrong length");
+        assert_eq!(split_input[1].len(), srs.degree_y.log_2(), "wrong length");
+        assert_eq!(split_input[2].len(), srs.degree_z.log_2(), "wrong length");
+
+        // compute the partial evaluation of the polynomial
+        let f_star = poly.partial_evaluation({
+            let mut res = Vec::new();
+            res.extend_from_slice(split_input[0].as_slice());
+            res.extend_from_slice(split_input[1].as_slice());
+            res.extend_from_slice(split_input[2].as_slice());
+            res
+        }.as_slice());
+
+        KZH4Opening {
+            D_x,
+            D_y,
+            D_z,
+            f_star,
+        }
+    }
+
+    fn verify(srs: &Self::SRS, input: &[E::ScalarField], output: &E::ScalarField, com: &Self::Commitment, open: &Self::Opening) {
+        let split_input = Self::split_input(&srs, input);
+
+        // making sure D_x is well-formatted
+        let lhs = E::multi_pairing(&open.D_x, &srs.V_x).0;
+        let rhs = E::pairing(com.C, &srs.v).0;
+
+        assert_eq!(lhs, rhs);
+
+        // making sure D_y is well formatted
+        let new_c = E::G1::msm(
+            {
+                let mut res = Vec::new();
+                for e in &open.D_x {
+                    res.push(e.clone().into());
+                }
+                res
+            }.as_slice(),
+            EqPolynomial::new(split_input[0].clone()).evals().as_slice(),
+        ).unwrap();
+
+        let lhs = E::multi_pairing(&open.D_y, &srs.V_y).0;
+        let rhs = E::pairing(new_c, &srs.v).0;
+
+        assert_eq!(lhs, rhs);
+
+        // making sure D_z is well formatted
+        let new_c = E::G1::msm(
+            {
+                let mut res = Vec::new();
+                for e in &open.D_y {
+                    res.push(e.clone().into());
+                }
+                res
+            }.as_slice(),
+            EqPolynomial::new(split_input[1].clone()).evals().as_slice(),
+        ).unwrap();
+
+        let lhs = E::multi_pairing(&open.D_z, &srs.V_z).0;
+        let rhs = E::pairing(new_c, &srs.v).0;
+
+        assert_eq!(lhs, rhs);
+
+        // making sure f^star is well formatter
+        let lhs = E::G1::msm(
+            srs.H_t.as_slice(),
+            open.f_star.evaluation_over_boolean_hypercube.as_slice(),
+        ).unwrap();
+        let rhs = E::G1::msm(
+            {
+                let mut res = Vec::new();
+                for e in &open.D_z {
+                    res.push(e.clone().into());
+                }
+                res
+            }.as_slice(),
+            EqPolynomial::new(split_input[2].clone()).evals().as_slice(),
+        ).unwrap();
+
+        assert_eq!(lhs, rhs);
+
+        // making sure the output of f_star and the given output are consistent
+        assert_eq!(open.f_star.evaluate(split_input[3].as_slice()), *output);
     }
 }
 
-pub fn open<E: Pairing>(srs: &KZH4SRS<E>,
-                        polynomial: &MultilinearPolynomial<E::ScalarField>,
-                        x: &[E::ScalarField],
-                        y: &[E::ScalarField],
-                        z: &[E::ScalarField],
-) -> KZH4Opening<E> {
-    let D_x = (0..srs.degree_x)
-        .into_iter()
-        .map(|i| {
-            E::G1::msm_unchecked(
-                srs.H_yzt.as_slice(),
-                polynomial.get_partial_evaluation_for_boolean_input(i, srs.degree_y * srs.degree_z * srs.degree_t).as_slice(),
-            )
-        })
-        .collect::<Vec<_>>();
+#[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize, Derivative)]
+pub struct KZH4SRS<E: Pairing> {
+    /// degree_x = 2 ^ length of x variable
+    pub degree_x: usize,
+    /// degree_y = 2 ^ length of y variable
+    pub degree_y: usize,
+    /// degree_z = 2 ^ length of z variable
+    pub degree_z: usize,
+    /// degree_t = 2 ^ length of t variable
+    pub degree_t: usize,
 
-    let D_y = (0..srs.degree_y)
-        .into_iter()
-        .map(|i| {
-            E::G1::msm_unchecked(
-                srs.H_zt.as_slice(),
-                polynomial.partial_evaluation(x).get_partial_evaluation_for_boolean_input(i, srs.degree_z * srs.degree_t).as_slice(),
-            )
-        })
-        .collect::<Vec<_>>();
+    pub H_xyzt: Vec<E::G1Affine>,
+    pub H_yzt: Vec<E::G1Affine>,
+    pub H_zt: Vec<E::G1Affine>,
+    pub H_t: Vec<E::G1Affine>,
 
-    let D_z = (0..srs.degree_z)
-        .into_iter()
-        .map(|i| {
-            E::G1::msm_unchecked(
-                srs.H_t.as_slice(),
-                polynomial.partial_evaluation(
-                    {
-                        let mut res = Vec::new();
-                        res.extend_from_slice(x);
-                        res.extend_from_slice(y);
-                        res
-                    }.as_slice()
-                ).get_partial_evaluation_for_boolean_input(i, srs.degree_t).as_slice(),
-            )
-        })
-        .collect::<Vec<_>>();
+    pub V_x: Vec<E::G2Affine>,
+    pub V_y: Vec<E::G2Affine>,
+    pub V_z: Vec<E::G2Affine>,
+    pub V_t: Vec<E::G2Affine>,
 
+    pub v: E::G2Affine,
+}
 
-    assert_eq!(x.len(), srs.degree_x.log_2(), "wrong length");
-    assert_eq!(y.len(), srs.degree_y.log_2(), "wrong length");
-    assert_eq!(z.len(), srs.degree_z.log_2(), "wrong length");
+#[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize, Derivative)]
+pub struct KZH4Opening<E: Pairing> {
+    D_x: Vec<E::G1>,
+    D_y: Vec<E::G1>,
+    D_z: Vec<E::G1>,
+    f_star: MultilinearPolynomial<E::ScalarField>,
+}
 
-    // compute the partial evaluation of the polynomial
-    let f_star = polynomial.partial_evaluation({
-        let mut res = Vec::new();
-        res.extend_from_slice(&x);
-        res.extend_from_slice(&y);
-        res.extend_from_slice(&z);
-        res
-    }.as_slice());
+#[derive(
+    Default,
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    CanonicalSerialize,
+    CanonicalDeserialize,
+    Derivative
+)]
+pub struct KZH4Commitment<E: Pairing> {
+    C: E::G1Affine,
+}
 
-    KZH4Opening {
-        D_x,
-        D_y,
-        D_z,
-        f_star,
+impl<E: Pairing, F: PrimeField + Absorb> AppendToTranscript<F> for KZH4Commitment<E>
+where
+    E: Pairing<ScalarField=F>,
+    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
+{
+    fn append_to_transcript(&self, label: &'static [u8], transcript: &mut Transcript<F>) {
+        Transcript::append_point::<E>(transcript, label, &self.C);
     }
 }
 
-
-pub fn verify<E: Pairing>(srs: &KZH4SRS<E>,
-                          c: &KZH4Commitment<E>,
-                          x: &[E::ScalarField],
-                          y: &[E::ScalarField],
-                          z: &[E::ScalarField],
-                          t: &[E::ScalarField],
-                          open: &KZH4Opening<E>,
-                          output: E::ScalarField,
-) {
-    // making sure D_x is well-formatted
-    let lhs = E::multi_pairing(&open.D_x, &srs.V_x).0;
-    let rhs = E::pairing(c.c, &srs.v).0;
-
-    assert_eq!(lhs, rhs);
-
-    // making sure D_y is well formatted
-    let new_c = E::G1::msm(
-        {
-            let mut res = Vec::new();
-            for e in &open.D_x {
-                res.push(e.clone().into());
-            }
-            res
-        }.as_slice(),
-        EqPolynomial::new(x.to_vec()).evals().as_slice(),
-    ).unwrap();
-
-    let lhs = E::multi_pairing(&open.D_y, &srs.V_y).0;
-    let rhs = E::pairing(new_c, &srs.v).0;
-
-    assert_eq!(lhs, rhs);
-
-    // making sure D_z is well formatted
-    let new_c = E::G1::msm(
-        {
-            let mut res = Vec::new();
-            for e in &open.D_y {
-                res.push(e.clone().into());
-            }
-            res
-        }.as_slice(),
-        EqPolynomial::new(y.to_vec()).evals().as_slice(),
-    ).unwrap();
-
-    let lhs = E::multi_pairing(&open.D_z, &srs.V_z).0;
-    let rhs = E::pairing(new_c, &srs.v).0;
-
-    assert_eq!(lhs, rhs);
-
-    // making sure f^star is well formatter
-    let lhs = E::G1::msm(
-        srs.H_t.as_slice(),
-        open.f_star.evaluation_over_boolean_hypercube.as_slice(),
-    ).unwrap();
-    let rhs = E::G1::msm(
-        {
-            let mut res = Vec::new();
-            for e in &open.D_z {
-                res.push(e.clone().into());
-            }
-            res
-        }.as_slice(),
-        EqPolynomial::new(z.to_vec()).evals().as_slice(),
-    ).unwrap();
-
-    assert_eq!(lhs, rhs);
-
-    // making sure the output of f_star and the given output are consistent
-    assert_eq!(open.f_star.evaluate(t), output);
+impl<E: Pairing> ToAffine<E> for KZH4Commitment<E> {
+    fn to_affine(self) -> E::G1Affine {
+        self.C
+    }
 }
-
 
 fn decompose_index(i: usize, degree_y: usize, degree_z: usize, degree_t: usize) -> (usize, usize, usize, usize) {
     // Compute i_z first, as it is the highest order term
@@ -367,63 +440,32 @@ mod tests {
     #[test]
     fn pcs_test() {
         let (degree_x, degree_y, degree_z, degree_t) = (4usize, 8usize, 16usize, 8usize);
-        let num_vars = degree_x.log_2() + degree_y.log_2() + degree_z.log_2() +degree_t.log_2();
+        let num_vars = degree_x.log_2() + degree_y.log_2() + degree_z.log_2() + degree_t.log_2();
 
-        let x: Vec<ScalarField> = {
+        let input: Vec<ScalarField> = {
             let mut res = Vec::new();
-            for _ in 0..degree_x.log_2() {
-                res.push(ScalarField::rand(&mut thread_rng()));
-            }
-            res
-        };
-
-        let y: Vec<ScalarField> = {
-            let mut res = Vec::new();
-            for _ in 0..degree_y.log_2() {
-                res.push(ScalarField::rand(&mut thread_rng()));
-            }
-            res
-        };
-
-        let z: Vec<ScalarField> = {
-            let mut res = Vec::new();
-            for _ in 0..degree_z.log_2() {
-                res.push(ScalarField::rand(&mut thread_rng()));
-            }
-            res
-        };
-
-        let t: Vec<ScalarField> = {
-            let mut res = Vec::new();
-            for _ in 0..degree_t.log_2() {
+            for _ in 0..num_vars {
                 res.push(ScalarField::rand(&mut thread_rng()));
             }
             res
         };
 
         // build the srs
-        let srs: KZH4SRS<E> = KZH4SRS::setup(degree_x, degree_y, degree_z, degree_t, &mut thread_rng());
+        let srs: KZH4SRS<E> = KZH4::setup(num_vars, &mut thread_rng());
 
         // build a random polynomials
         let polynomial: MultilinearPolynomial<ScalarField> = MultilinearPolynomial::rand(num_vars, &mut thread_rng());
 
         // evaluate polynomial
-        let eval = polynomial.evaluate({
-            let mut res = Vec::new();
-            res.extend_from_slice(&x);
-            res.extend_from_slice(&y);
-            res.extend_from_slice(&z);
-            res.extend_from_slice(&t);
-            res
-        }.as_slice());
+        let eval = polynomial.evaluate(input.as_slice());
 
         // commit to the polynomial
-        let c = commit(&srs, &polynomial);
+        let com = KZH4::commit(&srs, &polynomial);
 
         // open it
-        let open = open(&srs, &polynomial, x.as_slice(), y.as_slice(), z.as_slice());
+        let open = KZH4::open(&srs, input.as_slice(), &com, &polynomial);
 
         // verify the commit
-        verify(&srs, &c, x.as_slice(), y.as_slice(), z.as_slice(), t.as_slice(), &open, eval);
+        KZH4::verify(&srs, input.as_slice(), &eval, &com, &open);
     }
 }

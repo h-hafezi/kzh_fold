@@ -493,7 +493,7 @@ mod tests {
     use crate::nexus_spartan::{crr1cs::produce_synthetic_crr1cs, r1csinstance::R1CSInstance};
 
     use super::*;
-    use crate::constant_for_curves::{ScalarField, E};
+    use crate::constant_for_curves::{E};
     use ark_bls12_381::Fr;
     use ark_ff::PrimeField;
     use ark_std::test_rng;
