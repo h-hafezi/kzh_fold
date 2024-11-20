@@ -8,7 +8,7 @@ pub mod committed_relaxed_snark;
 pub mod crr1cs;
 pub mod crr1csproof;
 pub mod errors;
-pub mod polycommitments;
+pub mod commitment_traits;
 mod product_tree;
 pub mod r1csinstance;
 pub mod sparse_polynomial;
@@ -27,14 +27,14 @@ use ark_ff::{BigInteger, PrimeField};
 use ark_serialize::*;
 use core::cmp::max;
 use errors::R1CSError;
-use polycommitments::PolyCommitmentScheme;
 use r1csinstance::{
     R1CSCommitment, R1CSDecommitment, R1CSInstance,
 };
+use crate::kzh::KZH;
 
 /// `ComputationCommitment` holds a public preprocessed NP statement (e.g., R1CS)
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
-pub struct ComputationCommitment<E: Pairing, PC: PolyCommitmentScheme<E>>
+pub struct ComputationCommitment<E: Pairing, PC: KZH<E>>
 where
     <E as Pairing>::ScalarField: Absorb,
 {

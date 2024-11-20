@@ -1,20 +1,23 @@
-use ark_ec::AffineRepr;
-use ark_ff::{AdditiveGroup, Zero};
-use ark_serialize::Valid;
-use std::ops::{Add, Mul};
-
+use std::marker::PhantomData;
 use crate::kzh::KZH;
 use crate::math::Math;
+use crate::nexus_spartan::commitment_traits::ToAffine;
 use crate::polynomial::eq_poly::eq_poly::EqPolynomial;
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
+use crate::transcript::transcript::{AppendToTranscript, Transcript};
+use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
+use ark_ec::AffineRepr;
 use ark_ec::{CurveGroup, VariableBaseMSM};
+use ark_ff::{AdditiveGroup, PrimeField, Zero};
+use ark_serialize::Valid;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::UniformRand;
 use derivative::Derivative;
 use rand::{Rng, RngCore};
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
+use std::ops::{Add, Mul};
 
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize, Derivative)]
 pub struct KZH2SRS<E: Pairing> {
@@ -56,9 +59,32 @@ pub struct KZH2OpeningProof<E: Pairing> {
 
 /// Define the new struct that encapsulates the functionality of polynomial commitment
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize, Derivative)]
-pub struct KZH2;
+pub struct KZH2<E: Pairing> {
+    phatom: PhantomData<E>,
+}
 
-impl<E: Pairing> KZH<E> for KZH2 {
+impl<E: Pairing, F: PrimeField + Absorb> AppendToTranscript<F> for KZH2Commitment<E>
+where
+    E: Pairing<ScalarField=F>,
+    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
+{
+    fn append_to_transcript(&self, label: &'static [u8], transcript: &mut Transcript<F>) {
+        Transcript::append_point::<E>(transcript, label, &self.C);
+    }
+}
+
+impl<E: Pairing> ToAffine<E> for KZH2Commitment<E> {
+    fn to_affine(self) -> E::G1Affine {
+        self.C
+    }
+}
+
+
+impl<E: Pairing> KZH<E> for KZH2<E>
+where
+    <E as Pairing>::ScalarField: Absorb,
+    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
+{
     type Degree = (usize, usize);
     type SRS = KZH2SRS<E>;
     type Commitment = KZH2Commitment<E>;
@@ -85,8 +111,15 @@ impl<E: Pairing> KZH<E> for KZH2 {
         vec![r_x, r_y]
     }
 
-    fn setup<R: Rng>(degree: &Self::Degree, rng: &mut R) -> Self::SRS {
-        let (degree_x, degree_y) = degree.clone();
+    fn get_degree_from_maximum_supported_degree(n: usize) -> Self::Degree {
+        (n / 2 + 1, n / 2 + 1)
+    }
+
+    fn setup<R: Rng>(maximum_degree: usize, rng: &mut R) -> Self::SRS {
+        let (degree_x, degree_y): (usize, usize) = Self::get_degree_from_maximum_supported_degree(maximum_degree);
+
+        let degree_x = 1 << degree_x;
+        let degree_y = 1 << degree_y;
 
         // sample G_0, G_1, ..., G_m generators from group one
         let G1_generator_vec = {
@@ -286,9 +319,9 @@ pub fn split_between_x_and_y<T: Clone>(x_length: usize, y_length: usize, r: &[T]
 
 /// all functions assume that poly size is already compatible with srs size, if not there's an interface that does padding
 /// in the beginning in kzh.rs
-impl KZH2 {
+impl<E: Pairing> KZH2<E> {
     /// set up the PCS srs
-    pub fn setup_1<T: RngCore, E: Pairing>(degree_x: usize, degree_y: usize, rng: &mut T) -> KZH2SRS<E> {
+    pub fn setup_1<T: RngCore>(degree_x: usize, degree_y: usize, rng: &mut T) -> KZH2SRS<E> {
         // sample G_0, G_1, ..., G_m generators from group one
         let G1_generator_vec = {
             let mut elements = Vec::new();
@@ -356,7 +389,7 @@ impl KZH2 {
         }
     }
 
-    pub fn commit_1<E: Pairing>(srs: &KZH2SRS<E>, poly: &MultilinearPolynomial<E::ScalarField>) -> KZH2Commitment<E> {
+    pub fn commit_1(srs: &KZH2SRS<E>, poly: &MultilinearPolynomial<E::ScalarField>) -> KZH2Commitment<E> {
         KZH2Commitment {
             C: {
                 // Collect all points and scalars into single vectors
@@ -386,7 +419,7 @@ impl KZH2 {
 
     /// Creates a KZH proof for p(x,y) = z.
     /// This function does not actually need y, so we only get the left half of the eval point.
-    pub fn open_1<E: Pairing>(poly: &MultilinearPolynomial<E::ScalarField>, com: KZH2Commitment<E>, x: &[E::ScalarField]) -> KZH2OpeningProof<E> {
+    pub fn open_1(poly: &MultilinearPolynomial<E::ScalarField>, com: KZH2Commitment<E>, x: &[E::ScalarField]) -> KZH2OpeningProof<E> {
         KZH2OpeningProof {
             vec_D: {
                 let mut vec = Vec::new();
@@ -399,7 +432,7 @@ impl KZH2 {
         }
     }
 
-    pub fn verify_1<E: Pairing>(srs: &KZH2SRS<E>,
+    pub fn verify_1(srs: &KZH2SRS<E>,
                                 C: &KZH2Commitment<E>,
                                 proof: &KZH2OpeningProof<E>,
                                 x: &[E::ScalarField],

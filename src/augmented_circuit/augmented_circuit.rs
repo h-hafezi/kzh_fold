@@ -189,7 +189,6 @@ mod tests {
     use crate::nexus_spartan::crr1cs::produce_synthetic_crr1cs;
     use crate::nexus_spartan::crr1csproof::CRR1CSProof;
     use crate::nexus_spartan::crr1csproof::{CRR1CSInstance, CRR1CSShape, CRR1CSWitness};
-    use crate::nexus_spartan::polycommitments::{PolyCommitmentScheme, ToAffine};
     use crate::nova::cycle_fold::coprocessor::setup_shape;
     use crate::kzh::kzh2::{split_between_x_and_y, KZH2};
     use crate::kzh::kzh2::KZH2SRS;
@@ -203,10 +202,12 @@ mod tests {
     use rand::thread_rng;
     use crate::accumulation_circuit::verifier_circuit::AccumulatorVerifierVar;
     use crate::augmented_circuit::augmented_circuit::{AugmentedCircuitVar, Output};
+    use crate::kzh::KZH;
     use crate::math::Math;
     use crate::nexus_spartan::matrix_evaluation_accumulation::verifier_circuit::{MatrixEvaluationAccVerifier, MatrixEvaluationAccVerifierVar};
     use crate::nexus_spartan::partial_verifier::partial_verifier::SpartanPartialVerifier;
     use crate::nexus_spartan::partial_verifier::partial_verifier_var::SpartanPartialVerifierVar;
+    use crate::nexus_spartan::commitment_traits::ToAffine;
     use crate::transcript::transcript_var::TranscriptVar;
 
     type F = ScalarField;
@@ -220,7 +221,7 @@ mod tests {
 
     /// Take as input `proof_i` and `running_accumulator_{i}` and produce `proof_{i+1}` and `running_accumulator_{i+1}`.
     fn test_augmented_circuit_helper() {
-        let SRS: KZH2SRS<E> = MultilinearPolynomial::setup(POLY_SETUP, &mut thread_rng()).unwrap();
+        let SRS: KZH2SRS<E> = KZH2::setup(POLY_SETUP, &mut thread_rng());
 
         //////////////////// Generate `proof_i`   ////////////////////
 
@@ -229,7 +230,7 @@ mod tests {
         let num_inputs = 10;
 
         // this generates a new instance/witness for spartan as well as PCS parameters
-        let (spartan_shape, instance, witness, gens) = produce_synthetic_crr1cs::<E, MultilinearPolynomial<F>>(num_cons, num_vars, num_inputs);
+        let (spartan_shape, instance, witness, gens) = produce_synthetic_crr1cs::<E, KZH2<E>>(num_cons, num_vars, num_inputs);
         assert!(is_sat(&spartan_shape, &instance, &witness, &gens.gens_r1cs_sat).unwrap());
 
         let (num_cons, num_vars, _num_inputs) = (
@@ -408,7 +409,7 @@ mod tests {
         // convert to the corresponding Spartan types
         let shape = CRR1CSShape::<ScalarField>::convert::<G1>(cs.clone());
         // Commitment to w(x) happens here
-        let instance: CRR1CSInstance<E, MultilinearPolynomial<ScalarField>> = CRR1CSInstance::convert(cs.clone(), &SRS);
+        let instance: CRR1CSInstance<E, KZH2<E>> = CRR1CSInstance::convert(cs.clone(), &SRS);
         let witness = CRR1CSWitness::<ScalarField>::convert(cs.clone());
 
         // check that the Spartan instance-witness pair is still satisfying
@@ -424,7 +425,7 @@ mod tests {
             &mut prover_transcript,
         );
 
-        println!("proof size: {}", proof.compressed_size());
+        // println!("proof size: {}", proof.compressed_size());
         println!("acc size: {}", current_acc.compressed_size());
 
         //////////////////// Verifier ////////////////////

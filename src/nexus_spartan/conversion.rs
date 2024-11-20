@@ -9,7 +9,6 @@ use crate::gadgets::sparse::SparseMatrix;
 use crate::nexus_spartan::analyze_vector_sparseness;
 use crate::nexus_spartan::crr1cs::{CRR1CSInstance, CRR1CSShape, CRR1CSWitness};
 use crate::nexus_spartan::errors::R1CSError;
-use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
 use crate::nexus_spartan::{Assignment, Instance};
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use ark_crypto_primitives::sponge::Absorb;
@@ -19,6 +18,7 @@ use ark_ff::PrimeField;
 use ark_relations::r1cs::ConstraintSystemRef;
 use std::error::Error;
 use std::fmt::Display;
+use crate::kzh::KZH;
 
 #[derive(Debug)]
 pub enum ConversionError {
@@ -90,7 +90,7 @@ impl<F: PrimeField + Absorb> CRR1CSShape<F> {
 impl<PC, E> CRR1CSInstance<E, PC>
 where
     E: Pairing,
-    PC: PolyCommitmentScheme<E>,
+    PC: KZH<E>,
     <E as Pairing>::ScalarField: Absorb,
 {
     pub(crate) fn convert<G: SWCurveConfig>(
@@ -109,7 +109,7 @@ where
 
         let poly_W = MultilinearPolynomial::new(witness);
         let commit_timer = start_timer!(|| "Instance conversion (commit to witness)");
-        let comm_W = PC::commit(&poly_W, &key);
+        let comm_W = PC::commit(&key,&poly_W);
         end_timer!(commit_timer);
 
         CRR1CSInstance {
@@ -141,8 +141,7 @@ pub mod tests {
     use crate::hash::pederson::PedersenCommitment;
     use crate::nexus_spartan::crr1cs::{is_sat, CRR1CSInstance, CRR1CSShape, CRR1CSWitness};
     use crate::nexus_spartan::crr1csproof::CRR1CSProof;
-    use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
-    use crate::kzh::kzh2::KZH2SRS;
+    use crate::kzh::kzh2::{KZH2, KZH2SRS};
     use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
     use crate::transcript::transcript::Transcript;
     use ark_ec::short_weierstrass::Projective;
@@ -154,6 +153,7 @@ pub mod tests {
     use ark_r1cs_std::fields::fp::FpVar;
     use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef, SynthesisError, SynthesisMode};
     use rand::thread_rng;
+    use crate::kzh::KZH;
 
     type Pedersen = PedersenCommitment<Projective<G1>>;
 
@@ -219,8 +219,8 @@ pub mod tests {
 
         // convert to the corresponding Spartan types
         let shape = CRR1CSShape::<ScalarField>::convert::<G1>(cs.clone());
-        let SRS: KZH2SRS<E> = MultilinearPolynomial::setup(4, &mut thread_rng()).unwrap();
-        let instance: CRR1CSInstance<E, MultilinearPolynomial<ScalarField>> = CRR1CSInstance::convert(cs.clone(), &SRS);
+        let SRS: KZH2SRS<E> = KZH2::setup(4, &mut thread_rng());
+        let instance: CRR1CSInstance<E, KZH2<E>> = CRR1CSInstance::convert(cs.clone(), &SRS);
         let witness = CRR1CSWitness::<ScalarField>::convert(cs.clone());
         // check that the Spartan instance-witness pair is still satisfying
         assert!(is_sat(&shape, &instance, &witness, &SRS).unwrap());

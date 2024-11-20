@@ -1,16 +1,17 @@
 #![allow(dead_code)]
-use super::{polycommitments::PolyCommitmentScheme, r1csinstance::R1CSCommitmentGens};
+use super::r1csinstance::R1CSCommitmentGens;
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 /// This is mostly a copy of the SNARK implementation in lib.rs, with minor modifications to work with committed relaxed R1CS.
 use core::cmp::max;
 use rand::thread_rng;
+use crate::kzh::KZH;
 use crate::math::Math;
 
 /// `SNARKGens` holds public parameters for producing and verifying proofs with the Spartan SNARK
 #[derive(CanonicalDeserialize, CanonicalSerialize)]
-pub struct CRSNARKKey<E: Pairing, PC: PolyCommitmentScheme<E>>
+pub struct CRSNARKKey<E: Pairing, PC: KZH<E>>
 where
     <E as Pairing>::ScalarField: Absorb,
 {
@@ -18,7 +19,7 @@ where
     pub gens_r1cs_eval: R1CSCommitmentGens<E, PC>,
 }
 
-impl<E: Pairing, PC: PolyCommitmentScheme<E>> CRSNARKKey<E, PC>
+impl<E: Pairing, PC: KZH<E>> CRSNARKKey<E, PC>
 where
     <E as Pairing>::ScalarField: Absorb,
 {
@@ -33,12 +34,9 @@ where
     ) -> Self {
         let num_vars_padded = Self::get_num_vars_padded(num_vars, num_inputs);
         let gens_r1cs_sat = PC::setup(
-            {
-                let n = max(num_cons, num_vars);
-                n.log_2()
-            },
+            max(num_cons, num_vars).log_2(),
             &mut thread_rng(),
-        ).unwrap();
+        );
         let gens_r1cs_eval = R1CSCommitmentGens::new(SRS, num_cons, num_vars_padded, num_inputs, num_nz_entries);
         CRSNARKKey {
             gens_r1cs_sat,

@@ -1,7 +1,8 @@
 use crate::accumulation::accumulator::{AccInstance, AccSRS, Accumulator as KZHAccumulator, Accumulator};
-use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
+use crate::kzh::kzh2::{split_between_x_and_y, KZH2Commitment, KZH2};
+use crate::kzh::KZH;
+use crate::math::Math;
 use crate::nexus_spartan::sumcheck::SumcheckInstanceProof;
-use crate::kzh::kzh2::{split_between_x_and_y, KZH2Commitment};
 use crate::polynomial::eq_poly::eq_poly::EqPolynomial;
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript::Transcript;
@@ -11,7 +12,6 @@ use ark_ec::AffineRepr;
 use ark_ff::PrimeField;
 use ark_ff::UniformRand;
 use rand::RngCore;
-use crate::math::Math;
 
 #[derive(Clone, Debug)]
 pub struct SignatureAggrSRS<E: Pairing> {
@@ -82,9 +82,9 @@ where
         let b_2_poly = MultilinearPolynomial::random_binary(num_vars, rng);
         let c_poly = b_1_poly.get_bitfield_union_poly(&b_2_poly);
 
-        let B_1_commitment = MultilinearPolynomial::commit(&b_1_poly, &srs.pc_srs);
-        let B_2_commitment = MultilinearPolynomial::commit(&b_2_poly, &srs.pc_srs);
-        let C_commitment = MultilinearPolynomial::commit(&c_poly, &srs.pc_srs);
+        let B_1_commitment = KZH2::commit(&srs.pc_srs, &b_1_poly);
+        let B_2_commitment = KZH2::commit(&srs.pc_srs, &b_2_poly);
+        let C_commitment = KZH2::commit(&srs.pc_srs, &c_poly);
 
         // Some random stuff for the sig/pk
         let sig = E::G2Affine::rand(rng);
@@ -194,16 +194,16 @@ where
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
     F: PrimeField + Absorb,
 {
-    let bitfield_commitment = MultilinearPolynomial::commit(
-        bitfield_poly,
+    let bitfield_commitment = KZH2::commit(
         &acc_srs.pc_srs,
+        bitfield_poly,
     );
 
-    let opening_proof = MultilinearPolynomial::prove(
-        Some(&bitfield_commitment),
-        &bitfield_poly,
-        eval_point,
+    let opening_proof = KZH2::open(
         &acc_srs.pc_srs,
+        eval_point,
+        &bitfield_commitment,
+        &bitfield_poly,
     );
 
 
@@ -305,7 +305,7 @@ where
         let b_2_poly = &self.bob_data.bitfield_poly;
 
         let c_poly = b_1_poly.get_bitfield_union_poly(&b_2_poly);
-        let C_commitment = MultilinearPolynomial::commit(&c_poly, &self.srs.acc_srs.pc_srs);
+        let C_commitment = KZH2::commit(&self.srs.acc_srs.pc_srs, &c_poly);
 
         // Step 3: Get r from verifier: it's the evaluation point challenge (for the zerocheck)
         transcript.append_point::<E>(
@@ -467,13 +467,13 @@ where
 
 #[cfg(test)]
 pub mod test {
-    use ark_std::UniformRand;
     use crate::accumulation::accumulator::Accumulator;
     use crate::constant_for_curves::{G1Affine, G2Affine, ScalarField, E};
     use crate::kzh::kzh2::KZH2;
     use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
     use crate::signature_aggregation::signature_aggregation::{AggregatorIVC, SignatureAggrData, SignatureAggrSRS};
     use crate::transcript::transcript::Transcript;
+    use ark_std::UniformRand;
 
     type F = ScalarField;
 

@@ -221,12 +221,13 @@ mod tests {
 
     use super::*;
     use crate::constant_for_curves::{ScalarField, E};
+    use crate::kzh::kzh2::KZH2;
     use crate::nexus_spartan::partial_verifier::partial_verifier::tests::partial_verifier_test_helper;
     use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 
     #[test]
     pub fn test_partial_verifier_circuit() {
-        let (partial_verifier, transcript) = partial_verifier_test_helper::<E, MultilinearPolynomial<ScalarField>, ScalarField>();
+        let (partial_verifier, transcript) = partial_verifier_test_helper::<E, KZH2<E>, ScalarField>();
         let cs = ConstraintSystem::<ScalarField>::new_ref();
         let partial_verifier_var = SpartanPartialVerifierVar::new_variable(
             cs.clone(),

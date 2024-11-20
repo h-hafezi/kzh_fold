@@ -1,7 +1,6 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(dead_code)]
 
-use super::polycommitments::PolyCommitmentScheme;
 use super::unipoly::unipoly::{CompressedUniPoly, UniPoly};
 use ark_crypto_primitives::sponge::Absorb;
 
@@ -17,9 +16,10 @@ use crate::transcript::transcript::{AppendToTranscript, Transcript};
 use ark_ec::pairing::Pairing;
 use ark_ff::PrimeField;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
+use crate::kzh::KZH;
 
 #[derive(CanonicalSerialize, CanonicalDeserialize, Debug)]
-pub struct CRR1CSProof<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>, F: PrimeField + Absorb> {
+pub struct CRR1CSProof<E: Pairing<ScalarField=F>, PC: KZH<E>, F: PrimeField + Absorb> {
     /// Sumcheck proof for the polynomial g(x) = \sum eq(tau,x) * (~Az~(x) * ~Bz~(x) - u * ~Cz~(x) - ~E~(x))
     pub sc_proof_phase1: SumcheckInstanceProof<F>,
     /// Evaluation claims for ~Az~(rx), ~Bz~(rx), and ~Cz~(rx).
@@ -30,7 +30,7 @@ pub struct CRR1CSProof<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>, F
     /// The claimed evaluation ~Z~(ry)
     pub eval_vars_at_ry: F,
     /// A polynomial evaluation proof of the claimed evaluation ~Z~(ry) with respect to the commitment comm_W.
-    pub proof_eval_vars_at_ry: PC::PolyCommitmentProof,
+    pub proof_eval_vars_at_ry: PC::Opening,
 }
 
 impl<F: PrimeField + Absorb> SumcheckInstanceProof<F> {
@@ -170,7 +170,7 @@ impl<F: PrimeField + Absorb> SumcheckInstanceProof<F> {
     }
 }
 
-impl<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>, F: PrimeField + Absorb> CRR1CSProof<E, PC, F> {
+impl<E: Pairing<ScalarField=F>, PC: KZH<E>, F: PrimeField + Absorb> CRR1CSProof<E, PC, F> {
     #[allow(clippy::type_complexity)]
     /// Generates the sumcheck proof that sum_s evals_tau(s) * (evals_Az(s) * evals_Bz(s) - u * evals_Cz(s) - E(s)) == 0.
     /// Note that this proof does not use blinding factors, so this is not zero-knowledge.
@@ -356,11 +356,11 @@ impl<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>, F: PrimeField + Abs
 
         let timer_polyevalproof = Timer::new("polyevalproof");
         let proof_eval_vars_at_ry = {
-            PC::prove(
-                Some(comm_W),
-                &poly_vars,
-                &ry[1..],
+            PC::open(
                 &srs,
+                &ry[1..],
+                comm_W,
+                &poly_vars,
             )
         };
 
@@ -473,16 +473,16 @@ impl<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>, F: PrimeField + Abs
 
     pub fn decide(&self,
                   comm_W: &PC::Commitment,
-                  key: &PC::SRS,
+                  srs: &PC::SRS,
                   ry: Vec<F>) -> Result<(), ProofVerifyError> {
         // verify Z(ry) proof against the initial commitment `comm_W`
         PC::verify(
-            comm_W,
-            &self.proof_eval_vars_at_ry,
-            key,
+            srs,
             &ry[1..],
             &self.eval_vars_at_ry,
-        ).map_err(|_| ProofVerifyError::InternalError)?;
+            comm_W,
+            &self.proof_eval_vars_at_ry,
+        );
 
         Ok(())
     }
@@ -497,6 +497,7 @@ mod tests {
     use ark_bls12_381::Fr;
     use ark_ff::PrimeField;
     use ark_std::test_rng;
+    use crate::kzh::kzh2::KZH2;
 
     fn produce_tiny_r1cs<F: PrimeField + Absorb>() -> (R1CSInstance<F>, Vec<F>, Vec<F>) {
         // three constraints over five variables Z1, Z2, Z3, Z4, and Z5
@@ -579,10 +580,10 @@ mod tests {
 
     #[test]
     pub fn check_crr1cs_proof() {
-        check_crr1cs_proof_helper::<E, MultilinearPolynomial<ScalarField>>()
+        check_crr1cs_proof_helper::<E, KZH2<E>>()
     }
 
-    fn check_crr1cs_proof_helper<E: Pairing, PC: PolyCommitmentScheme<E>>()
+    fn check_crr1cs_proof_helper<E: Pairing, PC: KZH<E>>()
     where
         <E as Pairing>::ScalarField: Absorb,
     {

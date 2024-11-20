@@ -1,6 +1,5 @@
 use crate::math::Math;
 use crate::nexus_spartan::crr1csproof::CRR1CSProof;
-use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
 use crate::nexus_spartan::sparse_polynomial::sparse_polynomial::SparsePoly;
 use crate::nexus_spartan::sumcheck_circuit::sumcheck_circuit::SumcheckCircuit;
 use crate::transcript::transcript::{Transcript};
@@ -8,6 +7,7 @@ use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
 use ark_ec::AffineRepr;
 use ark_ff::PrimeField;
+use crate::kzh::KZH;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SpartanPartialVerifier<F, E>
@@ -38,7 +38,7 @@ impl<F: PrimeField + Absorb, E: Pairing<ScalarField=F>> SpartanPartialVerifier<F
 where
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
 {
-    pub fn initialise<PC: PolyCommitmentScheme<E>>(
+    pub fn initialise<PC: KZH<E>>(
         proof: &CRR1CSProof<E, PC, F>,
         num_vars: usize,
         num_cons: usize,
@@ -226,21 +226,22 @@ pub mod tests {
     use crate::nexus_spartan::crr1cs::{is_sat, produce_synthetic_crr1cs};
 
     use crate::constant_for_curves::{ScalarField, E};
+    use crate::kzh::KZH;
+    use crate::kzh::kzh2::KZH2;
     use crate::nexus_spartan::crr1csproof::CRR1CSProof;
     use crate::nexus_spartan::partial_verifier::partial_verifier::SpartanPartialVerifier;
-    use crate::nexus_spartan::polycommitments::{PolyCommitmentScheme, ToAffine};
-    use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
+    use crate::nexus_spartan::commitment_traits::ToAffine;
     use crate::transcript::transcript::Transcript;
 
     #[test]
     pub fn check_verification_proof() {
-        partial_verifier_test_helper::<E, MultilinearPolynomial<ScalarField>, ScalarField>();
+        partial_verifier_test_helper::<E, KZH2<E>, ScalarField>();
     }
 
     pub fn partial_verifier_test_helper<E, PC, F>() -> (SpartanPartialVerifier<F, E>, Transcript<F>)
     where
         F: PrimeField + Absorb,
-        PC: PolyCommitmentScheme<E>,
+        PC: KZH<E>,
         E: Pairing<ScalarField=F>,
         <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
     {

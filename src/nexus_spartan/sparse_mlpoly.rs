@@ -3,7 +3,6 @@
 #![allow(clippy::needless_range_loop)]
 
 use crate::math::Math;
-use crate::nexus_spartan::polycommitments::{PolyCommitmentScheme};
 use crate::polynomial::eq_poly::eq_poly::EqPolynomial;
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript::{AppendToTranscript, Transcript};
@@ -12,6 +11,7 @@ use ark_ec::pairing::Pairing;
 use ark_ff::PrimeField;
 use ark_serialize::*;
 use ark_std::cmp::max;
+use crate::kzh::KZH;
 
 #[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
 pub struct SparseMatEntry<F: PrimeField> {
@@ -61,7 +61,7 @@ where
 pub struct SparseMatPolyCommitmentKey<E, PC>
 where
     E: Pairing,
-    PC: PolyCommitmentScheme<E>,
+    PC: KZH<E>,
     E::ScalarField: Absorb,
 {
     gens_ops: PC::SRS,
@@ -69,7 +69,7 @@ where
     gens_derefs: PC::SRS,
 }
 
-impl<E: Pairing, PC: PolyCommitmentScheme<E>> SparseMatPolyCommitmentKey<E, PC>
+impl<E: Pairing, PC: KZH<E>> SparseMatPolyCommitmentKey<E, PC>
 where
     <E as Pairing>::ScalarField: Absorb,
 {
@@ -122,7 +122,7 @@ where
 }
 
 #[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
-pub struct SparseMatPolyCommitment<E: Pairing, PC: PolyCommitmentScheme<E>>
+pub struct SparseMatPolyCommitment<E: Pairing, PC: KZH<E>>
 where
     <E as Pairing>::ScalarField: Absorb,
 {
@@ -133,7 +133,7 @@ where
     comm_comb_mem: PC::Commitment,
 }
 
-impl<E: Pairing, PC: PolyCommitmentScheme<E>> AppendToTranscript<E::ScalarField>
+impl<E: Pairing, PC: KZH<E>> AppendToTranscript<E::ScalarField>
 for SparseMatPolyCommitment<E, PC>
 where
     <E as Pairing>::ScalarField: Absorb,

@@ -155,8 +155,7 @@ pub mod tests {
     use crate::nexus_spartan::crr1cs::{is_sat, CRR1CSInstance, CRR1CSShape, CRR1CSWitness};
     use crate::nexus_spartan::crr1csproof::CRR1CSProof;
     use crate::nexus_spartan::matrix_evaluation_accumulation::prover::fold_matrices_evaluations;
-    use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
-    use crate::kzh::kzh2::KZH2SRS;
+    use crate::kzh::kzh2::{KZH2, KZH2SRS};
     use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
     use crate::transcript::transcript::Transcript;
     use ark_crypto_primitives::sponge::Absorb;
@@ -167,6 +166,7 @@ pub mod tests {
     use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystem, SynthesisMode};
     use ark_std::UniformRand;
     use rand::thread_rng;
+    use crate::kzh::KZH;
 
     type F = ScalarField;
 
@@ -197,8 +197,8 @@ pub mod tests {
 
         // convert to the corresponding Spartan types
         let shape = CRR1CSShape::<F>::convert::<G1>(cs.clone());
-        let SRS: KZH2SRS<E> = MultilinearPolynomial::setup(4, &mut thread_rng()).unwrap();
-        let instance: CRR1CSInstance<E, MultilinearPolynomial<F>> = CRR1CSInstance::convert(cs.clone(), &SRS);
+        let SRS: KZH2SRS<E> = KZH2::setup(4, &mut thread_rng());
+        let instance: CRR1CSInstance<E, KZH2<E>> = CRR1CSInstance::convert(cs.clone(), &SRS);
         let witness = CRR1CSWitness::<F>::convert(cs.clone());
         // check that the Spartan instance-witness pair is still satisfying
         assert!(is_sat(&shape, &instance, &witness, &SRS).unwrap());

@@ -3,10 +3,10 @@ use ark_ec::pairing::Pairing;
 use ark_ff::{Field, PrimeField};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::{cmp::max, test_rng, One};
-
+use crate::kzh::KZH;
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 
-use super::polycommitments::{PolyCommitmentScheme, VectorCommitmentScheme};
+use super::commitment_traits::{VectorCommitmentScheme};
 use super::{committed_relaxed_snark::CRSNARKKey, errors::R1CSError, InputsAssignment, Instance, VarsAssignment};
 use crate::math::Math;
 
@@ -28,7 +28,7 @@ impl<F: PrimeField + Absorb> CRR1CSShape<F> {
     }
 }
 
-pub struct CRR1CSInstance<E: Pairing, PC: PolyCommitmentScheme<E>>
+pub struct CRR1CSInstance<E: Pairing, PC: KZH<E>>
 where
     <E as Pairing>::ScalarField: Absorb,
 {
@@ -41,7 +41,7 @@ pub struct CRR1CSWitness<F: PrimeField> {
     pub W: VarsAssignment<F>,
 }
 
-pub fn relaxed_r1cs_is_sat<E: Pairing, PC: PolyCommitmentScheme<E>>(
+pub fn relaxed_r1cs_is_sat<E: Pairing, PC: KZH<E>>(
     shape: &CRR1CSShape<E::ScalarField>,
     instance: &CRR1CSInstance<E, PC>,
     witness: &CRR1CSWitness<E::ScalarField>,
@@ -113,7 +113,7 @@ pub fn relaxed_r1cs_is_sat<E: Pairing, PC: PolyCommitmentScheme<E>>(
     Ok(res == 0)
 }
 
-pub fn check_commitments<E: Pairing, PC: PolyCommitmentScheme<E>>(
+pub fn check_commitments<E: Pairing, PC: KZH<E>>(
     instance: &CRR1CSInstance<E, PC>,
     witness: &CRR1CSWitness<E::ScalarField>,
     key: &PC::SRS,
@@ -127,12 +127,12 @@ pub fn check_commitments<E: Pairing, PC: PolyCommitmentScheme<E>>(
 
     let poly_W = MultilinearPolynomial::new(W);
 
-    let expected_comm_W = PC::commit(&poly_W, &key);
+    let expected_comm_W = PC::commit(&key, &poly_W);
 
     expected_comm_W == *comm_W
 }
 
-pub fn is_sat<E: Pairing, PC: PolyCommitmentScheme<E>>(
+pub fn is_sat<E: Pairing, PC: KZH<E>>(
     shape: &CRR1CSShape<E::ScalarField>,
     instance: &CRR1CSInstance<E, PC>,
     witness: &CRR1CSWitness<E::ScalarField>,
@@ -148,7 +148,7 @@ pub fn is_sat<E: Pairing, PC: PolyCommitmentScheme<E>>(
 
 #[allow(clippy::type_complexity)]
 // This produces a random satisfying structure, instance, witness, and public parameters for testing and benchmarking purposes.
-pub fn produce_synthetic_crr1cs<E: Pairing, PC: PolyCommitmentScheme<E>>(
+pub fn produce_synthetic_crr1cs<E: Pairing, PC: KZH<E>>(
     num_cons: usize,
     num_vars: usize,
     num_inputs: usize,
@@ -181,7 +181,7 @@ pub fn produce_synthetic_crr1cs<E: Pairing, PC: PolyCommitmentScheme<E>>(
 
     // produce public parameters
     let min_num_vars = CRSNARKKey::<E, PC>::get_min_num_vars(num_cons, num_vars, num_inputs);
-    let SRS = PC::setup(min_num_vars, &mut test_rng()).unwrap();
+    let SRS = PC::setup(min_num_vars, &mut test_rng());
     let gens = CRSNARKKey::<E, PC>::new(&SRS, num_cons, num_vars, num_inputs, num_cons);
 
     // compute commitments to the vectors `vars` and `E`.

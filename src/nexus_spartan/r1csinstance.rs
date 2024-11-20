@@ -1,4 +1,3 @@
-use super::polycommitments::PolyCommitmentScheme;
 use super::sparse_mlpoly::{
     MultiSparseMatPolynomialAsDense, SparseMatEntry, SparseMatPolyCommitment,
     SparseMatPolyCommitmentKey, SparseMatPolynomial,
@@ -12,6 +11,7 @@ use ark_ec::pairing::Pairing;
 use ark_ff::PrimeField;
 use ark_serialize::*;
 use ark_std::test_rng;
+use crate::kzh::KZH;
 
 #[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
 pub struct R1CSInstance<F: PrimeField + Absorb> {
@@ -28,13 +28,13 @@ pub struct R1CSInstance<F: PrimeField + Absorb> {
 pub struct R1CSCommitmentGens<E, PC>
 where
     E: Pairing,
-    PC: PolyCommitmentScheme<E>,
+    PC: KZH<E>,
     <E as Pairing>::ScalarField: Absorb,
 {
     gens: SparseMatPolyCommitmentKey<E, PC>,
 }
 
-impl<E: Pairing, PC: PolyCommitmentScheme<E>> R1CSCommitmentGens<E, PC>
+impl<E: Pairing, PC: KZH<E>> R1CSCommitmentGens<E, PC>
 where
     <E as Pairing>::ScalarField: Absorb,
 {
@@ -65,7 +65,7 @@ where
 }
 
 #[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
-pub struct R1CSCommitment<E: Pairing, PC: PolyCommitmentScheme<E>>
+pub struct R1CSCommitment<E: Pairing, PC: KZH<E>>
 where
     <E as Pairing>::ScalarField: Absorb,
 {
@@ -75,7 +75,7 @@ where
     comm: SparseMatPolyCommitment<E, PC>,
 }
 
-impl<E: Pairing<ScalarField=F>, PC: PolyCommitmentScheme<E>, F: PrimeField + Absorb> AppendToTranscript<F> for R1CSCommitment<E, PC> {
+impl<E: Pairing<ScalarField=F>, PC: KZH<E>, F: PrimeField + Absorb> AppendToTranscript<F> for R1CSCommitment<E, PC> {
     fn append_to_transcript(&self, _label: &'static [u8], transcript: &mut Transcript<F>) {
         transcript.append_u64(b"num_cons", self.num_cons as u64);
         transcript.append_u64(b"num_vars", self.num_vars as u64);
@@ -92,7 +92,7 @@ where
     dense: MultiSparseMatPolynomialAsDense<F>,
 }
 
-impl<E: Pairing, PC: PolyCommitmentScheme<E>> R1CSCommitment<E, PC>
+impl<E: Pairing, PC: KZH<E>> R1CSCommitment<E, PC>
 where
     <E as Pairing>::ScalarField: Absorb,
 {

@@ -621,11 +621,10 @@ pub mod tests {
 
     use super::*;
     use crate::constant_for_curves::{ScalarField, C2, E, G1, G2};
+    use crate::kzh::KZH;
     use crate::nexus_spartan::crr1cs::{is_sat, CRR1CSInstance, CRR1CSShape, CRR1CSWitness};
     use crate::nexus_spartan::crr1csproof::CRR1CSProof;
-    use crate::nexus_spartan::polycommitments::PolyCommitmentScheme;
-    use crate::kzh::kzh2::KZH2SRS;
-    use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
+    use crate::kzh::kzh2::{KZH2, KZH2SRS};
     use crate::transcript::transcript::Transcript;
 
     // Test helper
@@ -664,7 +663,7 @@ pub mod tests {
 
     #[test]
     fn kzh_acc_verifier_circuit_end_to_end_test() {
-        let SRS: KZH2SRS<E> = MultilinearPolynomial::setup(18, &mut thread_rng()).unwrap();
+        let SRS: KZH2SRS<E> = KZH2::setup(18, &mut thread_rng());
 
         let cs = get_random_acc_verifier_cs();
 
@@ -683,7 +682,7 @@ pub mod tests {
         // convert to the corresponding Spartan types
         let shape = CRR1CSShape::<ScalarField>::convert::<G1>(cs.clone());
         // Commitment to w(x) happens here
-        let instance: CRR1CSInstance<E, MultilinearPolynomial<ScalarField>> = CRR1CSInstance::convert(cs.clone(), &SRS);
+        let instance: CRR1CSInstance<E, KZH2<E>> = CRR1CSInstance::convert(cs.clone(), &SRS);
 
         let witness = CRR1CSWitness::<ScalarField>::convert(cs.clone());
 
