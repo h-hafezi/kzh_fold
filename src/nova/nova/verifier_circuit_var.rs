@@ -312,34 +312,6 @@ where
         beta_2.enforce_equal(&self.beta_2).expect("error while enforcing equality");
         beta_2.enforce_equal(&Boolean::le_bits_to_fp_var(beta_2_bits.as_slice()).unwrap()).expect("error while enforcing equality");
 
-        // this randomness should be used to get the randomness beta_1 and beta_2, we currently simply add them but don't use them
-        transcript.append_scalars_non_native(
-            b"label",
-            self.ova_running_instance.X.as_slice(),
-        );
-        transcript.append_scalars_non_native(
-            b"label",
-            self.ova_auxiliary_input_E.X.as_slice(),
-        );
-        transcript.append_scalars_non_native(
-            b"label",
-            self.ova_auxiliary_input_W.X.as_slice(),
-        );
-        transcript.append_scalars(
-            b"label",
-            &[
-                self.ova_auxiliary_input_W.commitment.x.clone(),
-                self.ova_auxiliary_input_W.commitment.y.clone(),
-                self.ova_auxiliary_input_W.commitment.z.clone(),
-                self.ova_auxiliary_input_E.commitment.x.clone(),
-                self.ova_auxiliary_input_E.commitment.y.clone(),
-                self.ova_auxiliary_input_E.commitment.z.clone(),
-                self.ova_running_instance.commitment.x.clone(),
-                self.ova_running_instance.commitment.y.clone(),
-                self.ova_running_instance.commitment.z.clone(),
-            ],
-        );
-
         Ok(())
     }
 }

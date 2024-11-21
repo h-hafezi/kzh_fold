@@ -391,54 +391,25 @@ where
                 &beta_minus_one * &self.current_accumulator_instance_var.z_var)
         ).unwrap();
 
-        transcript_var.append_scalars_non_native(b"label", self.ova_auxiliary_input_C.X.as_slice());
-        transcript_var.append_scalars_non_native(b"label", self.ova_auxiliary_input_T.X.as_slice());
-        transcript_var.append_scalars_non_native(b"label", self.ova_auxiliary_input_E_1.X.as_slice());
-        transcript_var.append_scalars_non_native(b"label", self.ova_auxiliary_input_E_2.X.as_slice());
         transcript_var.append_scalars(
             b"label",
             &[
-                self.ova_auxiliary_input_C.commitment.x.clone(),
-                self.ova_auxiliary_input_C.commitment.x.clone(),
-                self.ova_auxiliary_input_C.commitment.x.clone(),
                 self.ova_cross_term_error_commitment_C.x.clone(),
                 self.ova_cross_term_error_commitment_C.y.clone(),
                 self.ova_cross_term_error_commitment_C.z.clone(),
-            ],
-        );
-        transcript_var.append_scalars(
-            b"label",
-            &[
-                self.ova_auxiliary_input_T.commitment.x.clone(),
-                self.ova_auxiliary_input_T.commitment.x.clone(),
-                self.ova_auxiliary_input_T.commitment.x.clone(),
                 self.ova_cross_term_error_commitment_T.x.clone(),
                 self.ova_cross_term_error_commitment_T.y.clone(),
                 self.ova_cross_term_error_commitment_T.z.clone(),
-            ],
-        );
-        transcript_var.append_scalars(
-            b"label",
-            &[
-                self.ova_auxiliary_input_E_1.commitment.x.clone(),
-                self.ova_auxiliary_input_E_1.commitment.x.clone(),
-                self.ova_auxiliary_input_E_1.commitment.x.clone(),
                 self.ova_cross_term_error_commitment_E_1.x.clone(),
                 self.ova_cross_term_error_commitment_E_1.y.clone(),
                 self.ova_cross_term_error_commitment_E_1.z.clone(),
-            ],
-        );
-        transcript_var.append_scalars(
-            b"label",
-            &[
-                self.ova_auxiliary_input_E_2.commitment.x.clone(),
-                self.ova_auxiliary_input_E_2.commitment.x.clone(),
-                self.ova_auxiliary_input_E_2.commitment.x.clone(),
                 self.ova_cross_term_error_commitment_E_2.x.clone(),
                 self.ova_cross_term_error_commitment_E_2.y.clone(),
                 self.ova_cross_term_error_commitment_E_2.z.clone(),
+
             ],
         );
+        transcript_var.append_scalars(b"instance 2", self.final_accumulator_instance_var.to_sponge_field_elements().unwrap().as_slice());
 
         let beta_2_non_native = &self.beta_var_non_native * &self.beta_var_non_native;
         let beta_3_non_native = &self.beta_var_non_native * &beta_2_non_native;
