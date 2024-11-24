@@ -52,8 +52,8 @@ pub struct KZH2Commitment<E: Pairing> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize, Derivative)]
-pub struct KZH2OpeningProof<E: Pairing> {
-    pub vec_D: Vec<E::G1Affine>,
+pub struct KZH2Opening<E: Pairing> {
+    pub D_x: Vec<E::G1Affine>,
     pub f_star_poly: MultilinearPolynomial<E::ScalarField>,
 }
 
@@ -88,7 +88,7 @@ where
     type Degree = (usize, usize);
     type SRS = KZH2SRS<E>;
     type Commitment = KZH2Commitment<E>;
-    type Opening = KZH2OpeningProof<E>;
+    type Opening = KZH2Opening<E>;
 
     /// the function receives an input r and splits into two sub-vectors x and y to be used for PCS
     /// It's used later when we have a constant SRS, and we pad the polynomial so we can commit to it via SRS
@@ -236,8 +236,8 @@ where
 
         let split_input = Self::split_input(&srs, input);
 
-        KZH2OpeningProof {
-            vec_D: {
+        KZH2Opening {
+            D_x: {
                 let mut vec = Vec::new();
                 for g in com.aux.clone() {
                     vec.push(g.into());
@@ -253,9 +253,9 @@ where
 
         // Step 1: pairing check
         // Combine the pairings into a single multi-pairing
-        let mut g1_elems: Vec<E::G1Affine> = Vec::with_capacity(1 + open.vec_D.len());
+        let mut g1_elems: Vec<E::G1Affine> = Vec::with_capacity(1 + open.D_x.len());
         g1_elems.push(com.C.clone());
-        for g1 in &open.vec_D {
+        for g1 in &open.D_x {
             let g1_neg: E::G1Affine = (E::G1Affine::zero() - g1).into();
             g1_elems.push(g1_neg);
         }
@@ -281,9 +281,9 @@ where
         scalars.extend_from_slice(&open.f_star_poly.evaluation_over_boolean_hypercube);
         scalars.extend_from_slice(&negated_eq_evals);
 
-        let mut bases = Vec::with_capacity(srs.H_y.len() + open.vec_D.len());
+        let mut bases = Vec::with_capacity(srs.H_y.len() + open.D_x.len());
         bases.extend_from_slice(&srs.H_y);
-        bases.extend_from_slice(&open.vec_D);
+        bases.extend_from_slice(&open.D_x);
 
         let msm_result = E::G1::msm_unchecked(&bases, &scalars);
         assert!(msm_result.is_zero());
