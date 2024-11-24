@@ -182,7 +182,7 @@ where
 #[cfg(test)]
 mod tests {
     use ark_ec::pairing::Pairing;
-    use crate::accumulation::accumulator::Accumulator;
+    use crate::kzh_fold::accumulator::Accumulator;
     use crate::accumulation_circuit::prover::AccumulatorVerifierCircuitProver;
     use crate::constant_for_curves::{ScalarField, C2, E, G1, G2};
     use crate::nexus_spartan::crr1cs::is_sat;
@@ -306,7 +306,7 @@ mod tests {
 
         let running_acc = Accumulator::rand(&acc_srs, &mut thread_rng());
 
-        //////////////////// Construct A,B,C matrix evaluation accumulation verifier circuit ////////////////////
+        //////////////////// Construct A,B,C matrix evaluation kzh_fold verifier circuit ////////////////////
 
         let matrix_eval_acc_verifier = MatrixEvaluationAccVerifier::random_from_eval_point(
             &spartan_shape,

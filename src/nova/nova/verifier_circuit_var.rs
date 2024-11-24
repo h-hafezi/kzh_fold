@@ -37,7 +37,7 @@ where
     pub final_instance: RelaxedR1CSInstanceVar<G1, C1>,
     pub current_instance: R1CSInstanceVar<G1, C1>,
 
-    /// nova accumulation prof (cross term error)
+    /// nova kzh_fold prof (cross term error)
     pub nova_cross_term_error: NonNativeAffineVar<G1>,
 
     /// this is hash of two instance and nova_cross_term_error
@@ -60,7 +60,7 @@ where
     /// auxiliary input which helps to have E = E_1 + beta * com_T without scalar multiplication
     pub ova_auxiliary_input_E: OvaInstanceVar<G2, C2>,
 
-    /// accumulation proof for cycle fold (this is also the order of accumulating with cycle_fold_running_instance)
+    /// kzh_fold proof for cycle fold (this is also the order of accumulating with cycle_fold_running_instance)
     pub ova_cross_term_error_commitment_w: ProjectiveVar<G2, FpVar<G2::BaseField>>,
     pub ova_cross_term_error_commitment_e: ProjectiveVar<G2, FpVar<G2::BaseField>>,
 }

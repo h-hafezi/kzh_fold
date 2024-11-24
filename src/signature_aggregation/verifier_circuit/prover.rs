@@ -253,7 +253,7 @@ mod test {
     use ark_ff::{Field, PrimeField};
     use ark_std::UniformRand;
     use rand::{thread_rng, RngCore};
-    use crate::accumulation::accumulator::Accumulator;
+    use crate::kzh_fold::kzh2_fold::Accumulator2;
     use crate::kzh::KZH;
     use crate::kzh::kzh2::KZH2;
     use crate::signature_aggregation::signature_aggregation::{SignatureAggrData, SignatureAggrSRS};
@@ -271,7 +271,7 @@ mod test {
             let pcs_srs = KZH2::setup((degree_x * degree_y).log_2(), rng);
 
             SignatureAggrSRS {
-                acc_srs: Accumulator::setup(pcs_srs, rng),
+                acc_srs: Accumulator2::setup(pcs_srs, rng),
             }
         }
     }

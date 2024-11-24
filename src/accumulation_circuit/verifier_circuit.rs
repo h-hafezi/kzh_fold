@@ -24,7 +24,7 @@ use ark_std::UniformRand;
 use ark_std::{end_timer, start_timer};
 use rand::thread_rng;
 
-use crate::accumulation::accumulator::{AccInstance, AccSRS};
+use crate::kzh_fold::kzh2_fold::{Acc2Instance, Acc2SRS};
 use crate::accumulation_circuit::instance_circuit::AccumulatorInstanceVar;
 use crate::accumulation_circuit::prover::get_random_prover;
 use crate::accumulation_circuit::prover::AccumulatorVerifierCircuitProver;
@@ -62,21 +62,21 @@ where
     /// auxiliary input which helps to have E'' = E_{temp} + beta * (1-beta) * Q without scalar multiplication
     pub ova_auxiliary_input_E_2: OvaInstance<G2, C2>,
 
-    /// accumulation proof for accumulators
+    /// kzh_fold proof for accumulators
     pub cross_term_error_commitment_Q: Projective<G1>,
 
-    /// accumulation proof for cycle fold (this is also the order of accumulating with cycle_fold_running_instance)
+    /// kzh_fold proof for cycle fold (this is also the order of accumulating with cycle_fold_running_instance)
     pub ova_cross_term_error_commitment_C: Projective<G2>,
     pub ova_cross_term_error_commitment_T: Projective<G2>,
     pub ova_cross_term_error_commitment_E_1: Projective<G2>,
     pub ova_cross_term_error_commitment_E_2: Projective<G2>,
 
     /// the instance to be folded
-    pub current_accumulator_instance: AccInstance<E>,
+    pub current_accumulator_instance: Acc2Instance<E>,
     /// the running accumulator
-    pub running_accumulator_instance: AccInstance<E>,
+    pub running_accumulator_instance: Acc2Instance<E>,
     /// the result accumulator
-    pub final_accumulator_instance: AccInstance<E>,
+    pub final_accumulator_instance: Acc2Instance<E>,
 
     /// running cycle fold instance
     pub ova_running_instance: RelaxedOvaInstance<G2, C2>,
@@ -111,10 +111,10 @@ where
     pub beta_var: FpVar<G1::ScalarField>,
     pub beta_var_non_native: NonNativeFieldVar<G1::BaseField, G1::ScalarField>,
 
-    /// accumulation proof
+    /// kzh_fold proof
     pub cross_term_error_commitment_Q: NonNativeAffineVar<G1>,
 
-    /// accumulation proof for cycle fold (this is also the order of accumulating with cycle_fold_running_instance)
+    /// kzh_fold proof for cycle fold (this is also the order of accumulating with cycle_fold_running_instance)
     pub ova_cross_term_error_commitment_C: ProjectiveVar<G2, FpVar<G2::BaseField>>,
     pub ova_cross_term_error_commitment_T: ProjectiveVar<G2, FpVar<G2::BaseField>>,
     pub ova_cross_term_error_commitment_E_1: ProjectiveVar<G2, FpVar<G2::BaseField>>,
@@ -445,7 +445,7 @@ where
         ).unwrap();
 
 
-        // return result of accumulation and final cycle fold instance
+        // return result of kzh_fold and final cycle fold instance
         (final_instance, &self.final_accumulator_instance_var)
     }
 }
@@ -617,10 +617,10 @@ pub mod tests {
             prover.initial_transcript.clone(),
         );
 
-        // run the accumulation
+        // run the kzh_fold
         let _ = verifier.accumulate(&mut transcript_var);
 
-        println!("number of constraint after accumulation: {}", cs.num_constraints());
+        println!("number of constraint after kzh_fold: {}", cs.num_constraints());
 
         // assert the constraint system is satisfied
         assert!(cs.is_satisfied().unwrap());

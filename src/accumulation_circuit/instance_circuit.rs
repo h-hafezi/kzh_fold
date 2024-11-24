@@ -18,7 +18,7 @@ use ark_r1cs_std::uint32::UInt32;
 use ark_relations::ns;
 use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 
-use crate::accumulation::accumulator::AccInstance;
+use crate::kzh_fold::kzh2_fold::Acc2Instance;
 use crate::accumulation_circuit::affine_to_projective;
 use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
 use crate::gadgets::non_native::util::non_native_to_fpvar;
@@ -97,11 +97,11 @@ where
             .or(self.z_var.cs())
     }
 
-    pub(crate) fn value<E>(&self) -> Result<AccInstance<E>, SynthesisError>
+    pub(crate) fn value<E>(&self) -> Result<Acc2Instance<E>, SynthesisError>
     where
         E: Pairing<G1Affine=Affine<G1>, ScalarField=<G1 as CurveConfig>::ScalarField>,
     {
-        Ok(AccInstance {
+        Ok(Acc2Instance {
             C: self.C_var.value().unwrap().into(),
             T: self.T_var.value().unwrap().into(),
             E: self.E_var.value().unwrap().into(),
@@ -119,14 +119,14 @@ where
 }
 
 
-impl<G1, E> AllocVar<AccInstance<E>, <G1 as CurveConfig>::ScalarField> for AccumulatorInstanceVar<G1>
+impl<G1, E> AllocVar<Acc2Instance<E>, <G1 as CurveConfig>::ScalarField> for AccumulatorInstanceVar<G1>
 where
     G1: SWCurveConfig + Clone,
     <G1 as CurveConfig>::ScalarField: PrimeField,
     <G1 as CurveConfig>::BaseField: PrimeField,
     E: Pairing<G1Affine=Affine<G1>, ScalarField=<G1 as CurveConfig>::ScalarField>,
 {
-    fn new_variable<T: Borrow<AccInstance<E>>>(
+    fn new_variable<T: Borrow<Acc2Instance<E>>>(
         cs: impl Into<Namespace<<G1 as CurveConfig>::ScalarField>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
@@ -239,12 +239,12 @@ pub mod tests {
     use ark_std::UniformRand;
     use rand::thread_rng;
 
-    use crate::accumulation::accumulator::AccInstance;
+    use crate::kzh_fold::kzh2_fold::Acc2Instance;
     use crate::accumulation_circuit::instance_circuit::AccumulatorInstanceVar;
     use crate::constant_for_curves::{E, ScalarField};
 
-    fn get_random_acc_instance() -> AccInstance<E> {
-        AccInstance::<E> {
+    fn get_random_acc_instance() -> Acc2Instance<E> {
+        Acc2Instance::<E> {
             C: <E as Pairing>::G1Affine::rand(&mut thread_rng()),
             T: <E as Pairing>::G1Affine::rand(&mut thread_rng()),
             E: <E as Pairing>::G1Affine::rand(&mut thread_rng()),

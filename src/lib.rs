@@ -2,7 +2,7 @@
 #[cfg_attr(test, allow(dead_code))]
 
 pub mod utils;
-pub mod accumulation;
+pub mod kzh_fold;
 pub mod signature_aggregation;
 pub mod kzg;
 pub mod hash;

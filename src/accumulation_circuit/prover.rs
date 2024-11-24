@@ -1,4 +1,4 @@
-use crate::accumulation::accumulator::{AccInstance, AccSRS, Accumulator};
+use crate::kzh_fold::kzh2_fold::{Acc2Instance, Acc2SRS, Accumulator2};
 use crate::accumulation_circuit::affine_to_projective;
 use crate::commitment::CommitmentScheme;
 use crate::gadgets::non_native::util::cast_field;
@@ -38,13 +38,13 @@ where
     pub initial_transcript: Transcript<F>,
     pub final_transcript: Transcript<F>,
 
-    /// srs for the accumulation
-    pub srs: AccSRS<E>,
+    /// srs for the kzh_fold
+    pub srs: Acc2SRS<E>,
 
     /// the instance to be folded
-    pub current_accumulator: Accumulator<E>,
+    pub current_accumulator: Accumulator2<E>,
     /// the running accumulator
-    pub running_accumulator: Accumulator<E>,
+    pub running_accumulator: Accumulator2<E>,
 
     /// running cycle fold instance
     pub shape: R1CSShape<G2>,
@@ -70,12 +70,12 @@ where
     <G2 as CurveConfig>::ScalarField: Absorb,
 {
     #[inline(always)]
-    pub fn get_current_acc_instance(&self) -> &AccInstance<E> {
+    pub fn get_current_acc_instance(&self) -> &Acc2Instance<E> {
         &self.current_accumulator.instance
     }
 
     #[inline(always)]
-    pub fn get_running_acc_instance(&self) -> &AccInstance<E> {
+    pub fn get_running_acc_instance(&self) -> &Acc2Instance<E> {
         &self.running_accumulator.instance
     }
 }
@@ -96,8 +96,8 @@ where
     where
         <G2 as CurveConfig>::ScalarField: Absorb,
     {
-        assert!(Accumulator::decide(&self.srs, &self.running_accumulator));
-        assert!(Accumulator::decide(&self.srs, &self.current_accumulator));
+        assert!(Accumulator2::decide(&self.srs, &self.running_accumulator));
+        assert!(Accumulator2::decide(&self.srs, &self.current_accumulator));
         self.shape.is_relaxed_ova_satisfied(
             &self.cycle_fold_running_instance,
             &self.cycle_fold_running_witness,
@@ -174,19 +174,19 @@ where
     pub fn compute_proof_Q(&self) -> Projective<G1>
     {
         // since acc_instance takes (1- beta) then it should be first in the function argument
-        affine_to_projective(Accumulator::helper_function_Q(&self.srs,
-                                                            &self.current_accumulator,
-                                                            &self.running_accumulator)
+        affine_to_projective(Accumulator2::helper_function_Q(&self.srs,
+                                                             &self.current_accumulator,
+                                                             &self.running_accumulator)
         )
     }
 
-    pub fn compute_result_accumulator_instance(&self) -> AccInstance<E>
+    pub fn compute_result_accumulator_instance(&self) -> Acc2Instance<E>
     {
         let mut transcript = self.initial_transcript.clone();
-        Accumulator::prove(&self.srs,
-                           &self.current_accumulator,
-                           &self.running_accumulator,
-                           &mut transcript,
+        Accumulator2::prove(&self.srs,
+                            &self.current_accumulator,
+                            &self.running_accumulator,
+                            &mut transcript,
         ).0
     }
 
@@ -284,17 +284,17 @@ where
         (com_C, com_T, com_E_1, com_E_2, new_running_instance)
     }
 
-    pub fn new(srs: &AccSRS<E>,
+    pub fn new(srs: &Acc2SRS<E>,
                commitment_pp: C2::PP,
-               running_accumulator: Accumulator<E>,
-               current_accumulator: Accumulator<E>,
+               running_accumulator: Accumulator2<E>,
+               current_accumulator: Accumulator2<E>,
                cycle_fold_running_instance: RelaxedOvaInstance<G2, C2>,
                cycle_fold_running_witness: RelaxedOvaWitness<G2>,
                initial_transcript: Transcript<F>,
     ) -> AccumulatorVerifierCircuitProver<G1, G2, C2, E, F> {
         // assert accumulators are satisfied
-        debug_assert!(Accumulator::decide(&srs, &running_accumulator));
-        debug_assert!(Accumulator::decide(&srs, &current_accumulator));
+        debug_assert!(Accumulator2::decide(&srs, &running_accumulator));
+        debug_assert!(Accumulator2::decide(&srs, &current_accumulator));
 
         // the shape of the R1CS instance
         let shape = setup_shape::<G1, G2>().unwrap();
@@ -310,11 +310,11 @@ where
         ).expect("error doing equality assertion");
 
         // compute Q
-        let Q = Accumulator::helper_function_Q(&srs, &current_accumulator, &running_accumulator);
+        let Q = Accumulator2::helper_function_Q(&srs, &current_accumulator, &running_accumulator);
 
         // clone the transcript so it doesn't change
         let mut transcript = initial_transcript.clone();
-        let beta = Accumulator::compute_fiat_shamir_challenge(
+        let beta = Accumulator2::compute_fiat_shamir_challenge(
             &mut transcript,
             &current_accumulator.instance,
             &running_accumulator.instance,
@@ -370,7 +370,7 @@ where
     // get a random srs
     let srs = {
         let srs_pcs: KZH2SRS<E> = KZH2::setup((n * m as usize).log_2(), &mut thread_rng());
-        Accumulator::setup(srs_pcs.clone(), &mut thread_rng())
+        Accumulator2::setup(srs_pcs.clone(), &mut thread_rng())
     };
 
     // the shape of the R1CS instance
@@ -383,8 +383,8 @@ where
     let commitment_pp = AccumulatorVerifierCircuitProver::<G1, G2, C2, E, F>::get_commitment_pp(&shape);
 
     // get two random accumulators
-    let current_accumulator = Accumulator::rand(&srs, &mut thread_rng());
-    let running_accumulator = Accumulator::rand(&srs, &mut thread_rng());
+    let current_accumulator = Accumulator2::rand(&srs, &mut thread_rng());
+    let running_accumulator = Accumulator2::rand(&srs, &mut thread_rng());
 
 
     let prover: AccumulatorVerifierCircuitProver<G1, G2, C2, E, F> = AccumulatorVerifierCircuitProver::new(
@@ -411,7 +411,7 @@ pub mod tests {
     use ark_ec::CurveConfig;
     use ark_ff::Field;
 
-    use crate::accumulation::accumulator::Accumulator;
+    use crate::kzh_fold::kzh2_fold::Accumulator2;
     use crate::accumulation_circuit::prover::{get_random_prover, AccumulatorVerifierCircuitProver};
     use crate::constant_for_curves::{BaseField, ScalarField, E, G1, G2};
     use crate::gadgets::non_native::util::cast_field;
@@ -430,7 +430,7 @@ pub mod tests {
         let secondary_circuit = r1cs_instance.parse_secondary_io().unwrap();
 
         // get the accumulated result
-        let new_acc_instance = Accumulator::prove(
+        let new_acc_instance = Accumulator2::prove(
             &prover.srs,
             &prover.current_accumulator,
             &prover.running_accumulator,
@@ -452,7 +452,7 @@ pub mod tests {
         let secondary_circuit = r1cs_instance.parse_secondary_io().unwrap();
 
         // get the accumulated result
-        let new_acc_instance = Accumulator::prove(
+        let new_acc_instance = Accumulator2::prove(
             &prover.srs,
             &prover.current_accumulator,
             &prover.running_accumulator,
@@ -480,7 +480,7 @@ pub mod tests {
         let Q = prover.compute_proof_Q();
 
         // get the accumulated result
-        let new_acc_instance = Accumulator::prove(
+        let new_acc_instance = Accumulator2::prove(
             &prover.srs,
             &prover.current_accumulator,
             &prover.running_accumulator,

@@ -1,5 +1,9 @@
 use ark_ff::PrimeField;
 use ark_serialize::CanonicalSerialize;
+use rayon::iter::IndexedParallelIterator;
+use rayon::iter::IntoParallelRefIterator;
+use rayon::iter::ParallelIterator;
+use crate::kzh_fold::generic_linear_combination;
 
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize)]
 pub struct EqTree<F: PrimeField> {
@@ -112,6 +116,33 @@ impl<F: PrimeField> EqTree<F> {
             print!("{:?} ", leaf);
         }
         println!();
+    }
+}
+
+impl<F: PrimeField> EqTree<F> {
+    /// Computes a linear combination of two EqTree objects using a custom combination function.
+    /// The `combine_fn` parameter specifies how to combine each pair of nodes.
+    pub fn linear_combination<FN>(tree1: &Self, tree2: &Self, combine_fn: FN) -> Self
+    where
+        FN: Fn(F, F) -> F + Sync,
+    {
+        // Ensure both trees have the same depth
+        assert_eq!(
+            tree1.depth, tree2.depth,
+            "Trees must have the same depth for linear combination."
+        );
+
+        let nodes = generic_linear_combination(
+            &tree1.nodes,
+            &tree2.nodes,
+            combine_fn
+        );
+
+        // Construct the resulting tree
+        Self {
+            nodes,
+            depth: tree1.depth,
+        }
     }
 }
 

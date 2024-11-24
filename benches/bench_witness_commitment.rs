@@ -14,7 +14,7 @@ use ark_relations::ns;
 use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef, SynthesisMode};
 use ark_std::UniformRand;
 use rand::thread_rng;
-use sqrtn_pcs::accumulation::accumulator::Accumulator;
+use sqrtn_pcs::kzh_fold::kzh2_fold::Accumulator2;
 use sqrtn_pcs::accumulation_circuit::instance_circuit::AccumulatorInstanceVar;
 use sqrtn_pcs::accumulation_circuit::prover::{get_random_prover, AccumulatorVerifierCircuitProver};
 use sqrtn_pcs::accumulation_circuit::verifier_circuit::AccumulatorVerifierVar;
@@ -46,10 +46,10 @@ fn setup_benchmark() -> Vec<ScalarField> {
         prover.initial_transcript.clone()
     );
 
-    // run the accumulation
+    // run the kzh_fold
     let _ = verifier.accumulate(&mut transcript_var);
 
-    println!("number of constraint after accumulation: {}", cs.num_constraints());
+    println!("number of constraint after kzh_fold: {}", cs.num_constraints());
 
     // assert the constraint system is satisfied
     assert!(cs.is_satisfied().unwrap());

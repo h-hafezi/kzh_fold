@@ -215,7 +215,7 @@ pub fn verify<E: Pairing<ScalarField=F>, F: PrimeField + Absorb>(
     let C_g: E::G1Affine = C_prime.sub(z_r_C_q).into_affine();
 
     // Final check: Check the KZG proof that g(r) == 0
-    // NOT NEEDED for accumulation verifier (only for decider)
+    // NOT NEEDED for kzh_fold verifier (only for decider)
 
     // TODO: bug! why need to negate?
     // let tmp_negated: E::G1Affine = E::G1Affine::zero().sub(C_g).into();

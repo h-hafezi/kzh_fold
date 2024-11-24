@@ -7,7 +7,7 @@ use std::fmt::Debug;
 use ark_ff::{PrimeField};
 use ark_serialize::*;
 use rand::{Rng, RngCore};
-
+use crate::kzh_fold::generic_linear_combination;
 #[cfg(feature = "parallel")]
 use crate::polynomial::eq_poly::eq_poly::EqPolynomial;
 use crate::math::Math;
@@ -246,6 +246,36 @@ impl<F: PrimeField> Add for MultilinearPolynomial<F> {
             num_variables: self.num_variables,
             evaluation_over_boolean_hypercube: new_evaluation_over_boolean_hypercube,
             len: self.len,
+        }
+    }
+}
+
+/// This function is used in kzh-fold
+impl<F: PrimeField> MultilinearPolynomial<F> {
+    /// Computes the linear combination of two `MultilinearPolynomial` instances
+    /// using a custom function `Fn` to combine the evaluations of the two polynomials.
+    pub fn linear_combination<FN>(
+        poly1: &Self,
+        poly2: &Self,
+        combine_fn: FN,
+    ) -> Self
+    where
+        FN: Fn(F, F) -> F + Sync, // Fn is a function that takes two `F` and returns an `F`
+    {
+        assert_eq!(poly1.num_variables, poly2.num_variables, "Polynomials must have the same number of variables");
+
+        // Perform the linear combination of the evaluations
+        let evaluation_over_boolean_hypercube = generic_linear_combination(
+            &poly1.evaluation_over_boolean_hypercube,
+            &poly2.evaluation_over_boolean_hypercube,
+            combine_fn
+        );
+
+        // Return a new MultilinearPolynomial with the combined evaluations
+        Self {
+            num_variables: poly1.num_variables,
+            evaluation_over_boolean_hypercube,
+            len: poly1.len,
         }
     }
 }

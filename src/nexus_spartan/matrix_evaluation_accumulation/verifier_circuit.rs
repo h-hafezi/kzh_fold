@@ -15,7 +15,7 @@ use rand::Rng;
 use std::borrow::Borrow;
 use std::ops::Mul;
 
-/// Verify the accumulation of (r_x, r_y, z) and (r_x', r_y', z') into (r_x'', r_y'', z'')
+/// Verify the kzh_fold of (r_x, r_y, z) and (r_x', r_y', z') into (r_x'', r_y'', z'')
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MatrixEvaluationAccVerifier<F: PrimeField + Absorb> {
     // (r_x, r_y)

@@ -30,7 +30,7 @@ where
     /// shape of the main curve
     pub shape: R1CSShape<G1>,
 
-    /// srs for the accumulation
+    /// srs for the kzh_fold
     pub commitment_pp: <C1 as CommitmentScheme<Projective<G1>>>::PP,
 
     /// the instance to be folded

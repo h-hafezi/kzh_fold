@@ -12,8 +12,8 @@ use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
 use std::ops::{Add, Mul, Neg, Sub};
 
-use crate::accumulation::eq_tree::EqTree;
-use crate::accumulation::generate_random_elements;
+use crate::kzh_fold::eq_tree::EqTree;
+use crate::kzh_fold::{generate_random_elements, generic_linear_combination};
 use crate::gadgets::non_native::util::convert_affine_to_scalars;
 use crate::kzh::KZH;
 use crate::math::Math;
@@ -23,7 +23,7 @@ use crate::transcript::transcript::{AppendToTranscript, Transcript};
 use crate::utils::inner_product;
 
 #[derive(Clone, Debug)]
-pub struct AccSRS<E: Pairing> {
+pub struct Acc2SRS<E: Pairing> {
     // vector of size 2 * degree_x - 1
     pub k_x: Vec<E::G1Affine>,
 
@@ -35,7 +35,7 @@ pub struct AccSRS<E: Pairing> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize)]
-pub struct AccInstance<E: Pairing> {
+pub struct Acc2Instance<E: Pairing> {
     pub C: E::G1Affine,
     pub T: E::G1Affine,
     pub E: E::G1Affine,
@@ -49,7 +49,7 @@ pub struct AccInstance<E: Pairing> {
     pub z: E::ScalarField,
 }
 
-impl<E: Pairing> AccInstance<E>
+impl<E: Pairing> Acc2Instance<E>
 where
     E::ScalarField: PrimeField,
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
@@ -78,7 +78,7 @@ where
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize)]
-pub struct AccWitness<E: Pairing> {
+pub struct Acc2Witness<E: Pairing> {
     /// size of degree_x
     pub vec_D: Vec<E::G1Affine>,
 
@@ -91,18 +91,18 @@ pub struct AccWitness<E: Pairing> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize)]
-pub struct Accumulator<E: Pairing> {
-    pub witness: AccWitness<E>,
-    pub instance: AccInstance<E>,
+pub struct Accumulator2<E: Pairing> {
+    pub witness: Acc2Witness<E>,
+    pub instance: Acc2Instance<E>,
 }
 
-impl<E: Pairing> Accumulator<E>
+impl<E: Pairing> Accumulator2<E>
 where
     <E as Pairing>::ScalarField: Absorb,
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
 {
-    pub fn setup<R: RngCore>(pc_srs: KZH2SRS<E>, rng: &mut R) -> AccSRS<E> {
-        AccSRS {
+    pub fn setup<R: RngCore>(pc_srs: KZH2SRS<E>, rng: &mut R) -> Acc2SRS<E> {
+        Acc2SRS {
             pc_srs: pc_srs.clone(),
             k_x: generate_random_elements::<E, R>(2 * pc_srs.degree_x - 1, rng),
             k_y: generate_random_elements::<E, R>(2 * pc_srs.degree_y - 1, rng),
@@ -110,15 +110,15 @@ where
         }
     }
 
-    pub fn new(instance: &AccInstance<E>, witness: &AccWitness<E>) -> Accumulator<E> {
-        Accumulator {
+    pub fn new(instance: &Acc2Instance<E>, witness: &Acc2Witness<E>) -> Accumulator2<E> {
+        Accumulator2 {
             witness: witness.clone(),
             instance: instance.clone(),
         }
     }
 
     /// the fiat-shamir challenge is computed as part the transcript operations via hashing two accumulator instances and proof Q
-    pub fn compute_fiat_shamir_challenge(transcript: &mut Transcript<E::ScalarField>, instance_1: &AccInstance<E>, instance_2: &AccInstance<E>, Q: E::G1Affine) -> E::ScalarField {
+    pub fn compute_fiat_shamir_challenge(transcript: &mut Transcript<E::ScalarField>, instance_1: &Acc2Instance<E>, instance_2: &Acc2Instance<E>, Q: E::G1Affine) -> E::ScalarField {
         // add the instances to the transcript
         transcript.append_scalars(b"instance 1", instance_1.to_sponge_field_elements().as_slice());
         transcript.append_scalars(b"instance 2", instance_2.to_sponge_field_elements().as_slice());
@@ -133,12 +133,12 @@ where
 
     /// Given public data for the opening p(x, y) = z, return an accumulator instance
     pub fn new_accumulator_instance_from_fresh_kzh_instance(
-        srs: &AccSRS<E>,
+        srs: &Acc2SRS<E>,
         C: &E::G1Affine,
         x: &[E::ScalarField],
         y: &[E::ScalarField],
         z: &E::ScalarField,
-    ) -> AccInstance<E> {
+    ) -> Acc2Instance<E> {
         // asserting the sizes are correct
         assert_eq!(1 << x.len(), srs.pc_srs.degree_x, "invalid size of vector x");
         assert_eq!(1 << y.len(), srs.pc_srs.degree_y, "invalid size of vector y");
@@ -154,7 +154,7 @@ where
         assert_eq!(srs.k_y.len(), tree_y.nodes.len(), "invalid size of vector y");
 
 
-        AccInstance {
+        Acc2Instance {
             C: *C,
             T: T.into(),
             E: E::G1Affine::zero(),
@@ -165,18 +165,18 @@ where
     }
 
     pub fn new_accumulator_witness_from_fresh_kzh_witness(
-        srs: &AccSRS<E>,
+        srs: &Acc2SRS<E>,
         proof: KZH2OpeningProof<E>,
         x: &[E::ScalarField],
         y: &[E::ScalarField],
-    ) -> AccWitness<E> {
+    ) -> Acc2Witness<E> {
         // asserting the sizes are correct
         assert_eq!(1 << x.len(), srs.pc_srs.degree_x, "invalid size of vector x");
         assert_eq!(1 << y.len(), srs.pc_srs.degree_y, "invalid size of vector y");
         assert_eq!(proof.vec_D.len(), srs.pc_srs.degree_x, "invalid proof size");
 
         // return a fresh instance by simply computing the two EqTrees
-        AccWitness {
+        Acc2Witness {
             vec_D: proof.vec_D,
             f_star_poly: proof.f_star_poly,
             tree_x: EqTree::new(x),
@@ -185,11 +185,11 @@ where
     }
 
     pub fn prove(
-        srs: &AccSRS<E>,
-        acc_1: &Accumulator<E>,
-        acc_2: &Accumulator<E>,
+        srs: &Acc2SRS<E>,
+        acc_1: &Accumulator2<E>,
+        acc_2: &Accumulator2<E>,
         transcript: &mut Transcript<E::ScalarField>,
-    ) -> (AccInstance<E>, AccWitness<E>, E::G1Affine)
+    ) -> (Acc2Instance<E>, Acc2Witness<E>, E::G1Affine)
     where
         <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb,
     {
@@ -208,62 +208,48 @@ where
         let mut transcript_clone = transcript.clone();
 
         // get challenge beta
-        let beta = Accumulator::compute_fiat_shamir_challenge(transcript, instance_1, instance_2, Q);
+        let beta = Accumulator2::compute_fiat_shamir_challenge(transcript, instance_1, instance_2, Q);
         let one_minus_beta: E::ScalarField = E::ScalarField::ONE - beta;
 
         // get the accumulated new_instance
         let new_instance = Self::verify(srs, instance_1, instance_2, Q, &mut transcript_clone);
 
         // get the accumulated witness
-        let new_witness = AccWitness {
-            vec_D: witness_1.vec_D.par_iter().zip(witness_2.vec_D.par_iter())
-                .map(|(&d_1, &d_2)| d_1.mul(one_minus_beta).add(d_2.mul(beta)).into_affine())
-                .collect(),
-            f_star_poly: MultilinearPolynomial {
-                num_variables: witness_1.f_star_poly.num_variables,
-                evaluation_over_boolean_hypercube: witness_1.f_star_poly.evaluation_over_boolean_hypercube.par_iter()
-                    .zip(witness_2.f_star_poly.evaluation_over_boolean_hypercube.par_iter())
-                    .map(
-                        |(&a, &b)|
-                            a * (one_minus_beta) + (b * beta)
-                    )
-                    .collect(),
-                len: witness_1.f_star_poly.len(),
-            },
-            tree_x: EqTree {
-                nodes: witness_1.tree_x.nodes.par_iter()
-                    .zip(witness_2.tree_x.nodes.par_iter())
-                    .map(
-                        |(&a, &b)|
-                            a * (one_minus_beta) + (b * beta)
-                    )
-                    .collect(),
-                depth: witness_1.tree_x.depth,
-            },
-            tree_y: EqTree {
-                nodes: witness_1.tree_y.nodes.par_iter()
-                    .zip(witness_2.tree_y.nodes.par_iter())
-                    .map(
-                        |(&a, &b)|
-                            a * (one_minus_beta) + (b * beta)
-                    )
-                    .collect(),
-                depth: witness_1.tree_y.depth,
-            },
+        let new_witness = Acc2Witness {
+            vec_D: generic_linear_combination(
+                &witness_1.vec_D,
+                &witness_2.vec_D,
+                |d_1, d_2| d_1.mul(one_minus_beta).add(d_2.mul(beta)).into_affine()
+            ),
+            f_star_poly: MultilinearPolynomial::linear_combination(
+                &witness_1.f_star_poly,
+                &witness_2.f_star_poly,
+                |a, b| a * one_minus_beta + b * beta
+            ),
+            tree_x: EqTree::linear_combination(
+                &witness_1.tree_x,
+                &witness_2.tree_x,
+                |a, b| a * one_minus_beta + b * beta
+            ),
+            tree_y: EqTree::linear_combination(
+                &witness_1.tree_y,
+                &witness_2.tree_y,
+                |a, b| a * one_minus_beta + b * beta
+            ),
         };
 
         (new_instance, new_witness, Q)
     }
 
     pub fn verify(
-        srs: &AccSRS<E>,
-        instance_1: &AccInstance<E>,
-        instance_2: &AccInstance<E>,
+        srs: &Acc2SRS<E>,
+        instance_1: &Acc2Instance<E>,
+        instance_2: &Acc2Instance<E>,
         Q: E::G1Affine,
         transcript: &mut Transcript<E::ScalarField>,
-    ) -> AccInstance<E> {
+    ) -> Acc2Instance<E> {
         // compute the fiat-shamir challenge
-        let beta = Accumulator::compute_fiat_shamir_challenge(transcript, instance_1, instance_2, Q);
+        let beta = Accumulator2::compute_fiat_shamir_challenge(transcript, instance_1, instance_2, Q);
         let one_minus_beta: E::ScalarField = E::ScalarField::ONE - beta;
 
         let new_error_term: E::G1Affine = {
@@ -272,7 +258,7 @@ where
             res.add(Q.mul(one_minus_beta * beta)).into()
         };
 
-        AccInstance {
+        Acc2Instance {
             C: {
                 let res = instance_1.C.mul(one_minus_beta);
                 res.add(instance_2.C.mul(beta)).into()
@@ -281,20 +267,22 @@ where
                 let res = instance_1.T.mul(one_minus_beta);
                 res.add(instance_2.T.mul(beta)).into()
             },
-            x: instance_1.x.iter()
-                .zip(instance_2.x.iter())
-                .map(|(&e1, &e2)| e1 * one_minus_beta + e2 * beta)
-                .collect(),
-            y: instance_1.y.iter()
-                .zip(instance_2.y.iter())
-                .map(|(&e1, &e2)| e1 * one_minus_beta + e2 * beta)
-                .collect(),
+            x: generic_linear_combination(
+                &instance_1.x,
+                &instance_2.x,
+                |e1, e2| e1 * one_minus_beta + e2 * beta
+            ),
+            y: generic_linear_combination(
+                &instance_1.y,
+                &instance_2.y,
+                |e1, e2| e1 * one_minus_beta + e2 * beta
+            ),
             z: instance_1.z * one_minus_beta + instance_2.z * beta,
             E: new_error_term,
         }
     }
 
-    pub fn helper_function_Q(srs: &AccSRS<E>, acc_1: &Accumulator<E>, acc_2: &Accumulator<E>) -> E::G1Affine {
+    pub fn helper_function_Q(srs: &Acc2SRS<E>, acc_1: &Accumulator2<E>, acc_2: &Accumulator2<E>) -> E::G1Affine {
         // unwrap the instances/witnesses
         let instance_1 = &acc_1.instance;
         let instance_2 = &acc_2.instance;
@@ -310,49 +298,46 @@ where
         let two = E::ScalarField::from(2u128);
 
         // build the accumulator from linear combination to run helper_function_V on it
-        let temp_acc = Accumulator {
-            witness: AccWitness {
-                vec_D: witness_2.vec_D.par_iter()
-                    .zip(witness_1.vec_D.par_iter())
-                    .map(|(&d2, &d1)| d2.mul(two).sub(d1).into_affine())
-                    .collect(),
-                f_star_poly: MultilinearPolynomial {
-                    num_variables: witness_1.f_star_poly.num_variables,
-                    evaluation_over_boolean_hypercube: witness_2.f_star_poly.evaluation_over_boolean_hypercube.par_iter()
-                        .zip(witness_1.f_star_poly.evaluation_over_boolean_hypercube.par_iter())
-                        .map(|(&e2, &e1)| e2 * two - e1)
-                        .collect(),
-                    len: witness_1.f_star_poly.len(),
-                },
-                tree_x: EqTree {
-                    nodes: witness_2.tree_x.nodes.par_iter()
-                        .zip(witness_1.tree_x.nodes.par_iter())
-                        .map(|(&w2, &w1)| w2 * two - w1)
-                        .collect(),
-                    depth: witness_1.tree_x.depth,
-                },
-                tree_y: EqTree {
-                    nodes: witness_2.tree_y.nodes.par_iter()
-                        .zip(witness_1.tree_y.nodes.par_iter())
-                        .map(|(&w2, &w1)| w2 * two - w1)
-                        .collect(),
-                    depth: witness_1.tree_y.depth,
-                },
+        let temp_acc = Accumulator2 {
+            witness: Acc2Witness {
+                vec_D: generic_linear_combination(
+                    &witness_2.vec_D,
+                    &witness_1.vec_D,
+                    |d2, d1| d2.mul(two).sub(d1).into_affine()
+                ),
+                f_star_poly: MultilinearPolynomial::linear_combination(
+                    &witness_2.f_star_poly,
+                    &witness_1.f_star_poly,
+                    |e2, e1| e2 * two - e1,
+                ),
+                tree_x: EqTree::linear_combination(
+                    &witness_2.tree_x,
+                    &witness_1.tree_x,
+                    |w2, w1| w2 * two - w1,
+                ),
+                tree_y: EqTree::linear_combination(
+                    &witness_2.tree_y,
+                    &witness_1.tree_y,
+                    |w2, w1| w2 * two - w1,
+                ),
             },
-            instance: AccInstance {
+            instance: Acc2Instance {
                 // not used by helper function, so we simply pass them as zero or any other random element
                 C: E::G1Affine::zero(),
                 T: E::G1Affine::zero(),
                 E: E::G1Affine::zero(),
+
                 // used by the helper function
-                x: instance_2.x.par_iter()
-                    .zip(instance_1.x.par_iter())
-                    .map(|(&e2, &e1)| e2 * two - e1)
-                    .collect(),
-                y: instance_2.y.par_iter()
-                    .zip(instance_1.y.par_iter())
-                    .map(|(&e2, &e1)| e2 * two - e1)
-                    .collect(),
+                x: generic_linear_combination(
+                    &instance_2.x,
+                    &instance_1.x,
+                    |e2, e1| e2 * two - e1
+                ),
+                y: generic_linear_combination(
+                    &instance_2.y,
+                    &instance_1.y,
+                    |e2, e1| e2 * two - e1
+                ),
                 z: two * instance_2.z - instance_1.z,
             },
         };
@@ -367,7 +352,7 @@ where
         res.mul(minus_one_over_two).into()
     }
 
-    pub fn decide(srs: &AccSRS<E>, acc: &Accumulator<E>) -> bool {
+    pub fn decide(srs: &Acc2SRS<E>, acc: &Accumulator2<E>) -> bool {
         let instance = &acc.instance;
         let witness = &acc.witness;
 
@@ -390,7 +375,7 @@ where
         (verify_rhs == verify_lhs.into()) && (ip_lhs == ip_rhs.into()) && (pairing_lhs == pairing_rhs)
     }
 
-    pub fn helper_function_decide(srs: &AccSRS<E>, acc: &Accumulator<E>) -> E::G1Affine {
+    pub fn helper_function_decide(srs: &Acc2SRS<E>, acc: &Accumulator2<E>) -> E::G1Affine {
         let instance = &acc.instance;
         let witness = &acc.witness;
 
@@ -442,10 +427,10 @@ where
     }
 }
 
-impl<E: Pairing> Accumulator<E> {
+impl<E: Pairing> Accumulator2<E> {
     /// this function returns a random satisfying accumulator by generating two random frseh accumualtors (KZH openings)
     /// and then accumulating them, so that the error vector wouldn't be zero
-    pub fn rand<R: RngCore>(srs: &AccSRS<E>, rng: &mut R) -> Accumulator<E>
+    pub fn rand<R: RngCore>(srs: &Acc2SRS<E>, rng: &mut R) -> Accumulator2<E>
     where
         <E as Pairing>::ScalarField: Absorb,
         <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb,
@@ -497,26 +482,26 @@ impl<E: Pairing> Accumulator<E> {
         KZH2::verify(&srs.pc_srs, &input_1, &z1, &com1, &open1);
         KZH2::verify(&srs.pc_srs, &input_2, &z2, &com2, &open2);
 
-        let instance1 = Accumulator::new_accumulator_instance_from_fresh_kzh_instance(&srs, &com1.C, &x1, &y1, &z1);
-        let witness1 = Accumulator::new_accumulator_witness_from_fresh_kzh_witness(&srs, open1, &x1, &y1);
-        let instance2 = Accumulator::new_accumulator_instance_from_fresh_kzh_instance(&srs, &com2.C, &x2, &y2, &z2);
-        let witness2 = Accumulator::new_accumulator_witness_from_fresh_kzh_witness(&srs, open2, &x2, &y2);
+        let instance1 = Accumulator2::new_accumulator_instance_from_fresh_kzh_instance(&srs, &com1.C, &x1, &y1, &z1);
+        let witness1 = Accumulator2::new_accumulator_witness_from_fresh_kzh_witness(&srs, open1, &x1, &y1);
+        let instance2 = Accumulator2::new_accumulator_instance_from_fresh_kzh_instance(&srs, &com2.C, &x2, &y2, &z2);
+        let witness2 = Accumulator2::new_accumulator_witness_from_fresh_kzh_witness(&srs, open2, &x2, &y2);
 
-        let acc1 = Accumulator::new(&instance1, &witness1);
-        let acc2 = Accumulator::new(&instance2, &witness2);
+        let acc1 = Accumulator2::new(&instance1, &witness1);
+        let acc2 = Accumulator2::new(&instance2, &witness2);
 
         // verify that the fresh accumulators are satisfied
-        debug_assert!(Accumulator::decide(&srs, &acc1));
-        debug_assert!(Accumulator::decide(&srs, &acc2));
+        debug_assert!(Accumulator2::decide(&srs, &acc1));
+        debug_assert!(Accumulator2::decide(&srs, &acc2));
 
         let mut prover_transcript = Transcript::new(b"new_transcript");
 
-        let (accumulated_instance, accumulated_witness, Q) = Accumulator::prove(&srs, &acc1, &acc2, &mut prover_transcript);
+        let (accumulated_instance, accumulated_witness, Q) = Accumulator2::prove(&srs, &acc1, &acc2, &mut prover_transcript);
 
-        let accumulated_acc = Accumulator::new(&accumulated_instance, &accumulated_witness);
+        let accumulated_acc = Accumulator2::new(&accumulated_instance, &accumulated_witness);
 
         // verify the accumulated instance is satisfied
-        debug_assert!(Accumulator::decide(&srs, &accumulated_acc));
+        debug_assert!(Accumulator2::decide(&srs, &accumulated_acc));
 
         accumulated_acc
     }
@@ -532,24 +517,24 @@ pub mod test {
 
     #[test]
     fn test_accumulator_end_to_end() {
-        let (degree_x, degree_y) = (128usize, 128usize);
+        let (degree_x, degree_y) = (8usize, 8usize);
         let srs_pcs: KZH2SRS<E> = KZH2::setup((degree_x * degree_y).log_2(), &mut thread_rng());
-        let srs = Accumulator::setup(srs_pcs.clone(), &mut thread_rng());
+        let srs = Accumulator2::setup(srs_pcs.clone(), &mut thread_rng());
 
-        let acc1 = Accumulator::rand(&srs, &mut thread_rng());
-        let acc2 = Accumulator::rand(&srs, &mut thread_rng());
+        let acc1 = Accumulator2::rand(&srs, &mut thread_rng());
+        let acc2 = Accumulator2::rand(&srs, &mut thread_rng());
 
         let mut prover_transcript = Transcript::new(b"new_transcript");
         let mut verifier_transcript = prover_transcript.clone();
 
-        let (instance, witness, Q) = Accumulator::prove(&srs, &acc1, &acc2, &mut prover_transcript);
+        let (instance, witness, Q) = Accumulator2::prove(&srs, &acc1, &acc2, &mut prover_transcript);
 
-        let instance_expected = Accumulator::verify(&srs, &acc1.instance, &acc2.instance, Q, &mut verifier_transcript);
+        let instance_expected = Accumulator2::verify(&srs, &acc1.instance, &acc2.instance, Q, &mut verifier_transcript);
 
         assert_eq!(instance, instance_expected);
 
         let decide_timer = start_timer!(|| "decide");
-        assert!(Accumulator::decide(&srs, &Accumulator { witness, instance }));
+        assert!(Accumulator2::decide(&srs, &Accumulator2 { witness, instance }));
         end_timer!(decide_timer);
     }
 
@@ -562,9 +547,9 @@ pub mod test {
         for (degree_x, degree_y) in degrees {
             // set accumulator sts
             let srs_pcs: KZH2SRS<E> = KZH2::setup((degree_x * degree_y).log_2(), rng);
-            let srs_acc = Accumulator::setup(srs_pcs.clone(), rng);
+            let srs_acc = Accumulator2::setup(srs_pcs.clone(), rng);
             // get random accumulator
-            let acc = Accumulator::rand(&srs_acc, rng);
+            let acc = Accumulator2::rand(&srs_acc, rng);
 
             let witness_len = degree_x * degree_y;
             let witness_polynomial: MultilinearPolynomial<ScalarField> = MultilinearPolynomial::rand(

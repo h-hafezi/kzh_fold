@@ -1,4 +1,4 @@
-use crate::accumulation::accumulator::{AccInstance, AccSRS, Accumulator as KZHAccumulator, Accumulator};
+use crate::kzh_fold::kzh2_fold::{Acc2Instance, Acc2SRS, Accumulator2 as KZHAccumulator, Accumulator2};
 use crate::kzh::kzh2::{split_between_x_and_y, KZH2Commitment, KZH2};
 use crate::kzh::KZH;
 use crate::math::Math;
@@ -15,7 +15,7 @@ use rand::RngCore;
 
 #[derive(Clone, Debug)]
 pub struct SignatureAggrSRS<E: Pairing> {
-    pub acc_srs: AccSRS<E>,
+    pub acc_srs: Acc2SRS<E>,
 }
 
 
@@ -74,7 +74,7 @@ where
     F: PrimeField + Absorb,
 {
     /// Generate a random SignatureAggrData for a network participant
-    pub fn rand<R: RngCore>(num_vars: usize, srs: &AccSRS<E>, rng: &mut R) -> Self {
+    pub fn rand<R: RngCore>(num_vars: usize, srs: &Acc2SRS<E>, rng: &mut R) -> Self {
         let mut transcript = Transcript::<F>::new(b"aggr");
 
         // Random polynomials
@@ -131,7 +131,7 @@ where
     // Commitment to Alice's running bitfield
     pub running_bitfield_commitment: KZH2Commitment<E>,
     // Alice's running accumulator
-    pub running_accumulator: Accumulator<E>,
+    pub running_accumulator: Accumulator2<E>,
     // running signature
     pub running_signature: E::G2Affine,
     // running public key
@@ -184,7 +184,7 @@ where
 }
 
 /// Return (A.X, A.W) given f(x), and z and y such that f(z) = y
-fn get_accumulator_from_evaluation<E, F>(acc_srs: &AccSRS<E>,
+fn get_accumulator_from_evaluation<E, F>(acc_srs: &Acc2SRS<E>,
                                          bitfield_poly: &MultilinearPolynomial<F>,
                                          eval_result: &F,
                                          eval_point: &Vec<F>,
@@ -242,7 +242,7 @@ where
 ///
 /// Return b_1(rho), b_2(rho), c(rho) and an accumulator for the proof on p(x).
 pub fn compute_signature_aggr_KZH_accumulator<E, F>(
-    acc_srs: &AccSRS<E>,
+    acc_srs: &Acc2SRS<E>,
     b_1_poly: &MultilinearPolynomial<F>,
     b_2_poly: &MultilinearPolynomial<F>,
     c_poly: &MultilinearPolynomial<F>,
@@ -381,7 +381,7 @@ where
                                         bitfield_commitment: &KZH2Commitment<E>,
                                         eval_result: &F,
                                         eval_point: &Vec<F>,
-    ) -> AccInstance<E> {
+    ) -> Acc2Instance<E> {
         // Split the evaluation point in half since open() just needs the first half
         let length_x = self.srs.acc_srs.pc_srs.degree_x.log_2();
         let length_y = self.srs.acc_srs.pc_srs.degree_y.log_2();
@@ -467,7 +467,7 @@ where
 
 #[cfg(test)]
 pub mod test {
-    use crate::accumulation::accumulator::Accumulator;
+    use crate::kzh_fold::kzh2_fold::Accumulator2;
     use crate::constant_for_curves::{G1Affine, G2Affine, ScalarField, E};
     use crate::kzh::kzh2::KZH2;
     use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
@@ -498,7 +498,7 @@ pub mod test {
         // Generate random running data for Alice
         let alice_bitfield = MultilinearPolynomial::random_binary(num_vars, rng);
         let alice_bitfield_commitment = KZH2::commit(&srs.acc_srs.pc_srs, &alice_bitfield);
-        let alice_running_accumulator = Accumulator::rand(&srs.acc_srs, rng);
+        let alice_running_accumulator = Accumulator2::rand(&srs.acc_srs, rng);
         let alice_running_sig = G2Affine::rand(rng);
         let alice_running_pk = G1Affine::rand(rng);
 
