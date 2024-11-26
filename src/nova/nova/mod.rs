@@ -8,7 +8,7 @@ use ark_r1cs_std::select::CondSelectGadget;
 
 pub mod verifier_circuit;
 pub mod prover;
-mod verifier_circuit_var;
+pub mod verifier_circuit_var;
 
 
 // the following functions have their non-native implementation in gadgets/non_native/non_native_affine_var.rs

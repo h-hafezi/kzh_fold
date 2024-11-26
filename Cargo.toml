@@ -96,3 +96,7 @@ name = "bench_bls"
 [[bench]]
 harness = false
 name = "bench_kzh3"
+
+[[bench]]
+harness = false
+name = "bench_nova"
