@@ -1,4 +1,4 @@
-/*#![allow(dead_code)]
+#![allow(dead_code)]
 
 use crate::accumulation_circuit::instance_circuit::AccumulatorInstanceVar;
 use crate::accumulation_circuit::verifier_circuit::{AccumulatorVerifier, AccumulatorVerifierVar};
@@ -182,7 +182,6 @@ where
 #[cfg(test)]
 mod tests {
     use ark_ec::pairing::Pairing;
-    use crate::kzh_fold::accumulator::Accumulator;
     use crate::accumulation_circuit::prover::AccumulatorVerifierCircuitProver;
     use crate::constant_for_curves::{ScalarField, C2, E, G1, G2};
     use crate::nexus_spartan::crr1cs::is_sat;
@@ -194,7 +193,6 @@ mod tests {
     use crate::kzh::kzh2::KZH2SRS;
     use crate::transcript::transcript::Transcript;
     use ark_serialize::CanonicalSerialize;
-    use ark_ff::AdditiveGroup;
     use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
     use ark_relations::r1cs::{ConstraintSystem, SynthesisMode};
     use ark_std::{end_timer, start_timer};
@@ -202,6 +200,7 @@ mod tests {
     use crate::accumulation_circuit::verifier_circuit::AccumulatorVerifierVar;
     use crate::augmented_circuit::augmented_circuit::{AugmentedCircuitVar, Output};
     use crate::kzh::KZH;
+    use crate::kzh_fold::kzh2_fold::Accumulator2;
     use crate::nexus_spartan::matrix_evaluation_accumulation::verifier_circuit::{MatrixEvaluationAccVerifier, MatrixEvaluationAccVerifierVar};
     use crate::nexus_spartan::partial_verifier::partial_verifier::SpartanPartialVerifier;
     use crate::nexus_spartan::partial_verifier::partial_verifier_var::SpartanPartialVerifierVar;
@@ -238,7 +237,7 @@ mod tests {
         );
 
         let pcs_srs = gens.gens_r1cs_sat.clone();
-        let acc_srs = Accumulator::setup(pcs_srs.clone(), &mut thread_rng());
+        let acc_srs = Accumulator2::setup(pcs_srs.clone(), &mut thread_rng());
 
         let mut prover_transcript = Transcript::new(b"example");
 
@@ -277,7 +276,7 @@ mod tests {
         let y = split_input[1].clone();
 
         // Get accumulator from the opening proof
-        let acc_instance = Accumulator::new_accumulator_instance_from_fresh_kzh_instance(
+        let acc_instance = Accumulator2::new_accumulator_instance_from_fresh_kzh_instance(
             &acc_srs,
             &commitment_w.C,
             x.as_slice(),
@@ -285,18 +284,18 @@ mod tests {
             &spartan_proof.eval_vars_at_ry,
         );
 
-        let acc_witness = Accumulator::new_accumulator_witness_from_fresh_kzh_witness(
+        let acc_witness = Accumulator2::new_accumulator_witness_from_fresh_kzh_witness(
             &acc_srs,
             opening_proof,
             x.as_slice(),
             y.as_slice(),
         );
 
-        let current_acc = Accumulator::new(&acc_instance, &acc_witness);
+        let current_acc = Accumulator2::new(&acc_instance, &acc_witness);
 
         // Check that the accumulator is valid
         assert!(
-            Accumulator::decide(
+            Accumulator2::decide(
                 &acc_srs,
                 &current_acc,
             )
@@ -304,7 +303,7 @@ mod tests {
 
         //////////////////// Compute a random `running_accumulator_{i} ////////////////////
 
-        let running_acc = Accumulator::rand(&acc_srs, &mut thread_rng());
+        let running_acc = Accumulator2::rand(&acc_srs, &mut thread_rng());
 
         //////////////////// Construct A,B,C matrix evaluation kzh_fold verifier circuit ////////////////////
 
@@ -453,4 +452,3 @@ mod tests {
         end_timer!(verify_timer);
     }
 }
- */

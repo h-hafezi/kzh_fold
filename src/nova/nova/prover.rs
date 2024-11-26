@@ -310,21 +310,11 @@ where
 
 #[cfg(test)]
 mod test {
-    use ark_ec::CurveGroup;
-    use crate::constant_for_curves::{ScalarField, C1, C2, E, G1, G2};
-    use crate::hash::poseidon::PoseidonHashVar;
-    use crate::nova::nova::verifier_circuit::NovaVerifierCircuit;
-    use crate::nova::nova::verifier_circuit_var::NovaVerifierCircuitVar;
-    use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
-    use ark_r1cs_std::fields::fp::FpVar;
-    use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystem, SynthesisMode};
+    use crate::constant_for_curves::{ScalarField, C1, C2, G1, G2};
     use ark_serialize::CanonicalSerialize;
-    use ark_std::{end_timer, start_timer, UniformRand};
+    use ark_std::{UniformRand};
     use rand::thread_rng;
-    use crate::gadgets::r1cs::r1cs::commit_T;
     use crate::nova::nova::prover::NovaProver;
-    use crate::commitment::{CommitmentScheme};
-    use crate::transcript::transcript::Transcript;
 
     type F = ScalarField;
 
