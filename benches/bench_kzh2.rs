@@ -12,7 +12,7 @@ use sqrtn_pcs::kzh::kzh2::{KZH2, KZH2SRS};
 use sqrtn_pcs::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 
 fn bench(c: &mut Criterion) {
-    let num_variables = vec![10, 11, 12, 13, 14];
+    let num_variables = vec![10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
     for n in num_variables {
         // get srs
         let srs: KZH2SRS<E> = KZH2::setup(n, &mut thread_rng());
