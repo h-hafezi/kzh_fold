@@ -65,58 +65,26 @@ where
         let g = E::G1Affine::rand(rng);
         let v = E::G2Affine::rand(rng);
 
-        let tau_x = {
-            let mut elements = Vec::new();
-            for _ in 0..degree_x {
-                elements.push(E::ScalarField::rand(rng));
-            }
-            elements
-        };
-        let tau_y = {
-            let mut elements = Vec::new();
-            for _ in 0..degree_y {
-                elements.push(E::ScalarField::rand(rng));
-            }
-            elements
-        };
-        let tau_z = {
-            let mut elements = Vec::new();
-            for _ in 0..degree_z {
-                elements.push(E::ScalarField::rand(rng));
-            }
-            elements
-        };
+        let tau_x: Vec<E::ScalarField> = (0..degree_x).map(|_| E::ScalarField::rand(rng)).collect();
+        let tau_y: Vec<E::ScalarField> = (0..degree_y).map(|_| E::ScalarField::rand(rng)).collect();
+        let tau_z: Vec<E::ScalarField> = (0..degree_z).map(|_| E::ScalarField::rand(rng)).collect();
 
-        let H_xyz = {
-            let mut res = Vec::new();
-            // i = i_x + degree_x * i_y + (degree_x + degree_y) * i_z
-            for i in 0..degree_x * degree_y * degree_z {
+
+        let H_xyz: Vec<_> = (0..degree_x * degree_y * degree_z)
+            .map(|i| {
                 let (i_x, i_y, i_z) = decompose_index(i, degree_y, degree_z);
-                let h_xyz = g.mul(tau_x[i_x] * tau_y[i_y] * tau_z[i_z]).into();
-                res.push(h_xyz);
-            }
-            res
-        };
+                g.mul(tau_x[i_x] * tau_y[i_y] * tau_z[i_z]).into()
+            }).collect();
 
-        let H_yz = {
-            let mut res = Vec::new();
-            // i = i_y + degree_y * i_z
-            for i in 0..degree_y * degree_z {
+        let H_yz: Vec<_> = (0..degree_y * degree_z)
+            .map(|i| {
                 let (i_y, i_z) = (i / degree_z, i % degree_z);
-                let h_yz = g.mul(tau_y[i_y] * tau_z[i_z]).into();
-                res.push(h_yz);
-            }
-            res
-        };
+                g.mul(tau_y[i_y] * tau_z[i_z]).into()
+            }).collect();
 
-        let H_z = {
-            let mut res = Vec::new();
-            for i in 0..degree_z {
-                let h_z = g.mul(tau_z[i]).into();
-                res.push(h_z);
-            }
-            res
-        };
+        let H_z: Vec<_> = (0..degree_z)
+            .map(|i| g.mul(tau_z[i]).into())
+            .collect();
 
         for i_y in 0..degree_y {
             for i_z in 0..degree_z {
@@ -125,32 +93,17 @@ where
             }
         }
 
-        let V_x = {
-            let mut res = Vec::new();
-            for i in 0..degree_x {
-                let v_x = v.mul(tau_x[i]).into();
-                res.push(v_x);
-            }
-            res
-        };
+        let V_x: Vec<_> = (0..degree_x)
+            .map(|i| v.mul(tau_x[i]).into())
+            .collect();
 
-        let V_y = {
-            let mut res = Vec::new();
-            for i in 0..degree_y {
-                let v_y = v.mul(tau_y[i]).into();
-                res.push(v_y);
-            }
-            res
-        };
+        let V_y: Vec<_> = (0..degree_y)
+            .map(|i| v.mul(tau_y[i]).into())
+            .collect();
 
-        let V_z = {
-            let mut res = Vec::new();
-            for i in 0..degree_z {
-                let v_z = v.mul(tau_z[i]).into();
-                res.push(v_z);
-            }
-            res
-        };
+        let V_z: Vec<_> = (0..degree_z)
+            .map(|i| v.mul(tau_z[i]).into())
+            .collect();
 
         KZH3SRS {
             degree_x,
@@ -239,13 +192,7 @@ where
 
         // making sure D_y is well formatted
         let new_c = E::G1::msm(
-            {
-                let mut res = Vec::new();
-                for e in &com.D_x {
-                    res.push(e.clone().into());
-                }
-                res
-            }.as_slice(),
+            &com.D_x.iter().map(|e| e.clone().into()).collect::<Vec<_>>().as_slice(),
             EqPolynomial::new(split_input[0].clone()).evals().as_slice(),
         ).unwrap();
 
@@ -260,13 +207,7 @@ where
             open.f_star.evaluation_over_boolean_hypercube.as_slice(),
         ).unwrap();
         let rhs = E::G1::msm(
-            {
-                let mut res = Vec::new();
-                for e in &open.D_y {
-                    res.push(e.clone().into());
-                }
-                res
-            }.as_slice(),
+            &open.D_y.iter().map(|e| e.clone().into()).collect::<Vec<_>>().as_slice(),
             EqPolynomial::new(split_input[1].clone()).evals().as_slice(),
         ).unwrap();
 
@@ -351,7 +292,7 @@ fn decompose_index(i: usize, degree_y: usize, degree_z: usize) -> (usize, usize,
 #[cfg(test)]
 mod tests {
     use ark_serialize::CanonicalSerialize;
-    use crate::constant_for_curves::{ScalarField, E};
+    use crate::constant_for_curves::{ScalarField as F, E};
     use crate::kzh::kzh3::{decompose_index, KZH3, KZH3SRS};
     use crate::kzh::KZH;
     use crate::math::Math;
@@ -377,19 +318,15 @@ mod tests {
         let (degree_x, degree_y, degree_z) = (4usize, 8usize, 16usize);
         let num_vars = degree_x.log_2() + degree_y.log_2() + degree_z.log_2();
 
-        let input: Vec<ScalarField> = {
-            let mut res = Vec::new();
-            for _ in 0..num_vars {
-                res.push(ScalarField::rand(&mut thread_rng()));
-            }
-            res
-        };
+        let input: Vec<F> = (0..num_vars)
+            .map(|_| F::rand(&mut thread_rng()))
+            .collect();
 
         // build the srs
         let srs: KZH3SRS<E> = KZH3::setup((degree_x * degree_y * degree_z).log_2(), &mut thread_rng());
 
         // build a random polynomials
-        let polynomial: MultilinearPolynomial<ScalarField> = MultilinearPolynomial::rand(num_vars, &mut thread_rng());
+        let polynomial: MultilinearPolynomial<F> = MultilinearPolynomial::rand(num_vars, &mut thread_rng());
 
         // evaluate polynomial
         let eval = polynomial.evaluate(input.as_slice());
@@ -410,19 +347,15 @@ mod tests {
         for (degree_x, degree_y, degree_z) in degrees {
             let num_vars = degree_x.log_2() + degree_y.log_2() + degree_z.log_2();
 
-            let input: Vec<ScalarField> = {
-                let mut res = Vec::new();
-                for _ in 0..num_vars {
-                    res.push(ScalarField::rand(&mut thread_rng()));
-                }
-                res
-            };
+            let input: Vec<F> = (0..num_vars)
+                .map(|_| F::rand(&mut thread_rng()))
+                .collect();
 
             // build the srs
             let srs: KZH3SRS<E> = KZH3::setup(num_vars, &mut thread_rng());
 
             // build a random polynomials
-            let polynomial: MultilinearPolynomial<ScalarField> = MultilinearPolynomial::rand(num_vars, &mut thread_rng());
+            let polynomial: MultilinearPolynomial<F> = MultilinearPolynomial::rand(num_vars, &mut thread_rng());
 
             // commit to the polynomial
             let c = KZH3::commit(&srs, &polynomial);

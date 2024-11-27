@@ -65,123 +65,43 @@ where
         let g = E::G1Affine::rand(rng);
         let v = E::G2Affine::rand(rng);
 
-        let tau_x = {
-            let mut elements = Vec::new();
-            for _ in 0..degree_x {
-                elements.push(E::ScalarField::rand(rng));
-            }
-            elements
-        };
-        let tau_y = {
-            let mut elements = Vec::new();
-            for _ in 0..degree_y {
-                elements.push(E::ScalarField::rand(rng));
-            }
-            elements
-        };
-        let tau_z = {
-            let mut elements = Vec::new();
-            for _ in 0..degree_z {
-                elements.push(E::ScalarField::rand(rng));
-            }
-            elements
-        };
-        let tau_t = {
-            let mut elements = Vec::new();
-            for _ in 0..degree_t {
-                elements.push(E::ScalarField::rand(rng));
-            }
-            elements
-        };
+        let tau_x: Vec<E::ScalarField> = (0..degree_x).map(|_| E::ScalarField::rand(rng)).collect();
+        let tau_y: Vec<E::ScalarField> = (0..degree_y).map(|_| E::ScalarField::rand(rng)).collect();
+        let tau_z: Vec<E::ScalarField> = (0..degree_z).map(|_| E::ScalarField::rand(rng)).collect();
+        let tau_t: Vec<E::ScalarField> = (0..degree_t).map(|_| E::ScalarField::rand(rng)).collect();
 
-        let H_xyzt = {
-            let mut res = Vec::new();
-            for i in 0..degree_x * degree_y * degree_z * degree_t {
+        let H_xyzt: Vec<_> = (0..degree_x * degree_y * degree_z * degree_t)
+            .map(|i| {
                 let (i_x, i_y, i_z, i_t) = decompose_index(i, degree_y, degree_z, degree_t);
-                let h_xyzt = g.mul(tau_x[i_x] * tau_y[i_y] * tau_z[i_z] * tau_t[i_t]).into();
-                res.push(h_xyzt);
-            }
-            res
-        };
+                g.mul(tau_x[i_x] * tau_y[i_y] * tau_z[i_z] * tau_t[i_t]).into()
+            }).collect();
 
-        let H_yzt = {
-            let mut res = Vec::new();
-            for i in 0..degree_y * degree_z * degree_t {
-                let (i_y, i_z, i_t) = {
-                    let i_y = i / (degree_z * degree_t);
-                    let remainder = i % (degree_z * degree_t);
-                    let i_z = remainder / degree_t;
-                    let i_t = remainder % degree_t;
+        let H_yzt: Vec<_> = (0..degree_y * degree_z * degree_t)
+            .map(|i| {
+                let i_y = i / (degree_z * degree_t);
+                let remainder = i % (degree_z * degree_t);
+                let i_z = remainder / degree_t;
+                let i_t = remainder % degree_t;
 
-                    (i_y, i_z, i_t)
-                };
-                let h_yzt = g.mul(tau_y[i_y] * tau_z[i_z] * tau_t[i_t]).into();
-                res.push(h_yzt);
-            }
-            res
-        };
+                g.mul(tau_y[i_y] * tau_z[i_z] * tau_t[i_t]).into()
+            }).collect();
 
-        let H_zt = {
-            let mut res = Vec::new();
-            for i in 0..degree_z * degree_t {
-                let (i_z, i_t) = {
-                    let i_z = i / degree_t;
-                    let i_t = i % degree_t;
+        let H_zt: Vec<_> = (0..degree_z * degree_t)
+            .map(|i| {
+                let i_z = i / degree_t;
+                let i_t = i % degree_t;
+                g.mul(tau_z[i_z] * tau_t[i_t]).into()
+            })
+            .collect();
 
-                    (i_z, i_t)
-                };
-                let h_zt = g.mul(tau_z[i_z] * tau_t[i_t]).into();
-                res.push(h_zt);
-            }
-            res
-        };
+        let H_t: Vec<_> = (0..degree_t)
+            .map(|i| g.mul(tau_t[i]).into())
+            .collect();
 
-        let H_t = {
-            let mut res = Vec::new();
-            for i in 0..degree_t {
-                let h_t = g.mul(tau_t[i]).into();
-                res.push(h_t);
-            }
-            res
-        };
-
-
-        let V_x = {
-            let mut res = Vec::new();
-            for i in 0..degree_x {
-                let v_x = v.mul(tau_x[i]).into();
-                res.push(v_x);
-            }
-            res
-        };
-
-        let V_y = {
-            let mut res = Vec::new();
-            for i in 0..degree_y {
-                let v_y = v.mul(tau_y[i]).into();
-                res.push(v_y);
-            }
-            res
-        };
-
-        let V_z = {
-            let mut res = Vec::new();
-            for i in 0..degree_z {
-                let v_z = v.mul(tau_z[i]).into();
-                res.push(v_z);
-            }
-            res
-        };
-
-        let V_t = {
-            let mut res = Vec::new();
-            for i in 0..degree_t {
-                let v_t = v.mul(tau_t[i]).into();
-                res.push(v_t);
-            }
-            res
-        };
-
+        let V_x: Vec<_> = (0..degree_x).map(|i| v.mul(tau_x[i]).into()).collect();
+        let V_y: Vec<_> = (0..degree_y).map(|i| v.mul(tau_y[i]).into()).collect();
+        let V_z: Vec<_> = (0..degree_z).map(|i| v.mul(tau_z[i]).into()).collect();
+        let V_t: Vec<_> = (0..degree_t).map(|i| v.mul(tau_t[i]).into()).collect();
 
         KZH4SRS {
             degree_x,
@@ -293,13 +213,7 @@ where
 
         // making sure D_y is well formatted
         let new_c = E::G1::msm(
-            {
-                let mut res = Vec::new();
-                for e in &open.D_x {
-                    res.push(e.clone().into());
-                }
-                res
-            }.as_slice(),
+            &open.D_x.iter().map(|e| e.clone().into()).collect::<Vec<_>>().as_slice(),
             EqPolynomial::new(split_input[0].clone()).evals().as_slice(),
         ).unwrap();
 
@@ -310,13 +224,7 @@ where
 
         // making sure D_z is well formatted
         let new_c = E::G1::msm(
-            {
-                let mut res = Vec::new();
-                for e in &open.D_y {
-                    res.push(e.clone().into());
-                }
-                res
-            }.as_slice(),
+            &open.D_y.iter().map(|e| e.clone().into()).collect::<Vec<_>>().as_slice(),
             EqPolynomial::new(split_input[1].clone()).evals().as_slice(),
         ).unwrap();
 
@@ -330,14 +238,9 @@ where
             srs.H_t.as_slice(),
             open.f_star.evaluation_over_boolean_hypercube.as_slice(),
         ).unwrap();
+
         let rhs = E::G1::msm(
-            {
-                let mut res = Vec::new();
-                for e in &open.D_z {
-                    res.push(e.clone().into());
-                }
-                res
-            }.as_slice(),
+            &open.D_z.iter().map(|e| e.clone().into()).collect::<Vec<_>>().as_slice(),
             EqPolynomial::new(split_input[2].clone()).evals().as_slice(),
         ).unwrap();
 
@@ -434,7 +337,7 @@ fn decompose_index(i: usize, degree_y: usize, degree_z: usize, degree_t: usize) 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::constant_for_curves::{ScalarField, E};
+    use crate::constant_for_curves::{ScalarField as F, E};
     use rand::thread_rng;
 
     #[test]
@@ -442,10 +345,10 @@ mod tests {
         let (degree_x, degree_y, degree_z, degree_t) = (4usize, 8usize, 16usize, 8usize);
         let num_vars = degree_x.log_2() + degree_y.log_2() + degree_z.log_2() + degree_t.log_2();
 
-        let input: Vec<ScalarField> = {
+        let input: Vec<F> = {
             let mut res = Vec::new();
             for _ in 0..num_vars {
-                res.push(ScalarField::rand(&mut thread_rng()));
+                res.push(F::rand(&mut thread_rng()));
             }
             res
         };
@@ -454,7 +357,7 @@ mod tests {
         let srs: KZH4SRS<E> = KZH4::setup(num_vars, &mut thread_rng());
 
         // build a random polynomials
-        let polynomial: MultilinearPolynomial<ScalarField> = MultilinearPolynomial::rand(num_vars, &mut thread_rng());
+        let polynomial: MultilinearPolynomial<F> = MultilinearPolynomial::rand(num_vars, &mut thread_rng());
 
         // evaluate polynomial
         let eval = polynomial.evaluate(input.as_slice());

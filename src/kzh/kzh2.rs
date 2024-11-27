@@ -122,25 +122,13 @@ where
         let degree_y = 1 << degree_y;
 
         // sample G_0, G_1, ..., G_m generators from group one
-        let G1_generator_vec = {
-            let mut elements = Vec::new();
-            for _ in 0..degree_y {
-                elements.push(E::G1Affine::rand(rng));
-            }
-            elements
-        };
+        let G1_generator_vec: Vec<_> = (0..degree_y).map(|_| E::G1Affine::rand(rng)).collect();
 
         // sample V, generator for group two
         let G2_generator = E::G2Affine::rand(rng);
 
         // sample trapdoors tau_0, tau_1, ..., tau_n, alpha
-        let tau = {
-            let mut elements = Vec::new();
-            for _ in 0..degree_x {
-                elements.push(E::ScalarField::rand(rng));
-            }
-            elements
-        };
+        let tau: Vec<E::ScalarField> = (0..degree_x).map(|_| E::ScalarField::rand(rng)).collect();
 
         let alpha = E::ScalarField::rand(rng);
 
@@ -153,26 +141,10 @@ where
                     row.push(g.into());
                 }
                 row
-            })
-            .collect();
+            }).collect();
 
-        // generate vec_H
-        let vec_H = {
-            let mut vec_h = Vec::new();
-            for j in 0..degree_y {
-                vec_h.push(G1_generator_vec[j].mul(alpha).into());
-            }
-            vec_h
-        };
-
-        // generate vec_V
-        let vec_V = {
-            let mut vec_h = Vec::new();
-            for j in 0..degree_x {
-                vec_h.push(G2_generator.mul(tau[j]));
-            }
-            vec_h
-        };
+        let vec_H: Vec<_> = (0..degree_y).map(|j| G1_generator_vec[j].mul(alpha).into()).collect();
+        let vec_V: Vec<_> = (0..degree_x).map(|j| G2_generator.mul(tau[j])).collect();
 
         // generate V_prime
         let V_prime = G2_generator.mul(alpha);
@@ -253,41 +225,36 @@ where
 
         // Step 1: pairing check
         // Combine the pairings into a single multi-pairing
-        let mut g1_elems: Vec<E::G1Affine> = Vec::with_capacity(1 + open.D_x.len());
-        g1_elems.push(com.C.clone());
-        for g1 in &open.D_x {
-            let g1_neg: E::G1Affine = (E::G1Affine::zero() - g1).into();
-            g1_elems.push(g1_neg);
-        }
+        let g1_elems: Vec<_> = std::iter::once(com.C.clone())
+            .chain(open.D_x.iter().map(|g1| (E::G1Affine::zero() - g1).into()))
+            .collect();
 
-        let mut g2_elems = Vec::with_capacity(1 + srs.V_x.len());
-        g2_elems.push(srs.V_prime.clone());
-        g2_elems.extend_from_slice(&srs.V_x);
+        let g2_elems: Vec<_> = std::iter::once(srs.V_prime.clone())
+            .chain(srs.V_x.iter().cloned())
+            .collect();
 
         // Perform the combined pairing check
-        let pairing_product = E::multi_pairing(&g1_elems, &g2_elems);
-        pairing_product.check().unwrap();
+        E::multi_pairing(&g1_elems, &g2_elems).check().unwrap();
 
         // Step 2: MSM check
-        // Combine the two MSMs into one
-        let mut negated_eq_evals = EqPolynomial::new(split_input[0].clone()).evals();
-        for scalar in &mut negated_eq_evals {
-            *scalar = -*scalar;
-        }
+        let negated_eq_evals: Vec<_> = EqPolynomial::new(split_input[0].clone())
+            .evals()
+            .into_iter()
+            .map(|scalar| -scalar)
+            .collect();
 
-        let mut scalars = Vec::with_capacity(
-            open.f_star_poly.evaluation_over_boolean_hypercube.len() + negated_eq_evals.len(),
-        );
-        scalars.extend_from_slice(&open.f_star_poly.evaluation_over_boolean_hypercube);
-        scalars.extend_from_slice(&negated_eq_evals);
+        let scalars: Vec<_> = open.f_star_poly.evaluation_over_boolean_hypercube
+            .iter()
+            .chain(negated_eq_evals.iter())
+            .cloned()
+            .collect();
 
-        let mut bases = Vec::with_capacity(srs.H_y.len() + open.D_x.len());
-        bases.extend_from_slice(&srs.H_y);
-        bases.extend_from_slice(&open.D_x);
+        let bases: Vec<_> = srs.H_y.iter()
+            .chain(open.D_x.iter())
+            .cloned()
+            .collect();
 
-        let msm_result = E::G1::msm_unchecked(&bases, &scalars);
-        assert!(msm_result.is_zero());
-
+        assert!(E::G1::msm_unchecked(&bases, &scalars).is_zero());
 
         // Step 3: complete poly eval
         let y_expected = open.f_star_poly.evaluate(split_input[1].as_slice());
@@ -365,7 +332,7 @@ pub mod test {
     use ark_std::UniformRand;
     use rand::thread_rng;
 
-    use crate::constant_for_curves::{ScalarField, E};
+    use crate::constant_for_curves::{ScalarField as F, E};
     use crate::kzh::kzh2::{KZH2, KZH2SRS};
     use crate::kzh::KZH;
     use crate::math::Math;
@@ -373,32 +340,20 @@ pub mod test {
 
     #[test]
     fn test_end_to_end() {
-        let srs: KZH2SRS<E> = KZH2::setup(9, &mut thread_rng());
+        let srs: KZH2SRS<E> = KZH2::setup(10, &mut thread_rng());
 
         // random bivariate polynomial
         let polynomial = MultilinearPolynomial::rand(3 + 5, &mut thread_rng());
 
-        // concat inputs x and y, to evaluate the function
-        // random points and evaluation
-        let x = vec![
-            ScalarField::rand(&mut thread_rng()),
-            ScalarField::rand(&mut thread_rng()),
-            ScalarField::rand(&mut thread_rng()),
-        ];
-        let y = vec![
-            ScalarField::rand(&mut thread_rng()),
-            ScalarField::rand(&mut thread_rng()),
-            ScalarField::rand(&mut thread_rng()),
-            ScalarField::rand(&mut thread_rng()),
-            ScalarField::rand(&mut thread_rng()),
-        ];
-        // concat inputs x and y, to evaluate the function
-        let input = {
-            let mut res = vec![];
-            res.extend(x.clone());
-            res.extend(y.clone());
-            res
-        };
+        let x: Vec<_> = std::iter::repeat_with(|| F::rand(&mut thread_rng()))
+            .take(3)
+            .collect();
+        let y: Vec<_> = std::iter::repeat_with(|| F::rand(&mut thread_rng()))
+            .take(5)
+            .collect();
+
+        // Concatenate x and y into input
+        let input: Vec<_> = x.into_iter().chain(y.into_iter()).collect();
 
         let z = polynomial.evaluate(&input);
 
@@ -428,16 +383,16 @@ pub mod test {
 
         let srs: KZH2SRS<E> = KZH2::setup(8, &mut thread_rng());
 
-        let f_x: MultilinearPolynomial<ScalarField> = MultilinearPolynomial::rand(num_vars, &mut thread_rng());
-        let g_x: MultilinearPolynomial<ScalarField> = MultilinearPolynomial::rand(num_vars, &mut thread_rng());
+        let f_x: MultilinearPolynomial<F> = MultilinearPolynomial::rand(num_vars, &mut thread_rng());
+        let g_x: MultilinearPolynomial<F> = MultilinearPolynomial::rand(num_vars, &mut thread_rng());
 
         let F = KZH2::commit(&srs, &f_x);
         let G = KZH2::commit(&srs, &g_x);
 
         // Verifier's challenge: for poly batching
-        let r = ScalarField::rand(&mut thread_rng());
+        let r = F::rand(&mut thread_rng());
         // Verifier's challenge: evaluation point
-        let rho = vec![ScalarField::rand(&mut thread_rng()); num_vars];
+        let rho = vec![F::rand(&mut thread_rng()); num_vars];
 
         // Compute p(x) = f(x) + r * g(x)
         let mut r_times_g_x = g_x.clone();
@@ -476,7 +431,7 @@ pub mod test {
             let input = {
                 let mut res = Vec::new();
                 for _ in 0..srs.degree_x.log_2() + srs.degree_y.log_2() {
-                    res.push(ScalarField::rand(&mut thread_rng()));
+                    res.push(F::rand(&mut thread_rng()));
                 }
                 res
             };
