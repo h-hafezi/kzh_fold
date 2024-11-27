@@ -16,7 +16,10 @@ use sqrtn_pcs::transcript::transcript::Transcript;
 use sqrtn_pcs::commitment::{CommitmentScheme};
 
 fn bench_nova_prover(c: &mut Criterion) {
-    let poseidon_values = [0, 10, 100, 200, 500, 1000, 2000];
+    let poseidon_values = [
+        0, 10, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100,
+        1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900, 2000
+    ];
 
     for poseidon_num in poseidon_values {
         // generate some random prover which for a small R1CS which is supposed to generate some sample NovaVerifierCircuit
@@ -114,7 +117,7 @@ fn bench_nova_prover(c: &mut Criterion) {
 }
 
 fn custom_criterion_config() -> Criterion {
-    Criterion::default().sample_size(10)
+    Criterion::default().sample_size(20)
 }
 
 // Benchmark group setup

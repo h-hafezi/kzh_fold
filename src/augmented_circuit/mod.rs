@@ -1,1 +1,1 @@
-mod augmented_circuit;
+pub mod augmented_circuit;

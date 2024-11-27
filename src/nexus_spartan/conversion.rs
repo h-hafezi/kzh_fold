@@ -48,7 +48,7 @@ impl Display for ConversionError {
 }
 
 impl<F: PrimeField + Absorb> CRR1CSShape<F> {
-    pub(crate) fn convert<G: SWCurveConfig<ScalarField=F>>(cs: ConstraintSystemRef<F>) -> Self {
+    pub fn convert<G: SWCurveConfig<ScalarField=F>>(cs: ConstraintSystemRef<F>) -> Self {
         // convert constraint system into R1CS shape
         let shape: R1CSShape<G> = R1CSShape::from(cs);
         // extract R1CS field
@@ -93,7 +93,7 @@ where
     PC: KZH<E>,
     <E as Pairing>::ScalarField: Absorb,
 {
-    pub(crate) fn convert<G: SWCurveConfig>(
+    pub fn convert<G: SWCurveConfig>(
         cs: ConstraintSystemRef<G::ScalarField>,
         key: &PC::SRS,
     ) -> Self where
@@ -120,7 +120,7 @@ where
 }
 
 impl<F: PrimeField + Absorb> CRR1CSWitness<F> {
-    pub(crate) fn convert(cs: ConstraintSystemRef<F>) -> Self {
+    pub fn convert(cs: ConstraintSystemRef<F>) -> Self {
         let cs_borrow = cs.borrow().unwrap();
         let mut witness = cs_borrow.witness_assignment.clone();
 
