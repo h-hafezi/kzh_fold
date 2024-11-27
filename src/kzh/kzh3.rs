@@ -22,6 +22,45 @@ pub struct KZH3<E: Pairing> {
     phantom: PhantomData<E>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize, Derivative)]
+pub struct KZH3SRS<E: Pairing> {
+    /// degree_x = 2 ^ length of x variable
+    pub degree_x: usize,
+    /// degree_y = 2 ^ length of y variable
+    pub degree_y: usize,
+    /// degree_z = 2 ^ length of z variable
+    pub degree_z: usize,
+
+    pub H_xyz: Vec<E::G1Affine>,
+    pub H_yz: Vec<E::G1Affine>,
+    pub H_z: Vec<E::G1Affine>,
+    pub V_x: Vec<E::G2Affine>,
+    pub V_y: Vec<E::G2Affine>,
+    pub V_z: Vec<E::G2Affine>,
+    pub v: E::G2Affine,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize, Derivative)]
+pub struct KZH3Opening<E: Pairing> {
+    D_y: Vec<E::G1>,
+    f_star: MultilinearPolynomial<E::ScalarField>,
+}
+
+#[derive(
+    Default,
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    CanonicalSerialize,
+    CanonicalDeserialize,
+    Derivative
+)]
+pub struct KZH3Commitment<E: Pairing> {
+    D_x: Vec<E::G1>,
+    C: E::G1Affine,
+}
+
 impl<E: Pairing> KZH<E> for KZH3<E>
 where
     <E as Pairing>::ScalarField: Absorb,
@@ -58,12 +97,9 @@ where
     fn setup<R: Rng>(maximum_degree: usize, rng: &mut R) -> Self::SRS {
         let (degree_x, degree_y, degree_z) = Self::get_degree_from_maximum_supported_degree(maximum_degree);
 
-        let degree_x = 1 << degree_x;
-        let degree_y = 1 << degree_y;
-        let degree_z = 1 << degree_z;
+        let (degree_x, degree_y, degree_z) = (1 << degree_x, 1 << degree_y, 1 << degree_z);
 
-        let g = E::G1Affine::rand(rng);
-        let v = E::G2Affine::rand(rng);
+        let (g, v) = (E::G1Affine::rand(rng), E::G2Affine::rand(rng));
 
         let tau_x: Vec<E::ScalarField> = (0..degree_x).map(|_| E::ScalarField::rand(rng)).collect();
         let tau_y: Vec<E::ScalarField> = (0..degree_y).map(|_| E::ScalarField::rand(rng)).collect();
@@ -206,6 +242,7 @@ where
             srs.H_z.as_slice(),
             open.f_star.evaluation_over_boolean_hypercube.as_slice(),
         ).unwrap();
+
         let rhs = E::G1::msm(
             &open.D_y.iter().map(|e| e.clone().into()).collect::<Vec<_>>().as_slice(),
             EqPolynomial::new(split_input[1].clone()).evals().as_slice(),
@@ -216,45 +253,6 @@ where
         // making sure the output of f_star and the given output are consistent
         assert_eq!(open.f_star.evaluate(split_input[2].as_slice()), *output);
     }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize, Derivative)]
-pub struct KZH3SRS<E: Pairing> {
-    /// degree_x = 2 ^ length of x variable
-    pub degree_x: usize,
-    /// degree_y = 2 ^ length of y variable
-    pub degree_y: usize,
-    /// degree_z = 2 ^ length of z variable
-    pub degree_z: usize,
-
-    pub H_xyz: Vec<E::G1Affine>,
-    pub H_yz: Vec<E::G1Affine>,
-    pub H_z: Vec<E::G1Affine>,
-    pub V_x: Vec<E::G2Affine>,
-    pub V_y: Vec<E::G2Affine>,
-    pub V_z: Vec<E::G2Affine>,
-    pub v: E::G2Affine,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize, Derivative)]
-pub struct KZH3Opening<E: Pairing> {
-    D_y: Vec<E::G1>,
-    f_star: MultilinearPolynomial<E::ScalarField>,
-}
-
-#[derive(
-    Default,
-    Clone,
-    Debug,
-    PartialEq,
-    Eq,
-    CanonicalSerialize,
-    CanonicalDeserialize,
-    Derivative
-)]
-pub struct KZH3Commitment<E: Pairing> {
-    D_x: Vec<E::G1>,
-    C: E::G1Affine,
 }
 
 impl<E: Pairing, F: PrimeField + Absorb> AppendToTranscript<F> for KZH3Commitment<E>
