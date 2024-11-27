@@ -111,8 +111,12 @@ where
         vec![r_x, r_y]
     }
 
-    fn get_degree_from_maximum_supported_degree(n: usize) -> Self::Degree {
-        (n / 2 + 1, n / 2 + 1)
+    fn get_degree_from_maximum_supported_degree(n: usize) -> (usize, usize) {
+        match n % 2 {
+            0 => (n / 2, n / 2),
+            1 => (n / 2, n / 2 + 1),
+            _ => unreachable!(),
+        }
     }
 
     fn setup<R: Rng>(maximum_degree: usize, rng: &mut R) -> Self::SRS {

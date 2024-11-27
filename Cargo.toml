@@ -71,7 +71,15 @@ print-trace = [
 
 [[bench]]
 harness = false
-name = "bench_pcs"
+name = "bench_kzh2"
+
+[[bench]]
+harness = false
+name = "bench_kzh3"
+
+[[bench]]
+harness = false
+name = "bench_kzh4"
 
 [[bench]]
 harness = false
@@ -92,10 +100,6 @@ name = "bench_witness_commitment"
 [[bench]]
 harness = false
 name = "bench_bls"
-
-[[bench]]
-harness = false
-name = "bench_kzh3"
 
 [[bench]]
 harness = false

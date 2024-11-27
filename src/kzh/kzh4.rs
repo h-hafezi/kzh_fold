@@ -96,8 +96,14 @@ where
         vec![r_x, r_y, r_z, r_t]
     }
 
-    fn get_degree_from_maximum_supported_degree(n: usize) -> Self::Degree {
-        (n / 4 + 1, n / 4 + 1, n / 4 + 1, n / 4 + 1)
+    fn get_degree_from_maximum_supported_degree(n: usize) -> (usize, usize, usize, usize) {
+        match n % 4 {
+            0 => (n / 4, n / 4, n / 4, n / 4),
+            1 => (n / 4 + 1, n / 4, n / 4, n / 4),
+            2 => (n / 4 + 1, n / 4 + 1, n / 4, n / 4),
+            3 => (n / 4 + 1, n / 4 + 1, n / 4 + 1, n / 4),
+            _ => unreachable!(),
+        }
     }
 
     fn setup<R: Rng>(maximum_degree: usize, rng: &mut R) -> Self::SRS {
