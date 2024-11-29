@@ -11,7 +11,7 @@ use sqrtn_pcs::augmented_circuit::augmented_circuit::AugmentedCircuitVar;
 use sqrtn_pcs::constant_for_curves::{ScalarField as F, C2, E, G1, G2};
 use sqrtn_pcs::kzh::kzh2::{KZH2, KZH2SRS};
 use sqrtn_pcs::kzh::KZH;
-use sqrtn_pcs::kzh_fold::kzh2_fold::Accumulator2;
+use sqrtn_pcs::kzh_fold::kzh2_fold::Accumulator2 as Accumulator;
 use sqrtn_pcs::nexus_spartan::commitment_traits::ToAffine;
 use sqrtn_pcs::nexus_spartan::committed_relaxed_snark::CRSNARKKey;
 use sqrtn_pcs::nexus_spartan::crr1cs::{is_sat, produce_synthetic_crr1cs, CRR1CSInstance, CRR1CSShape, CRR1CSWitness};
@@ -25,7 +25,7 @@ use sqrtn_pcs::transcript::transcript_var::TranscriptVar;
 
 fn bench_augmented_circuit(c: &mut Criterion) {
     let poseidon_iterations_vec = [
-        0, 100, 500, 1000, 2000
+        0
     ];
 
     for poseidon_iterations in poseidon_iterations_vec {
@@ -55,16 +55,13 @@ fn bench_augmented_circuit(c: &mut Criterion) {
             (pcs_srs, spartan_shape, spartan_instance, spartan_proof, rx, ry)
         };
 
-        // fresh constraint system
-        let cs = ConstraintSystem::<F>::new_ref();
-
         // fresh transcripts to be used by the prover and verifier
         let mut prover_transcript = Transcript::new(b"example");
-        let mut verifier_transcript = prover_transcript.clone();
-        let verifier_transcript_clone = verifier_transcript.clone();
-
+        let verifier_transcript_clone = prover_transcript.clone();
+        let cs = ConstraintSystem::<F>::new_ref();
 
         let partial_verifier_var = {
+            let mut verifier_transcript = prover_transcript.clone();
             // Get A(r_x, r_y), B(r_x, r_y), C(r_x, r_y)
             let current_A_B_C_evaluations = spartan_shape.inst.inst.evaluate(&rx, &ry);
 
@@ -92,7 +89,7 @@ fn bench_augmented_circuit(c: &mut Criterion) {
         };
 
         let acc_verifier_var = {
-            let acc_srs = Accumulator2::setup(pcs_srs.clone(), &mut thread_rng());
+            let acc_srs = Accumulator::setup(pcs_srs.clone(), &mut thread_rng());
 
             // Get the KZH opening proof from the Spartan proof
             let opening_proof = spartan_proof.proof_eval_vars_at_ry.clone();
@@ -118,7 +115,7 @@ fn bench_augmented_circuit(c: &mut Criterion) {
             };
 
             // Get accumulator from the opening proof
-            let acc_instance = Accumulator2::new_accumulator_instance_from_fresh_kzh_instance(
+            let acc_instance = Accumulator::new_accumulator_instance_from_fresh_kzh_instance(
                 &acc_srs,
                 &commitment_w.C,
                 x.as_slice(),
@@ -126,28 +123,28 @@ fn bench_augmented_circuit(c: &mut Criterion) {
                 &spartan_proof.eval_vars_at_ry,
             );
 
-            let acc_witness = Accumulator2::new_accumulator_witness_from_fresh_kzh_witness(
+            let acc_witness = Accumulator::new_accumulator_witness_from_fresh_kzh_witness(
                 &acc_srs,
                 opening_proof,
                 x.as_slice(),
                 y.as_slice(),
             );
 
-            let current_acc = Accumulator2::new(&acc_instance, &acc_witness);
+            let current_acc = Accumulator::new(&acc_instance, &acc_witness);
 
             // println!("proof size: {}", proof.compressed_size());
             println!("acc size: {}", current_acc.compressed_size());
 
             // Check that the accumulator is valid
             assert!(
-                Accumulator2::decide(
+                Accumulator::decide(
                     &acc_srs,
                     &current_acc,
                 )
             );
 
             // use a random accumulator as the running one
-            let running_acc = Accumulator2::rand(&acc_srs, &mut thread_rng());
+            let running_acc = Accumulator::rand(&acc_srs, &mut thread_rng());
 
             // the shape of the R1CS instance
             let ova_shape = setup_shape::<G1, G2>().unwrap();
@@ -176,7 +173,6 @@ fn bench_augmented_circuit(c: &mut Criterion) {
             acc_verifier_var
         };
 
-
         let matrix_evaluation_verifier_var = {
             let matrix_eval_acc_verifier = MatrixEvaluationAccVerifier::random_from_eval_point(
                 &spartan_shape,
@@ -194,6 +190,7 @@ fn bench_augmented_circuit(c: &mut Criterion) {
             matrix_evaluation_verifier_var
         };
 
+        // construct the augmented circuit
         let augmented_circuit = AugmentedCircuitVar {
             spartan_partial_verifier: partial_verifier_var,
             kzh_acc_verifier: acc_verifier_var,
@@ -202,7 +199,8 @@ fn bench_augmented_circuit(c: &mut Criterion) {
 
         let mut transcript_var = TranscriptVar::from_transcript(cs.clone(), verifier_transcript_clone);
 
-        let _ = augmented_circuit.verify::<E>(cs.clone(), &mut transcript_var, 2);
+        // run the verification function on augmented circuit
+        let _ = augmented_circuit.verify::<E>(cs.clone(), &mut transcript_var, poseidon_iterations);
 
         assert!(cs.is_satisfied().unwrap());
         println!("augmented circuit constraints: {}", cs.num_constraints());
@@ -211,18 +209,20 @@ fn bench_augmented_circuit(c: &mut Criterion) {
         cs.set_mode(SynthesisMode::Prove { construct_matrices: true });
         cs.finalize();
 
+        ////////// Now run the spartan prover on the augmented circuit /////////////////
+
         // convert to the corresponding Spartan types
         let shape = CRR1CSShape::<F>::convert::<G1>(cs.clone());
 
         // get the number the minimum size we need for committing to the constraint system
         let min_num_vars = CRSNARKKey::<E, KZH2<E>>::get_min_num_vars(shape.get_num_cons(), shape.get_num_vars(), shape.get_num_inputs());
-        let SRS: KZH2SRS<E> = KZH2::setup(min_num_vars, &mut thread_rng());
+        let SRS: KZH2SRS<E> = KZH2::setup(min_num_vars + 1, &mut thread_rng());
 
 
         let bench_name = format!("prover time: number of poseidon calls {}", poseidon_iterations);
         c.bench_function(&bench_name, |b| {
             let witness = CRR1CSWitness::<F>::convert(cs.clone());
-            let mut prover_transcript = Transcript::new(b"example");
+            let mut new_prover_transcript = Transcript::new(b"example");
 
             b.iter(|| {
                 // committing to the witness
@@ -233,27 +233,10 @@ fn bench_augmented_circuit(c: &mut Criterion) {
                     &instance,
                     witness.clone(),
                     &SRS,
-                    &mut prover_transcript,
+                    &mut new_prover_transcript,
                 );
             })
         });
-
-        let witness = CRR1CSWitness::<F>::convert(cs.clone());
-        let instance: CRR1CSInstance<E, KZH2<E>> = CRR1CSInstance::convert(cs.clone(), &SRS);
-        let mut prover_transcript = Transcript::new(b"example");
-
-        // check that the Spartan instance-witness pair is still satisfying
-        assert!(is_sat(&shape, &instance, &witness, &SRS).unwrap());
-
-        let (proof, rx, ry) = CRR1CSProof::prove(
-            &shape,
-            &instance,
-            witness,
-            &SRS,
-            &mut prover_transcript,
-        );
-
-        //////////////////// Verifier ////////////////////
 
         let bench_name = format!("ABC evals: number of poseidon calls {}", poseidon_iterations);
         c.bench_function(&bench_name, |b| {
@@ -262,20 +245,33 @@ fn bench_augmented_circuit(c: &mut Criterion) {
             })
         });
 
-
         let bench_name = format!("verify: number of poseidon calls {}", poseidon_iterations);
         c.bench_function(&bench_name, |b| {
+            let instance: CRR1CSInstance<E, KZH2<E>> = CRR1CSInstance::convert(cs.clone(), &SRS);
+            let witness = CRR1CSWitness::<F>::convert(cs.clone());
+
+            let mut new_prover_transcript = Transcript::new(b"example");
+            let (proof, rx, ry) = CRR1CSProof::prove(
+                &shape,
+                &instance,
+                witness,
+                &SRS,
+                &mut new_prover_transcript,
+            );
+
             // evaluate matrices A B C
             let inst_evals = shape.inst.inst.evaluate(&rx, &ry);
-            let mut verifier_transcript = Transcript::new(b"example");
+
             b.iter(|| {
+                let mut new_verifier_transcript = Transcript::new(b"example");
+
                 assert!(proof
                     .verify(
                         shape.get_num_vars(),
                         shape.get_num_cons(),
                         &instance,
                         &inst_evals,
-                        &mut verifier_transcript,
+                        &mut new_verifier_transcript,
                     )
                     .is_ok());
             })
@@ -284,7 +280,7 @@ fn bench_augmented_circuit(c: &mut Criterion) {
 }
 
 fn custom_criterion_config() -> Criterion {
-    Criterion::default().sample_size(20)
+    Criterion::default().sample_size(25)
 }
 
 // Benchmark group setup
