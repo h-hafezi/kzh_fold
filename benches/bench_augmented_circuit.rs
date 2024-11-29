@@ -1,3 +1,4 @@
+#![allow(non_snake_case)]
 use ark_ec::pairing::Pairing;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_relations::r1cs::{ConstraintSystem, SynthesisMode};
@@ -23,12 +24,11 @@ use sqrtn_pcs::transcript::transcript::Transcript;
 use sqrtn_pcs::transcript::transcript_var::TranscriptVar;
 
 fn bench_augmented_circuit(c: &mut Criterion) {
-    let poseidon_values = [
-        0, 10, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100,
-        1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900, 2000
+    let poseidon_iterations_vec = [
+        0, 100, 500, 1000, 2000
     ];
 
-    for poseidon_num in poseidon_values {
+    for poseidon_iterations in poseidon_iterations_vec {
         let (pcs_srs, spartan_shape, spartan_instance, spartan_proof, rx, ry) = {
             let num_vars = 131072;
             let num_cons = num_vars;
@@ -219,7 +219,7 @@ fn bench_augmented_circuit(c: &mut Criterion) {
         let SRS: KZH2SRS<E> = KZH2::setup(min_num_vars, &mut thread_rng());
 
 
-        let bench_name = format!("prover time: number of poseidon calls {}", poseidon_num);
+        let bench_name = format!("prover time: number of poseidon calls {}", poseidon_iterations);
         c.bench_function(&bench_name, |b| {
             let witness = CRR1CSWitness::<F>::convert(cs.clone());
             let mut prover_transcript = Transcript::new(b"example");
@@ -255,7 +255,7 @@ fn bench_augmented_circuit(c: &mut Criterion) {
 
         //////////////////// Verifier ////////////////////
 
-        let bench_name = format!("ABC evals: number of poseidon calls {}", poseidon_num);
+        let bench_name = format!("ABC evals: number of poseidon calls {}", poseidon_iterations);
         c.bench_function(&bench_name, |b| {
             b.iter(|| {
                 let _ = shape.inst.inst.evaluate(&rx, &ry);
@@ -263,7 +263,7 @@ fn bench_augmented_circuit(c: &mut Criterion) {
         });
 
 
-        let bench_name = format!("verify: number of poseidon calls {}", poseidon_num);
+        let bench_name = format!("verify: number of poseidon calls {}", poseidon_iterations);
         c.bench_function(&bench_name, |b| {
             // evaluate matrices A B C
             let inst_evals = shape.inst.inst.evaluate(&rx, &ry);

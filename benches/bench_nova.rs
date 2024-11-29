@@ -32,7 +32,7 @@ fn bench_nova_prover(c: &mut Criterion) {
         // generate the Nova verifier circuit
         let nova_verifier_var: NovaVerifierCircuitVar<F, G1, G2, C1, C2> = {
             // the non-circuit version
-            let nova_verifier: NovaVerifierCircuit<F, G1, G2, C1, C2> = NovaVerifierCircuit::initialise(prover);
+            let nova_verifier: NovaVerifierCircuit<F, G1, G2, C1, C2> = NovaVerifierCircuit::initialise(prover.clone());
             nova_verifier.verify();
 
             // the circuit version and output it

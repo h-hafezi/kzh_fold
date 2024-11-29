@@ -15,6 +15,7 @@ use ark_ff::PrimeField;
 use ark_relations::r1cs::ConstraintSystemRef;
 use rand::thread_rng;
 
+#[derive(Clone)]
 pub struct NovaProver<F, G1, G2, C1, C2>
 where
     F: PrimeField + Absorb,
