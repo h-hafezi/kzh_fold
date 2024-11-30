@@ -25,7 +25,7 @@ use sqrtn_pcs::transcript::transcript_var::TranscriptVar;
 
 fn bench_augmented_circuit(c: &mut Criterion) {
     let poseidon_iterations_vec = [
-        0
+        0, 100, 1000, 2000
     ];
 
     for poseidon_iterations in poseidon_iterations_vec {
@@ -219,7 +219,7 @@ fn bench_augmented_circuit(c: &mut Criterion) {
         let SRS: KZH2SRS<E> = KZH2::setup(min_num_vars + 1, &mut thread_rng());
 
 
-        let bench_name = format!("prover time: number of poseidon calls {}", poseidon_iterations);
+        let bench_name = format!("spartan+commitment time: number of poseidon calls {}", poseidon_iterations);
         c.bench_function(&bench_name, |b| {
             let witness = CRR1CSWitness::<F>::convert(cs.clone());
             let mut new_prover_transcript = Transcript::new(b"example");

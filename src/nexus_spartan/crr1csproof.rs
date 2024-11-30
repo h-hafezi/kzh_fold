@@ -335,7 +335,6 @@ impl<E: Pairing<ScalarField=F>, PC: KZH<E>, F: PrimeField + Absorb> CRR1CSProof<
                 .collect::<Vec<F>>()
         };
 
-        println!("{}", z.len());
         assert!(z.len().is_power_of_two(), "z must be a power of two");
         assert!(evals_ABC.len().is_power_of_two(), "eval_ABC must be a power of two");
         assert_eq!(z.len(), evals_ABC.len(), "vector z and eval_ABC should have equal length");
