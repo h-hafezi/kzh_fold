@@ -21,7 +21,7 @@ fn bench(c: &mut Criterion) {
         // random bivariate polynomial
         let polynomial = MultilinearPolynomial::rand(n, &mut thread_rng());
 
-        let bench_name = format!("commit for num_variables n={}", n);
+        let bench_name = format!("kzh4 commit for num_variables n={}", n);
         c.bench_function(&bench_name, |b| {
             b.iter(|| {
                 KZH4::commit(&srs, &polynomial)
@@ -36,7 +36,7 @@ fn bench(c: &mut Criterion) {
             .take(n)
             .collect();
 
-        let bench_name = format!("opening for num_variables n={}", n);
+        let bench_name = format!("kzh4 opening for num_variables n={}", n);
         c.bench_function(&bench_name, |b| {
             b.iter(|| {
                 KZH4::open(&srs, input.as_slice(), &com, &polynomial);
@@ -49,7 +49,7 @@ fn bench(c: &mut Criterion) {
 
         let z = polynomial.evaluate(&input);
 
-        let bench_name = format!("verifying for num_variables n={}", n);
+        let bench_name = format!("kzh4 verifying for num_variables n={}", n);
         c.bench_function(&bench_name, |b| {
             b.iter(|| {
                 KZH4::verify(&srs, input.as_slice(), &z, &com, &open);

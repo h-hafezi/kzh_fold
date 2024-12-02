@@ -105,7 +105,7 @@ where
 
         assert!(!pub_io.is_empty(), "instance is empty");
 
-        analyze_vector_sparseness("witness", &witness);
+        // analyze_vector_sparseness("witness", &witness);
 
         let poly_W = MultilinearPolynomial::new(witness);
         let commit_timer = start_timer!(|| "Instance conversion (commit to witness)");

@@ -118,6 +118,10 @@ impl<F: PrimeField + Absorb> R1CSInstance<F> {
         B: &[(usize, usize, F)],
         C: &[(usize, usize, F)],
     ) -> R1CSInstance<F> {
+        println!("number_of_constraints {}", num_cons);
+        println!("number_of_variables {}", num_vars);
+        println!("number_of_inputs {}", num_inputs);
+
         Timer::print(&format!("number_of_constraints {}", num_cons));
         Timer::print(&format!("number_of_variables {}", num_vars));
         Timer::print(&format!("number_of_inputs {}", num_inputs));
