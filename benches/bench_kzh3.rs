@@ -2,6 +2,7 @@
 #![allow(unused_imports)]
 
 use ark_poly::EvaluationDomain;
+use ark_serialize::CanonicalSerialize;
 use ark_std::UniformRand;
 use criterion::{Criterion, criterion_group, criterion_main};
 use rand::thread_rng;
@@ -43,6 +44,7 @@ fn bench(c: &mut Criterion) {
         });
 
         let open = KZH3::open(&srs, input.as_slice(), &com, &polynomial);
+        println!("witness length in bytes: {} for degree {n}", open.compressed_size());
 
         let z = polynomial.evaluate(&input);
 

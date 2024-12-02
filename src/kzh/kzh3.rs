@@ -343,33 +343,4 @@ mod tests {
         // verify the commit
         KZH3::verify(&srs, input.as_slice(), &eval, &c, &open);
     }
-
-    #[test]
-    fn witness_size() {
-        let degrees = vec![(4, 4, 4), (8, 8, 8)];
-        for (degree_x, degree_y, degree_z) in degrees {
-            let num_vars = degree_x.log_2() + degree_y.log_2() + degree_z.log_2();
-
-            let input: Vec<F> = (0..num_vars)
-                .map(|_| F::rand(&mut thread_rng()))
-                .collect();
-
-            // build the srs
-            let srs: KZH3SRS<E> = KZH3::setup(num_vars, &mut thread_rng());
-
-            // build a random polynomials
-            let polynomial: MultilinearPolynomial<F> = MultilinearPolynomial::rand(num_vars, &mut thread_rng());
-
-            // commit to the polynomial
-            let c = KZH3::commit(&srs, &polynomial);
-
-            // open it
-            let open = KZH3::open(&srs, input.as_slice(), &c, &polynomial);
-
-            let degree = degree_x * degree_y * degree_z;
-            println!("witness length in bytes: {} for degree {degree}",
-                     open.compressed_size()
-            );
-        }
-    }
 }

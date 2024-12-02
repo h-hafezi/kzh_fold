@@ -418,34 +418,5 @@ pub mod test {
 
         KZH2::verify(&srs, rho.as_slice(), &p_at_rho, &P_verifier, &proof_P_at_rho);
     }
-
-    #[test]
-    fn count_witness() {
-        let degrees = vec![(4, 4), (8, 8), (16, 16), (32, 32), (64, 64)];
-        for (degree_x, degree_y) in degrees {
-            let srs: KZH2SRS<E> = KZH2::setup((degree_x * degree_y).log_2() + 1, &mut thread_rng());
-            // random bivariate polynomial
-            let polynomial = MultilinearPolynomial::rand(
-                srs.degree_x.log_2() + srs.degree_y.log_2(),
-                &mut thread_rng(),
-            );
-            let com = KZH2::commit(&srs, &polynomial);
-
-            // random points and evaluation
-            let input = {
-                let mut res = Vec::new();
-                for _ in 0..srs.degree_x.log_2() + srs.degree_y.log_2() {
-                    res.push(F::rand(&mut thread_rng()));
-                }
-                res
-            };
-
-            let open = KZH2::open(&srs, input.as_slice(), &com, &polynomial);
-            let degree = degree_x * degree_y;
-            println!("witness length in bytes: {} for degree {degree}",
-                     open.compressed_size()
-            );
-        }
-    }
 }
 
