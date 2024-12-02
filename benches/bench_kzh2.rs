@@ -44,7 +44,7 @@ fn bench(c: &mut Criterion) {
         });
 
         let open = KZH2::open(&srs, input.as_slice(), &com, &polynomial);
-        println!("witness length in bytes: {} for degree {n}", open.compressed_size());
+        println!("kzh2 witness length in bytes: {} for degree {n}", open.compressed_size());
 
         let z = polynomial.evaluate(&input);
 
