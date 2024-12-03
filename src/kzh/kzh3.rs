@@ -294,7 +294,6 @@ fn decompose_index(i: usize, degree_y: usize, degree_z: usize) -> (usize, usize,
 
 #[cfg(test)]
 mod tests {
-    use ark_serialize::CanonicalSerialize;
     use crate::constant_for_curves::{ScalarField as F, E};
     use crate::kzh::kzh3::{decompose_index, KZH3, KZH3SRS};
     use crate::kzh::KZH;

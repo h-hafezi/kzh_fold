@@ -326,14 +326,12 @@ impl<E: Pairing> Add for KZH2Commitment<E> {
 
 #[cfg(test)]
 pub mod test {
-    use ark_serialize::CanonicalSerialize;
     use ark_std::UniformRand;
     use rand::thread_rng;
 
     use crate::constant_for_curves::{ScalarField as F, E};
     use crate::kzh::kzh2::{KZH2, KZH2SRS};
     use crate::kzh::KZH;
-    use crate::math::Math;
     use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 
     #[test]

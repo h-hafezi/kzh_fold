@@ -202,7 +202,7 @@ where
     fn open(
         srs: &Self::SRS,
         input: &[E::ScalarField],
-        com: &Self::Commitment,
+        _com: &Self::Commitment,
         poly: &MultilinearPolynomial<E::ScalarField>
     ) -> Self::Opening {
         let len = srs.degree_x.log_2() + srs.degree_y.log_2() + srs.degree_z.log_2() + srs.degree_t.log_2();
