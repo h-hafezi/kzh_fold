@@ -46,7 +46,6 @@ pub struct KZH4SRS<E: Pairing> {
 
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize, Derivative)]
 pub struct KZH4Opening<E: Pairing> {
-    pub D_y: Vec<E::G1>,
     pub D_z: Vec<E::G1>,
     pub f_star: MultilinearPolynomial<E::ScalarField>,
 }
@@ -64,6 +63,7 @@ pub struct KZH4Opening<E: Pairing> {
 pub struct KZH4Commitment<E: Pairing> {
     pub C: E::G1Affine,
     pub D_x: Vec<E::G1>,
+    pub D_y: Vec<E::G1>,
 }
 
 impl<E: Pairing> KZH<E> for KZH4<E>
@@ -168,7 +168,7 @@ where
     }
 
     fn commit(srs: &Self::SRS, poly: &MultilinearPolynomial<E::ScalarField>) -> Self::Commitment {
-        let len = srs.degree_x.log_2() + srs.degree_y.log_2() + srs.degree_z.log_2()+srs.degree_t.log_2();
+        let len = srs.degree_x.log_2() + srs.degree_y.log_2() + srs.degree_z.log_2() + srs.degree_t.log_2();
         let poly = poly.extend_number_of_variables(len);
 
         assert_eq!(poly.num_variables, len);
@@ -176,6 +176,7 @@ where
         assert_eq!(poly.evaluation_over_boolean_hypercube.len(), poly.len);
         assert_eq!(srs.degree_x * srs.degree_y * srs.degree_z * srs.degree_t, poly.len);
 
+        let C = E::G1::msm(&srs.H_xyzt, &poly.evaluation_over_boolean_hypercube).unwrap().into();
 
         let D_x = (0..srs.degree_x)
             .into_iter()
@@ -184,17 +185,27 @@ where
                     srs.H_yzt.as_slice(),
                     poly.get_partial_evaluation_for_boolean_input(i, srs.degree_y * srs.degree_z * srs.degree_t).as_slice(),
                 )
-            })
-            .collect::<Vec<_>>();
+            }).collect::<Vec<_>>();
 
-        KZH4Commitment {
-            C: E::G1::msm(&srs.H_xyzt, &poly.evaluation_over_boolean_hypercube).unwrap().into(),
-            D_x,
-        }
+        let D_y = (0..srs.degree_x * srs.degree_y)
+            .into_iter()
+            .map(|i| {
+                E::G1::msm_unchecked(
+                    srs.H_zt.as_slice(),
+                    poly.get_partial_evaluation_for_boolean_input(i, srs.degree_z * srs.degree_t).as_slice(),
+                )
+            }).collect::<Vec<_>>();
+
+        KZH4Commitment { C, D_x, D_y }
     }
 
-    fn open(srs: &Self::SRS, input: &[E::ScalarField], _com: &Self::Commitment, poly: &MultilinearPolynomial<E::ScalarField>) -> Self::Opening {
-        let len = srs.degree_x.log_2() + srs.degree_y.log_2() + srs.degree_z.log_2()+srs.degree_t.log_2();
+    fn open(
+        srs: &Self::SRS,
+        input: &[E::ScalarField],
+        com: &Self::Commitment,
+        poly: &MultilinearPolynomial<E::ScalarField>
+    ) -> Self::Opening {
+        let len = srs.degree_x.log_2() + srs.degree_y.log_2() + srs.degree_z.log_2() + srs.degree_t.log_2();
         let poly = poly.extend_number_of_variables(len);
 
         assert_eq!(poly.num_variables, len);
@@ -203,28 +214,13 @@ where
 
         let split_input = Self::split_input(&srs, input);
 
-        let D_y = (0..srs.degree_y)
-            .into_iter()
-            .map(|i| {
-                E::G1::msm_unchecked(
-                    srs.H_zt.as_slice(),
-                    poly.partial_evaluation(split_input[0].as_slice()).get_partial_evaluation_for_boolean_input(i, srs.degree_z * srs.degree_t).as_slice(),
-                )
-            })
-            .collect::<Vec<_>>();
-
         let D_z = (0..srs.degree_z)
             .into_iter()
             .map(|i| {
                 E::G1::msm_unchecked(
                     srs.H_t.as_slice(),
                     poly.partial_evaluation(
-                        {
-                            let mut res = Vec::new();
-                            res.extend_from_slice(split_input[0].as_slice());
-                            res.extend_from_slice(split_input[1].as_slice());
-                            res
-                        }.as_slice()
+                        &[split_input[0].as_slice(), split_input[1].as_slice()].concat().as_slice()
                     ).get_partial_evaluation_for_boolean_input(i, srs.degree_t).as_slice(),
                 )
             })
@@ -244,7 +240,6 @@ where
         }.as_slice());
 
         KZH4Opening {
-            D_y,
             D_z,
             f_star,
         }
@@ -259,21 +254,12 @@ where
 
         assert_eq!(lhs, rhs);
 
+        let concatenated: Vec<E::ScalarField> = split_input[0].iter().chain(split_input[1].iter()).cloned().collect();
+
         // making sure D_y is well formatted
         let new_c = E::G1::msm(
-            &com.D_x.iter().map(|e| e.clone().into()).collect::<Vec<_>>().as_slice(),
-            EqPolynomial::new(split_input[0].clone()).evals().as_slice(),
-        ).unwrap();
-
-        let lhs = E::multi_pairing(&open.D_y, &srs.V_y).0;
-        let rhs = E::pairing(new_c, &srs.v).0;
-
-        assert_eq!(lhs, rhs);
-
-        // making sure D_z is well formatted
-        let new_c = E::G1::msm(
-            &open.D_y.iter().map(|e| e.clone().into()).collect::<Vec<_>>().as_slice(),
-            EqPolynomial::new(split_input[1].clone()).evals().as_slice(),
+            &com.D_y.iter().map(|e| e.clone().into()).collect::<Vec<_>>().as_slice(),
+            EqPolynomial::new(concatenated).evals().as_slice(),
         ).unwrap();
 
         let lhs = E::multi_pairing(&open.D_z, &srs.V_z).0;

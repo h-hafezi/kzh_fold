@@ -213,13 +213,7 @@ where
         let split_input = Self::split_input(&srs, input);
 
         KZH2Opening {
-            D_x: {
-                let mut vec = Vec::new();
-                for g in com.aux.clone() {
-                    vec.push(g.into());
-                }
-                vec
-            },
+            D_x: com.aux.clone().into_iter().map(|g| g.into()).collect(),
             f_star_poly: poly.partial_evaluation(split_input[0].as_slice()),
         }
     }
