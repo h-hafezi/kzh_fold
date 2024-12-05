@@ -25,7 +25,7 @@ use sqrtn_pcs::transcript::transcript_var::TranscriptVar;
 
 fn bench_augmented_circuit(c: &mut Criterion) {
     let poseidon_iterations_vec = [
-        100, 1000, 2000
+        0, 100, 1000, 2000
     ];
 
 
