@@ -25,8 +25,10 @@ use sqrtn_pcs::transcript::transcript_var::TranscriptVar;
 
 fn bench_augmented_circuit(c: &mut Criterion) {
     let poseidon_iterations_vec = [
-        0, 100, 1000, 2000
+        100, 1000, 2000
     ];
+
+
 
     for poseidon_iterations in poseidon_iterations_vec {
         let (pcs_srs, spartan_shape, spartan_instance, spartan_proof, rx, ry) = {
@@ -280,7 +282,7 @@ fn bench_augmented_circuit(c: &mut Criterion) {
 }
 
 fn custom_criterion_config() -> Criterion {
-    Criterion::default().sample_size(25)
+    Criterion::default().sample_size(10)
 }
 
 // Benchmark group setup
