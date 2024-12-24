@@ -363,8 +363,18 @@ where
         // second condition
         let ip_rhs = instance.T;
         let ip_lhs = {
-            let res = E::G1::msm_unchecked(srs.k_x.as_slice(), witness.tree_x.nodes.as_slice());
-            res.add(E::G1::msm_unchecked(srs.k_y.as_slice(), witness.tree_y.nodes.as_slice()))
+            // Concatenate bases and scalars
+            let mut combined_bases = Vec::with_capacity(srs.k_x.len() + srs.k_y.len());
+            let mut combined_scalars = Vec::with_capacity(witness.tree_x.nodes.len() + witness.tree_y.nodes.len());
+
+            combined_bases.extend_from_slice(srs.k_x.as_slice());
+            combined_bases.extend_from_slice(srs.k_y.as_slice());
+
+            combined_scalars.extend_from_slice(witness.tree_x.nodes.as_slice());
+            combined_scalars.extend_from_slice(witness.tree_y.nodes.as_slice());
+
+            // Perform a single MSM
+            E::G1::msm_unchecked(combined_bases.as_slice(), combined_scalars.as_slice())
         };
 
         // third condition

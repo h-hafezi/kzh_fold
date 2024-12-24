@@ -155,7 +155,7 @@ impl<E: Pairing> Accumulator3<E> {
 
 // deciding functions
 impl<E: Pairing> Accumulator3<E> {
-    pub fn Dec_1(srs: &Acc3SRS<E>, acc: &Accumulator3<E>) -> E::G1Affine {
+    pub fn dec_1(srs: &Acc3SRS<E>, acc: &Accumulator3<E>) -> E::G1Affine {
         let error_tree_x = acc.witness.tree_x.difference(acc.instance.x.as_slice());
         let error_tree_y = acc.witness.tree_y.difference(acc.instance.y.as_slice());
         let error_tree_z = acc.witness.tree_z.difference(acc.instance.z.as_slice());
@@ -168,7 +168,7 @@ impl<E: Pairing> Accumulator3<E> {
         res.into()
     }
 
-    pub fn Dec_2(srs: &Acc3SRS<E>, acc: &Accumulator3<E>) -> E::G1Affine {
+    pub fn dec_2(srs: &Acc3SRS<E>, acc: &Accumulator3<E>) -> E::G1Affine {
         let instance = &acc.instance;
         let witness = &acc.witness;
 
@@ -180,7 +180,7 @@ impl<E: Pairing> Accumulator3<E> {
         srs.k_prime.mul(e_prime).into()
     }
 
-    pub fn Dec_3(srs: &Acc3SRS<E>, acc: &Accumulator3<E>) -> E::G1Affine {
+    pub fn dec_3(srs: &Acc3SRS<E>, acc: &Accumulator3<E>) -> E::G1Affine {
         let rhs = E::G1::msm_unchecked(
             srs.pc_srs.H_z.as_slice(),
             acc.witness
@@ -197,12 +197,60 @@ impl<E: Pairing> Accumulator3<E> {
         rhs.add(lhs.neg()).into()
     }
 
-    pub fn Dec_4(srs: &Acc3SRS<E>, acc: &Accumulator3<E>) -> E::G1Affine {
+    pub fn dec_4(srs: &Acc3SRS<E>, acc: &Accumulator3<E>) -> E::G1Affine {
         let lhs = E::G1::msm_unchecked(
             acc.witness.D_x.iter().map(|g| g.clone().into()).collect::<Vec<_>>().as_slice(),
             acc.witness.tree_x.get_leaves(),
         );
 
         acc.instance.C_y.add(lhs.neg()).into()
+    }
+
+    pub fn decide(srs: &Acc3SRS<E>, acc: &Accumulator3<E>) {
+        let instance = &acc.instance;
+        let witness = &acc.witness;
+
+        // first condition
+        let pairing_lhs = E::multi_pairing(&witness.D_x, &srs.pc_srs.V_x);
+        let pairing_rhs = E::pairing(instance.C, srs.pc_srs.v);
+
+        assert_eq!(pairing_lhs, pairing_rhs, "first condition fails");
+
+        // second condition
+        let ip_rhs = instance.T;
+        let ip_lhs = {
+            // Concatenate bases and scalars
+            let mut combined_bases = Vec::with_capacity(
+                srs.k_x.len() + srs.k_y.len() + srs.k_z.len()
+            );
+            let mut combined_scalars = Vec::with_capacity(
+                witness.tree_x.nodes.len() + witness.tree_y.nodes.len() + witness.tree_z.nodes.len(),
+            );
+
+            combined_bases.extend_from_slice(srs.k_x.as_slice());
+            combined_bases.extend_from_slice(srs.k_y.as_slice());
+            combined_bases.extend_from_slice(srs.k_z.as_slice());
+
+            combined_scalars.extend_from_slice(witness.tree_x.nodes.as_slice());
+            combined_scalars.extend_from_slice(witness.tree_y.nodes.as_slice());
+            combined_scalars.extend_from_slice(witness.tree_z.nodes.as_slice());
+
+            // Perform a single MSM
+            E::G1::msm_unchecked(combined_bases.as_slice(), combined_scalars.as_slice())
+        };
+
+        assert_eq!(ip_rhs, ip_lhs.into(), "second condition fails");
+
+        // third condition
+        assert_eq!(
+            (Self::dec_1(srs, acc), Self::dec_2(srs, acc), Self::dec_3(srs, acc), Self::dec_4(srs, acc)),
+            acc.instance.E,
+            "third condition fails"
+        );
+
+        // forth condition
+        let pairing_lhs = E::multi_pairing(&witness.D_y, &srs.pc_srs.V_y);
+        let pairing_rhs = E::pairing(instance.C_y, srs.pc_srs.v);
+        assert_eq!(pairing_lhs, pairing_rhs, "forth condition fails");
     }
 }
