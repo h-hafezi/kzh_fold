@@ -6,7 +6,7 @@ use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial
 use crate::transcript::transcript::{AppendToTranscript, Transcript};
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
-use ark_ec::{AffineRepr, VariableBaseMSM};
+use ark_ec::{AffineRepr, CurveGroup, VariableBaseMSM};
 use ark_ff::{AdditiveGroup, PrimeField};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::UniformRand;
@@ -43,6 +43,7 @@ pub struct KZH3SRS<E: Pairing> {
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize, Derivative)]
 pub struct KZH3Opening<E: Pairing> {
     D_y: Vec<E::G1>,
+    C_y: E::G1Affine,
     f_star: MultilinearPolynomial<E::ScalarField>,
 }
 
@@ -181,7 +182,7 @@ where
         }
     }
 
-    fn open(srs: &Self::SRS, input: &[E::ScalarField], _: &Self::Commitment, poly: &MultilinearPolynomial<E::ScalarField>) -> Self::Opening {
+    fn open(srs: &Self::SRS, input: &[E::ScalarField], com: &Self::Commitment, poly: &MultilinearPolynomial<E::ScalarField>) -> Self::Opening {
         let len = srs.degree_x.log_2() + srs.degree_y.log_2() + srs.degree_z.log_2();
         let poly = poly.extend_number_of_variables(len);
         assert_eq!(poly.num_variables, len);
@@ -216,8 +217,14 @@ where
             res
         }.as_slice());
 
+        let C_y = E::G1::msm(
+            &com.D_x.iter().map(|e| e.clone().into()).collect::<Vec<_>>().as_slice(),
+            EqPolynomial::new(split_input[0].clone()).evals().as_slice(),
+        ).unwrap().into();
+
         KZH3Opening {
             D_y,
+            C_y,
             f_star,
         }
     }
@@ -232,13 +239,16 @@ where
         assert_eq!(lhs, rhs);
 
         // making sure D_y is well formatted
-        let new_c = E::G1::msm(
-            &com.D_x.iter().map(|e| e.clone().into()).collect::<Vec<_>>().as_slice(),
-            EqPolynomial::new(split_input[0].clone()).evals().as_slice(),
-        ).unwrap();
+        assert_eq!(
+            E::G1::msm(
+                &com.D_x.iter().map(|e| e.clone().into()).collect::<Vec<_>>().as_slice(),
+                EqPolynomial::new(split_input[0].clone()).evals().as_slice(),
+            ).unwrap().into_affine(),
+            open.C_y,
+        );
 
         let lhs = E::multi_pairing(&open.D_y, &srs.V_y).0;
-        let rhs = E::pairing(new_c, &srs.v).0;
+        let rhs = E::pairing(open.C_y, &srs.v).0;
 
         assert_eq!(lhs, rhs);
 
