@@ -2,23 +2,77 @@ use crate::gadgets::non_native::util::convert_affine_to_scalars;
 use crate::kzh::kzh3::{KZH3Commitment, KZH3Opening, KZH3, KZH3SRS};
 use crate::kzh::KZH;
 use crate::kzh_fold::eq_tree::EqTree;
-use crate::kzh_fold::generate_random_elements;
-use crate::kzh_fold::kzh2_fold::Acc2Instance;
+use crate::kzh_fold::{generate_random_elements, generic_linear_combination};
+use crate::math::Math;
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript::Transcript;
 use crate::utils::inner_product;
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
+use ark_ec::CurveGroup;
 use ark_ec::{AffineRepr, VariableBaseMSM};
-use ark_ff::{AdditiveGroup, PrimeField};
+use ark_ff::{AdditiveGroup, Field, PrimeField};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::UniformRand;
 use derivative::Derivative;
-use rand::RngCore;
-use std::ops::{Add, Mul, Neg};
+use rand::{thread_rng, RngCore};
+use std::ops::{Add, Mul, Neg, Sub};
 
-type Acc3Proof<E: Pairing> = (E::G1Affine, E::G1Affine, E::G1Affine, E::G1Affine);
+#[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize)]
+pub struct Acc3Error<E: Pairing> {
+    e_1: E::G1Affine,
+    e_2: E::G1Affine,
+    e_3: E::G1Affine,
+    e_4: E::G1Affine,
+}
 
+impl<E: Pairing> Acc3Error<E> {
+    /// Returns a new `Acc3Proof` where all elements are `E::G1Affine::zero()`.
+    pub fn zero() -> Self {
+        Self {
+            e_1: E::G1Affine::zero(),
+            e_2: E::G1Affine::zero(),
+            e_3: E::G1Affine::zero(),
+            e_4: E::G1Affine::zero(),
+        }
+    }
+
+    /// Returns the elements as a vector.
+    pub fn to_vec(&self) -> Vec<E::G1Affine> {
+        vec![self.e_1, self.e_2, self.e_3, self.e_4]
+    }
+}
+
+impl<E: Pairing> Acc3Error<E> {
+    /// Updates the `Acc3Proof` instance based on the provided error instances, `pf`, and `beta`.
+    pub fn update(
+        error_instance_1: &Self,
+        error_instance_2: &Self,
+        pf: &Self,
+        beta: E::ScalarField,
+    ) -> Self {
+        let one_minus_beta = E::ScalarField::ONE - beta;
+        let beta_one_minus_beta = beta * one_minus_beta;
+
+        let e_1 = error_instance_1.e_1.mul(one_minus_beta)
+            + error_instance_2.e_1.mul(beta)
+            + pf.e_1.mul(beta_one_minus_beta);
+
+        let e_2 = error_instance_1.e_2.mul(one_minus_beta)
+            + error_instance_2.e_2.mul(beta)
+            + pf.e_2.mul(beta_one_minus_beta);
+
+        let e_3 = error_instance_1.e_3.mul(one_minus_beta)
+            + error_instance_2.e_3.mul(beta)
+            + pf.e_3.mul(beta_one_minus_beta);
+
+        let e_4 = error_instance_1.e_4.mul(one_minus_beta)
+            + error_instance_2.e_4.mul(beta)
+            + pf.e_4.mul(beta_one_minus_beta);
+
+        Self { e_1: e_1.into(), e_2: e_2.into(), e_3: e_3.into(), e_4: e_4.into() }
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct Acc3SRS<E: Pairing> {
@@ -39,7 +93,7 @@ pub struct Acc3Instance<E: Pairing> {
     pub C: E::G1Affine,
     pub C_y: E::G1Affine,
     pub T: E::G1Affine,
-    pub E: Acc3Proof<E>,
+    pub E: Acc3Error<E>,
 
     // vector of length log2(degree_x)
     pub x: Vec<E::ScalarField>,
@@ -47,7 +101,7 @@ pub struct Acc3Instance<E: Pairing> {
     pub y: Vec<E::ScalarField>,
     // vector of length log2(degree_z)
     pub z: Vec<E::ScalarField>,
-    // result of poylnomial evaluation
+    // result of polynomial evaluation
     pub output: E::ScalarField,
 }
 
@@ -69,8 +123,8 @@ where
         // Extend the destination vector with the computed values
         dest.extend(vec![c_x, c_y, t_x, t_y]);
 
-        for E in vec![&self.E.0, &self.E.1, &self.E.2, &self.E.3] {
-            let (e_x, e_y) = convert_affine_to_scalars::<E>(*E);
+        for E in self.E.to_vec() {
+            let (e_x, e_y) = convert_affine_to_scalars::<E>(E);
             // Extend the destination vector with the computed values
             dest.extend(vec![e_x, e_y]);
         }
@@ -128,22 +182,18 @@ where
     pub fn compute_fiat_shamir_challenge(
         transcript: &mut Transcript<E::ScalarField>,
         instance_1: &Acc3Instance<E>,
-        instance_2: &Acc2Instance<E>,
-        Q: Acc3Proof<E>,
+        instance_2: &Acc3Instance<E>,
+        proof: &Acc3Error<E>,
     ) -> E::ScalarField {
         // add the instances to the transcript
         transcript.append_scalars(b"instance 1", instance_1.to_sponge_field_elements().as_slice());
         transcript.append_scalars(b"instance 2", instance_2.to_sponge_field_elements().as_slice());
 
         // convert the proof Q into scalar field elements and add to the transcript
-        let (p1, p2) = convert_affine_to_scalars::<E>(Q.0);
-        transcript.append_scalars(b"Q", &[p1, p2]);
-        let (p1, p2) = convert_affine_to_scalars::<E>(Q.1);
-        transcript.append_scalars(b"Q", &[p1, p2]);
-        let (p1, p2) = convert_affine_to_scalars::<E>(Q.2);
-        transcript.append_scalars(b"Q", &[p1, p2]);
-        let (p1, p2) = convert_affine_to_scalars::<E>(Q.3);
-        transcript.append_scalars(b"Q", &[p1, p2]);
+        for E in proof.to_vec() {
+            let (p1, p2) = convert_affine_to_scalars::<E>(E);
+            transcript.append_scalars(b"proof", &[p1, p2]);
+        }
 
         // return the challenge
         transcript.challenge_scalar(b"challenge scalar")
@@ -186,12 +236,7 @@ impl<E: Pairing> Accumulator3<E> {
             C: com.C,
             C_y: open.C_y,
             T,
-            E: (
-                E::G1Affine::zero(),
-                E::G1Affine::zero(),
-                E::G1Affine::zero(),
-                E::G1Affine::zero(),
-            ),
+            E: Acc3Error::zero(),
             x: split_input[0].clone(),
             y: split_input[1].clone(),
             z: split_input[2].clone(),
@@ -205,8 +250,9 @@ impl<E: Pairing> Accumulator3<E> {
         proof: KZH3Opening<E>,
         input: &[E::ScalarField],
     ) -> Acc3Witness<E>
-    where <E as ark_ec::pairing::Pairing>::ScalarField: ark_crypto_primitives::sponge::Absorb,
-          <<E as ark_ec::pairing::Pairing>::G1Affine as ark_ec::AffineRepr>::BaseField: ark_ff::PrimeField
+    where
+        <E as Pairing>::ScalarField: Absorb,
+        <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
     {
         // asserting the sizes are correct
         let split_input = KZH3::split_input(&srs.pc_srs, input);
@@ -218,6 +264,260 @@ impl<E: Pairing> Accumulator3<E> {
             tree_y: EqTree::new(split_input[1].as_slice()),
             tree_z: EqTree::new(split_input[2].as_slice()),
             f_star: proof.f_star,
+        }
+    }
+}
+
+// verify and prove function
+impl<E: Pairing> Accumulator3<E> {
+    pub fn prove(
+        srs: &Acc3SRS<E>,
+        acc_1: &Accumulator3<E>,
+        acc_2: &Accumulator3<E>,
+        transcript: &mut Transcript<E::ScalarField>,
+    ) -> (Acc3Instance<E>, Acc3Witness<E>, Acc3Error<E>)
+    where
+        <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb,
+        <E as Pairing>::ScalarField: Absorb,
+        <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
+    {
+        // unwrap the instances and witnesses
+        let instance_1 = &acc_1.instance;
+        let instance_2 = &acc_2.instance;
+        let witness_1 = &acc_1.witness;
+        let witness_2 = &acc_2.witness;
+
+        // compute the quotient variable Q
+        let proof: Acc3Error<E> = Self::compute_error_term(srs, acc_1, acc_2);
+
+        // the transcript is cloned because is used twice, once to compute the fiat_shamir challenge beta directly
+        // once to call Self::verify() to get the new accumulated instance, despite that they generate the same randomness
+        // and one can do fewer hashes by computing accumulated instance directly, it's for the sake of cleaner code.
+        let mut transcript_clone = transcript.clone();
+
+        // get challenge beta
+        let beta = Accumulator3::compute_fiat_shamir_challenge(transcript, instance_1, instance_2, &proof);
+        let one_minus_beta: E::ScalarField = E::ScalarField::ONE - beta;
+
+        // get the accumulated new_instance
+        let new_instance = Self::verify(srs, instance_1, instance_2, &proof, &mut transcript_clone);
+
+        // get the accumulated witness
+        let new_witness = Acc3Witness {
+            D_x: generic_linear_combination(
+                &witness_1.D_x,
+                &witness_2.D_x,
+                |d_1, d_2| d_1.mul(one_minus_beta).add(d_2.mul(beta)),
+            ),
+            D_y: generic_linear_combination(
+                &witness_1.D_y,
+                &witness_2.D_y,
+                |d_1, d_2| d_1.mul(one_minus_beta).add(d_2.mul(beta)),
+            ),
+            f_star: MultilinearPolynomial::linear_combination(
+                &witness_1.f_star,
+                &witness_2.f_star,
+                |a, b| a * one_minus_beta + b * beta,
+            ),
+            tree_x: EqTree::linear_combination(
+                &witness_1.tree_x,
+                &witness_2.tree_x,
+                |a, b| a * one_minus_beta + b * beta,
+            ),
+            tree_y: EqTree::linear_combination(
+                &witness_1.tree_y,
+                &witness_2.tree_y,
+                |a, b| a * one_minus_beta + b * beta,
+            ),
+            tree_z: EqTree::linear_combination(
+                &witness_1.tree_z,
+                &witness_2.tree_z,
+                |a, b| a * one_minus_beta + b * beta,
+            ),
+        };
+
+        (new_instance, new_witness, proof)
+    }
+
+    pub fn verify(
+        srs: &Acc3SRS<E>,
+        instance_1: &Acc3Instance<E>,
+        instance_2: &Acc3Instance<E>,
+        proof: &Acc3Error<E>,
+        transcript: &mut Transcript<E::ScalarField>,
+    ) -> Acc3Instance<E>
+    where
+        <E as Pairing>::ScalarField: Absorb,
+        <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb,
+        <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
+    {
+        let beta = Accumulator3::compute_fiat_shamir_challenge(transcript, instance_1, instance_2, &proof);
+        let one_minus_beta: E::ScalarField = E::ScalarField::ONE - beta;
+
+        let new_error_term = Acc3Error::update(
+            &instance_1.E,
+            &instance_2.E,
+            &proof,
+            beta,
+        );
+
+        Acc3Instance {
+            C: (instance_1.C.mul(one_minus_beta) + instance_2.C.mul(beta)).into(),
+            C_y: (instance_1.C_y.mul(one_minus_beta) + instance_2.C_y.mul(beta)).into(),
+            T: (instance_1.T.mul(one_minus_beta) + instance_2.T.mul(beta)).into(),
+            x: generic_linear_combination(
+                &instance_1.x,
+                &instance_2.x,
+                |e1, e2| e1 * one_minus_beta + e2 * beta,
+            ),
+            y: generic_linear_combination(
+                &instance_1.y,
+                &instance_2.y,
+                |e1, e2| e1 * one_minus_beta + e2 * beta,
+            ),
+            z: generic_linear_combination(
+                &instance_1.z,
+                &instance_2.z,
+                |e1, e2| e1 * one_minus_beta + e2 * beta,
+            ),
+            E: new_error_term,
+            output: instance_1.output * one_minus_beta + instance_2.output * beta,
+        }
+    }
+
+    pub fn compute_error_term(
+        srs: &Acc3SRS<E>,
+        acc_1: &Accumulator3<E>,
+        acc_2: &Accumulator3<E>,
+    ) -> Acc3Error<E>
+    where
+        <E as Pairing>::ScalarField: Absorb,
+        <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb,
+        <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
+    {
+        // unwrap the instances/witnesses
+        let instance_1 = &acc_1.instance;
+        let instance_2 = &acc_2.instance;
+        let witness_1 = &acc_1.witness;
+        let witness_2 = &acc_2.witness;
+
+        assert_eq!(witness_1.f_star.num_variables, witness_2.f_star.num_variables);
+        assert_eq!(witness_1.tree_x.depth, witness_2.tree_x.depth);
+        assert_eq!(witness_1.tree_y.depth, witness_2.tree_y.depth);
+        assert_eq!(witness_1.D_x.len(), witness_2.D_x.len());
+
+        // value of 2 in the field
+        let two = E::ScalarField::from(2u128);
+
+        let witness = Acc3Witness {
+            D_x: generic_linear_combination(
+                &witness_2.D_x,
+                &witness_1.D_x,
+                |d2, d1| d2.mul(two).sub(d1),
+            ),
+            D_y: generic_linear_combination(
+                &witness_2.D_y,
+                &witness_1.D_y,
+                |d2, d1| d2.mul(two).sub(d1),
+            ),
+            f_star: MultilinearPolynomial::linear_combination(
+                &witness_2.f_star,
+                &witness_1.f_star,
+                |e2, e1| e2 * two - e1,
+            ),
+            tree_x: EqTree::linear_combination(
+                &witness_2.tree_x,
+                &witness_1.tree_x,
+                |w2, w1| w2 * two - w1,
+            ),
+            tree_y: EqTree::linear_combination(
+                &witness_2.tree_y,
+                &witness_1.tree_y,
+                |w2, w1| w2 * two - w1,
+            ),
+            tree_z: EqTree::linear_combination(
+                &witness_2.tree_z,
+                &witness_1.tree_z,
+                |w2, w1| w2 * two - w1,
+            ),
+        };
+
+        let instance = Acc3Instance {
+            C_y: (instance_2.C_y + instance_2.C_y - instance_1.C_y).into(),
+            // not used by helper function, so we simply pass them as zero or any other random element
+            C: E::G1Affine::zero(),
+            T: E::G1Affine::zero(),
+            E: Acc3Error::zero(),
+            // used by the helper function
+            x: generic_linear_combination(
+                &instance_2.x,
+                &instance_1.x,
+                |e2, e1| e2 * two - e1,
+            ),
+            y: generic_linear_combination(
+                &instance_2.y,
+                &instance_1.y,
+                |e2, e1| e2 * two - e1,
+            ),
+            z: generic_linear_combination(
+                &instance_2.z,
+                &instance_1.z,
+                |e2, e1| e2 * two - e1,
+            ),
+            output: two * instance_2.output - instance_1.output,
+        };
+
+        let acc = Accumulator3::new(&instance, &witness);
+
+        let mut e_1 = {
+            let mut res = Self::dec_1(&srs, &acc);
+            res = res.add(instance_1.E.e_1).into();
+            res = res.sub(instance_2.E.e_1).into();
+            res = res.sub(instance_2.E.e_1).into();
+
+            // -1/2 in the scalar field
+            let minus_one_over_two: E::ScalarField = two.neg().inverse().unwrap();
+            res.mul(minus_one_over_two).into()
+        };
+
+        let mut e_2 = {
+            let mut res = Self::dec_2(&srs, &acc);
+            res = res.add(instance_1.E.e_2).into();
+            res = res.sub(instance_2.E.e_2).into();
+            res = res.sub(instance_2.E.e_2).into();
+
+            // -1/2 in the scalar field
+            let minus_one_over_two: E::ScalarField = two.neg().inverse().unwrap();
+            res.mul(minus_one_over_two).into()
+        };
+
+        let mut e_3 = {
+            let mut res = Self::dec_3(&srs, &acc);
+            res = res.add(instance_1.E.e_3).into();
+            res = res.sub(instance_2.E.e_3).into();
+            res = res.sub(instance_2.E.e_3).into();
+
+            // -1/2 in the scalar field
+            let minus_one_over_two: E::ScalarField = two.neg().inverse().unwrap();
+            res.mul(minus_one_over_two).into()
+        };
+
+        let mut e_4 = {
+            let mut res = Self::dec_4(&srs, &acc);
+            res = res.add(instance_1.E.e_4).into();
+            res = res.sub(instance_2.E.e_4).into();
+            res = res.sub(instance_2.E.e_4).into();
+
+            // -1/2 in the scalar field
+            let minus_one_over_two: E::ScalarField = two.neg().inverse().unwrap();
+            res.mul(minus_one_over_two).into()
+        };
+
+        Acc3Error {
+            e_1,
+            e_2,
+            e_3,
+            e_4,
         }
     }
 }
@@ -272,7 +572,7 @@ impl<E: Pairing> Accumulator3<E> {
             acc.witness.tree_x.get_leaves(),
         );
 
-        acc.instance.C_y.add(lhs.neg()).into()
+        acc.instance.C_y.add(lhs.neg()).neg().into()
     }
 
     pub fn decide(srs: &Acc3SRS<E>, acc: &Accumulator3<E>) {
@@ -310,77 +610,135 @@ impl<E: Pairing> Accumulator3<E> {
 
         assert_eq!(ip_rhs, ip_lhs.into(), "second condition fails");
 
-        // third condition
-        assert_eq!(
-            (Self::dec_1(srs, acc), Self::dec_2(srs, acc), Self::dec_3(srs, acc), Self::dec_4(srs, acc)),
-            acc.instance.E,
-            "third condition fails"
-        );
-
         // forth condition
         let pairing_lhs = E::multi_pairing(&witness.D_y, &srs.pc_srs.V_y);
         let pairing_rhs = E::pairing(instance.C_y, srs.pc_srs.v);
         assert_eq!(pairing_lhs, pairing_rhs, "forth condition fails");
+
+        // third conditions
+        assert_eq!(
+            Self::dec_1(srs, acc),
+            acc.instance.E.e_1,
+            "third condition fails 1"
+        );
+
+        assert_eq!(
+            Self::dec_2(srs, acc),
+            acc.instance.E.e_2,
+            "third condition fails 2"
+        );
+
+
+        assert_eq!(
+            Self::dec_3(srs, acc),
+            acc.instance.E.e_3,
+            "third condition fails 3"
+        );
+
+
+        assert_eq!(
+            Self::dec_4(srs, acc),
+            acc.instance.E.e_4,
+            "third condition fails 4"
+        );
     }
 }
 
-#[cfg(test)]
-mod test {
-    use crate::constant_for_curves::{ScalarField as F, E};
-    use crate::kzh::kzh3::{KZH3, KZH3SRS};
-    use crate::kzh::KZH;
-    use crate::kzh_fold::kzh_3_fold::Accumulator3;
-    use crate::math::Math;
-    use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
-    use ark_std::UniformRand;
-    use rand::thread_rng;
 
-    #[test]
-    fn test() {
-        let (degree_x, degree_y, degree_z) = (4usize, 4usize, 4usize);
-        let num_vars = degree_x.log_2() + degree_y.log_2() + degree_z.log_2();
+// get fresh satisfying accumulator (zero error terms)
+impl<E: Pairing<ScalarField=F>, F: PrimeField + Absorb> Accumulator3<E> {
+    // Helper function to create an accumulator from a random polynomial
+    fn rand_fresh_accumulator(
+        srs: &Acc3SRS<E>,
+    ) -> Accumulator3<E>
+    where
+        <E as Pairing>::ScalarField: Absorb,
+        <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb,
+        <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
+    {
+        let num_vars = srs.pc_srs.degree_x.log_2() + srs.pc_srs.degree_y.log_2() + srs.pc_srs.degree_z.log_2();
 
         let input: Vec<F> = (0..num_vars)
             .map(|_| F::rand(&mut thread_rng()))
             .collect();
 
-        // build the srs
-        let srs: KZH3SRS<E> = KZH3::setup((degree_x * degree_y * degree_z).log_2(), &mut thread_rng());
+        let polynomial = MultilinearPolynomial::rand(num_vars, &mut thread_rng());
 
-        // build a random polynomials
-        let polynomial: MultilinearPolynomial<F> = MultilinearPolynomial::rand(num_vars, &mut thread_rng());
-
-        // evaluate polynomial
         let output = polynomial.evaluate(input.as_slice());
 
-        // commit to the polynomial
-        let c = KZH3::commit(&srs, &polynomial);
+        let commitment = KZH3::commit(&srs.pc_srs, &polynomial);
 
-        // open it
-        let open = KZH3::open(&srs, input.as_slice(), &c, &polynomial);
+        let opening = KZH3::open(&srs.pc_srs, input.as_slice(), &commitment, &polynomial);
 
-        // verify the commit
-        KZH3::verify(&srs, input.as_slice(), &output, &c, &open);
-
-        let acc_srs = Accumulator3::setup(srs, &mut thread_rng());
-
+        // Convert proof to instance and witness
         let acc_instance = Accumulator3::proof_to_accumulator_instance(
-            &acc_srs,
+            &srs,
             input.as_slice(),
             &output,
-            &c,
-            &open
+            &commitment,
+            &opening,
         );
 
         let acc_witness = Accumulator3::proof_to_accumulator_witness(
-            &acc_srs,
-            c,
-            open,
+            &srs,
+            commitment,
+            opening,
             input.as_slice(),
         );
 
-        let acc = Accumulator3::new(&acc_instance, &acc_witness);
+        Accumulator3::new(&acc_instance, &acc_witness)
+    }
 
-        Accumulator3::decide(&acc_srs, &acc);
+    pub fn rand(srs: &Acc3SRS<E>) -> Accumulator3<E>
+    where
+        <E as Pairing>::ScalarField: Absorb,
+        <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb,
+        <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
+    {
+        // Create two accumulators
+        let acc1 = Accumulator3::rand_fresh_accumulator(srs);
+        let acc2 = Accumulator3::rand_fresh_accumulator(srs);
+
+        // Prove and decide final accumulator
+        let (instance, witness, _proof) = Accumulator3::prove(
+            srs,
+            &acc1,
+            &acc2,
+            &mut Transcript::new(b"hi"),
+        );
+
+        let final_acc = Accumulator3::new(&instance, &witness);
+
+        Accumulator3::decide(srs, &final_acc);
+
+        final_acc
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::constant_for_curves::E;
+    use crate::kzh::kzh3::{KZH3, KZH3SRS};
+    use crate::kzh::KZH;
+    use crate::kzh_fold::kzh_3_fold::Accumulator3;
+    use crate::math::Math;
+    use crate::transcript::transcript::Transcript;
+    use rand::thread_rng;
+
+    #[test]
+    fn kzh3_fold_test() {
+        let (degree_x, degree_y, degree_z) = (4usize, 2usize, 8usize);
+        let num_vars = degree_x.log_2() + degree_y.log_2() + degree_z.log_2();
+
+        // build the srs
+        let pcs_srs: KZH3SRS<E> = KZH3::setup((degree_x * degree_y * degree_z).log_2(), &mut thread_rng());
+        let acc_srs = Accumulator3::setup(pcs_srs, &mut thread_rng());
+
+        let acc_1 = Accumulator3::rand(&acc_srs);
+        let acc_2 = Accumulator3::rand(&acc_srs);
+
+        let (instance, witness, proof) = Accumulator3::prove(&acc_srs, &acc_1, &acc_2, &mut Transcript::new(b"hi"));
+
+        Accumulator3::decide(&acc_srs, &Accumulator3::new(&instance, &witness));
     }
 }
