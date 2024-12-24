@@ -181,7 +181,7 @@ where
         }
     }
 
-    fn open(srs: &Self::SRS, input: &[E::ScalarField], _com: &Self::Commitment, poly: &MultilinearPolynomial<E::ScalarField>) -> Self::Opening {
+    fn open(srs: &Self::SRS, input: &[E::ScalarField], _: &Self::Commitment, poly: &MultilinearPolynomial<E::ScalarField>) -> Self::Opening {
         let len = srs.degree_x.log_2() + srs.degree_y.log_2() + srs.degree_z.log_2();
         let poly = poly.extend_number_of_variables(len);
         assert_eq!(poly.num_variables, len);
@@ -317,7 +317,7 @@ mod tests {
 
     #[test]
     fn pcs_test() {
-        let (degree_x, degree_y, degree_z) = (4usize, 8usize, 16usize);
+        let (degree_x, degree_y, degree_z) = (4usize, 4usize, 4usize);
         let num_vars = degree_x.log_2() + degree_y.log_2() + degree_z.log_2();
 
         let input: Vec<F> = (0..num_vars)

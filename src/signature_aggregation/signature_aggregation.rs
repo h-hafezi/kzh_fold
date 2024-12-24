@@ -211,7 +211,7 @@ where
     let length_y = acc_srs.pc_srs.degree_y.log_2();
     let (eval_point_first_half, eval_point_second_half) = split_between_x_and_y::<F>(length_x, length_y, eval_point, F::ZERO);
 
-    let acc_instance = KZHAccumulator::new_accumulator_instance_from_fresh_kzh_instance(
+    let acc_instance = KZHAccumulator::proof_to_accumulator_instance(
         acc_srs,
         &bitfield_commitment.C,
         eval_point_first_half.as_slice(),
@@ -219,7 +219,7 @@ where
         eval_result,
     );
 
-    let acc_witness = KZHAccumulator::new_accumulator_witness_from_fresh_kzh_witness(
+    let acc_witness = KZHAccumulator::proof_to_accumulator_witness(
         acc_srs,
         opening_proof,
         eval_point_first_half.as_slice(),
@@ -386,7 +386,7 @@ where
         let length_x = self.srs.acc_srs.pc_srs.degree_x.log_2();
         let length_y = self.srs.acc_srs.pc_srs.degree_y.log_2();
         let (eval_point_first_half, eval_point_second_half) = split_between_x_and_y::<F>(length_x, length_y, eval_point, F::ZERO);
-        KZHAccumulator::new_accumulator_instance_from_fresh_kzh_instance(
+        KZHAccumulator::proof_to_accumulator_instance(
             &self.srs.acc_srs,
             &bitfield_commitment.C,
             eval_point_first_half.as_slice(),

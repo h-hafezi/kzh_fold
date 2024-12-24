@@ -117,7 +117,7 @@ fn bench_augmented_circuit(c: &mut Criterion) {
             };
 
             // Get accumulator from the opening proof
-            let acc_instance = Accumulator::new_accumulator_instance_from_fresh_kzh_instance(
+            let acc_instance = Accumulator::proof_to_accumulator_instance(
                 &acc_srs,
                 &commitment_w.C,
                 x.as_slice(),
@@ -125,7 +125,7 @@ fn bench_augmented_circuit(c: &mut Criterion) {
                 &spartan_proof.eval_vars_at_ry,
             );
 
-            let acc_witness = Accumulator::new_accumulator_witness_from_fresh_kzh_witness(
+            let acc_witness = Accumulator::proof_to_accumulator_witness(
                 &acc_srs,
                 opening_proof,
                 x.as_slice(),

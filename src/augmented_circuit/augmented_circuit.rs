@@ -291,7 +291,7 @@ mod test {
             };
 
             // Get accumulator from the opening proof
-            let acc_instance = Accumulator::new_accumulator_instance_from_fresh_kzh_instance(
+            let acc_instance = Accumulator::proof_to_accumulator_instance(
                 &acc_srs,
                 &commitment_w.C,
                 x.as_slice(),
@@ -299,7 +299,7 @@ mod test {
                 &spartan_proof.eval_vars_at_ry,
             );
 
-            let acc_witness = Accumulator::new_accumulator_witness_from_fresh_kzh_witness(
+            let acc_witness = Accumulator::proof_to_accumulator_witness(
                 &acc_srs,
                 opening_proof,
                 x.as_slice(),
@@ -393,9 +393,6 @@ mod test {
         // get the number the minimum size we need for committing to the constraint system
         let min_num_vars = CRSNARKKey::<E, KZH2<E>>::get_min_num_vars(shape.get_num_cons(), shape.get_num_vars(), shape.get_num_inputs());
         let SRS: KZH2SRS<E> = KZH2::setup(min_num_vars + 1, &mut thread_rng());
-
-
-        let witness = CRR1CSWitness::<F>::convert(cs.clone());
 
         let instance: CRR1CSInstance<E, KZH2<E>> = CRR1CSInstance::convert(cs.clone(), &SRS);
         let witness = CRR1CSWitness::<F>::convert(cs.clone());

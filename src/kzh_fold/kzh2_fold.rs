@@ -132,7 +132,7 @@ where
     }
 
     /// Given public data for the opening p(x, y) = z, return an accumulator instance
-    pub fn new_accumulator_instance_from_fresh_kzh_instance(
+    pub fn proof_to_accumulator_instance(
         srs: &Acc2SRS<E>,
         C: &E::G1Affine,
         x: &[E::ScalarField],
@@ -164,7 +164,7 @@ where
         }
     }
 
-    pub fn new_accumulator_witness_from_fresh_kzh_witness(
+    pub fn proof_to_accumulator_witness(
         srs: &Acc2SRS<E>,
         proof: KZH2Opening<E>,
         x: &[E::ScalarField],
@@ -482,10 +482,10 @@ impl<E: Pairing> Accumulator2<E> {
         KZH2::verify(&srs.pc_srs, &input_1, &z1, &com1, &open1);
         KZH2::verify(&srs.pc_srs, &input_2, &z2, &com2, &open2);
 
-        let instance1 = Accumulator2::new_accumulator_instance_from_fresh_kzh_instance(&srs, &com1.C, &x1, &y1, &z1);
-        let witness1 = Accumulator2::new_accumulator_witness_from_fresh_kzh_witness(&srs, open1, &x1, &y1);
-        let instance2 = Accumulator2::new_accumulator_instance_from_fresh_kzh_instance(&srs, &com2.C, &x2, &y2, &z2);
-        let witness2 = Accumulator2::new_accumulator_witness_from_fresh_kzh_witness(&srs, open2, &x2, &y2);
+        let instance1 = Accumulator2::proof_to_accumulator_instance(&srs, &com1.C, &x1, &y1, &z1);
+        let witness1 = Accumulator2::proof_to_accumulator_witness(&srs, open1, &x1, &y1);
+        let instance2 = Accumulator2::proof_to_accumulator_instance(&srs, &com2.C, &x2, &y2, &z2);
+        let witness2 = Accumulator2::proof_to_accumulator_witness(&srs, open2, &x2, &y2);
 
         let acc1 = Accumulator2::new(&instance1, &witness1);
         let acc2 = Accumulator2::new(&instance2, &witness2);

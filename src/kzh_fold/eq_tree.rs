@@ -1,11 +1,11 @@
 use ark_ff::PrimeField;
-use ark_serialize::CanonicalSerialize;
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use rayon::iter::IndexedParallelIterator;
 use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
 use crate::kzh_fold::generic_linear_combination;
 
-#[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize)]
+#[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize)]
 pub struct EqTree<F: PrimeField> {
     /// vector of length 2 * 2 ^ depth - 1
     pub nodes: Vec<F>,

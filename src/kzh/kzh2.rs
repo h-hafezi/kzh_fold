@@ -308,7 +308,7 @@ impl<E: Pairing> Add for KZH2Commitment<E> {
         assert_eq!(self.aux.len(), other.aux.len(), "Aux vectors must have the same length");
 
         // Add the main commitment points C
-        let new_C = (self.C + other.C).into_affine();
+        let C = (self.C + other.C).into_affine();
 
         // Add the corresponding elements in the aux vector
         let new_aux: Vec<E::G1> = self.aux.iter()
@@ -318,7 +318,7 @@ impl<E: Pairing> Add for KZH2Commitment<E> {
 
         // Return a new Commitment with the resulting sums
         KZH2Commitment {
-            C: new_C,
+            C,
             aux: new_aux,
         }
     }
