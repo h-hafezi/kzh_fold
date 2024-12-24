@@ -20,26 +20,20 @@ use std::ops::{Add, Mul, Neg, Sub};
 
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize)]
 pub struct Acc3Error<E: Pairing> {
-    e_1: E::G1Affine,
-    e_2: E::G1Affine,
-    e_3: E::G1Affine,
-    e_4: E::G1Affine,
+    E: E::G1Affine,
 }
 
 impl<E: Pairing> Acc3Error<E> {
     /// Returns a new `Acc3Proof` where all elements are `E::G1Affine::zero()`.
     pub fn zero() -> Self {
         Self {
-            e_1: E::G1Affine::zero(),
-            e_2: E::G1Affine::zero(),
-            e_3: E::G1Affine::zero(),
-            e_4: E::G1Affine::zero(),
+            E: E::G1Affine::zero(),
         }
     }
 
     /// Returns the elements as a vector.
     pub fn to_vec(&self) -> Vec<E::G1Affine> {
-        vec![self.e_1, self.e_2, self.e_3, self.e_4]
+        vec![self.E]
     }
 }
 
@@ -54,23 +48,12 @@ impl<E: Pairing> Acc3Error<E> {
         let one_minus_beta = E::ScalarField::ONE - beta;
         let beta_one_minus_beta = beta * one_minus_beta;
 
-        let e_1 = error_instance_1.e_1.mul(one_minus_beta)
-            + error_instance_2.e_1.mul(beta)
-            + pf.e_1.mul(beta_one_minus_beta);
+        let E = error_instance_1.E.mul(one_minus_beta)
+            + error_instance_2.E.mul(beta)
+            + pf.E.mul(beta_one_minus_beta);
 
-        let e_2 = error_instance_1.e_2.mul(one_minus_beta)
-            + error_instance_2.e_2.mul(beta)
-            + pf.e_2.mul(beta_one_minus_beta);
 
-        let e_3 = error_instance_1.e_3.mul(one_minus_beta)
-            + error_instance_2.e_3.mul(beta)
-            + pf.e_3.mul(beta_one_minus_beta);
-
-        let e_4 = error_instance_1.e_4.mul(one_minus_beta)
-            + error_instance_2.e_4.mul(beta)
-            + pf.e_4.mul(beta_one_minus_beta);
-
-        Self { e_1: e_1.into(), e_2: e_2.into(), e_3: e_3.into(), e_4: e_4.into() }
+        Self { E: E.into() }
     }
 }
 
@@ -469,55 +452,23 @@ impl<E: Pairing> Accumulator3<E> {
 
         let acc = Accumulator3::new(&instance, &witness);
 
-        let mut e_1 = {
-            let mut res = Self::dec_1(&srs, &acc);
-            res = res.add(instance_1.E.e_1).into();
-            res = res.sub(instance_2.E.e_1).into();
-            res = res.sub(instance_2.E.e_1).into();
+        let mut E = {
+            let mut res = Self::dec_1(&srs, &acc)
+                + Self::dec_2(&srs, &acc)
+                + Self::dec_3(&srs, &acc)
+                + Self::dec_4(&srs, &acc);
+            res = res.add(&instance_1.E.E);
+            res = res.sub(&instance_2.E.E);
+            res = res.sub(&instance_2.E.E);
 
             // -1/2 in the scalar field
             let minus_one_over_two: E::ScalarField = two.neg().inverse().unwrap();
             res.mul(minus_one_over_two).into()
         };
 
-        let mut e_2 = {
-            let mut res = Self::dec_2(&srs, &acc);
-            res = res.add(instance_1.E.e_2).into();
-            res = res.sub(instance_2.E.e_2).into();
-            res = res.sub(instance_2.E.e_2).into();
-
-            // -1/2 in the scalar field
-            let minus_one_over_two: E::ScalarField = two.neg().inverse().unwrap();
-            res.mul(minus_one_over_two).into()
-        };
-
-        let mut e_3 = {
-            let mut res = Self::dec_3(&srs, &acc);
-            res = res.add(instance_1.E.e_3).into();
-            res = res.sub(instance_2.E.e_3).into();
-            res = res.sub(instance_2.E.e_3).into();
-
-            // -1/2 in the scalar field
-            let minus_one_over_two: E::ScalarField = two.neg().inverse().unwrap();
-            res.mul(minus_one_over_two).into()
-        };
-
-        let mut e_4 = {
-            let mut res = Self::dec_4(&srs, &acc);
-            res = res.add(instance_1.E.e_4).into();
-            res = res.sub(instance_2.E.e_4).into();
-            res = res.sub(instance_2.E.e_4).into();
-
-            // -1/2 in the scalar field
-            let minus_one_over_two: E::ScalarField = two.neg().inverse().unwrap();
-            res.mul(minus_one_over_two).into()
-        };
 
         Acc3Error {
-            e_1,
-            e_2,
-            e_3,
-            e_4,
+            E
         }
     }
 }
@@ -566,7 +517,7 @@ impl<E: Pairing> Accumulator3<E> {
         rhs.add(lhs.neg()).into()
     }
 
-    pub fn dec_4(srs: &Acc3SRS<E>, acc: &Accumulator3<E>) -> E::G1Affine {
+    pub fn dec_4(_srs: &Acc3SRS<E>, acc: &Accumulator3<E>) -> E::G1Affine {
         let lhs = E::G1::msm_unchecked(
             acc.witness.D_x.iter().map(|g| g.clone().into()).collect::<Vec<_>>().as_slice(),
             acc.witness.tree_x.get_leaves(),
@@ -610,37 +561,17 @@ impl<E: Pairing> Accumulator3<E> {
 
         assert_eq!(ip_rhs, ip_lhs.into(), "second condition fails");
 
+        // third condition
+        assert_eq!(
+            Self::dec_1(srs, acc) + Self::dec_2(srs, acc) + Self::dec_3(srs, acc) + Self::dec_4(srs, acc),
+            acc.instance.E.E.into(),
+            "third condition fails"
+        );
+
         // forth condition
         let pairing_lhs = E::multi_pairing(&witness.D_y, &srs.pc_srs.V_y);
         let pairing_rhs = E::pairing(instance.C_y, srs.pc_srs.v);
         assert_eq!(pairing_lhs, pairing_rhs, "forth condition fails");
-
-        // third conditions
-        assert_eq!(
-            Self::dec_1(srs, acc),
-            acc.instance.E.e_1,
-            "third condition fails 1"
-        );
-
-        assert_eq!(
-            Self::dec_2(srs, acc),
-            acc.instance.E.e_2,
-            "third condition fails 2"
-        );
-
-
-        assert_eq!(
-            Self::dec_3(srs, acc),
-            acc.instance.E.e_3,
-            "third condition fails 3"
-        );
-
-
-        assert_eq!(
-            Self::dec_4(srs, acc),
-            acc.instance.E.e_4,
-            "third condition fails 4"
-        );
     }
 }
 
@@ -735,7 +666,9 @@ mod test {
         let acc_srs = Accumulator3::setup(pcs_srs, &mut thread_rng());
 
         let acc_1 = Accumulator3::rand(&acc_srs);
+        Accumulator3::decide(&acc_srs, &acc_1);
         let acc_2 = Accumulator3::rand(&acc_srs);
+        Accumulator3::decide(&acc_srs, &acc_2);
 
         let (instance, witness, proof) = Accumulator3::prove(&acc_srs, &acc_1, &acc_2, &mut Transcript::new(b"hi"));
 
