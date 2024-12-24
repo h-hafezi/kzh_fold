@@ -323,7 +323,7 @@ impl<E: Pairing> Accumulator3<E> {
     }
 
     pub fn verify(
-        srs: &Acc3SRS<E>,
+        _srs: &Acc3SRS<E>,
         instance_1: &Acc3Instance<E>,
         instance_2: &Acc3Instance<E>,
         proof: &Acc3Error<E>,
@@ -453,13 +453,10 @@ impl<E: Pairing> Accumulator3<E> {
         let acc = Accumulator3::new(&instance, &witness);
 
         let mut E = {
-            let mut res = Self::dec_1(&srs, &acc)
-                + Self::dec_2(&srs, &acc)
-                + Self::dec_3(&srs, &acc)
-                + Self::dec_4(&srs, &acc);
-            res = res.add(&instance_1.E.E);
-            res = res.sub(&instance_2.E.E);
-            res = res.sub(&instance_2.E.E);
+            let mut res = Self::dec(&srs, &acc)
+                + &instance_1.E.E
+                - &instance_2.E.E
+                - &instance_2.E.E;
 
             // -1/2 in the scalar field
             let minus_one_over_two: E::ScalarField = two.neg().inverse().unwrap();
@@ -475,55 +472,81 @@ impl<E: Pairing> Accumulator3<E> {
 
 // deciding functions
 impl<E: Pairing> Accumulator3<E> {
-    pub fn dec_1(srs: &Acc3SRS<E>, acc: &Accumulator3<E>) -> E::G1Affine {
+    pub fn dec(srs: &Acc3SRS<E>, acc: &Accumulator3<E>) -> E::G1Affine {
+        // Extract required components
         let error_tree_x = acc.witness.tree_x.difference(acc.instance.x.as_slice());
         let error_tree_y = acc.witness.tree_y.difference(acc.instance.y.as_slice());
         let error_tree_z = acc.witness.tree_z.difference(acc.instance.z.as_slice());
 
-        let mut res: E::G1 = E::G1::ZERO;
-        res = res.add(E::G1::msm_unchecked(srs.k_x.as_slice(), error_tree_x.nodes.as_slice()));
-        res = res.add(E::G1::msm_unchecked(srs.k_y.as_slice(), error_tree_y.nodes.as_slice()));
-        res = res.add(E::G1::msm_unchecked(srs.k_z.as_slice(), error_tree_z.nodes.as_slice()));
-
-        res.into()
-    }
-
-    pub fn dec_2(srs: &Acc3SRS<E>, acc: &Accumulator3<E>) -> E::G1Affine {
-        let instance = &acc.instance;
-        let witness = &acc.witness;
-
+        // Compute e_prime for dec_2
         let e_prime: E::ScalarField = inner_product(
-            &witness.f_star.evaluation_over_boolean_hypercube,
+            &acc.witness.f_star.evaluation_over_boolean_hypercube,
             &acc.witness.tree_z.get_leaves(),
-        ) - instance.output;
+        ) - acc.instance.output;
 
-        srs.k_prime.mul(e_prime).into()
-    }
+        // Prepare scalars and bases for the combined MSM
+        let mut scalars = Vec::new();
+        let mut bases = Vec::new();
 
-    pub fn dec_3(srs: &Acc3SRS<E>, acc: &Accumulator3<E>) -> E::G1Affine {
-        let rhs = E::G1::msm_unchecked(
-            srs.pc_srs.H_z.as_slice(),
+        // Add dec_1 components
+        scalars.extend_from_slice(error_tree_x.nodes.as_slice());
+        bases.extend_from_slice(srs.k_x.as_slice());
+
+        scalars.extend_from_slice(error_tree_y.nodes.as_slice());
+        bases.extend_from_slice(srs.k_y.as_slice());
+
+        scalars.extend_from_slice(error_tree_z.nodes.as_slice());
+        bases.extend_from_slice(srs.k_z.as_slice());
+
+        // Add dec_2 component
+        scalars.push(e_prime);
+        bases.push(srs.k_prime);
+
+        // Add dec_3 components
+        scalars.extend_from_slice(
+            acc.witness.f_star.evaluation_over_boolean_hypercube.as_slice(),
+        );
+        bases.extend_from_slice(srs.pc_srs.H_z.as_slice());
+
+        scalars.extend_from_slice(
             acc.witness
-                .f_star
-                .evaluation_over_boolean_hypercube
+                .tree_y
+                .get_leaves()
+                .iter()
+                .map(|g| g.neg())
+                .collect::<Vec<_>>()
                 .as_slice(),
         );
-
-        let lhs = E::G1::msm_unchecked(
-            acc.witness.D_y.iter().map(|g| g.clone().into()).collect::<Vec<_>>().as_slice(),
-            acc.witness.tree_y.get_leaves(),
+        bases.extend(
+            acc.witness
+                .D_y
+                .iter()
+                .map(|g| g.clone().into())
+                .collect::<Vec<_>>(),
         );
 
-        rhs.add(lhs.neg()).into()
-    }
-
-    pub fn dec_4(_srs: &Acc3SRS<E>, acc: &Accumulator3<E>) -> E::G1Affine {
-        let lhs = E::G1::msm_unchecked(
-            acc.witness.D_x.iter().map(|g| g.clone().into()).collect::<Vec<_>>().as_slice(),
-            acc.witness.tree_x.get_leaves(),
+        // Add dec_4 components
+        scalars.extend_from_slice(
+            acc.witness
+                .tree_x
+                .get_leaves()
+        );
+        bases.extend(
+            acc.witness
+                .D_x
+                .iter()
+                .map(|g| g.clone().into())
+                .collect::<Vec<_>>(),
         );
 
-        acc.instance.C_y.add(lhs.neg()).neg().into()
+        // Perform the combined MSM
+        let msm_result = E::G1::msm_unchecked(bases.as_slice(), scalars.as_slice());
+
+        // Add final adjustments from dec_3 and dec_4
+        let final_result = msm_result - acc.instance.C_y;
+
+        // Return as affine point
+        final_result.into()
     }
 
     pub fn decide(srs: &Acc3SRS<E>, acc: &Accumulator3<E>) {
@@ -563,7 +586,7 @@ impl<E: Pairing> Accumulator3<E> {
 
         // third condition
         assert_eq!(
-            Self::dec_1(srs, acc) + Self::dec_2(srs, acc) + Self::dec_3(srs, acc) + Self::dec_4(srs, acc),
+            Self::dec(srs, acc),
             acc.instance.E.E.into(),
             "third condition fails"
         );
@@ -651,10 +674,87 @@ mod test {
     use crate::constant_for_curves::E;
     use crate::kzh::kzh3::{KZH3, KZH3SRS};
     use crate::kzh::KZH;
-    use crate::kzh_fold::kzh_3_fold::Accumulator3;
+    use crate::kzh_fold::kzh_3_fold::{Acc3SRS, Accumulator3};
     use crate::math::Math;
     use crate::transcript::transcript::Transcript;
+    use crate::utils::inner_product;
+    use ark_ec::pairing::Pairing;
+    use ark_ec::CurveGroup;
+    use ark_ec::VariableBaseMSM;
+    use ark_ff::AdditiveGroup;
     use rand::thread_rng;
+    use std::ops::{Add, Mul, Neg};
+
+    fn dec_1<E: Pairing>(srs: &Acc3SRS<E>, acc: &Accumulator3<E>) -> <E as Pairing>::G1Affine {
+        let error_tree_x = acc.witness.tree_x.difference(acc.instance.x.as_slice());
+        let error_tree_y = acc.witness.tree_y.difference(acc.instance.y.as_slice());
+        let error_tree_z = acc.witness.tree_z.difference(acc.instance.z.as_slice());
+
+        let mut res: E::G1 = E::G1::ZERO;
+        res = res.add(E::G1::msm_unchecked(srs.k_x.as_slice(), error_tree_x.nodes.as_slice()));
+        res = res.add(E::G1::msm_unchecked(srs.k_y.as_slice(), error_tree_y.nodes.as_slice()));
+        res = res.add(E::G1::msm_unchecked(srs.k_z.as_slice(), error_tree_z.nodes.as_slice()));
+
+        res.into()
+    }
+
+    fn dec_2<E: Pairing>(srs: &Acc3SRS<E>, acc: &Accumulator3<E>) -> E::G1Affine {
+        let instance = &acc.instance;
+        let witness = &acc.witness;
+
+        let e_prime: E::ScalarField = inner_product(
+            &witness.f_star.evaluation_over_boolean_hypercube,
+            &acc.witness.tree_z.get_leaves(),
+        ) - instance.output;
+
+        srs.k_prime.mul(e_prime).into()
+    }
+
+    fn dec_3<E: Pairing>(srs: &Acc3SRS<E>, acc: &Accumulator3<E>) -> E::G1Affine {
+        let rhs = E::G1::msm_unchecked(
+            srs.pc_srs.H_z.as_slice(),
+            acc.witness
+                .f_star
+                .evaluation_over_boolean_hypercube
+                .as_slice(),
+        );
+
+        let lhs = E::G1::msm_unchecked(
+            acc.witness.D_y.iter().map(|g| g.clone().into()).collect::<Vec<_>>().as_slice(),
+            acc.witness.tree_y.get_leaves(),
+        );
+
+        rhs.add(lhs.neg()).into()
+    }
+
+    fn dec_4<E: Pairing>(_srs: &Acc3SRS<E>, acc: &Accumulator3<E>) -> E::G1Affine {
+        let lhs = E::G1::msm_unchecked(
+            acc.witness.D_x.iter().map(|g| g.clone().into()).collect::<Vec<_>>().as_slice(),
+            acc.witness.tree_x.get_leaves(),
+        );
+
+        acc.instance.C_y.add(lhs.neg()).neg().into()
+    }
+
+    #[test]
+    fn test_dec() {
+        let (degree_x, degree_y, degree_z) = (4usize, 2usize, 8usize);
+        let num_vars = degree_x.log_2() + degree_y.log_2() + degree_z.log_2();
+
+        // build the srs
+        let pcs_srs: KZH3SRS<E> = KZH3::setup((degree_x * degree_y * degree_z).log_2(), &mut thread_rng());
+        let acc_srs = Accumulator3::setup(pcs_srs, &mut thread_rng());
+
+        let acc = Accumulator3::rand(&acc_srs);
+
+        assert_eq!(
+            Accumulator3::dec(&acc_srs, &acc),
+            (dec_1(&acc_srs, &acc)
+                + dec_2(&acc_srs, &acc)
+                + dec_3(&acc_srs, &acc)
+                + dec_4(&acc_srs, &acc)).into_affine(),
+        )
+    }
 
     #[test]
     fn kzh3_fold_test() {
