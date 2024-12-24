@@ -178,7 +178,7 @@ where
         // return a fresh instance by simply computing the two EqTrees
         Acc2Witness {
             D_x: proof.D_x,
-            f_star_poly: proof.f_star_poly,
+            f_star_poly: proof.f_star,
             tree_x: EqTree::new(x),
             tree_y: EqTree::new(y),
         }

@@ -42,9 +42,9 @@ pub struct KZH3SRS<E: Pairing> {
 
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize, Derivative)]
 pub struct KZH3Opening<E: Pairing> {
-    D_y: Vec<E::G1>,
-    C_y: E::G1Affine,
-    f_star: MultilinearPolynomial<E::ScalarField>,
+    pub D_y: Vec<E::G1>,
+    pub C_y: E::G1Affine,
+    pub f_star: MultilinearPolynomial<E::ScalarField>,
 }
 
 #[derive(
@@ -58,8 +58,8 @@ pub struct KZH3Opening<E: Pairing> {
     Derivative
 )]
 pub struct KZH3Commitment<E: Pairing> {
-    D_x: Vec<E::G1>,
-    C: E::G1Affine,
+    pub D_x: Vec<E::G1>,
+    pub C: E::G1Affine,
 }
 
 impl<E: Pairing> KZH<E> for KZH3<E>

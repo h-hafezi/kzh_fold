@@ -1,8 +1,9 @@
 use crate::gadgets::non_native::util::convert_affine_to_scalars;
-use crate::kzh::kzh3::KZH3SRS;
+use crate::kzh::kzh3::{KZH3Commitment, KZH3Opening, KZH3, KZH3SRS};
+use crate::kzh::KZH;
 use crate::kzh_fold::eq_tree::EqTree;
 use crate::kzh_fold::generate_random_elements;
-use crate::kzh_fold::kzh2_fold::{Acc2Instance, Acc2SRS};
+use crate::kzh_fold::kzh2_fold::Acc2Instance;
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 use crate::transcript::transcript::Transcript;
 use crate::utils::inner_product;
@@ -17,6 +18,7 @@ use rand::RngCore;
 use std::ops::{Add, Mul, Neg};
 
 type Acc3Proof<E: Pairing> = (E::G1Affine, E::G1Affine, E::G1Affine, E::G1Affine);
+
 
 #[derive(Clone, Debug)]
 pub struct Acc3SRS<E: Pairing> {
@@ -150,7 +152,74 @@ where
 
 // impl function to convert proof into accumulator
 impl<E: Pairing> Accumulator3<E> {
+    pub fn proof_to_accumulator_instance(
+        srs: &Acc3SRS<E>,
+        input: &[E::ScalarField],
+        output: &E::ScalarField,
+        com: &KZH3Commitment<E>,
+        open: &KZH3Opening<E>,
+    ) -> Acc3Instance<E>
+    where
+        <E as Pairing>::ScalarField: Absorb,
+        <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
+    {
+        let split_input = KZH3::split_input(&srs.pc_srs, input);
 
+        let T = {
+            let tree_x = EqTree::new(split_input[0].as_slice());
+            let tree_y = EqTree::new(split_input[1].as_slice());
+            let tree_z = EqTree::new(split_input[2].as_slice());
+
+            let mut T: E::G1 = E::G1::ZERO;
+            T = T.add(E::G1::msm_unchecked(srs.k_x.as_slice(), tree_x.nodes.as_slice()));
+            T = T.add(E::G1::msm_unchecked(srs.k_y.as_slice(), tree_y.nodes.as_slice()));
+            T = T.add(E::G1::msm_unchecked(srs.k_z.as_slice(), tree_z.nodes.as_slice()));
+
+            assert_eq!(srs.k_x.len(), tree_x.nodes.len(), "invalid size of vector x");
+            assert_eq!(srs.k_y.len(), tree_y.nodes.len(), "invalid size of vector y");
+            assert_eq!(srs.k_z.len(), tree_y.nodes.len(), "invalid size of vector z");
+
+            T.into()
+        };
+
+        Acc3Instance {
+            C: com.C,
+            C_y: open.C_y,
+            T,
+            E: (
+                E::G1Affine::zero(),
+                E::G1Affine::zero(),
+                E::G1Affine::zero(),
+                E::G1Affine::zero(),
+            ),
+            x: split_input[0].clone(),
+            y: split_input[1].clone(),
+            z: split_input[2].clone(),
+            output: *output,
+        }
+    }
+
+    pub fn proof_to_accumulator_witness(
+        srs: &Acc3SRS<E>,
+        com: KZH3Commitment<E>,
+        proof: KZH3Opening<E>,
+        input: &[E::ScalarField],
+    ) -> Acc3Witness<E>
+    where <E as ark_ec::pairing::Pairing>::ScalarField: ark_crypto_primitives::sponge::Absorb,
+          <<E as ark_ec::pairing::Pairing>::G1Affine as ark_ec::AffineRepr>::BaseField: ark_ff::PrimeField
+    {
+        // asserting the sizes are correct
+        let split_input = KZH3::split_input(&srs.pc_srs, input);
+
+        Acc3Witness {
+            D_x: com.D_x,
+            D_y: proof.D_y,
+            tree_x: EqTree::new(split_input[0].as_slice()),
+            tree_y: EqTree::new(split_input[1].as_slice()),
+            tree_z: EqTree::new(split_input[2].as_slice()),
+            f_star: proof.f_star,
+        }
+    }
 }
 
 // deciding functions
@@ -186,7 +255,7 @@ impl<E: Pairing> Accumulator3<E> {
             acc.witness
                 .f_star
                 .evaluation_over_boolean_hypercube
-                .as_slice()
+                .as_slice(),
         );
 
         let lhs = E::G1::msm_unchecked(
@@ -252,5 +321,66 @@ impl<E: Pairing> Accumulator3<E> {
         let pairing_lhs = E::multi_pairing(&witness.D_y, &srs.pc_srs.V_y);
         let pairing_rhs = E::pairing(instance.C_y, srs.pc_srs.v);
         assert_eq!(pairing_lhs, pairing_rhs, "forth condition fails");
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::constant_for_curves::{ScalarField as F, E};
+    use crate::kzh::kzh3::{KZH3, KZH3SRS};
+    use crate::kzh::KZH;
+    use crate::kzh_fold::kzh_3_fold::Accumulator3;
+    use crate::math::Math;
+    use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
+    use ark_std::UniformRand;
+    use rand::thread_rng;
+
+    #[test]
+    fn test() {
+        let (degree_x, degree_y, degree_z) = (4usize, 4usize, 4usize);
+        let num_vars = degree_x.log_2() + degree_y.log_2() + degree_z.log_2();
+
+        let input: Vec<F> = (0..num_vars)
+            .map(|_| F::rand(&mut thread_rng()))
+            .collect();
+
+        // build the srs
+        let srs: KZH3SRS<E> = KZH3::setup((degree_x * degree_y * degree_z).log_2(), &mut thread_rng());
+
+        // build a random polynomials
+        let polynomial: MultilinearPolynomial<F> = MultilinearPolynomial::rand(num_vars, &mut thread_rng());
+
+        // evaluate polynomial
+        let output = polynomial.evaluate(input.as_slice());
+
+        // commit to the polynomial
+        let c = KZH3::commit(&srs, &polynomial);
+
+        // open it
+        let open = KZH3::open(&srs, input.as_slice(), &c, &polynomial);
+
+        // verify the commit
+        KZH3::verify(&srs, input.as_slice(), &output, &c, &open);
+
+        let acc_srs = Accumulator3::setup(srs, &mut thread_rng());
+
+        let acc_instance = Accumulator3::proof_to_accumulator_instance(
+            &acc_srs,
+            input.as_slice(),
+            &output,
+            &c,
+            &open
+        );
+
+        let acc_witness = Accumulator3::proof_to_accumulator_witness(
+            &acc_srs,
+            c,
+            open,
+            input.as_slice(),
+        );
+
+        let acc = Accumulator3::new(&acc_instance, &acc_witness);
+
+        Accumulator3::decide(&acc_srs, &acc);
     }
 }

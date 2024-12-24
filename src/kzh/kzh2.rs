@@ -54,7 +54,7 @@ pub struct KZH2Commitment<E: Pairing> {
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize, Derivative)]
 pub struct KZH2Opening<E: Pairing> {
     pub D_x: Vec<E::G1Affine>,
-    pub f_star_poly: MultilinearPolynomial<E::ScalarField>,
+    pub f_star: MultilinearPolynomial<E::ScalarField>,
 }
 
 /// Define the new struct that encapsulates the functionality of polynomial commitment
@@ -214,7 +214,7 @@ where
 
         KZH2Opening {
             D_x: com.aux.clone().into_iter().map(|g| g.into()).collect(),
-            f_star_poly: poly.partial_evaluation(split_input[0].as_slice()),
+            f_star: poly.partial_evaluation(split_input[0].as_slice()),
         }
     }
 
@@ -241,7 +241,7 @@ where
             .map(|scalar| -scalar)
             .collect();
 
-        let scalars: Vec<_> = open.f_star_poly.evaluation_over_boolean_hypercube
+        let scalars: Vec<_> = open.f_star.evaluation_over_boolean_hypercube
             .iter()
             .chain(negated_eq_evals.iter())
             .cloned()
@@ -255,7 +255,7 @@ where
         assert!(E::G1::msm_unchecked(&bases, &scalars).is_zero());
 
         // Step 3: complete poly eval
-        let y_expected = open.f_star_poly.evaluate(split_input[1].as_slice());
+        let y_expected = open.f_star.evaluate(split_input[1].as_slice());
         assert_eq!(y_expected, *output);
     }
 }
