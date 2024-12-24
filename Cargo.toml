@@ -91,7 +91,11 @@ name = "bench_halo_infinite"
 
 [[bench]]
 harness = false
-name = "bench_accumulator"
+name = "bench_kzh2_fold"
+
+[[bench]]
+harness = false
+name = "bench_kzh3_fold"
 
 [[bench]]
 harness = false
