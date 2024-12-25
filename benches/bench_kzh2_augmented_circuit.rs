@@ -1,5 +1,6 @@
 #![allow(non_snake_case)]
 use ark_ec::pairing::Pairing;
+use ark_ff::Zero;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_relations::r1cs::{ConstraintSystem, SynthesisMode};
 use ark_serialize::CanonicalSerialize;
@@ -109,7 +110,7 @@ fn bench_augmented_circuit(c: &mut Criterion) {
             );
 
             let (x, y) = {
-                let split_input = KZH2::split_input(&pcs_srs, &ry[1..]);
+                let split_input = KZH2::split_input(&pcs_srs, &ry[1..], F::zero());
                 let x = split_input[0].clone();
                 let y = split_input[1].clone();
 
@@ -202,7 +203,7 @@ fn bench_augmented_circuit(c: &mut Criterion) {
         let mut transcript_var = TranscriptVar::from_transcript(cs.clone(), verifier_transcript_clone);
 
         // run the verification function on augmented circuit
-        let _ = augmented_circuit.verify::<E>(cs.clone(), &mut transcript_var, poseidon_iterations);
+        let _ = augmented_circuit.verify::<E>(&pcs_srs, cs.clone(), &mut transcript_var, poseidon_iterations);
 
         assert!(cs.is_satisfied().unwrap());
         println!("augmented circuit constraints: {}", cs.num_constraints());

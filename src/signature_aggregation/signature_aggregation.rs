@@ -1,7 +1,6 @@
 use crate::kzh_fold::kzh2_fold::{Acc2Instance, Acc2SRS, Accumulator2 as KZHAccumulator, Accumulator2};
-use crate::kzh::kzh2::{split_between_x_and_y, KZH2Commitment, KZH2};
+use crate::kzh::kzh2::{KZH2Commitment, KZH2};
 use crate::kzh::KZH;
-use crate::math::Math;
 use crate::nexus_spartan::sumcheck::SumcheckInstanceProof;
 use crate::polynomial::eq_poly::eq_poly::EqPolynomial;
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
@@ -206,24 +205,21 @@ where
         &bitfield_poly,
     );
 
-
-    let length_x = acc_srs.pc_srs.degree_x.log_2();
-    let length_y = acc_srs.pc_srs.degree_y.log_2();
-    let (eval_point_first_half, eval_point_second_half) = split_between_x_and_y::<F>(length_x, length_y, eval_point, F::ZERO);
+    let split_eval_point = KZH2::split_input(&acc_srs.pc_srs, eval_point, F::ZERO);
 
     let acc_instance = KZHAccumulator::proof_to_accumulator_instance(
         acc_srs,
         &bitfield_commitment.C,
-        eval_point_first_half.as_slice(),
-        eval_point_second_half.as_slice(),
+        split_eval_point[0].as_slice(),
+        split_eval_point[1].as_slice(),
         eval_result,
     );
 
     let acc_witness = KZHAccumulator::proof_to_accumulator_witness(
         acc_srs,
         opening_proof,
-        eval_point_first_half.as_slice(),
-        eval_point_second_half.as_slice(),
+        split_eval_point[0].as_slice(),
+        split_eval_point[1].as_slice(),
     );
 
     KZHAccumulator {
@@ -383,14 +379,12 @@ where
                                         eval_point: &Vec<F>,
     ) -> Acc2Instance<E> {
         // Split the evaluation point in half since open() just needs the first half
-        let length_x = self.srs.acc_srs.pc_srs.degree_x.log_2();
-        let length_y = self.srs.acc_srs.pc_srs.degree_y.log_2();
-        let (eval_point_first_half, eval_point_second_half) = split_between_x_and_y::<F>(length_x, length_y, eval_point, F::ZERO);
+        let split_eval_point = KZH2::split_input(&self.srs.acc_srs.pc_srs, eval_point, F::ZERO);
         KZHAccumulator::proof_to_accumulator_instance(
             &self.srs.acc_srs,
             &bitfield_commitment.C,
-            eval_point_first_half.as_slice(),
-            eval_point_second_half.as_slice(),
+            split_eval_point[0].as_slice(),
+            split_eval_point[1].as_slice(),
             eval_result,
         )
     }

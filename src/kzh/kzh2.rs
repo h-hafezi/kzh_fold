@@ -260,28 +260,6 @@ where
     }
 }
 
-/// the function receives an input r and splits into two sub-vectors x and y to be used for PCS
-/// It's used later when we have a constant SRS, and we pad the polynomial so we can commit to it via SRS
-/// This function in fact pads to polynomial inputs by appends necessary zeros and split the input into x and y input
-pub fn split_between_x_and_y<T: Clone>(x_length: usize, y_length: usize, r: &[T], zero: T) -> (Vec<T>, Vec<T>) {
-    let total_length = x_length + y_length;
-
-    // If r is smaller than the required length, extend it with zeros at the beginning
-    let mut extended_r = r.to_vec();
-    if r.len() < total_length {
-        let mut zeros = vec![zero; total_length - r.len()];
-        zeros.extend(extended_r);  // Prepend zeros to the beginning
-        extended_r = zeros;
-    }
-
-    // Split the vector into two parts
-    let r_x = extended_r[..x_length].to_vec();
-    let r_y = extended_r[x_length..total_length].to_vec();
-
-    (r_x, r_y)
-}
-
-
 impl<E: Pairing> KZH2Commitment<E> {
     /// Scales the commitment and its auxiliary elements by a scalar `r`
     pub fn scale_by_r(&mut self, r: &E::ScalarField) {

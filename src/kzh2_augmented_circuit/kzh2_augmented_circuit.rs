@@ -1,11 +1,12 @@
 #![allow(dead_code)]
 
-use crate::kzh2_verifier_circuit::instance_circuit::KZH2InstanceVar;
-use crate::kzh2_verifier_circuit::verifier_circuit::{KZH2Verifier, KZH2VerifierVar};
 use crate::commitment::CommitmentScheme;
 use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
 use crate::hash::poseidon::PoseidonHashVar;
-use crate::kzh::kzh2::split_between_x_and_y;
+use crate::kzh::kzh2::{KZH2, KZH2SRS};
+use crate::kzh::KZH;
+use crate::kzh2_verifier_circuit::instance_circuit::KZH2InstanceVar;
+use crate::kzh2_verifier_circuit::verifier_circuit::{KZH2Verifier, KZH2VerifierVar};
 use crate::nexus_spartan::matrix_evaluation_accumulation::verifier_circuit::{MatrixEvaluationAccVerifier, MatrixEvaluationAccVerifierVar};
 use crate::nexus_spartan::partial_verifier::partial_verifier::SpartanPartialVerifier;
 use crate::nexus_spartan::partial_verifier::partial_verifier_var::SpartanPartialVerifierVar;
@@ -128,7 +129,11 @@ where
     C2: CommitmentScheme<Projective<G2>>,
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField> + Clone,
 {
-    pub fn verify<E: Pairing>(&self, cs: ConstraintSystemRef<F>, transcript: &mut TranscriptVar<F>, poseidon_num: usize) -> Output<G2, C2, G1, F> {
+    pub fn verify<E: Pairing>(&self, pcs_srs: &KZH2SRS<E>, cs: ConstraintSystemRef<F>, transcript: &mut TranscriptVar<F>, poseidon_num: usize) -> Output<G2, C2, G1, F>
+    where
+        <E as Pairing>::ScalarField: Absorb,
+        <<E as Pairing>::G1Affine as ark_ec::AffineRepr>::BaseField: PrimeField
+    {
         let (rx, ry) = self.spartan_partial_verifier.verify(transcript);
         let (final_cycle_fold_instance, final_accumulator_instance) = self.kzh_acc_verifier.accumulate(transcript);
 
@@ -139,12 +144,12 @@ where
         let length_x = self.kzh_acc_verifier.current_accumulator_instance_var.x_var.len();
         let length_y = self.kzh_acc_verifier.current_accumulator_instance_var.y_var.len();
 
-        let (expected_x_var, expected_y_var) = split_between_x_and_y(length_x, length_y, &ry[1..], FpVar::zero());
-        for (e1, e2) in izip!(&self.kzh_acc_verifier.current_accumulator_instance_var.x_var, expected_x_var) {
+        let split_input = KZH2::split_input(&pcs_srs, &ry[1..], FpVar::zero());
+        for (e1, e2) in izip!(&self.kzh_acc_verifier.current_accumulator_instance_var.x_var, split_input[0].clone()) {
             e1.enforce_equal(&e2).expect("error while enforcing equality");
         }
 
-        for (e1, e2) in izip!(&self.kzh_acc_verifier.current_accumulator_instance_var.y_var, expected_y_var) {
+        for (e1, e2) in izip!(&self.kzh_acc_verifier.current_accumulator_instance_var.y_var, split_input[1].clone()) {
             e1.enforce_equal(&e2).expect("error while enforcing equality");
         }
 
@@ -178,12 +183,12 @@ where
 
 #[cfg(test)]
 mod test {
-    use crate::kzh2_verifier_circuit::prover::KZH2VerifierCircuitProver;
-    use crate::kzh2_verifier_circuit::verifier_circuit::KZH2VerifierVar;
-    use crate::kzh2_augmented_circuit::kzh2_augmented_circuit::KZH2AugmentedCircuitVar;
     use crate::constant_for_curves::{ScalarField as F, C2, E, G1, G2};
     use crate::kzh::kzh2::{KZH2, KZH2SRS};
     use crate::kzh::KZH;
+    use crate::kzh2_augmented_circuit::kzh2_augmented_circuit::KZH2AugmentedCircuitVar;
+    use crate::kzh2_verifier_circuit::prover::KZH2VerifierCircuitProver;
+    use crate::kzh2_verifier_circuit::verifier_circuit::KZH2VerifierVar;
     use crate::kzh_fold::kzh2_fold::Accumulator2 as Accumulator;
     use crate::nexus_spartan::commitment_traits::ToAffine;
     use crate::nexus_spartan::committed_relaxed_snark::CRSNARKKey;
@@ -377,7 +382,7 @@ mod test {
         let mut transcript_var = TranscriptVar::from_transcript(cs.clone(), verifier_transcript_clone);
 
         // run the verification function on augmented circuit
-        let _ = augmented_circuit.verify::<E>(cs.clone(), &mut transcript_var, poseidon_num);
+        let _ = augmented_circuit.verify::<E>(&pcs_srs, cs.clone(), &mut transcript_var, poseidon_num);
 
         assert!(cs.is_satisfied().unwrap());
         println!("augmented circuit constraints: {}", cs.num_constraints());
