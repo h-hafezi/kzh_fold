@@ -20,7 +20,7 @@ use std::ops::{Add, Mul, Neg, Sub};
 
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize)]
 pub struct Acc3Error<E: Pairing> {
-    E: E::G1Affine,
+    pub E: E::G1Affine,
 }
 
 impl<E: Pairing> Acc3Error<E> {
@@ -101,10 +101,11 @@ where
 
         // Use the closure for C, T, and E
         let (c_x, c_y) = convert_affine_to_scalars::<E>(self.C);
+        let (c_y_x, c_y_y) = convert_affine_to_scalars::<E>(self.C_y);
         let (t_x, t_y) = convert_affine_to_scalars::<E>(self.T);
 
         // Extend the destination vector with the computed values
-        dest.extend(vec![c_x, c_y, t_x, t_y]);
+        dest.extend(vec![c_x, c_y, c_y_x, c_y_y, t_x, t_y]);
 
         for E in self.E.to_vec() {
             let (e_x, e_y) = convert_affine_to_scalars::<E>(E);

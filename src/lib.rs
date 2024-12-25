@@ -18,3 +18,4 @@ pub mod nexus_spartan;
 pub mod augmented_circuit;
 pub mod math;
 pub mod transcript;
+mod kzh3_verifier_circuit;

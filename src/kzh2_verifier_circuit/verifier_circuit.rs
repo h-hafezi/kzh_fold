@@ -25,7 +25,7 @@ use ark_std::{end_timer, start_timer};
 use rand::thread_rng;
 
 use crate::kzh_fold::kzh2_fold::{Acc2Instance, Acc2SRS};
-use crate::kzh2_verifier_circuit::instance_circuit::AccumulatorInstanceVar;
+use crate::kzh2_verifier_circuit::instance_circuit::KZH2InstanceVar;
 use crate::kzh2_verifier_circuit::prover::get_random_prover;
 use crate::kzh2_verifier_circuit::prover::AccumulatorVerifierCircuitProver;
 use crate::kzh2_verifier_circuit::randomness_different_formats;
@@ -120,9 +120,9 @@ where
     pub ova_cross_term_error_commitment_E_1: ProjectiveVar<G2, FpVar<G2::BaseField>>,
     pub ova_cross_term_error_commitment_E_2: ProjectiveVar<G2, FpVar<G2::BaseField>>,
 
-    pub current_accumulator_instance_var: AccumulatorInstanceVar<G1>,
-    pub running_accumulator_instance_var: AccumulatorInstanceVar<G1>,
-    pub final_accumulator_instance_var: AccumulatorInstanceVar<G1>,
+    pub current_accumulator_instance_var: KZH2InstanceVar<G1>,
+    pub running_accumulator_instance_var: KZH2InstanceVar<G1>,
+    pub final_accumulator_instance_var: KZH2InstanceVar<G1>,
 
     pub ova_running_instance: RelaxedOvaInstanceVar<G2, C2>,
 
@@ -176,19 +176,19 @@ where
 
 
         // accumulator instances
-        let current_accumulator_instance_var = AccumulatorInstanceVar::new_variable(
+        let current_accumulator_instance_var = KZH2InstanceVar::new_variable(
             ns!(cs, "instance"),
             || circuit.map(|e| e.current_accumulator_instance.clone()),
             mode,
         ).unwrap();
 
-        let running_accumulator_instance_var = AccumulatorInstanceVar::new_variable(
+        let running_accumulator_instance_var = KZH2InstanceVar::new_variable(
             ns!(cs, "acc"),
             || circuit.map(|e| e.running_accumulator_instance.clone()),
             mode,
         ).unwrap();
 
-        let final_accumulator_instance_var = AccumulatorInstanceVar::new_variable(
+        let final_accumulator_instance_var = KZH2InstanceVar::new_variable(
             ns!(cs, "result acc"),
             || circuit.map(|e| e.final_accumulator_instance.clone()),
             mode,
@@ -279,7 +279,7 @@ where
     C2: CommitmentScheme<Projective<G2>>,
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField>,
 {
-    pub fn accumulate(&self, transcript_var: &mut TranscriptVar<G1::ScalarField>) -> (RelaxedOvaInstanceVar<G2, C2>, &AccumulatorInstanceVar<G1>)
+    pub fn accumulate(&self, transcript_var: &mut TranscriptVar<G1::ScalarField>) -> (RelaxedOvaInstanceVar<G2, C2>, &KZH2InstanceVar<G1>)
     where
         <G2 as CurveConfig>::BaseField: Absorb,
     {
@@ -472,19 +472,19 @@ where
         let (_, beta_var, beta_var_non_native) = randomness_different_formats::<E>(cs.clone(), beta_scalar);
 
         // initialise accumulator variables
-        let current_accumulator_instance_var = AccumulatorInstanceVar::new_variable(
+        let current_accumulator_instance_var = KZH2InstanceVar::new_variable(
             ns!(cs, "current accumulator instance var"),
             || Ok(prover.get_current_acc_instance().clone()),
             AllocationMode::Input,
         ).unwrap();
 
-        let running_accumulator_instance_var = AccumulatorInstanceVar::new_variable(
+        let running_accumulator_instance_var = KZH2InstanceVar::new_variable(
             ns!(cs, "running accumulator instance var"),
             || Ok(prover.get_running_acc_instance().clone()),
             AllocationMode::Input,
         ).unwrap();
 
-        let final_accumulator_instance_var = AccumulatorInstanceVar::new_variable(
+        let final_accumulator_instance_var = KZH2InstanceVar::new_variable(
             ns!(cs, "final accumulator instance var"),
             || Ok(prover.compute_result_accumulator_instance()),
             AllocationMode::Input,

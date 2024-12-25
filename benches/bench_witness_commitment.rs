@@ -15,7 +15,7 @@ use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef, SynthesisMode};
 use ark_std::UniformRand;
 use rand::thread_rng;
 use sqrtn_pcs::kzh_fold::kzh2_fold::Accumulator2;
-use sqrtn_pcs::kzh2_verifier_circuit::instance_circuit::AccumulatorInstanceVar;
+use sqrtn_pcs::kzh2_verifier_circuit::instance_circuit::KZH2InstanceVar;
 use sqrtn_pcs::kzh2_verifier_circuit::prover::{get_random_prover, AccumulatorVerifierCircuitProver};
 use sqrtn_pcs::kzh2_verifier_circuit::verifier_circuit::AccumulatorVerifierVar;
 use sqrtn_pcs::commitment::CommitmentScheme;

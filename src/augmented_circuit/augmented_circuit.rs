@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use crate::kzh2_verifier_circuit::instance_circuit::AccumulatorInstanceVar;
+use crate::kzh2_verifier_circuit::instance_circuit::KZH2InstanceVar;
 use crate::kzh2_verifier_circuit::verifier_circuit::{AccumulatorVerifier, AccumulatorVerifierVar};
 use crate::commitment::CommitmentScheme;
 use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
@@ -25,7 +25,7 @@ use rand::thread_rng;
 use std::borrow::Borrow;
 
 type Output<'a, G2, C2, G1, F> = (
-    (RelaxedOvaInstanceVar<G2, C2>, &'a AccumulatorInstanceVar<G1>),  // accumulator final instance, Ova final instance
+    (RelaxedOvaInstanceVar<G2, C2>, &'a KZH2InstanceVar<G1>),  // accumulator final instance, Ova final instance
     (Vec<FpVar<F>>, Vec<FpVar<F>>), // r_x, r_y
     (Vec<FpVar<F>>, Vec<FpVar<F>>, (FpVar<F>, FpVar<F>, FpVar<F>)), // (vector_x, vector_y, evaluations)
 );
