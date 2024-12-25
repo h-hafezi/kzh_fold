@@ -137,7 +137,7 @@ where
         }, &self.commitment_pp[0..self.shape.num_vars].to_vec()).unwrap()
     }
 
-    pub fn compute_auxiliary_input_E_1(&self) -> (OvaInstance<G2, C2>, OvaWitness<G2>) {
+    pub fn compute_au2xiliary_input_E_1(&self) -> (OvaInstance<G2, C2>, OvaWitness<G2>) {
         let g1 = affine_to_projective(self.running_accumulator.instance.E.clone());
         let g2 = affine_to_projective(self.current_accumulator.instance.E.clone());
 

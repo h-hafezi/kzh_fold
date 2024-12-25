@@ -17,7 +17,7 @@ use rand::thread_rng;
 use sqrtn_pcs::kzh_fold::kzh2_fold::Accumulator2;
 use sqrtn_pcs::kzh2_verifier_circuit::instance_circuit::KZH2InstanceVar;
 use sqrtn_pcs::kzh2_verifier_circuit::prover::{get_random_prover, AccumulatorVerifierCircuitProver};
-use sqrtn_pcs::kzh2_verifier_circuit::verifier_circuit::AccumulatorVerifierVar;
+use sqrtn_pcs::kzh2_verifier_circuit::verifier_circuit::KZH2VerifierVar;
 use sqrtn_pcs::commitment::CommitmentScheme;
 use sqrtn_pcs::constant_for_curves::{BaseField, E, G1, G2, ScalarField};
 use sqrtn_pcs::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
@@ -34,7 +34,7 @@ fn setup_benchmark() -> Vec<ScalarField> {
 
     // initialise the accumulate verifier circuit
     let prover: AccumulatorVerifierCircuitProver<G1, G2, C2, E, ScalarField> = get_random_prover();
-    let verifier = AccumulatorVerifierVar::<G1, G2, C2>::new::<E>(
+    let verifier = KZH2VerifierVar::<G1, G2, C2>::new::<E>(
         cs.clone(),
         prover.clone()
     );

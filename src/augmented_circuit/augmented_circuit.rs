@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use crate::kzh2_verifier_circuit::instance_circuit::KZH2InstanceVar;
-use crate::kzh2_verifier_circuit::verifier_circuit::{AccumulatorVerifier, AccumulatorVerifierVar};
+use crate::kzh2_verifier_circuit::verifier_circuit::{KZH2Verifier, KZH2VerifierVar};
 use crate::commitment::CommitmentScheme;
 use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
 use crate::hash::poseidon::PoseidonHashVar;
@@ -44,7 +44,7 @@ where
     F: PrimeField,
 {
     pub spartan_partial_verifier: SpartanPartialVerifier<F, E>,
-    pub kzh_acc_verifier: AccumulatorVerifier<G1, G2, C2, E>,
+    pub kzh_acc_verifier: KZH2Verifier<G1, G2, C2, E>,
     pub matrix_evaluation_verifier: MatrixEvaluationAccVerifier<F>,
 }
 
@@ -59,7 +59,7 @@ where
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField> + Clone,
 {
     pub spartan_partial_verifier: SpartanPartialVerifierVar<F, G1>,
-    pub kzh_acc_verifier: AccumulatorVerifierVar<G1, G2, C2>,
+    pub kzh_acc_verifier: KZH2VerifierVar<G1, G2, C2>,
     pub matrix_evaluation_verifier: MatrixEvaluationAccVerifierVar<F>,
 }
 
@@ -97,7 +97,7 @@ where
         )?;
 
         // Allocate the accumulator verifier
-        let kzh_acc_verifier = AccumulatorVerifierVar::new_variable(
+        let kzh_acc_verifier = KZH2VerifierVar::new_variable(
             cs.clone(),
             || Ok(&data.kzh_acc_verifier),
             mode,
@@ -179,7 +179,7 @@ where
 #[cfg(test)]
 mod test {
     use crate::kzh2_verifier_circuit::prover::AccumulatorVerifierCircuitProver;
-    use crate::kzh2_verifier_circuit::verifier_circuit::AccumulatorVerifierVar;
+    use crate::kzh2_verifier_circuit::verifier_circuit::KZH2VerifierVar;
     use crate::augmented_circuit::augmented_circuit::AugmentedCircuitVar;
     use crate::constant_for_curves::{ScalarField as F, C2, E, G1, G2};
     use crate::kzh::kzh2::{KZH2, KZH2SRS};
@@ -344,7 +344,7 @@ mod test {
             // assert it's formated correctly
             kzh_acc_verifier_prover.is_satisfied();
 
-            let acc_verifier_var = AccumulatorVerifierVar::<G1, G2, C2>::new::<E>(cs.clone(), kzh_acc_verifier_prover);
+            let acc_verifier_var = KZH2VerifierVar::<G1, G2, C2>::new::<E>(cs.clone(), kzh_acc_verifier_prover);
 
             acc_verifier_var
         };
