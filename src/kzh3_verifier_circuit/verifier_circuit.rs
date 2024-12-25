@@ -299,7 +299,6 @@ where
         transcript_var.append_scalars(b"instance 2", self.running_accumulator_instance_var.to_sponge_field_elements().unwrap().as_slice());
         transcript_var.append_scalars(b"Q", self.cross_term_error_commitment_Q.to_sponge_field_elements().unwrap().as_slice());
         transcript_var.challenge_scalar(b"challenge scalar").enforce_equal(&self.beta_var).unwrap();
-        assert!(self.beta_var.cs().is_satisfied().unwrap());
 
         // Non-native scalar multiplication: linear combination of C
         let (flag,
@@ -318,7 +317,6 @@ where
         r.enforce_equal(&self.beta_var_non_native).unwrap();
         // check out the result C_var is consistent with result_acc
         C_var.enforce_equal(&self.final_accumulator_instance_var.C_var).unwrap();
-        assert!(self.beta_var.cs().is_satisfied().unwrap());
 
         // Non-native scalar multiplication: linear combination of C
         let (flag,
@@ -337,8 +335,6 @@ where
         r.enforce_equal(&self.beta_var_non_native).unwrap();
         // check out the result C_y_var is consistent with result_acc
         C_y_var.enforce_equal(&self.final_accumulator_instance_var.C_y_var).unwrap();
-        assert!(self.beta_var.cs().is_satisfied().unwrap());
-
 
         // Non-native scalar multiplication: linear combination of T
         let (flag,
@@ -357,8 +353,6 @@ where
         r.enforce_equal(&self.beta_var_non_native).unwrap();
         // check out the result T_var is consistent with result_acc
         T_var.enforce_equal(&self.final_accumulator_instance_var.T_var).unwrap();
-        assert!(self.beta_var.cs().is_satisfied().unwrap());
-
 
         // Non-native scalar multiplication: linear combination E_temp = (instance.E * (1-beta) + acc.E * beta)
         let (flag,
@@ -375,8 +369,6 @@ where
         flag.enforce_equal(&NonNativeFieldVar::zero()).unwrap();
         // check r to be equal to beta
         r.enforce_equal(&self.beta_var_non_native).unwrap();
-        assert!(self.beta_var.cs().is_satisfied().unwrap());
-
 
         // Non-native scalar multiplication: linear combination E'' = E_{temp} + (1-beta) * beta * Q
         let (flag,
@@ -395,7 +387,6 @@ where
         let _beta_times_beta_minus_one = self.beta_var_non_native.clone() - self.beta_var_non_native.square().unwrap();
         // check out the result E_var is consistent with result_acc
         E_var.enforce_equal(&self.final_accumulator_instance_var.E_var).unwrap();
-        assert!(self.beta_var.cs().is_satisfied().unwrap());
 
 
         let beta_minus_one = FpVar::<G1::ScalarField>::one() - &self.beta_var;
@@ -407,7 +398,6 @@ where
             // check out the result b_var is consistent with result_acc
             x_var.enforce_equal(&self.final_accumulator_instance_var.x_var[i]).unwrap();
         }
-        assert!(self.beta_var.cs().is_satisfied().unwrap());
 
         // Native field operation: linear combination of x
         for i in 0..self.running_accumulator_instance_var.y_var.len() {
@@ -416,7 +406,6 @@ where
             // check out the result b_var is consistent with result_acc
             y_var.enforce_equal(&self.final_accumulator_instance_var.y_var[i]).unwrap();
         }
-        assert!(self.beta_var.cs().is_satisfied().unwrap());
 
         // Native field operation: linear combination of z
         for i in 0..self.running_accumulator_instance_var.z_var.len() {
@@ -425,14 +414,12 @@ where
             // check out the result b_var is consistent with result_acc
             z_var.enforce_equal(&self.final_accumulator_instance_var.z_var[i]).unwrap();
         }
-        assert!(self.beta_var.cs().is_satisfied().unwrap());
 
         // check out the result output is consistent with result_acc
         self.final_accumulator_instance_var.output.enforce_equal(
             &(&self.beta_var * &self.running_accumulator_instance_var.output +
                 &beta_minus_one * &self.current_accumulator_instance_var.output)
         ).unwrap();
-        assert!(self.beta_var.cs().is_satisfied().unwrap());
 
         transcript_var.append_scalars(
             b"label",
@@ -459,7 +446,6 @@ where
         let beta_3_non_native = &self.beta_var_non_native * &beta_2_non_native;
         let beta_4_non_native = &self.beta_var_non_native * &beta_3_non_native;
         let beta_5_non_native = &self.beta_var_non_native * &beta_4_non_native;
-        assert!(self.beta_var.cs().is_satisfied().unwrap());
 
         let final_instance = self.ova_running_instance.fold(
             &[
@@ -495,8 +481,6 @@ where
                 ),
             ]
         ).unwrap();
-        assert!(self.beta_var.cs().is_satisfied().unwrap());
-
 
         // return result of kzh_fold and final cycle fold instance
         (final_instance, &self.final_accumulator_instance_var)
