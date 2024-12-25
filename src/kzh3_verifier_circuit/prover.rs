@@ -4,7 +4,7 @@ use crate::gadgets::r1cs::ova::commit_T;
 use crate::gadgets::r1cs::{OvaInstance, OvaWitness, R1CSShape, RelaxedOvaInstance, RelaxedOvaWitness};
 use crate::hash::pederson::PedersenCommitment;
 use crate::kzh2_verifier_circuit::affine_to_projective;
-use crate::kzh_fold::kzh_3_fold::{Acc3Instance, Acc3SRS, Accumulator3};
+use crate::kzh_fold::kzh3_fold::{Acc3Instance, Acc3SRS, Accumulator3};
 use crate::nova::cycle_fold::coprocessor::{setup_shape, synthesize, SecondaryCircuit};
 use crate::transcript::transcript::Transcript;
 use ark_crypto_primitives::sponge::Absorb;
@@ -443,7 +443,7 @@ pub mod tests {
     use crate::gadgets::non_native::util::cast_field;
     use crate::hash::pederson::PedersenCommitment;
     use crate::kzh3_verifier_circuit::prover::{get_random_kzh3_prover, KZH3VerifierCircuitProver};
-    use crate::kzh_fold::kzh_3_fold::Accumulator3;
+    use crate::kzh_fold::kzh3_fold::Accumulator3;
 
     type GrumpkinCurveGroup = ark_grumpkin::Projective;
     type C2 = PedersenCommitment<GrumpkinCurveGroup>;

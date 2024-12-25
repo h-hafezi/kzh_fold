@@ -1,6 +1,6 @@
 use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
 use crate::kzh2_verifier_circuit::affine_to_projective;
-use crate::kzh_fold::kzh_3_fold::{Acc3Error, Acc3Instance};
+use crate::kzh_fold::kzh3_fold::{Acc3Error, Acc3Instance};
 use ark_crypto_primitives::sponge::constraints::AbsorbGadget;
 use ark_ec::pairing::Pairing;
 use ark_ec::short_weierstrass::{Affine, SWCurveConfig};
@@ -239,7 +239,7 @@ where
 pub mod tests {
     use crate::constant_for_curves::{ScalarField as F, E};
     use crate::kzh3_verifier_circuit::instance_circuit::KZH3InstanceVar;
-    use crate::kzh_fold::kzh_3_fold::{Acc3Error, Acc3Instance};
+    use crate::kzh_fold::kzh3_fold::{Acc3Error, Acc3Instance};
     use ark_crypto_primitives::sponge::constraints::AbsorbGadget;
     use ark_ec::pairing::Pairing;
     use ark_r1cs_std::alloc::{AllocVar, AllocationMode};

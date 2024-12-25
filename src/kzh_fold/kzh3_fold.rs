@@ -211,7 +211,7 @@ impl<E: Pairing> Accumulator3<E> {
 
             assert_eq!(srs.k_x.len(), tree_x.nodes.len(), "invalid size of vector x");
             assert_eq!(srs.k_y.len(), tree_y.nodes.len(), "invalid size of vector y");
-            assert_eq!(srs.k_z.len(), tree_y.nodes.len(), "invalid size of vector z");
+            assert_eq!(srs.k_z.len(), tree_z.nodes.len(), "invalid size of vector z");
 
             T.into()
         };
@@ -675,7 +675,7 @@ mod test {
     use crate::constant_for_curves::E;
     use crate::kzh::kzh3::{KZH3, KZH3SRS};
     use crate::kzh::KZH;
-    use crate::kzh_fold::kzh_3_fold::{Acc3SRS, Accumulator3};
+    use crate::kzh_fold::kzh3_fold::{Acc3SRS, Accumulator3};
     use crate::math::Math;
     use crate::transcript::transcript::Transcript;
     use crate::utils::inner_product;

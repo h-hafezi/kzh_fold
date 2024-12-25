@@ -1,16 +1,12 @@
-#![allow(dead_code)]
-
 use crate::commitment::CommitmentScheme;
 use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
 use crate::hash::poseidon::PoseidonHashVar;
-use crate::kzh::kzh2::{KZH2, KZH2SRS};
+use crate::kzh::kzh3::{KZH3, KZH3SRS};
 use crate::kzh::KZH;
-use crate::kzh2_verifier_circuit::instance_circuit::KZH2InstanceVar;
-use crate::kzh2_verifier_circuit::verifier_circuit::{KZH2Verifier, KZH2VerifierVar};
+use crate::kzh3_verifier_circuit::verifier_circuit::{KZH3Verifier, KZH3VerifierVar};
 use crate::nexus_spartan::matrix_evaluation_accumulation::verifier_circuit::{MatrixEvaluationAccVerifier, MatrixEvaluationAccVerifierVar};
 use crate::nexus_spartan::partial_verifier::partial_verifier::SpartanPartialVerifier;
 use crate::nexus_spartan::partial_verifier::partial_verifier_var::SpartanPartialVerifierVar;
-use crate::nova::cycle_fold::coprocessor_constraints::RelaxedOvaInstanceVar;
 use crate::transcript::transcript_var::TranscriptVar;
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
@@ -25,14 +21,8 @@ use itertools::izip;
 use rand::thread_rng;
 use std::borrow::Borrow;
 
-type Output<'a, G2, C2, G1, F> = (
-    (RelaxedOvaInstanceVar<G2, C2>, &'a KZH2InstanceVar<G1>),  // accumulator final instance, Ova final instance
-    (Vec<FpVar<F>>, Vec<FpVar<F>>), // r_x, r_y
-    (Vec<FpVar<F>>, Vec<FpVar<F>>, (FpVar<F>, FpVar<F>, FpVar<F>)), // (vector_x, vector_y, evaluations)
-);
-
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct KZH2AugmentedCircuit<G1, G2, C2, E, F>
+pub struct KZH3AugmentedCircuit<G1, G2, C2, E, F>
 where
     G1: SWCurveConfig + Clone,
     G1::BaseField: PrimeField,
@@ -45,11 +35,11 @@ where
     F: PrimeField,
 {
     pub spartan_partial_verifier: SpartanPartialVerifier<F, E>,
-    pub kzh_acc_verifier: KZH2Verifier<G1, G2, C2, E>,
+    pub kzh_acc_verifier: KZH3Verifier<G1, G2, C2, E>,
     pub matrix_evaluation_verifier: MatrixEvaluationAccVerifier<F>,
 }
 
-pub struct KZH2AugmentedCircuitVar<G1, G2, C2, F>
+pub struct KZH3AugmentedCircuitVar<G1, G2, C2, F>
 where
     F: PrimeField + Absorb,
     G1::BaseField: PrimeField,
@@ -60,11 +50,11 @@ where
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField> + Clone,
 {
     pub spartan_partial_verifier: SpartanPartialVerifierVar<F, G1>,
-    pub kzh_acc_verifier: KZH2VerifierVar<G1, G2, C2>,
+    pub kzh_acc_verifier: KZH3VerifierVar<G1, G2, C2>,
     pub matrix_evaluation_verifier: MatrixEvaluationAccVerifierVar<F>,
 }
 
-impl<G1, G2, C2, E, F> AllocVar<KZH2AugmentedCircuit<G1, G2, C2, E, F>, F> for KZH2AugmentedCircuitVar<G1, G2, C2, F>
+impl<G1, G2, C2, E, F> AllocVar<KZH3AugmentedCircuit<G1, G2, C2, E, F>, F> for KZH3AugmentedCircuitVar<G1, G2, C2, F>
 where
     G1: SWCurveConfig + Clone,
     G1::BaseField: PrimeField,
@@ -76,7 +66,7 @@ where
     E: Pairing<G1Affine=Affine<G1>, ScalarField=F>,
     F: PrimeField,
 {
-    fn new_variable<T: Borrow<KZH2AugmentedCircuit<G1, G2, C2, E, F>>>(
+    fn new_variable<T: Borrow<KZH3AugmentedCircuit<G1, G2, C2, E, F>>>(
         cs: impl Into<Namespace<F>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
@@ -98,7 +88,7 @@ where
         )?;
 
         // Allocate the accumulator verifier
-        let kzh_acc_verifier = KZH2VerifierVar::new_variable(
+        let kzh_acc_verifier = KZH3VerifierVar::new_variable(
             cs.clone(),
             || Ok(&data.kzh_acc_verifier),
             mode,
@@ -111,7 +101,7 @@ where
             mode,
         )?;
 
-        Ok(KZH2AugmentedCircuitVar {
+        Ok(KZH3AugmentedCircuitVar {
             spartan_partial_verifier,
             kzh_acc_verifier,
             matrix_evaluation_verifier,
@@ -119,7 +109,7 @@ where
     }
 }
 
-impl<G1, G2, C2, F> KZH2AugmentedCircuitVar<G1, G2, C2, F>
+impl<G1, G2, C2, F> KZH3AugmentedCircuitVar<G1, G2, C2, F>
 where
     F: PrimeField + Absorb,
     G1::BaseField: PrimeField,
@@ -129,19 +119,19 @@ where
     C2: CommitmentScheme<Projective<G2>>,
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField> + Clone,
 {
-    pub fn verify<E: Pairing>(&self, pcs_srs: &KZH2SRS<E>, cs: ConstraintSystemRef<F>, transcript: &mut TranscriptVar<F>, poseidon_num: usize) -> Output<G2, C2, G1, F>
+    pub fn verify<E: Pairing>(&self, pcs_srs: &KZH3SRS<E>, cs: ConstraintSystemRef<F>, transcript: &mut TranscriptVar<F>, poseidon_num: usize)
     where
         <E as Pairing>::ScalarField: Absorb,
-        <<E as Pairing>::G1Affine as ark_ec::AffineRepr>::BaseField: PrimeField
+        <<E as Pairing>::G1Affine as ark_ec::AffineRepr>::BaseField: PrimeField,
     {
-        let (rx, ry) = self.spartan_partial_verifier.verify(transcript);
-        let (final_cycle_fold_instance, final_accumulator_instance) = self.kzh_acc_verifier.accumulate(transcript);
+        let (_rx, ry) = self.spartan_partial_verifier.verify(transcript);
+        let _ = self.kzh_acc_verifier.accumulate(transcript);
 
         // also return these later
-        let ((vector_x, vector_y), evaluations) = self.matrix_evaluation_verifier.accumulate(transcript);
+        let _ = self.matrix_evaluation_verifier.accumulate(transcript);
 
         // ************* do the consistency checks *************
-        let split_input = KZH2::split_input(&pcs_srs, &ry[1..], FpVar::zero());
+        let split_input = KZH3::split_input(&pcs_srs, &ry[1..], FpVar::zero());
         for (e1, e2) in izip!(&self.kzh_acc_verifier.current_accumulator_instance_var.x_var, split_input[0].clone()) {
             e1.enforce_equal(&e2).expect("error while enforcing equality");
         }
@@ -150,11 +140,16 @@ where
             e1.enforce_equal(&e2).expect("error while enforcing equality");
         }
 
+        for (e1, e2) in izip!(&self.kzh_acc_verifier.current_accumulator_instance_var.z_var, split_input[2].clone()) {
+            e1.enforce_equal(&e2).expect("error while enforcing equality");
+        }
+
+
         // enforce equal eval_Z_at_ry and accumulator.z_var
         self.spartan_partial_verifier.eval_vars_at_ry.enforce_equal(
             &self.kzh_acc_verifier
                 .current_accumulator_instance_var
-                .z_var
+                .output
         ).expect("error while enforcing equality");
 
         // enforce the commitment in spartan verifier and the accumulator new instance
@@ -173,20 +168,15 @@ where
             // output the hash
             let _ = hash.output();
         }
-
-        ((final_cycle_fold_instance, final_accumulator_instance), (rx, ry), (vector_x, vector_y, evaluations))
     }
 }
 
 #[cfg(test)]
 mod test {
     use crate::constant_for_curves::{ScalarField as F, C2, E, G1, G2};
-    use crate::kzh::kzh2::{KZH2, KZH2SRS};
+    use crate::kzh::kzh3::{KZH3, KZH3SRS};
     use crate::kzh::KZH;
-    use crate::kzh2_augmented_circuit::kzh2_augmented_circuit::KZH2AugmentedCircuitVar;
-    use crate::kzh2_verifier_circuit::prover::KZH2VerifierCircuitProver;
-    use crate::kzh2_verifier_circuit::verifier_circuit::KZH2VerifierVar;
-    use crate::kzh_fold::kzh2_fold::Accumulator2 as Accumulator;
+    use crate::kzh_fold::kzh3_fold::Accumulator3 as Accumulator;
     use crate::nexus_spartan::commitment_traits::ToAffine;
     use crate::nexus_spartan::committed_relaxed_snark::CRSNARKKey;
     use crate::nexus_spartan::crr1cs::{is_sat, produce_synthetic_crr1cs, CRR1CSInstance, CRR1CSShape, CRR1CSWitness};
@@ -198,11 +188,13 @@ mod test {
     use crate::transcript::transcript::Transcript;
     use crate::transcript::transcript_var::TranscriptVar;
     use ark_ec::pairing::Pairing;
-    use ark_ff::Zero;
     use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
     use ark_relations::r1cs::{ConstraintSystem, SynthesisMode};
     use ark_serialize::CanonicalSerialize;
     use rand::thread_rng;
+    use crate::kzh3_augmented_circuit::kzh3_augmented_circuit::KZH3AugmentedCircuitVar;
+    use crate::kzh3_verifier_circuit::prover::KZH3VerifierCircuitProver;
+    use crate::kzh3_verifier_circuit::verifier_circuit::KZH3VerifierVar;
 
     #[test]
     fn test() {
@@ -211,10 +203,10 @@ mod test {
         let (pcs_srs, spartan_shape, spartan_instance, spartan_proof, rx, ry) = {
             let num_vars = 131072;
             let num_cons = num_vars;
-            let num_inputs = 10;
+            let num_inputs = 11;
 
             // this generates a new instance/witness for spartan as well as PCS parameters
-            let (spartan_shape, spartan_instance, spartan_witness, spartan_key) = produce_synthetic_crr1cs::<E, KZH2<E>>(num_cons, num_vars, num_inputs);
+            let (spartan_shape, spartan_instance, spartan_witness, spartan_key) = produce_synthetic_crr1cs::<E, KZH3<E>>(num_cons, num_vars, num_inputs);
 
             assert!(is_sat(&spartan_shape, &spartan_instance, &spartan_witness, &spartan_key.gens_r1cs_sat).unwrap());
 
@@ -276,37 +268,31 @@ mod test {
             // Commitment to witness polynomial
             let commitment_w = spartan_instance.comm_W.clone();
 
+            let input = &ry[1..];
+
             // Sanity check: verify the opening proof
-            KZH2::verify(
+            KZH3::verify(
                 &pcs_srs,
-                &ry[1..],
+                &input,
                 &spartan_proof.eval_vars_at_ry,
                 &commitment_w,
                 &opening_proof,
             );
 
-            let (x, y) = {
-                let split_input = KZH2::split_input(&pcs_srs, &ry[1..], F::zero());
-                let x = split_input[0].clone();
-                let y = split_input[1].clone();
-
-                (x, y)
-            };
-
             // Get accumulator from the opening proof
             let acc_instance = Accumulator::proof_to_accumulator_instance(
                 &acc_srs,
-                &commitment_w.C,
-                x.as_slice(),
-                y.as_slice(),
+                &input,
                 &spartan_proof.eval_vars_at_ry,
+                &commitment_w,
+                &opening_proof,
             );
 
             let acc_witness = Accumulator::proof_to_accumulator_witness(
                 &acc_srs,
+                commitment_w,
                 opening_proof,
-                x.as_slice(),
-                y.as_slice(),
+                &input,
             );
 
             let current_acc = Accumulator::new(&acc_instance, &acc_witness);
@@ -315,26 +301,24 @@ mod test {
             println!("acc size: {}", current_acc.compressed_size());
 
             // Check that the accumulator is valid
-            assert!(
-                Accumulator::decide(
-                    &acc_srs,
-                    &current_acc,
-                )
+            Accumulator::decide(
+                &acc_srs,
+                &current_acc,
             );
 
             // use a random accumulator as the running one
-            let running_acc = Accumulator::rand(&acc_srs, &mut thread_rng());
+            let running_acc = Accumulator::rand(&acc_srs);
 
             // the shape of the R1CS instance
             let ova_shape = setup_shape::<G1, G2>().unwrap();
 
             // get trivial running instance
-            let (ova_running_instance, ova_running_witness) = KZH2VerifierCircuitProver::<G1, G2, C2, E, F>::get_trivial_cycle_fold_running_instance_witness(&ova_shape);
+            let (ova_running_instance, ova_running_witness) = KZH3VerifierCircuitProver::<G1, G2, C2, E, F>::get_trivial_cycle_fold_running_instance_witness(&ova_shape);
 
             // get commitment_pp
-            let ova_commitment_pp = KZH2VerifierCircuitProver::<G1, G2, C2, E, F>::get_commitment_pp(&ova_shape);
+            let ova_commitment_pp = KZH3VerifierCircuitProver::<G1, G2, C2, E, F>::get_commitment_pp(&ova_shape);
 
-            let kzh_acc_verifier_prover: KZH2VerifierCircuitProver<G1, G2, C2, E, F> = KZH2VerifierCircuitProver::new(
+            let kzh_acc_verifier_prover: KZH3VerifierCircuitProver<G1, G2, C2, E, F> = KZH3VerifierCircuitProver::new(
                 &acc_srs,
                 ova_commitment_pp,
                 running_acc,
@@ -347,7 +331,7 @@ mod test {
             // assert it's formated correctly
             kzh_acc_verifier_prover.is_satisfied();
 
-            let acc_verifier_var = KZH2VerifierVar::<G1, G2, C2>::new::<E>(cs.clone(), kzh_acc_verifier_prover);
+            let acc_verifier_var = KZH3VerifierVar::<G1, G2, C2>::new::<E>(cs.clone(), kzh_acc_verifier_prover);
 
             acc_verifier_var
         };
@@ -370,7 +354,7 @@ mod test {
         };
 
         // construct the augmented circuit
-        let augmented_circuit = KZH2AugmentedCircuitVar {
+        let augmented_circuit = KZH3AugmentedCircuitVar {
             spartan_partial_verifier: partial_verifier_var,
             kzh_acc_verifier: acc_verifier_var,
             matrix_evaluation_verifier: matrix_evaluation_verifier_var,
@@ -394,10 +378,10 @@ mod test {
         let shape = CRR1CSShape::<F>::convert::<G1>(cs.clone());
 
         // get the number the minimum size we need for committing to the constraint system
-        let min_num_vars = CRSNARKKey::<E, KZH2<E>>::get_min_num_vars(shape.get_num_cons(), shape.get_num_vars(), shape.get_num_inputs());
-        let SRS: KZH2SRS<E> = KZH2::setup(min_num_vars + 1, &mut thread_rng());
+        let min_num_vars = CRSNARKKey::<E, KZH3<E>>::get_min_num_vars(shape.get_num_cons(), shape.get_num_vars(), shape.get_num_inputs());
+        let SRS: KZH3SRS<E> = KZH3::setup(min_num_vars + 1, &mut thread_rng());
 
-        let instance: CRR1CSInstance<E, KZH2<E>> = CRR1CSInstance::convert(cs.clone(), &SRS);
+        let instance: CRR1CSInstance<E, KZH3<E>> = CRR1CSInstance::convert(cs.clone(), &SRS);
         let witness = CRR1CSWitness::<F>::convert(cs.clone());
 
         let mut new_prover_transcript = Transcript::new(b"example");

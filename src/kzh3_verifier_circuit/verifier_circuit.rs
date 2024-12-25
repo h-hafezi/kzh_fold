@@ -5,7 +5,7 @@ use crate::gadgets::r1cs::{OvaInstance, RelaxedOvaInstance};
 use crate::kzh2_verifier_circuit::randomness_different_formats;
 use crate::kzh3_verifier_circuit::instance_circuit::KZH3InstanceVar;
 use crate::kzh3_verifier_circuit::prover::KZH3VerifierCircuitProver;
-use crate::kzh_fold::kzh_3_fold::Acc3Instance;
+use crate::kzh_fold::kzh3_fold::Acc3Instance;
 use crate::nova::cycle_fold::coprocessor_constraints::{OvaInstanceVar, RelaxedOvaInstanceVar};
 use crate::transcript::transcript_var::TranscriptVar;
 use ark_crypto_primitives::sponge::constraints::AbsorbGadget;

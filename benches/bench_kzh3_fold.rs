@@ -4,7 +4,7 @@ use rand::thread_rng;
 use sqrtn_pcs::constant_for_curves::E;
 use sqrtn_pcs::kzh::KZH;
 use sqrtn_pcs::kzh::kzh3::{KZH3, KZH3SRS};
-use sqrtn_pcs::kzh_fold::kzh_3_fold::{Acc3SRS, Accumulator3};
+use sqrtn_pcs::kzh_fold::kzh3_fold::{Acc3SRS, Accumulator3};
 use sqrtn_pcs::transcript::transcript::Transcript;
 
 fn get_srs(degree: usize) -> Acc3SRS<E> {
