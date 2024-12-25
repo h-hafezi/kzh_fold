@@ -488,25 +488,25 @@ where
         ).unwrap();
 
         // initialise auxiliary input variables
-        let auxiliary_input_C_var = OvaInstanceVar::new_variable(
+        let ova_auxiliary_input_C = OvaInstanceVar::new_variable(
             ns!(cs, "auxiliary input C var"),
             || Ok(prover.compute_auxiliary_input_C().0),
             AllocationMode::Input,
         ).unwrap();
 
-        let auxiliary_input_T_var = OvaInstanceVar::new_variable(
+        let ova_auxiliary_input_T = OvaInstanceVar::new_variable(
             ns!(cs, "auxiliary input T var"),
             || Ok(prover.compute_auxiliary_input_T().0),
             AllocationMode::Input,
         ).unwrap();
 
-        let auxiliary_input_E_1_var = OvaInstanceVar::new_variable(
+        let ova_auxiliary_input_E_1 = OvaInstanceVar::new_variable(
             ns!(cs, "auxiliary input E_1 var"),
             || Ok(prover.compute_auxiliary_input_E_1().0),
             AllocationMode::Input,
         ).unwrap();
 
-        let auxiliary_input_E_2_var = OvaInstanceVar::new_variable(
+        let ova_auxiliary_input_E_2 = OvaInstanceVar::new_variable(
             ns!(cs, "auxiliary input E_2 var"),
             || Ok(prover.compute_auxiliary_input_E_2().0),
             AllocationMode::Input,
@@ -514,7 +514,7 @@ where
 
 
         // initialise Q variables
-        let Q_var = NonNativeAffineVar::new_variable(
+        let cross_term_error_commitment_Q = NonNativeAffineVar::new_variable(
             ns!(cs, "Q var"),
             || Ok(prover.compute_proof_Q()),
             AllocationMode::Input,
@@ -522,25 +522,25 @@ where
 
         let cycle_fold_proof = prover.compute_cycle_fold_proofs_and_final_instance();
 
-        let com_C_var = ProjectiveVar::new_variable(
+        let ova_cross_term_error_commitment_C = ProjectiveVar::new_variable(
             ns!(cs, "com_C_var"),
             || Ok(cycle_fold_proof.0),
             AllocationMode::Input,
         ).unwrap();
 
-        let com_T_var = ProjectiveVar::new_variable(
+        let ova_cross_term_error_commitment_T = ProjectiveVar::new_variable(
             ns!(cs, "com_T_var"),
             || Ok(cycle_fold_proof.1),
             AllocationMode::Input,
         ).unwrap();
 
-        let com_E_1_var = ProjectiveVar::new_variable(
+        let ova_cross_term_error_commitment_E_1 = ProjectiveVar::new_variable(
             ns!(cs, "com_E_1_var"),
             || Ok(cycle_fold_proof.2),
             AllocationMode::Input,
         ).unwrap();
 
-        let com_E_2_var = ProjectiveVar::new_variable(
+        let ova_cross_term_error_commitment_E_2 = ProjectiveVar::new_variable(
             ns!(cs, "com_E_2_var"),
             || Ok(cycle_fold_proof.3),
             AllocationMode::Input,
@@ -548,7 +548,7 @@ where
 
 
         // initialise cycle fold running instance var
-        let running_cycle_fold_instance_var = RelaxedOvaInstanceVar::new_variable(
+        let ova_running_instance = RelaxedOvaInstanceVar::new_variable(
             ns!(cs, "running cycle fold instance var"),
             || Ok(prover.cycle_fold_running_instance),
             AllocationMode::Input,
@@ -556,21 +556,21 @@ where
 
 
         let verifier = KZH2VerifierVar {
-            ova_auxiliary_input_C: auxiliary_input_C_var,
-            ova_auxiliary_input_T: auxiliary_input_T_var,
-            ova_auxiliary_input_E_1: auxiliary_input_E_1_var,
-            ova_auxiliary_input_E_2: auxiliary_input_E_2_var,
+            ova_auxiliary_input_C,
+            ova_auxiliary_input_T,
+            ova_auxiliary_input_E_1,
+            ova_auxiliary_input_E_2,
             beta_var,
             beta_var_non_native,
-            cross_term_error_commitment_Q: Q_var,
-            ova_cross_term_error_commitment_C: com_C_var,
-            ova_cross_term_error_commitment_T: com_T_var,
-            ova_cross_term_error_commitment_E_1: com_E_1_var,
-            ova_cross_term_error_commitment_E_2: com_E_2_var,
+            cross_term_error_commitment_Q,
+            ova_cross_term_error_commitment_C,
+            ova_cross_term_error_commitment_T,
+            ova_cross_term_error_commitment_E_1,
+            ova_cross_term_error_commitment_E_2,
             current_accumulator_instance_var,
             running_accumulator_instance_var,
             final_accumulator_instance_var,
-            ova_running_instance: running_cycle_fold_instance_var,
+            ova_running_instance,
             n: prover.n,
             m: prover.m,
         };

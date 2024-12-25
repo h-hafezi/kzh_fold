@@ -1,28 +1,30 @@
-use std::borrow::Borrow;
-use ark_crypto_primitives::sponge::Absorb;
-use ark_crypto_primitives::sponge::constraints::AbsorbGadget;
-use ark_ec::CurveConfig;
-use ark_ec::pairing::Pairing;
-use ark_ec::short_weierstrass::{Affine, Projective, SWCurveConfig};
-use ark_ff::PrimeField;
-use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
-use ark_r1cs_std::boolean::Boolean;
-use ark_r1cs_std::eq::EqGadget;
-use ark_r1cs_std::fields::FieldVar;
-use ark_r1cs_std::fields::fp::FpVar;
-use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
-use ark_r1cs_std::groups::curves::short_weierstrass::ProjectiveVar;
-use ark_r1cs_std::ToBitsGadget;
-use ark_relations::ns;
-use ark_relations::r1cs::{Namespace, SynthesisError};
 use crate::commitment::CommitmentScheme;
 use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
 use crate::gadgets::non_native::util::cast_field;
 use crate::gadgets::r1cs::{OvaInstance, RelaxedOvaInstance};
+use crate::kzh2_verifier_circuit::randomness_different_formats;
 use crate::kzh3_verifier_circuit::instance_circuit::KZH3InstanceVar;
+use crate::kzh3_verifier_circuit::prover::KZH3VerifierCircuitProver;
 use crate::kzh_fold::kzh_3_fold::Acc3Instance;
 use crate::nova::cycle_fold::coprocessor_constraints::{OvaInstanceVar, RelaxedOvaInstanceVar};
 use crate::transcript::transcript_var::TranscriptVar;
+use ark_crypto_primitives::sponge::constraints::AbsorbGadget;
+use ark_crypto_primitives::sponge::Absorb;
+use ark_ec::pairing::Pairing;
+use ark_ec::short_weierstrass::{Affine, Projective, SWCurveConfig};
+use ark_ec::CurveConfig;
+use ark_ff::PrimeField;
+use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
+use ark_r1cs_std::boolean::Boolean;
+use ark_r1cs_std::eq::EqGadget;
+use ark_r1cs_std::fields::fp::FpVar;
+use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
+use ark_r1cs_std::fields::FieldVar;
+use ark_r1cs_std::groups::curves::short_weierstrass::ProjectiveVar;
+use ark_r1cs_std::{R1CSVar, ToBitsGadget};
+use ark_relations::ns;
+use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
+use std::borrow::Borrow;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct KZH3Verifier<G1, G2, C2, E>
@@ -297,6 +299,7 @@ where
         transcript_var.append_scalars(b"instance 2", self.running_accumulator_instance_var.to_sponge_field_elements().unwrap().as_slice());
         transcript_var.append_scalars(b"Q", self.cross_term_error_commitment_Q.to_sponge_field_elements().unwrap().as_slice());
         transcript_var.challenge_scalar(b"challenge scalar").enforce_equal(&self.beta_var).unwrap();
+        assert!(self.beta_var.cs().is_satisfied().unwrap());
 
         // Non-native scalar multiplication: linear combination of C
         let (flag,
@@ -315,6 +318,7 @@ where
         r.enforce_equal(&self.beta_var_non_native).unwrap();
         // check out the result C_var is consistent with result_acc
         C_var.enforce_equal(&self.final_accumulator_instance_var.C_var).unwrap();
+        assert!(self.beta_var.cs().is_satisfied().unwrap());
 
         // Non-native scalar multiplication: linear combination of C
         let (flag,
@@ -322,7 +326,7 @@ where
             g1,
             g2,
             C_y_var
-        ) = self.ova_auxiliary_input_C.parse_secondary_io::<G1>().unwrap();
+        ) = self.ova_auxiliary_input_C_y.parse_secondary_io::<G1>().unwrap();
         // g1 == acc.C_y
         self.running_accumulator_instance_var.C_y_var.enforce_equal(&g1).unwrap();
         // g2 == instance.C_y
@@ -333,6 +337,7 @@ where
         r.enforce_equal(&self.beta_var_non_native).unwrap();
         // check out the result C_y_var is consistent with result_acc
         C_y_var.enforce_equal(&self.final_accumulator_instance_var.C_y_var).unwrap();
+        assert!(self.beta_var.cs().is_satisfied().unwrap());
 
 
         // Non-native scalar multiplication: linear combination of T
@@ -352,6 +357,7 @@ where
         r.enforce_equal(&self.beta_var_non_native).unwrap();
         // check out the result T_var is consistent with result_acc
         T_var.enforce_equal(&self.final_accumulator_instance_var.T_var).unwrap();
+        assert!(self.beta_var.cs().is_satisfied().unwrap());
 
 
         // Non-native scalar multiplication: linear combination E_temp = (instance.E * (1-beta) + acc.E * beta)
@@ -369,6 +375,7 @@ where
         flag.enforce_equal(&NonNativeFieldVar::zero()).unwrap();
         // check r to be equal to beta
         r.enforce_equal(&self.beta_var_non_native).unwrap();
+        assert!(self.beta_var.cs().is_satisfied().unwrap());
 
 
         // Non-native scalar multiplication: linear combination E'' = E_{temp} + (1-beta) * beta * Q
@@ -388,6 +395,7 @@ where
         let _beta_times_beta_minus_one = self.beta_var_non_native.clone() - self.beta_var_non_native.square().unwrap();
         // check out the result E_var is consistent with result_acc
         E_var.enforce_equal(&self.final_accumulator_instance_var.E_var).unwrap();
+        assert!(self.beta_var.cs().is_satisfied().unwrap());
 
 
         let beta_minus_one = FpVar::<G1::ScalarField>::one() - &self.beta_var;
@@ -399,6 +407,7 @@ where
             // check out the result b_var is consistent with result_acc
             x_var.enforce_equal(&self.final_accumulator_instance_var.x_var[i]).unwrap();
         }
+        assert!(self.beta_var.cs().is_satisfied().unwrap());
 
         // Native field operation: linear combination of x
         for i in 0..self.running_accumulator_instance_var.y_var.len() {
@@ -407,6 +416,7 @@ where
             // check out the result b_var is consistent with result_acc
             y_var.enforce_equal(&self.final_accumulator_instance_var.y_var[i]).unwrap();
         }
+        assert!(self.beta_var.cs().is_satisfied().unwrap());
 
         // Native field operation: linear combination of z
         for i in 0..self.running_accumulator_instance_var.z_var.len() {
@@ -415,12 +425,14 @@ where
             // check out the result b_var is consistent with result_acc
             z_var.enforce_equal(&self.final_accumulator_instance_var.z_var[i]).unwrap();
         }
+        assert!(self.beta_var.cs().is_satisfied().unwrap());
 
         // check out the result output is consistent with result_acc
         self.final_accumulator_instance_var.output.enforce_equal(
             &(&self.beta_var * &self.running_accumulator_instance_var.output +
                 &beta_minus_one * &self.current_accumulator_instance_var.output)
         ).unwrap();
+        assert!(self.beta_var.cs().is_satisfied().unwrap());
 
         transcript_var.append_scalars(
             b"label",
@@ -440,7 +452,6 @@ where
                 self.ova_cross_term_error_commitment_E_2.x.clone(),
                 self.ova_cross_term_error_commitment_E_2.y.clone(),
                 self.ova_cross_term_error_commitment_E_2.z.clone(),
-
             ],
         );
 
@@ -448,6 +459,7 @@ where
         let beta_3_non_native = &self.beta_var_non_native * &beta_2_non_native;
         let beta_4_non_native = &self.beta_var_non_native * &beta_3_non_native;
         let beta_5_non_native = &self.beta_var_non_native * &beta_4_non_native;
+        assert!(self.beta_var.cs().is_satisfied().unwrap());
 
         let final_instance = self.ova_running_instance.fold(
             &[
@@ -483,9 +495,210 @@ where
                 ),
             ]
         ).unwrap();
+        assert!(self.beta_var.cs().is_satisfied().unwrap());
 
 
         // return result of kzh_fold and final cycle fold instance
         (final_instance, &self.final_accumulator_instance_var)
     }
 }
+
+impl<G1, G2, C2> KZH3VerifierVar<G1, G2, C2>
+where
+    G1: SWCurveConfig + Clone,
+    G1::BaseField: PrimeField,
+    G1::ScalarField: PrimeField,
+    G2: SWCurveConfig,
+    G2::BaseField: PrimeField,
+    C2: CommitmentScheme<Projective<G2>, PP=Vec<Affine<G2>>>,
+    G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField>,
+    ProjectiveVar<G2, FpVar<<G2 as CurveConfig>::BaseField>>: AllocVar<<C2 as CommitmentScheme<Projective<G2>>>::Commitment, <G2 as CurveConfig>::BaseField>,
+{
+    pub fn new<E: Pairing>(cs: ConstraintSystemRef<G1::ScalarField>, prover: KZH3VerifierCircuitProver<G1, G2, C2, E, E::ScalarField>) -> KZH3VerifierVar<G1, G2, C2>
+    where
+        E: Pairing<G1Affine=Affine<G1>, ScalarField=<G1 as CurveConfig>::ScalarField, BaseField=<G1 as CurveConfig>::BaseField>,
+        <G2 as CurveConfig>::BaseField: Absorb,
+        <G2 as CurveConfig>::ScalarField: Absorb,
+    {
+        // the randomness in different formats
+        let beta_scalar = prover.beta.clone();
+        let (_, beta_var, beta_var_non_native) = randomness_different_formats::<E>(cs.clone(), beta_scalar);
+
+        // initialise accumulator variables
+        let current_accumulator_instance_var = KZH3InstanceVar::new_variable(
+            ns!(cs, "current accumulator instance var"),
+            || Ok(prover.get_current_acc_instance().clone()),
+            AllocationMode::Input,
+        ).unwrap();
+
+        let running_accumulator_instance_var = KZH3InstanceVar::new_variable(
+            ns!(cs, "running accumulator instance var"),
+            || Ok(prover.get_running_acc_instance().clone()),
+            AllocationMode::Input,
+        ).unwrap();
+
+        let final_accumulator_instance_var = KZH3InstanceVar::new_variable(
+            ns!(cs, "final accumulator instance var"),
+            || Ok(prover.compute_result_accumulator_instance()),
+            AllocationMode::Input,
+        ).unwrap();
+
+        // initialise auxiliary input variables
+        let ova_auxiliary_input_C = OvaInstanceVar::new_variable(
+            ns!(cs, "auxiliary input C var"),
+            || Ok(prover.compute_auxiliary_input_C().0),
+            AllocationMode::Input,
+        ).unwrap();
+
+        // initialise auxiliary input variables
+        let ova_auxiliary_input_C_y = OvaInstanceVar::new_variable(
+            ns!(cs, "auxiliary input C_y var"),
+            || Ok(prover.compute_auxiliary_input_C_y().0),
+            AllocationMode::Input,
+        ).unwrap();
+
+
+        let ova_auxiliary_input_T = OvaInstanceVar::new_variable(
+            ns!(cs, "auxiliary input T var"),
+            || Ok(prover.compute_auxiliary_input_T().0),
+            AllocationMode::Input,
+        ).unwrap();
+
+        let ova_auxiliary_input_E_1 = OvaInstanceVar::new_variable(
+            ns!(cs, "auxiliary input E_1 var"),
+            || Ok(prover.compute_auxiliary_input_E_1().0),
+            AllocationMode::Input,
+        ).unwrap();
+
+        let ova_auxiliary_input_E_2 = OvaInstanceVar::new_variable(
+            ns!(cs, "auxiliary input E_2 var"),
+            || Ok(prover.compute_auxiliary_input_E_2().0),
+            AllocationMode::Input,
+        ).unwrap();
+
+
+        // initialise Q variables
+        let cross_term_error_commitment_Q = NonNativeAffineVar::new_variable(
+            ns!(cs, "Q var"),
+            || Ok(prover.compute_proof_Q()),
+            AllocationMode::Input,
+        ).unwrap();
+
+        let cycle_fold_proof = prover.compute_cycle_fold_proofs_and_final_instance();
+
+        let ova_cross_term_error_commitment_C = ProjectiveVar::new_variable(
+            ns!(cs, "com_C_var"),
+            || Ok(cycle_fold_proof.0),
+            AllocationMode::Input,
+        ).unwrap();
+
+        let ova_cross_term_error_commitment_C_y = ProjectiveVar::new_variable(
+            ns!(cs, "com_C_var"),
+            || Ok(cycle_fold_proof.1),
+            AllocationMode::Input,
+        ).unwrap();
+
+        let ova_cross_term_error_commitment_T = ProjectiveVar::new_variable(
+            ns!(cs, "com_T_var"),
+            || Ok(cycle_fold_proof.2),
+            AllocationMode::Input,
+        ).unwrap();
+
+        let ova_cross_term_error_commitment_E_1 = ProjectiveVar::new_variable(
+            ns!(cs, "com_E_1_var"),
+            || Ok(cycle_fold_proof.3),
+            AllocationMode::Input,
+        ).unwrap();
+
+        let ova_cross_term_error_commitment_E_2 = ProjectiveVar::new_variable(
+            ns!(cs, "com_E_2_var"),
+            || Ok(cycle_fold_proof.4),
+            AllocationMode::Input,
+        ).unwrap();
+
+        // initialise cycle fold running instance var
+        let ova_running_instance = RelaxedOvaInstanceVar::new_variable(
+            ns!(cs, "running cycle fold instance var"),
+            || Ok(prover.cycle_fold_running_instance),
+            AllocationMode::Input,
+        ).unwrap();
+
+
+        let verifier = KZH3VerifierVar {
+            ova_auxiliary_input_C,
+            ova_auxiliary_input_C_y,
+            ova_auxiliary_input_T,
+            ova_auxiliary_input_E_1,
+            ova_auxiliary_input_E_2,
+            beta_var,
+            beta_var_non_native,
+            cross_term_error_commitment_Q,
+            ova_cross_term_error_commitment_C,
+            ova_cross_term_error_commitment_C_y,
+            ova_cross_term_error_commitment_T,
+            ova_cross_term_error_commitment_E_1,
+            ova_cross_term_error_commitment_E_2,
+            current_accumulator_instance_var,
+            running_accumulator_instance_var,
+            final_accumulator_instance_var,
+            ova_running_instance,
+            n: prover.n,
+            m: prover.m,
+        };
+
+        verifier
+    }
+}
+
+#[cfg(test)]
+pub mod tests {
+    use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef, SynthesisMode};
+
+    use crate::constant_for_curves::{ScalarField as F, C2, E, G1, G2};
+    use crate::kzh3_verifier_circuit::prover::{get_random_kzh3_prover, KZH3VerifierCircuitProver};
+    use crate::kzh3_verifier_circuit::verifier_circuit::KZH3VerifierVar;
+    use crate::transcript::transcript_var::TranscriptVar;
+
+    // Test helper
+    pub fn get_random_acc_verifier_cs() -> ConstraintSystemRef<F> {
+        // a constraint system
+        let cs = ConstraintSystem::<F>::new_ref();
+
+        // initialise the accumulate verifier circuit
+        let prover: KZH3VerifierCircuitProver<G1, G2, C2, E, F> = get_random_kzh3_prover();
+        let verifier = KZH3VerifierVar::<G1, G2, C2>::new::<E>(
+            cs.clone(),
+            prover.clone(),
+        );
+
+        println!("number of constraint for initialisation: {}", cs.num_constraints());
+
+        let mut transcript_var = TranscriptVar::from_transcript(
+            cs.clone(),
+            prover.initial_transcript.clone(),
+        );
+
+        // run the kzh_fold
+        let _ = verifier.accumulate(&mut transcript_var);
+
+        println!("number of constraint after kzh_fold: {}", cs.num_constraints());
+
+        // assert the constraint system is satisfied
+        assert!(cs.is_satisfied().unwrap());
+
+        // these are required to called CRR1CSShape::convert
+        cs.set_mode(SynthesisMode::Prove { construct_matrices: true });
+        cs.finalize();
+
+        cs
+    }
+
+    #[test]
+    fn kzh_acc_verifier_circuit_end_to_end_test() {
+        let cs = get_random_acc_verifier_cs();
+
+        println!("number of constraint random cs: {}", cs.num_constraints());
+        assert!(cs.is_satisfied().unwrap());
+    }
+}
+
