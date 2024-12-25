@@ -332,7 +332,7 @@ where
         // check r to be equal to beta
         r.enforce_equal(&self.beta_var_non_native).unwrap();
         // check out the result C_y_var is consistent with result_acc
-        C_var.enforce_equal(&self.final_accumulator_instance_var.C_y_var).unwrap();
+        C_y_var.enforce_equal(&self.final_accumulator_instance_var.C_y_var).unwrap();
 
 
         // Non-native scalar multiplication: linear combination of T

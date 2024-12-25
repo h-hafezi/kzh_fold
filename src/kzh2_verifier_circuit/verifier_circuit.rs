@@ -27,7 +27,7 @@ use rand::thread_rng;
 use crate::kzh_fold::kzh2_fold::{Acc2Instance, Acc2SRS};
 use crate::kzh2_verifier_circuit::instance_circuit::KZH2InstanceVar;
 use crate::kzh2_verifier_circuit::prover::get_random_prover;
-use crate::kzh2_verifier_circuit::prover::AccumulatorVerifierCircuitProver;
+use crate::kzh2_verifier_circuit::prover::KZH2VerifierCircuitProver;
 use crate::kzh2_verifier_circuit::randomness_different_formats;
 use crate::commitment::CommitmentScheme;
 use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
@@ -442,7 +442,6 @@ where
             ]
         ).unwrap();
 
-
         // return result of kzh_fold and final cycle fold instance
         (final_instance, &self.final_accumulator_instance_var)
     }
@@ -459,7 +458,7 @@ where
     G1: SWCurveConfig<BaseField=G2::ScalarField, ScalarField=G2::BaseField>,
     ProjectiveVar<G2, FpVar<<G2 as CurveConfig>::BaseField>>: AllocVar<<C2 as CommitmentScheme<Projective<G2>>>::Commitment, <G2 as CurveConfig>::BaseField>,
 {
-    pub fn new<E: Pairing>(cs: ConstraintSystemRef<G1::ScalarField>, prover: AccumulatorVerifierCircuitProver<G1, G2, C2, E, E::ScalarField>) -> KZH2VerifierVar<G1, G2, C2>
+    pub fn new<E: Pairing>(cs: ConstraintSystemRef<G1::ScalarField>, prover: KZH2VerifierCircuitProver<G1, G2, C2, E, E::ScalarField>) -> KZH2VerifierVar<G1, G2, C2>
     where
         E: Pairing<G1Affine=Affine<G1>, ScalarField=<G1 as CurveConfig>::ScalarField, BaseField=<G1 as CurveConfig>::BaseField>,
         <G2 as CurveConfig>::BaseField: Absorb,
@@ -602,7 +601,7 @@ pub mod tests {
         let cs = ConstraintSystem::<ScalarField>::new_ref();
 
         // initialise the accumulate verifier circuit
-        let prover: AccumulatorVerifierCircuitProver<G1, G2, C2, E, ScalarField> = get_random_prover();
+        let prover: KZH2VerifierCircuitProver<G1, G2, C2, E, ScalarField> = get_random_prover();
         let verifier = KZH2VerifierVar::<G1, G2, C2>::new::<E>(
             cs.clone(),
             prover.clone(),

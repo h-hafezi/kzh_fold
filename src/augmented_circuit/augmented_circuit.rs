@@ -178,7 +178,7 @@ where
 
 #[cfg(test)]
 mod test {
-    use crate::kzh2_verifier_circuit::prover::AccumulatorVerifierCircuitProver;
+    use crate::kzh2_verifier_circuit::prover::KZH2VerifierCircuitProver;
     use crate::kzh2_verifier_circuit::verifier_circuit::KZH2VerifierVar;
     use crate::augmented_circuit::augmented_circuit::AugmentedCircuitVar;
     use crate::constant_for_curves::{ScalarField as F, C2, E, G1, G2};
@@ -326,12 +326,12 @@ mod test {
             let ova_shape = setup_shape::<G1, G2>().unwrap();
 
             // get trivial running instance
-            let (ova_running_instance, ova_running_witness) = AccumulatorVerifierCircuitProver::<G1, G2, C2, E, F>::get_trivial_cycle_fold_running_instance_witness(&ova_shape);
+            let (ova_running_instance, ova_running_witness) = KZH2VerifierCircuitProver::<G1, G2, C2, E, F>::get_trivial_cycle_fold_running_instance_witness(&ova_shape);
 
             // get commitment_pp
-            let ova_commitment_pp = AccumulatorVerifierCircuitProver::<G1, G2, C2, E, F>::get_commitment_pp(&ova_shape);
+            let ova_commitment_pp = KZH2VerifierCircuitProver::<G1, G2, C2, E, F>::get_commitment_pp(&ova_shape);
 
-            let kzh_acc_verifier_prover: AccumulatorVerifierCircuitProver<G1, G2, C2, E, F> = AccumulatorVerifierCircuitProver::new(
+            let kzh_acc_verifier_prover: KZH2VerifierCircuitProver<G1, G2, C2, E, F> = KZH2VerifierCircuitProver::new(
                 &acc_srs,
                 ova_commitment_pp,
                 running_acc,
