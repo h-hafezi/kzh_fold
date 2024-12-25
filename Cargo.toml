@@ -111,4 +111,4 @@ name = "bench_nova"
 
 [[bench]]
 harness = false
-name = "bench_augmented_circuit"
+name = "bench_kzh2_augmented_circuit"

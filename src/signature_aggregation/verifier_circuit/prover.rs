@@ -1,4 +1,4 @@
-use crate::accumulation_circuit::affine_to_projective;
+use crate::kzh2_verifier_circuit::affine_to_projective;
 use crate::commitment::CommitmentScheme;
 use crate::gadgets::r1cs::ova::commit_T;
 use crate::gadgets::r1cs::{OvaInstance, OvaWitness, R1CSShape, RelaxedOvaInstance, RelaxedOvaWitness};

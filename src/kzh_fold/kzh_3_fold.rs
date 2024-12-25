@@ -18,7 +18,7 @@ use derivative::Derivative;
 use rand::{thread_rng, RngCore};
 use std::ops::{Add, Mul, Neg, Sub};
 
-#[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize)]
+#[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize)]
 pub struct Acc3Error<E: Pairing> {
     E: E::G1Affine,
 }
@@ -71,7 +71,7 @@ pub struct Acc3SRS<E: Pairing> {
     pub pc_srs: KZH3SRS<E>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize)]
+#[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize)]
 pub struct Acc3Instance<E: Pairing> {
     pub C: E::G1Affine,
     pub C_y: E::G1Affine,

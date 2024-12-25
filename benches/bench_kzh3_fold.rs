@@ -1,3 +1,4 @@
+use ark_serialize::CanonicalSerialize;
 use criterion::{criterion_group, criterion_main, Criterion};
 use rand::thread_rng;
 use sqrtn_pcs::constant_for_curves::E;
@@ -14,7 +15,7 @@ fn get_srs(degree: usize) -> Acc3SRS<E> {
 }
 
 fn bench_prove(c: &mut Criterion) {
-    let num_variables = vec![10];
+    let num_variables = vec![10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
     for degree in num_variables {
         let srs = get_srs(degree);
         let acc_1 = Accumulator3::rand(&srs);
@@ -31,7 +32,7 @@ fn bench_prove(c: &mut Criterion) {
 
 
 fn bench_verify(c: &mut Criterion) {
-    let num_variables = vec![10];
+    let num_variables = vec![10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
     for degree in num_variables {
         let srs = get_srs(degree);
         let acc_1 = Accumulator3::rand(&srs);
@@ -49,11 +50,14 @@ fn bench_verify(c: &mut Criterion) {
 }
 
 fn bench_decide(c: &mut Criterion) {
-    let num_variables = vec![10];
+    let num_variables = vec![10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
     for degree in num_variables {
         let srs = get_srs(degree);
         let acc = Accumulator3::rand(&srs);
         let bench_name = format!("decide for degrees n={}", degree);
+
+        println!("kzh3-fold accumulator length in bytes: {} for degree {degree}", acc.compressed_size());
+
         c.bench_function(&bench_name, |b| {
             b.iter(|| {
                 let _ = Accumulator3::decide(&srs, &acc);

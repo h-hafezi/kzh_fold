@@ -1,5 +1,5 @@
 use crate::kzh_fold::kzh2_fold::{Acc2Instance, Acc2SRS, Accumulator2};
-use crate::accumulation_circuit::affine_to_projective;
+use crate::kzh2_verifier_circuit::affine_to_projective;
 use crate::commitment::CommitmentScheme;
 use crate::gadgets::non_native::util::cast_field;
 use crate::gadgets::r1cs::ova::commit_T;
@@ -412,7 +412,7 @@ pub mod tests {
     use ark_ff::Field;
 
     use crate::kzh_fold::kzh2_fold::Accumulator2;
-    use crate::accumulation_circuit::prover::{get_random_prover, AccumulatorVerifierCircuitProver};
+    use crate::kzh2_verifier_circuit::prover::{get_random_prover, AccumulatorVerifierCircuitProver};
     use crate::constant_for_curves::{BaseField, ScalarField, E, G1, G2};
     use crate::gadgets::non_native::util::cast_field;
     use crate::hash::pederson::PedersenCommitment;

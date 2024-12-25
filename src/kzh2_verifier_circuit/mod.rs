@@ -13,6 +13,7 @@ use crate::gadgets::non_native::util::cast_field;
 pub mod instance_circuit;
 
 pub mod verifier_circuit;
+
 pub mod prover;
 
 pub fn affine_to_projective<P: SWCurveConfig>(a: Affine<P>) -> Projective<P> {

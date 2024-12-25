@@ -1,6 +1,7 @@
 #![allow(non_snake_case)]
 #![allow(unused_imports)]
 
+use ark_serialize::CanonicalSerialize;
 use criterion::{Criterion, criterion_group, criterion_main};
 use rand::thread_rng;
 
@@ -72,6 +73,9 @@ fn bench_decide(c: &mut Criterion) {
         let srs = get_srs(degree);
         let acc = Accumulator2::rand(&srs, &mut thread_rng());
         let bench_name = format!("decide for degrees n={}", degree);
+
+        println!("kzh2-fold accumulator length in bytes: {} for degree {degree}", acc.compressed_size());
+
         c.bench_function(&bench_name, |b| {
             b.iter(|| {
                 let _ = Accumulator2::decide(&srs, &acc);

@@ -19,7 +19,7 @@ use ark_relations::ns;
 use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 
 use crate::kzh_fold::kzh2_fold::Acc2Instance;
-use crate::accumulation_circuit::affine_to_projective;
+use crate::kzh2_verifier_circuit::affine_to_projective;
 use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
 use crate::gadgets::non_native::util::non_native_to_fpvar;
 
@@ -240,7 +240,7 @@ pub mod tests {
     use rand::thread_rng;
 
     use crate::kzh_fold::kzh2_fold::Acc2Instance;
-    use crate::accumulation_circuit::instance_circuit::AccumulatorInstanceVar;
+    use crate::kzh2_verifier_circuit::instance_circuit::AccumulatorInstanceVar;
     use crate::constant_for_curves::{E, ScalarField};
 
     fn get_random_acc_instance() -> Acc2Instance<E> {

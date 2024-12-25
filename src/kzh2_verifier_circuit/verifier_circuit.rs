@@ -25,10 +25,10 @@ use ark_std::{end_timer, start_timer};
 use rand::thread_rng;
 
 use crate::kzh_fold::kzh2_fold::{Acc2Instance, Acc2SRS};
-use crate::accumulation_circuit::instance_circuit::AccumulatorInstanceVar;
-use crate::accumulation_circuit::prover::get_random_prover;
-use crate::accumulation_circuit::prover::AccumulatorVerifierCircuitProver;
-use crate::accumulation_circuit::randomness_different_formats;
+use crate::kzh2_verifier_circuit::instance_circuit::AccumulatorInstanceVar;
+use crate::kzh2_verifier_circuit::prover::get_random_prover;
+use crate::kzh2_verifier_circuit::prover::AccumulatorVerifierCircuitProver;
+use crate::kzh2_verifier_circuit::randomness_different_formats;
 use crate::commitment::CommitmentScheme;
 use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
 use crate::gadgets::non_native::util::{cast_field, non_native_to_fpvar};

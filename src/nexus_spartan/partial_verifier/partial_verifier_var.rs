@@ -1,4 +1,4 @@
-use crate::accumulation_circuit::affine_to_projective;
+use crate::kzh2_verifier_circuit::affine_to_projective;
 use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
 use crate::math::Math;
 use crate::nexus_spartan::partial_verifier::partial_verifier::SpartanPartialVerifier;

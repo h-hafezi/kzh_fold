@@ -10,7 +10,7 @@ pub mod polynomial;
 pub mod kzh;
 pub mod nova;
 pub mod gadgets;
-pub mod accumulation_circuit;
+pub mod kzh2_verifier_circuit;
 pub mod constant_for_curves;
 pub mod commitment;
 pub mod halo_infinite;

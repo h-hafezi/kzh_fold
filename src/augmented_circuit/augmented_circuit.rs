@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
-use crate::accumulation_circuit::instance_circuit::AccumulatorInstanceVar;
-use crate::accumulation_circuit::verifier_circuit::{AccumulatorVerifier, AccumulatorVerifierVar};
+use crate::kzh2_verifier_circuit::instance_circuit::AccumulatorInstanceVar;
+use crate::kzh2_verifier_circuit::verifier_circuit::{AccumulatorVerifier, AccumulatorVerifierVar};
 use crate::commitment::CommitmentScheme;
 use crate::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
 use crate::hash::poseidon::PoseidonHashVar;
@@ -178,8 +178,8 @@ where
 
 #[cfg(test)]
 mod test {
-    use crate::accumulation_circuit::prover::AccumulatorVerifierCircuitProver;
-    use crate::accumulation_circuit::verifier_circuit::AccumulatorVerifierVar;
+    use crate::kzh2_verifier_circuit::prover::AccumulatorVerifierCircuitProver;
+    use crate::kzh2_verifier_circuit::verifier_circuit::AccumulatorVerifierVar;
     use crate::augmented_circuit::augmented_circuit::AugmentedCircuitVar;
     use crate::constant_for_curves::{ScalarField as F, C2, E, G1, G2};
     use crate::kzh::kzh2::{KZH2, KZH2SRS};

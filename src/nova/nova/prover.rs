@@ -1,4 +1,4 @@
-use crate::accumulation_circuit::affine_to_projective;
+use crate::kzh2_verifier_circuit::affine_to_projective;
 use crate::commitment::{Commitment, CommitmentScheme};
 use crate::gadgets::non_native::util::cast_field;
 use crate::gadgets::r1cs::conversion::{convert_constraint_system_into_instance_witness, get_random_r1cs_instance_witness, get_random_relaxed_r1cs_instance_witness};
