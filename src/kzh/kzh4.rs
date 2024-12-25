@@ -76,13 +76,13 @@ where
     type Commitment = KZH4Commitment<E>;
     type Opening = KZH4Opening<E>;
 
-    fn split_input(srs: &Self::SRS, input: &[E::ScalarField]) -> Vec<Vec<E::ScalarField>> {
+    fn split_input<T: Clone>(srs: &Self::SRS, input: &[T], default: T) -> Vec<Vec<T>> {
         let total_length = srs.degree_x.log_2() + srs.degree_y.log_2() + srs.degree_z.log_2() + srs.degree_t.log_2();
 
         // If r is smaller than the required length, extend it with zeros at the beginning
         let mut extended_r = input.to_vec();
         if input.len() < total_length {
-            let mut zeros = vec![E::ScalarField::ZERO; total_length - input.len()];
+            let mut zeros = vec![default; total_length - input.len()];
             zeros.extend(extended_r);  // Prepend zeros to the beginning
             extended_r = zeros;
         }
@@ -212,7 +212,7 @@ where
         assert_eq!(poly.len, 1 << poly.num_variables);
         assert_eq!(poly.evaluation_over_boolean_hypercube.len(), poly.len);
 
-        let split_input = Self::split_input(&srs, input);
+        let split_input = Self::split_input(&srs, input, E::ScalarField::ZERO);
 
         let D_z = (0..srs.degree_z)
             .into_iter()
@@ -246,7 +246,7 @@ where
     }
 
     fn verify(srs: &Self::SRS, input: &[E::ScalarField], output: &E::ScalarField, com: &Self::Commitment, open: &Self::Opening) {
-        let split_input = Self::split_input(&srs, input);
+        let split_input = Self::split_input(&srs, input, E::ScalarField::ZERO);
 
         // making sure D_x is well-formatted
         let lhs = E::multi_pairing(&com.D_x, &srs.V_x).0;

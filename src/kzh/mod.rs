@@ -27,7 +27,7 @@ pub trait KZH<E: Pairing> where <E as Pairing>::ScalarField: Absorb {
     + ToAffine<E>;
     type Opening: Sync + CanonicalSerialize + CanonicalDeserialize + Debug;
 
-    fn split_input(srs: &Self::SRS, input: &[E::ScalarField]) -> Vec<Vec<E::ScalarField>>;
+    fn split_input<T: Clone>(srs: &Self::SRS, input: &[T], default: T) -> Vec<Vec<T>>;
 
     fn get_degree_from_maximum_supported_degree(n: usize) -> Self::Degree;
 

@@ -196,6 +196,7 @@ mod test {
     use crate::transcript::transcript::Transcript;
     use crate::transcript::transcript_var::TranscriptVar;
     use ark_ec::pairing::Pairing;
+    use ark_ff::Zero;
     use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
     use ark_relations::r1cs::{ConstraintSystem, SynthesisMode};
     use ark_serialize::CanonicalSerialize;
@@ -283,7 +284,7 @@ mod test {
             );
 
             let (x, y) = {
-                let split_input = KZH2::split_input(&pcs_srs, &ry[1..]);
+                let split_input = KZH2::split_input(&pcs_srs, &ry[1..], F::zero());
                 let x = split_input[0].clone();
                 let y = split_input[1].clone();
 

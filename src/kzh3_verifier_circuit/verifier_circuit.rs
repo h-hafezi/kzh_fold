@@ -21,7 +21,7 @@ use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
 use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::groups::curves::short_weierstrass::ProjectiveVar;
-use ark_r1cs_std::{R1CSVar, ToBitsGadget};
+use ark_r1cs_std::{ToBitsGadget};
 use ark_relations::ns;
 use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 use std::borrow::Borrow;

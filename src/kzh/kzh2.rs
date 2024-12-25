@@ -93,13 +93,13 @@ where
     /// the function receives an input r and splits into two sub-vectors x and y to be used for PCS
     /// It's used later when we have a constant SRS, and we pad the polynomial so we can commit to it via SRS
     /// This function in fact pads to polynomial inputs by appends necessary zeros and split the input into x and y input
-    fn split_input(srs: &Self::SRS, input: &[E::ScalarField]) -> Vec<Vec<E::ScalarField>> {
+    fn split_input<T: Clone>(srs: &Self::SRS, input: &[T], default: T) -> Vec<Vec<T>> {
         let total_length = srs.degree_x.log_2() + srs.degree_y.log_2();
 
         // If r is smaller than the required length, extend it with zeros at the beginning
         let mut extended_r = input.to_vec();
         if input.len() < total_length {
-            let mut zeros = vec![E::ScalarField::ZERO; total_length - input.len()];
+            let mut zeros = vec![default; total_length - input.len()];
             zeros.extend(extended_r);  // Prepend zeros to the beginning
             extended_r = zeros;
         }
@@ -210,7 +210,7 @@ where
         assert_eq!(poly.len, 1 << poly.num_variables);
         assert_eq!(poly.evaluation_over_boolean_hypercube.len(), poly.len);
 
-        let split_input = Self::split_input(&srs, input);
+        let split_input = Self::split_input(&srs, input, E::ScalarField::ZERO);
 
         KZH2Opening {
             D_x: com.aux.clone().into_iter().map(|g| g.into()).collect(),
@@ -219,7 +219,7 @@ where
     }
 
     fn verify(srs: &Self::SRS, input: &[E::ScalarField], output: &E::ScalarField, com: &Self::Commitment, open: &Self::Opening) {
-        let split_input = Self::split_input(&srs, input);
+        let split_input = Self::split_input(&srs, input, E::ScalarField::ZERO);
 
         // Step 1: pairing check
         // Combine the pairings into a single multi-pairing

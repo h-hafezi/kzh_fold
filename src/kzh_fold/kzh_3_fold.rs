@@ -197,7 +197,7 @@ impl<E: Pairing> Accumulator3<E> {
         <E as Pairing>::ScalarField: Absorb,
         <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
     {
-        let split_input = KZH3::split_input(&srs.pc_srs, input);
+        let split_input = KZH3::split_input(&srs.pc_srs, input, E::ScalarField::ZERO);
 
         let T = {
             let tree_x = EqTree::new(split_input[0].as_slice());
@@ -239,7 +239,7 @@ impl<E: Pairing> Accumulator3<E> {
         <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
     {
         // asserting the sizes are correct
-        let split_input = KZH3::split_input(&srs.pc_srs, input);
+        let split_input = KZH3::split_input(&srs.pc_srs, input, E::ScalarField::ZERO);
 
         Acc3Witness {
             D_x: com.D_x,
