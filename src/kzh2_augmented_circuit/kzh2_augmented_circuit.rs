@@ -31,7 +31,7 @@ type Output<'a, G2, C2, G1, F> = (
 );
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct AugmentedCircuit<G1, G2, C2, E, F>
+pub struct KZH2AugmentedCircuit<G1, G2, C2, E, F>
 where
     G1: SWCurveConfig + Clone,
     G1::BaseField: PrimeField,
@@ -48,7 +48,7 @@ where
     pub matrix_evaluation_verifier: MatrixEvaluationAccVerifier<F>,
 }
 
-pub struct AugmentedCircuitVar<G1, G2, C2, F>
+pub struct KZH2AugmentedCircuitVar<G1, G2, C2, F>
 where
     F: PrimeField + Absorb,
     G1::BaseField: PrimeField,
@@ -63,7 +63,7 @@ where
     pub matrix_evaluation_verifier: MatrixEvaluationAccVerifierVar<F>,
 }
 
-impl<G1, G2, C2, E, F> AllocVar<AugmentedCircuit<G1, G2, C2, E, F>, F> for AugmentedCircuitVar<G1, G2, C2, F>
+impl<G1, G2, C2, E, F> AllocVar<KZH2AugmentedCircuit<G1, G2, C2, E, F>, F> for KZH2AugmentedCircuitVar<G1, G2, C2, F>
 where
     G1: SWCurveConfig + Clone,
     G1::BaseField: PrimeField,
@@ -75,7 +75,7 @@ where
     E: Pairing<G1Affine=Affine<G1>, ScalarField=F>,
     F: PrimeField,
 {
-    fn new_variable<T: Borrow<AugmentedCircuit<G1, G2, C2, E, F>>>(
+    fn new_variable<T: Borrow<KZH2AugmentedCircuit<G1, G2, C2, E, F>>>(
         cs: impl Into<Namespace<F>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
@@ -110,7 +110,7 @@ where
             mode,
         )?;
 
-        Ok(AugmentedCircuitVar {
+        Ok(KZH2AugmentedCircuitVar {
             spartan_partial_verifier,
             kzh_acc_verifier,
             matrix_evaluation_verifier,
@@ -118,7 +118,7 @@ where
     }
 }
 
-impl<G1, G2, C2, F> AugmentedCircuitVar<G1, G2, C2, F>
+impl<G1, G2, C2, F> KZH2AugmentedCircuitVar<G1, G2, C2, F>
 where
     F: PrimeField + Absorb,
     G1::BaseField: PrimeField,
@@ -180,7 +180,7 @@ where
 mod test {
     use crate::kzh2_verifier_circuit::prover::KZH2VerifierCircuitProver;
     use crate::kzh2_verifier_circuit::verifier_circuit::KZH2VerifierVar;
-    use crate::augmented_circuit::augmented_circuit::AugmentedCircuitVar;
+    use crate::kzh2_augmented_circuit::kzh2_augmented_circuit::KZH2AugmentedCircuitVar;
     use crate::constant_for_curves::{ScalarField as F, C2, E, G1, G2};
     use crate::kzh::kzh2::{KZH2, KZH2SRS};
     use crate::kzh::KZH;
@@ -203,7 +203,7 @@ mod test {
 
     #[test]
     fn test() {
-        let poseidon_num = 1000;
+        let poseidon_num = 0;
 
         let (pcs_srs, spartan_shape, spartan_instance, spartan_proof, rx, ry) = {
             let num_vars = 131072;
@@ -367,7 +367,7 @@ mod test {
         };
 
         // construct the augmented circuit
-        let augmented_circuit = AugmentedCircuitVar {
+        let augmented_circuit = KZH2AugmentedCircuitVar {
             spartan_partial_verifier: partial_verifier_var,
             kzh_acc_verifier: acc_verifier_var,
             matrix_evaluation_verifier: matrix_evaluation_verifier_var,

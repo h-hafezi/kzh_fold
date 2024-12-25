@@ -7,7 +7,7 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use rand::thread_rng;
 use sqrtn_pcs::kzh2_verifier_circuit::prover::KZH2VerifierCircuitProver;
 use sqrtn_pcs::kzh2_verifier_circuit::verifier_circuit::KZH2VerifierVar;
-use sqrtn_pcs::augmented_circuit::augmented_circuit::AugmentedCircuitVar;
+use sqrtn_pcs::kzh2_augmented_circuit::kzh2_augmented_circuit::KZH2AugmentedCircuitVar;
 use sqrtn_pcs::constant_for_curves::{ScalarField as F, C2, E, G1, G2};
 use sqrtn_pcs::kzh::kzh2::{KZH2, KZH2SRS};
 use sqrtn_pcs::kzh::KZH;
@@ -193,7 +193,7 @@ fn bench_augmented_circuit(c: &mut Criterion) {
         };
 
         // construct the augmented circuit
-        let augmented_circuit = AugmentedCircuitVar {
+        let augmented_circuit = KZH2AugmentedCircuitVar {
             spartan_partial_verifier: partial_verifier_var,
             kzh_acc_verifier: acc_verifier_var,
             matrix_evaluation_verifier: matrix_evaluation_verifier_var,
