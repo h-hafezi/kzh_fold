@@ -180,6 +180,7 @@ where
 
 #[cfg(test)]
 mod test {
+    use ark_std::{end_timer, start_timer};
     use crate::constant_for_curves::{ScalarField as F, C2, E, G1, G2};
     use crate::kzh::kzh2::{KZH2, KZH2SRS};
     use crate::kzh::KZH;
@@ -205,13 +206,23 @@ mod test {
     use rand::thread_rng;
 
     #[test]
-    fn test() {
+    fn test_kzh2_augmented_circuit() {
         let poseidon_num = 0;
 
+        // Directly map poseidon_num to (num_vars, num_inputs)
+        let (num_vars, num_inputs) = match poseidon_num {
+            0 => (131072, 10),
+            150 => (524288, 1685),
+            1000 => (1048576, 1529),
+            2000 => (2097152, 4623),
+            _ => {
+                eprintln!("Error: Invalid poseidon_num value!");
+                return;
+            }
+        };
+
         let (pcs_srs, spartan_shape, spartan_instance, spartan_proof, rx, ry) = {
-            let num_vars = 131072;
             let num_cons = num_vars;
-            let num_inputs = 10;
 
             // this generates a new instance/witness for spartan as well as PCS parameters
             let (spartan_shape, spartan_instance, spartan_witness, spartan_key) = produce_synthetic_crr1cs::<E, KZH2<E>>(num_cons, num_vars, num_inputs);
@@ -410,7 +421,9 @@ mod test {
         );
 
         // evaluate matrices A B C
+        let A_B_C_eval_timer = start_timer!(|| "ABC evals");
         let inst_evals = shape.inst.inst.evaluate(&rx, &ry);
+        end_timer!(A_B_C_eval_timer);
 
         let mut new_verifier_transcript = Transcript::new(b"example");
         assert!(proof
