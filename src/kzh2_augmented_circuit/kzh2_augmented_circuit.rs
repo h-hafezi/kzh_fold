@@ -221,6 +221,8 @@ mod test {
             }
         };
 
+        println!("[*] KZH2: Poseidon num: {}, Num cons: {}", poseidon_num, num_vars);
+
         let (pcs_srs, spartan_shape, spartan_instance, spartan_proof, rx, ry) = {
             let num_cons = num_vars;
 
