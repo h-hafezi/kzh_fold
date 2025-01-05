@@ -1,3 +1,4 @@
+#![allow(warnings)]
 #![allow(non_snake_case)]
 #[cfg_attr(test, allow(dead_code))]
 
