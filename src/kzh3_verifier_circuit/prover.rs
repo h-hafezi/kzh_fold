@@ -531,7 +531,7 @@ pub mod tests {
         let Q = prover.compute_proof_Q();
 
         // get the accumulated result
-        let new_acc_instance = Accumulator3::prove(
+        let _ = Accumulator3::prove(
             &prover.srs,
             &prover.current_accumulator,
             &prover.running_accumulator,

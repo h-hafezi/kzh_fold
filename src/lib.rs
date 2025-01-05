@@ -1,6 +1,5 @@
-#![allow(warnings)]
 #![allow(non_snake_case)]
-#[cfg_attr(test, allow(dead_code))]
+#![allow(dead_code)]
 
 pub mod utils;
 pub mod kzh_fold;

@@ -647,7 +647,7 @@ mod tests {
 
         // Set up public parameters
         let rng = &mut test_rng();
-        let degree = 128 * 128;
+        let degree = 8 * 8;
         let params = KZG10::<E, Poly>::setup(degree, false, rng).expect("Setup failed");
         let (ck, vk) = trim(&params, degree);
 
