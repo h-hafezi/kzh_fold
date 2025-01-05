@@ -62,7 +62,10 @@ fn bench_nova_prover(c: &mut Criterion) {
         }
 
         println!("Number of constraints of the augmented circuit: {}", cs.num_constraints());
-        println!("accumulator size: {}", prover.current_accumulator.compressed_size());
+
+        // sum of these two numbers is the accumulator size for Nova
+        println!("current accumulator size: {}", prover.current_accumulator.compressed_size());
+        println!("running accumulator size: {}", prover.running_accumulator.compressed_size());
 
         // the cs has to be finalised before the matrices A, B and C are generated
         cs.set_mode(SynthesisMode::Prove { construct_matrices: true });
