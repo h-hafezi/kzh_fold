@@ -17,9 +17,9 @@ You can run the tests using `cargo test --release` and the benchmarks using `car
 
 ```
 src/
-├── accumulation: KZH accumulation implementation (out of circuit)
-├── accumulation_circuit: Circuit implementation of the KZH accumulation verifier
-├── augmented_circuit: Augmented circuit implementation for KZH-based folding it includes KZH acc verifier circuit, Spartan partial verifier and matrix evaluation accumulator verifier
+├── kzh_fold: KZH accumulation implementation (out of circuit)
+├── kzh2_augmented_circuit: Augmented circuit implementation for KZH2-based folding it includes KZH acc verifier circuit, Spartan partial verifier and matrix evaluation accumulator verifier
+├── kzh3_augmented_circuit: Same as above but for KZH3
 ├── halo_infinite: Halo Infinite Private Aggregation
 ├── hash: Poseidon implementation (in circuit and out of circuit)
 ├── nexus_spartan: Spartan implementation by Nexus (plus our own modifications as indicated below)
@@ -28,7 +28,7 @@ src/
 │   ├── polycommitment: KZH wrapper used for Spartan
 │   ├── sumcheck_circuit: Sumcheck verification circuit
 ├── nova: Nova implementation for benchmarking purposes
-├── pcs: Implementation of the KZH and KZH_3 PCS
+├── kzh: Implementation of the KZH and KZH_3 PCS
 ├── signature_aggregation: Implementation of the signature aggregation protocol
 ```
 
