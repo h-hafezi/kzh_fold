@@ -113,7 +113,7 @@ fn custom_criterion_config() -> Criterion {
 criterion_group! {
     name = kzh2_benches;
     config = custom_criterion_config();
-    targets = bench, low_weight_bench
+    targets = bench
 }
 
 criterion_main!(kzh2_benches);

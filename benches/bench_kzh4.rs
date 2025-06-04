@@ -1,4 +1,4 @@
-#![allow(non_snake_case)]
+/*#![allow(non_snake_case)]
 #![allow(unused_imports)]
 
 use ark_poly::EvaluationDomain;
@@ -57,7 +57,7 @@ fn bench(c: &mut Criterion) {
 
         let open = KZH4::open(&srs, input.as_slice(), &com, &polynomial);
 
-        println!("kzh4 witness length in bytes: {} for degree {n}", open.compressed_size());
+        println!("kzh4 witness length in bytes: {} for degree {n}", open.compressed_size() + com.compressed_size());
 
         let z = polynomial.evaluate(&input);
 
@@ -124,7 +124,8 @@ fn custom_criterion_config() -> Criterion {
 criterion_group! {
     name = kzh4_benches;
     config = custom_criterion_config();
-    targets =  bench, low_weight_bench
+    targets =  bench
 }
 
 criterion_main!(kzh4_benches);
+ */
