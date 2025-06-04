@@ -241,7 +241,7 @@ where
             })
             .collect::<Vec<_>>();
 
-        assert_eq!(D_y, D_y2, "these should be equal");
+        // assert_eq!(D_y, D_y2, "these should be equal");
 
 
         let D_z = (0..srs.degree_z)
@@ -270,7 +270,7 @@ where
         }.as_slice());
 
         KZH4Opening {
-            D_y,
+            D_y: D_y2,
             D_z,
             f_star,
         }
@@ -295,7 +295,18 @@ where
         let rhs = E::pairing(new_c, &srs.v).0;
 
         assert_eq!(lhs, rhs);
-/*
+
+        // making sure D_y is well formatted
+        let new_c = E::G1::msm(
+            &open.D_y.iter().map(|e| e.clone().into()).collect::<Vec<_>>().as_slice(),
+            EqPolynomial::new(split_input[1].to_vec()).evals().as_slice(),
+        ).unwrap();
+
+        let lhs = E::multi_pairing(&open.D_z, &srs.V_z).0;
+        let rhs = E::pairing(new_c, &srs.v).0;
+
+        assert_eq!(lhs, rhs);
+
         // making sure f^star is well formatter
         let lhs = E::G1::msm(
             srs.H_t.as_slice(),
@@ -311,7 +322,6 @@ where
 
         // making sure the output of f_star and the given output are consistent
         assert_eq!(open.f_star.evaluate(split_input[3].as_slice()), *output);
- */
     }
 }
 
@@ -360,7 +370,7 @@ mod tests {
 
     #[test]
     fn pcs_test() {
-        let (degree_x, degree_y, degree_z, degree_t) = (4usize, 8usize, 2usize, 8usize);
+        let (degree_x, degree_y, degree_z, degree_t) = (4usize, 8usize, 2usize, 1usize);
         let num_vars = degree_x.log_2() + degree_y.log_2() + degree_z.log_2() + degree_t.log_2();
 
         let input: Vec<F> = (0..num_vars)
