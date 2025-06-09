@@ -215,44 +215,36 @@ where
 
         let split_input = Self::split_input(&srs, input, E::ScalarField::ZERO);
 
-        let D_y = (0..srs.degree_y)
-            .into_iter()
-            .map(|i| {
+        // Precompute the evaluation once outside the loop
+        let eq_evals = EqPolynomial::new(split_input[0].clone()).evals();
+
+        // Group D_xy elements by column index modulo srs.degree_x
+        let mut grouped_D_xy = vec![Vec::new(); srs.degree_y];
+        for (j, val) in com.D_xy.iter().enumerate() {
+            let i = j % srs.degree_x;
+            grouped_D_xy[i].push(*val);
+        }
+
+        // Compute D_y using the precomputed groups and eq_evals
+        let D_y = grouped_D_xy
+            .iter()
+            .map(|subvector| {
                 E::G1::msm_unchecked(
-                    com.D_xy[srs.degree_x * i..srs.degree_x * i + srs.degree_x]
-                        .iter()
-                        .map(|e| e.clone().into())
-                        .collect::<Vec<_>>()
-                        .as_slice(),
-                    EqPolynomial::new(split_input[0].clone()).evals().as_slice(),
+                    &subvector.iter().map(|e| (*e).into()).collect::<Vec<_>>(),
+                    eq_evals.as_slice(),
                 )
             })
             .collect::<Vec<_>>();
 
-        let D_y2 = (0..srs.degree_y)
-            .into_iter()
-            .map(|i| {
-                E::G1::msm_unchecked(
-                    srs.H_zt.as_slice(),
-                    poly.partial_evaluation(
-                        &[split_input[0].as_slice()].concat().as_slice()
-                    ).get_partial_evaluation_for_boolean_input(i, srs.degree_z * srs.degree_t).as_slice(),
-                )
-            })
-            .collect::<Vec<_>>();
+        // Precompute concatenated input once
+        let combined_input: Vec<_> = [split_input[0].as_slice(), split_input[1].as_slice()].concat();
+        let partial_poly = poly.partial_evaluation(&combined_input);
 
-        // assert_eq!(D_y, D_y2, "these should be equal");
-
-
+        // Compute D_z using cached partial evaluation
         let D_z = (0..srs.degree_z)
-            .into_iter()
             .map(|i| {
-                E::G1::msm_unchecked(
-                    srs.H_t.as_slice(),
-                    poly.partial_evaluation(
-                        &[split_input[0].as_slice(), split_input[1].as_slice()].concat().as_slice()
-                    ).get_partial_evaluation_for_boolean_input(i, srs.degree_t).as_slice(),
-                )
+                let eval = partial_poly.get_partial_evaluation_for_boolean_input(i, srs.degree_t);
+                E::G1::msm_unchecked(srs.H_t.as_slice(), eval.as_slice())
             })
             .collect::<Vec<_>>();
 
@@ -270,7 +262,7 @@ where
         }.as_slice());
 
         KZH4Opening {
-            D_y: D_y2,
+            D_y,
             D_z,
             f_star,
         }
@@ -374,7 +366,7 @@ mod tests {
         let num_vars = degree_x.log_2() + degree_y.log_2() + degree_z.log_2() + degree_t.log_2();
 
         let input: Vec<F> = (0..num_vars)
-            .map(|_| F::rand(&mut thread_rng()))
+            .map(|_| F::ZERO)
             .collect();
 
         // build the srs

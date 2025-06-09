@@ -1,4 +1,4 @@
-/*#![allow(non_snake_case)]
+#![allow(non_snake_case)]
 #![allow(unused_imports)]
 
 use ark_poly::EvaluationDomain;
@@ -128,4 +128,3 @@ criterion_group! {
 }
 
 criterion_main!(kzh4_benches);
- */
