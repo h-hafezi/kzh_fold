@@ -65,6 +65,8 @@ pub struct KZH4Commitment<E: Pairing> {
     pub C: E::G1Affine,
     pub D_x: Vec<E::G1>,
     pub D_xy: Vec<E::G1>,
+    pub D_xyz: Vec<E::G1>,
+
 }
 
 impl<E: Pairing> KZH<E> for KZH4<E>
@@ -197,7 +199,16 @@ where
                 )
             }).collect::<Vec<_>>();
 
-        KZH4Commitment { C, D_x, D_xy }
+        let D_xyz = (0..srs.degree_x * srs.degree_y * srs.degree_z)
+            .into_iter()
+            .map(|i| {
+                E::G1::msm_unchecked(
+                    srs.H_t.as_slice(),
+                    poly.get_partial_evaluation_for_boolean_input(i, srs.degree_t).as_slice(),
+                )
+            }).collect::<Vec<_>>();
+
+        KZH4Commitment { C, D_x, D_xy , D_xyz }
     }
 
     fn open( 
@@ -221,7 +232,7 @@ where
         // Group D_xy elements by column index modulo srs.degree_x
         let mut grouped_D_xy = vec![Vec::new(); srs.degree_y];
         for (j, val) in com.D_xy.iter().enumerate() {
-            let i = j % srs.degree_x;
+            let i = j % srs.degree_y;
             grouped_D_xy[i].push(*val);
         }
 
@@ -238,15 +249,43 @@ where
 
         // Precompute concatenated input once
         let combined_input: Vec<_> = [split_input[0].as_slice(), split_input[1].as_slice()].concat();
+
+        // Group D_xy elements by column index modulo srs.degree_x
+        let mut grouped_D_xyz = vec![Vec::<E::G1>::new(); srs.degree_z];
+        for (j, val) in com.D_xyz.iter().enumerate() {
+            let i = j % srs.degree_z;
+            grouped_D_xyz[i].push(*val);
+        }
+
+        // Precompute the evaluation once outside the loop
+        let eq_evals = EqPolynomial::new(combined_input.clone()).evals();
+
+        // Compute D_z using the precomputed groups and eq_evals\
+        // when eq_val corresponds to a binary point, it's selecting one vector from grouped_D_xyz and the rest are zeros
+        let D_z_prime = grouped_D_xyz
+            .iter()
+            .map(|subvector| {
+                E::G1::msm_unchecked(
+                    &subvector.iter().map(|e| (*e).into()).collect::<Vec<_>>(),
+                    eq_evals.as_slice(),
+                )
+            })
+            .collect::<Vec<_>>();
+
+        println!("yo: {:?}", eq_evals);
+
         let partial_poly = poly.partial_evaluation(&combined_input);
 
         // Compute D_z using cached partial evaluation
         let D_z = (0..srs.degree_z)
             .map(|i| {
                 let eval = partial_poly.get_partial_evaluation_for_boolean_input(i, srs.degree_t);
+                println!("{:?}", eval);
                 E::G1::msm_unchecked(srs.H_t.as_slice(), eval.as_slice())
             })
             .collect::<Vec<_>>();
+
+        assert_eq!(D_z, D_z_prime);
 
         assert_eq!(split_input[0].len(), srs.degree_x.log_2(), "wrong length");
         assert_eq!(split_input[1].len(), srs.degree_y.log_2(), "wrong length");
@@ -356,6 +395,7 @@ fn decompose_index(i: usize, degree_y: usize, degree_z: usize, degree_t: usize) 
 
 #[cfg(test)]
 mod tests {
+    use ark_ff::{One, Zero};
     use super::*;
     use crate::constant_for_curves::{ScalarField as F, E};
     use rand::thread_rng;
@@ -366,7 +406,13 @@ mod tests {
         let num_vars = degree_x.log_2() + degree_y.log_2() + degree_z.log_2() + degree_t.log_2();
 
         let input: Vec<F> = (0..num_vars)
-            .map(|_| F::ZERO)
+            .map(|_| {
+                if rand::random::<bool>() {
+                    F::one()
+                } else {
+                    F::zero()
+                }
+            })
             .collect();
 
         // build the srs
