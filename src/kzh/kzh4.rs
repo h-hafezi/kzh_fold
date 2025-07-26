@@ -7,7 +7,7 @@ use crate::transcript::transcript::{AppendToTranscript, Transcript};
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
 use ark_ec::{AffineRepr, VariableBaseMSM};
-use ark_ff::{AdditiveGroup, PrimeField};
+use ark_ff::{AdditiveGroup, One, PrimeField};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::UniformRand;
 use derivative::Derivative;
@@ -229,47 +229,32 @@ where
         // Precompute the evaluation once outside the loop
         let eq_evals = EqPolynomial::new(split_input[0].clone()).evals();
 
-        // Group D_xy elements by column index modulo srs.degree_x
-        let mut grouped_D_xy = vec![Vec::new(); srs.degree_y];
-        for (j, val) in com.D_xy.iter().enumerate() {
-            let i = j % srs.degree_y;
-            grouped_D_xy[i].push(*val);
-        }
-
-        // Compute D_y using the precomputed groups and eq_evals
-        let D_y = grouped_D_xy
+        // Find the index `i` such that eq_evals[i] == 1
+        let i = eq_evals
             .iter()
-            .map(|subvector| {
-                E::G1::msm_unchecked(
-                    &subvector.iter().map(|e| (*e).into()).collect::<Vec<_>>(),
-                    eq_evals.as_slice(),
-                )
-            })
+            .position(|x| x.is_one())
+            .expect("eq_evals should contain exactly one '1'");
+
+        // Build D_y efficiently using direct indexing
+        let D_y = (0..srs.degree_y)
+            .map(|j| com.D_xy[i * srs.degree_y + j])
             .collect::<Vec<_>>();
 
         // Precompute concatenated input once
         let combined_input: Vec<_> = [split_input[0].as_slice(), split_input[1].as_slice()].concat();
 
-        // Group D_xy elements by column index modulo srs.degree_x
-        let mut grouped_D_xyz = vec![Vec::<E::G1>::new(); srs.degree_z];
-        for (j, val) in com.D_xyz.iter().enumerate() {
-            let i = j % srs.degree_z;
-            grouped_D_xyz[i].push(*val);
-        }
-
         // Precompute the evaluation once outside the loop
         let eq_evals = EqPolynomial::new(combined_input.clone()).evals();
 
-        // Compute D_z using the precomputed groups and eq_evals\
-        // when eq_val corresponds to a binary point, it's selecting one vector from grouped_D_xyz and the rest are zeros
-        let D_z_prime = grouped_D_xyz
+        // Find the index `i` such that eq_evals[i] == 1
+        let i = eq_evals
             .iter()
-            .map(|subvector| {
-                E::G1::msm_unchecked(
-                    &subvector.iter().map(|e| (*e).into()).collect::<Vec<_>>(),
-                    eq_evals.as_slice(),
-                )
-            })
+            .position(|x| x.is_one())
+            .expect("eq_evals should contain exactly one '1'");
+
+        // Build D_z_prime efficiently using direct indexing
+        let D_z_prime = (0..srs.degree_z)
+            .map(|j| com.D_xyz[i * srs.degree_z + j])
             .collect::<Vec<_>>();
 
         println!("yo: {:?}", eq_evals);
