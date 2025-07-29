@@ -23,14 +23,32 @@ impl<F: Field + Copy> EqPolynomial<F> {
 
     pub fn evals(&self) -> Vec<F> {
         let ell = self.r.len();
+        let domain_size = 1 << ell; // same as 2^ell
 
-        let mut evals: Vec<F> = vec![F::one(); ell.pow2()];
+        // Check if all values in r are either 0 or 1
+        let is_boolean = self.r.iter().all(|x| *x == F::zero() || *x == F::one());
+
+        if is_boolean {
+            // Compute the index of the one-hot value
+            let mut index = 0usize;
+            for (i, bit) in self.r.iter().rev().enumerate() {
+                if *bit == F::one() {
+                    index |= 1 << i;
+                }
+            }
+
+            // Create a one-hot vector
+            let mut evals = vec![F::zero(); domain_size];
+            evals[index] = F::one();
+            return evals;
+        }
+
+        // Fall back to full computation if not boolean
+        let mut evals: Vec<F> = vec![F::one(); domain_size];
         let mut size = 1;
         for j in 0..ell {
-            // in each iteration, we double the size of chis
             size *= 2;
             for i in (0..size).rev().step_by(2) {
-                // copy each element from the prior iteration twice
                 let scalar = evals[i / 2];
                 evals[i] = scalar * self.r[j];
                 evals[i - 1] = scalar - evals[i];

@@ -217,6 +217,19 @@ where
         com: &Self::Commitment,
         poly: &MultilinearPolynomial<E::ScalarField>
     ) -> Self::Opening {
+        let compute_index = |r: &[E::ScalarField]| -> usize {
+            r.iter()
+                .rev()
+                .enumerate()
+                .fold(0, |acc, (i, bit)| {
+                    if *bit == E::ScalarField::one() {
+                        acc | (1 << i)
+                    } else {
+                        acc
+                    }
+                })
+        };
+
         let len = srs.degree_x.log_2() + srs.degree_y.log_2() + srs.degree_z.log_2() + srs.degree_t.log_2();
         let poly = poly.extend_number_of_variables(len);
 
@@ -226,14 +239,8 @@ where
 
         let split_input = Self::split_input(&srs, input, E::ScalarField::ZERO);
 
-        // Precompute the evaluation once outside the loop
-        let eq_evals = EqPolynomial::new(split_input[0].clone()).evals();
-
         // Find the index `i` such that eq_evals[i] == 1
-        let i = eq_evals
-            .iter()
-            .position(|x| x.is_one())
-            .expect("eq_evals should contain exactly one '1'");
+        let i = compute_index(split_input[0].as_slice());
 
         // Build D_y efficiently using direct indexing
         let D_y = (0..srs.degree_y)
@@ -244,20 +251,12 @@ where
         let combined_input: Vec<_> = [split_input[0].as_slice(), split_input[1].as_slice()].concat();
 
         // Precompute the evaluation once outside the loop
-        let eq_evals = EqPolynomial::new(combined_input.clone()).evals();
-
-        // Find the index `i` such that eq_evals[i] == 1
-        let i = eq_evals
-            .iter()
-            .position(|x| x.is_one())
-            .expect("eq_evals should contain exactly one '1'");
+        let i = compute_index(combined_input.as_slice());
 
         // Build D_z_prime efficiently using direct indexing
         let D_z_prime = (0..srs.degree_z)
             .map(|j| com.D_xyz[i * srs.degree_z + j])
             .collect::<Vec<_>>();
-
-        println!("yo: {:?}", eq_evals);
 
         let partial_poly = poly.partial_evaluation(&combined_input);
 
@@ -265,7 +264,6 @@ where
         let D_z = (0..srs.degree_z)
             .map(|i| {
                 let eval = partial_poly.get_partial_evaluation_for_boolean_input(i, srs.degree_t);
-                println!("{:?}", eval);
                 E::G1::msm_unchecked(srs.H_t.as_slice(), eval.as_slice())
             })
             .collect::<Vec<_>>();
