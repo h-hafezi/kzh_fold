@@ -10,7 +10,7 @@ use ark_ec::pairing::Pairing;
 use ark_ec::AffineRepr;
 use ark_ff::PrimeField;
 use ark_ff::UniformRand;
-use rand::RngCore;
+use rand::{thread_rng, RngCore};
 
 #[derive(Clone, Debug)]
 pub struct SignatureAggrSRS<E: Pairing> {
@@ -81,9 +81,9 @@ where
         let b_2_poly = MultilinearPolynomial::random_binary(num_vars, rng);
         let c_poly = b_1_poly.get_bitfield_union_poly(&b_2_poly);
 
-        let B_1_commitment = KZH2::commit(&srs.pc_srs, &b_1_poly);
-        let B_2_commitment = KZH2::commit(&srs.pc_srs, &b_2_poly);
-        let C_commitment = KZH2::commit(&srs.pc_srs, &c_poly);
+        let (B_1_commitment, B_1_aux) = KZH2::commit(&srs.pc_srs, &b_1_poly, rng);
+        let (B_2_commitment, B_2_aux) = KZH2::commit(&srs.pc_srs, &b_2_poly, rng);
+        let (C_commitment, C_aux) = KZH2::commit(&srs.pc_srs, &c_poly, rng);
 
         // Some random stuff for the sig/pk
         let sig = E::G2Affine::rand(rng);
@@ -193,16 +193,19 @@ where
     <<E as Pairing>::G1Affine as AffineRepr>::BaseField: Absorb + PrimeField,
     F: PrimeField + Absorb,
 {
-    let bitfield_commitment = KZH2::commit(
+    let (bitfield_commitment, bitfield_aux) = KZH2::commit(
         &acc_srs.pc_srs,
         bitfield_poly,
+        &mut thread_rng()
     );
 
     let opening_proof = KZH2::open(
         &acc_srs.pc_srs,
         eval_point,
         &bitfield_commitment,
+        &bitfield_aux,
         &bitfield_poly,
+        &mut thread_rng()
     );
 
     let split_eval_point = KZH2::split_input(&acc_srs.pc_srs, eval_point, F::ZERO);
@@ -301,7 +304,7 @@ where
         let b_2_poly = &self.bob_data.bitfield_poly;
 
         let c_poly = b_1_poly.get_bitfield_union_poly(&b_2_poly);
-        let C_commitment = KZH2::commit(&self.srs.acc_srs.pc_srs, &c_poly);
+        let (C_commitment, C_aux) = KZH2::commit(&self.srs.acc_srs.pc_srs, &c_poly, &mut thread_rng());
 
         // Step 3: Get r from verifier: it's the evaluation point challenge (for the zerocheck)
         transcript.append_point::<E>(
@@ -491,7 +494,7 @@ pub mod test {
 
         // Generate random running data for Alice
         let alice_bitfield = MultilinearPolynomial::random_binary(num_vars, rng);
-        let alice_bitfield_commitment = KZH2::commit(&srs.acc_srs.pc_srs, &alice_bitfield);
+        let (alice_bitfield_commitment, alice_bitfield_aux) = KZH2::commit(&srs.acc_srs.pc_srs, &alice_bitfield, rng);
         let alice_running_accumulator = Accumulator2::rand(&srs.acc_srs, rng);
         let alice_running_sig = G2Affine::rand(rng);
         let alice_running_pk = G1Affine::rand(rng);

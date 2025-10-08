@@ -15,7 +15,8 @@ use rand::Rng;
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
 use std::marker::PhantomData;
-use std::ops::Mul;
+use std::ops::{Add, Mul};
+use crate::kzh::kzh2::{KZH2Aux, KZH2Commitment};
 
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize, Derivative)]
 pub struct KZH3<E: Pairing> {
@@ -42,6 +43,7 @@ pub struct KZH3SRS<E: Pairing> {
 
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize, Derivative)]
 pub struct KZH3Opening<E: Pairing> {
+    pub D_x: Vec<E::G1>,
     pub D_y: Vec<E::G1>,
     pub C_y: E::G1Affine,
     pub f_star: MultilinearPolynomial<E::ScalarField>,
@@ -58,8 +60,21 @@ pub struct KZH3Opening<E: Pairing> {
     Derivative
 )]
 pub struct KZH3Commitment<E: Pairing> {
-    pub D_x: Vec<E::G1>,
     pub C: E::G1Affine,
+}
+
+#[derive(
+    Default,
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    CanonicalSerialize,
+    CanonicalDeserialize,
+    Derivative
+)]
+pub struct KZH3Aux<E: Pairing> {
+    pub D_x: Vec<E::G1>,
 }
 
 impl<E: Pairing> KZH<E> for KZH3<E>
@@ -70,6 +85,7 @@ where
     type Degree = (usize, usize, usize);
     type SRS = KZH3SRS<E>;
     type Commitment = KZH3Commitment<E>;
+    type Aux = KZH3Aux<E>;
     type Opening = KZH3Opening<E>;
 
     fn split_input<T: Clone>(srs: &Self::SRS, input: &[T], default: T) -> Vec<Vec<T>> {
@@ -161,28 +177,37 @@ where
         }
     }
 
-    fn commit(srs: &Self::SRS, poly: &MultilinearPolynomial<E::ScalarField>) -> Self::Commitment {
+    fn commit<R: Rng>(srs: &Self::SRS, poly: &MultilinearPolynomial<E::ScalarField>, _: &mut R) -> (Self::Commitment, Self::Aux) {
         let len = srs.degree_x.log_2() + srs.degree_y.log_2() + srs.degree_z.log_2();
         let poly = poly.extend_number_of_variables(len);
         assert_eq!(poly.num_variables, len);
         assert_eq!(poly.len, 1 << poly.num_variables);
         assert_eq!(poly.evaluation_over_boolean_hypercube.len(), poly.len);
 
-        KZH3Commitment {
-            D_x: (0..srs.degree_x)
-                .into_par_iter()
-                .map(|i| {
-                    E::G1::msm_unchecked(
-                        srs.H_yz.as_slice(),
-                        poly.get_partial_evaluation_for_boolean_input(i, srs.degree_y * srs.degree_z).as_slice(),
-                    )
-                })
-                .collect::<Vec<_>>(),
-            C: E::G1::msm(&srs.H_xyz, &poly.evaluation_over_boolean_hypercube).unwrap().into(),
-        }
+        (
+            KZH3Commitment { C: E::G1::msm(&srs.H_xyz, &poly.evaluation_over_boolean_hypercube).unwrap().into() },
+            KZH3Aux {
+                D_x: (0..srs.degree_x)
+                    .into_par_iter()
+                    .map(|i| {
+                        E::G1::msm_unchecked(
+                            srs.H_yz.as_slice(),
+                            poly.get_partial_evaluation_for_boolean_input(i, srs.degree_y * srs.degree_z).as_slice(),
+                        )
+                    })
+                    .collect::<Vec<_>>(),
+            }
+        )
     }
 
-    fn open(srs: &Self::SRS, input: &[E::ScalarField], com: &Self::Commitment, poly: &MultilinearPolynomial<E::ScalarField>) -> Self::Opening {
+    fn open<R: Rng>(
+        srs: &Self::SRS,
+        input: &[E::ScalarField],
+        com: &Self::Commitment,
+        aux: &Self::Aux,
+        poly: &MultilinearPolynomial<E::ScalarField>,
+        _: &mut R
+    ) -> Self::Opening {
         let len = srs.degree_x.log_2() + srs.degree_y.log_2() + srs.degree_z.log_2();
         let poly = poly.extend_number_of_variables(len);
         assert_eq!(poly.num_variables, len);
@@ -218,11 +243,12 @@ where
         }.as_slice());
 
         let C_y = E::G1::msm(
-            &com.D_x.iter().map(|e| e.clone().into()).collect::<Vec<_>>().as_slice(),
+            &aux.D_x.iter().map(|e| e.clone().into()).collect::<Vec<_>>().as_slice(),
             EqPolynomial::new(split_input[0].clone()).evals().as_slice(),
         ).unwrap().into();
 
         KZH3Opening {
+            D_x: aux.D_x.clone(),
             D_y,
             C_y,
             f_star,
@@ -233,7 +259,7 @@ where
         let split_input = Self::split_input(&srs, input, E::ScalarField::ZERO);
 
         // making sure D_x is well-formatted
-        let lhs = E::multi_pairing(&com.D_x, &srs.V_x).0;
+        let lhs = E::multi_pairing(&open.D_x, &srs.V_x).0;
         let rhs = E::pairing(com.C, &srs.v).0;
 
         assert_eq!(lhs, rhs);
@@ -241,7 +267,7 @@ where
         // making sure D_y is well formatted
         assert_eq!(
             E::G1::msm(
-                &com.D_x.iter().map(|e| e.clone().into()).collect::<Vec<_>>().as_slice(),
+                &open.D_x.iter().map(|e| e.clone().into()).collect::<Vec<_>>().as_slice(),
                 EqPolynomial::new(split_input[0].clone()).evals().as_slice(),
             ).unwrap().into_affine(),
             open.C_y,
@@ -280,8 +306,18 @@ where
     }
 }
 
+impl<E: Pairing, F: PrimeField + Absorb> AppendToTranscript<F> for KZH3Aux<E>
+where
+    E: Pairing<ScalarField=F>,
+    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
+{
+    fn append_to_transcript(&self, label: &'static [u8], transcript: &mut Transcript<F>) {
+
+    }
+}
+
 impl<E: Pairing> ToAffine<E> for KZH3Commitment<E> {
-    fn to_affine(self) -> E::G1Affine {
+    fn to_affine(&self) -> E::G1Affine {
         self.C
     }
 }
@@ -301,6 +337,64 @@ fn decompose_index(i: usize, degree_y: usize, degree_z: usize) -> (usize, usize,
 
     (i_x, i_y, i_z)
 }
+
+impl<E: Pairing> KZH3Commitment<E> {
+    /// Scales the commitment by a scalar `r`
+    pub fn scale_by_r(&mut self, r: &E::ScalarField) {
+        // Scale the main commitment C by r
+        let scaled_C = self.C.mul(r); // G1Affine -> G1Projective when multiplied by scalar
+
+        // Update the commitment with the scaled values
+        self.C = scaled_C.into_affine();  // Convert back to G1Affine after multiplication
+    }
+}
+
+impl<E: Pairing> KZH3Aux<E> {
+    /// Scales the auxiliary elements by a scalar `r`
+    pub fn scale_by_r(&mut self, r: &E::ScalarField) {
+        // Scale each element in the aux vector by r
+        let scaled_aux: Vec<E::G1> = self.D_x.iter()
+            .map(|element| element.mul(r))  // Multiply each element in aux by r
+            .collect();
+        self.D_x = scaled_aux;
+    }
+}
+
+impl<E: Pairing> Add for KZH3Commitment<E> {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        // Add the main commitment points C
+        let C = (self.C + other.C).into_affine();
+
+        // Return a new Commitment with the resulting sums
+        KZH3Commitment {
+            C,
+        }
+    }
+}
+
+impl<E: Pairing> Add for KZH3Aux<E> {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        // Ensure both commitments have the same size in aux vectors
+        assert_eq!(self.D_x.len(), other.D_x.len(), "Aux vectors must have the same length");
+
+        // Add the corresponding elements in the aux vector
+        let new_aux: Vec<E::G1> = self.D_x.iter()
+            .zip(other.D_x.iter())
+            .map(|(a, b)| *a + *b)
+            .collect();
+
+        // Return a new Commitment with the resulting sums
+        KZH3Aux {
+            D_x: new_aux,
+        }
+    }
+}
+
+
 
 #[cfg(test)]
 mod tests {
@@ -344,12 +438,12 @@ mod tests {
         let eval = polynomial.evaluate(input.as_slice());
 
         // commit to the polynomial
-        let c = KZH3::commit(&srs, &polynomial);
+        let (com, aux) = KZH3::commit(&srs, &polynomial, &mut thread_rng());
 
         // open it
-        let open = KZH3::open(&srs, input.as_slice(), &c, &polynomial);
+        let open = KZH3::open(&srs, input.as_slice(), &com, &aux, &polynomial, &mut thread_rng());
 
         // verify the commit
-        KZH3::verify(&srs, input.as_slice(), &eval, &c, &open);
+        KZH3::verify(&srs, input.as_slice(), &eval, &com, &open);
     }
 }

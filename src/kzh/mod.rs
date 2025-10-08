@@ -25,6 +25,8 @@ pub trait KZH<E: Pairing> where <E as Pairing>::ScalarField: Absorb {
     + Clone
     + AppendToTranscript<E::ScalarField>
     + ToAffine<E>;
+    type Aux: AppendToTranscript<E::ScalarField> + Sync + CanonicalSerialize + CanonicalDeserialize + Debug;
+
     type Opening: Sync + CanonicalSerialize + CanonicalDeserialize + Debug;
 
     fn split_input<T: Clone>(srs: &Self::SRS, input: &[T], default: T) -> Vec<Vec<T>>;
@@ -33,16 +35,19 @@ pub trait KZH<E: Pairing> where <E as Pairing>::ScalarField: Absorb {
 
     fn setup<R: Rng>(maximum_degree: usize, rng: &mut R) -> Self::SRS;
 
-    fn commit(
+    fn commit<R: Rng>(
         srs: &Self::SRS,
         poly: &MultilinearPolynomial<E::ScalarField>,
-    ) -> Self::Commitment;
+        rng: &mut R
+    ) -> (Self::Commitment, Self::Aux);
 
-    fn open(
+    fn open<R: Rng>(
         srs: &Self::SRS,
         input: &[E::ScalarField],
         com: &Self::Commitment,
+        aux: &Self::Aux,
         poly: &MultilinearPolynomial<E::ScalarField>,
+        rng: &mut R
     ) -> Self::Opening;
 
     fn verify(

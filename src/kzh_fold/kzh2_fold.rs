@@ -6,7 +6,7 @@ use ark_poly::EvaluationDomain;
 use ark_serialize::CanonicalSerialize;
 use ark_std::UniformRand;
 use ark_std::{end_timer, start_timer};
-use rand::{Rng, RngCore};
+use rand::{thread_rng, Rng, RngCore};
 use rayon::iter::IndexedParallelIterator;
 use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
@@ -481,12 +481,12 @@ impl<E: Pairing> Accumulator2<E> {
         let z2 = polynomial2.evaluate(&input_2);
 
         // commit to the polynomial
-        let com1 = KZH2::commit(&srs.pc_srs, &polynomial1);
-        let com2 = KZH2::commit(&srs.pc_srs, &polynomial2);
+        let (com1, aux1) = KZH2::commit(&srs.pc_srs, &polynomial1, rng);
+        let (com2, aux2) = KZH2::commit(&srs.pc_srs, &polynomial2, rng);
 
         // open the commitment
-        let open1 = KZH2::open(&srs.pc_srs, input_1.as_slice(), &com1, &polynomial1);
-        let open2 = KZH2::open(&srs.pc_srs, input_2.as_slice(), &com2, &polynomial2);
+        let open1 = KZH2::open(&srs.pc_srs, input_1.as_slice(), &com1, &aux1, &polynomial1, rng);
+        let open2 = KZH2::open(&srs.pc_srs, input_2.as_slice(), &com2, &aux2, &polynomial2, rng);
 
         // verify the proof
         KZH2::verify(&srs.pc_srs, &input_1, &z1, &com1, &open1);

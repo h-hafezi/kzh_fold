@@ -14,6 +14,9 @@ use derivative::Derivative;
 use rand::Rng;
 use std::marker::PhantomData;
 use std::ops::Mul;
+use crate::kzh::kzh2::{KZH2Aux, KZH2Commitment};
+use crate::kzh::kzh3::KZH3Aux;
+use ark_ec::CurveGroup;
 
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize, Derivative)]
 pub struct KZH4<E: Pairing> {
@@ -46,6 +49,7 @@ pub struct KZH4SRS<E: Pairing> {
 
 #[derive(Clone, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize, Derivative)]
 pub struct KZH4Opening<E: Pairing> {
+    pub D_x: Vec<E::G1>,
     pub D_y: Vec<E::G1>,
     pub D_z: Vec<E::G1>,
     pub f_star: MultilinearPolynomial<E::ScalarField>,
@@ -63,6 +67,19 @@ pub struct KZH4Opening<E: Pairing> {
 )]
 pub struct KZH4Commitment<E: Pairing> {
     pub C: E::G1Affine,
+}
+
+#[derive(
+    Default,
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    CanonicalSerialize,
+    CanonicalDeserialize,
+    Derivative
+)]
+pub struct KZH4Aux<E: Pairing> {
     pub D_x: Vec<E::G1>,
     pub D_xy: Vec<E::G1>,
 }
@@ -75,6 +92,7 @@ where
     type Degree = (usize, usize, usize, usize);
     type SRS = KZH4SRS<E>;
     type Commitment = KZH4Commitment<E>;
+    type Aux = KZH4Aux<E>;
     type Opening = KZH4Opening<E>;
 
     fn split_input<T: Clone>(srs: &Self::SRS, input: &[T], default: T) -> Vec<Vec<T>> {
@@ -168,7 +186,7 @@ where
         }
     }
 
-    fn commit(srs: &Self::SRS, poly: &MultilinearPolynomial<E::ScalarField>) -> Self::Commitment {
+    fn commit<R: Rng>(srs: &Self::SRS, poly: &MultilinearPolynomial<E::ScalarField>, _: &mut R) -> (Self::Commitment, Self::Aux) {
         let len = srs.degree_x.log_2() + srs.degree_y.log_2() + srs.degree_z.log_2() + srs.degree_t.log_2();
         let poly = poly.extend_number_of_variables(len);
 
@@ -197,14 +215,16 @@ where
                 )
             }).collect::<Vec<_>>();
 
-        KZH4Commitment { C, D_x, D_xy }
+        (KZH4Commitment { C }, KZH4Aux { D_x, D_xy })
     }
 
-    fn open( 
+    fn open<R: Rng>(
         srs: &Self::SRS,
         input: &[E::ScalarField],
         com: &Self::Commitment,
-        poly: &MultilinearPolynomial<E::ScalarField>
+        aux: &Self::Aux,
+        poly: &MultilinearPolynomial<E::ScalarField>,
+        _: &mut R,
     ) -> Self::Opening {
         let len = srs.degree_x.log_2() + srs.degree_y.log_2() + srs.degree_z.log_2() + srs.degree_t.log_2();
         let poly = poly.extend_number_of_variables(len);
@@ -220,7 +240,7 @@ where
 
         // Group D_xy elements by column index modulo srs.degree_x
         let mut grouped_D_xy = vec![Vec::new(); srs.degree_y];
-        for (j, val) in com.D_xy.iter().enumerate() {
+        for (j, val) in aux.D_xy.iter().enumerate() {
             let i = j % srs.degree_x;
             grouped_D_xy[i].push(*val);
         }
@@ -262,6 +282,7 @@ where
         }.as_slice());
 
         KZH4Opening {
+            D_x: aux.D_x.clone(),
             D_y,
             D_z,
             f_star,
@@ -272,14 +293,14 @@ where
         let split_input = Self::split_input(&srs, input, E::ScalarField::ZERO);
 
         // making sure D_x is well-formatted
-        let lhs = E::multi_pairing(&com.D_x, &srs.V_x).0;
+        let lhs = E::multi_pairing(&open.D_x, &srs.V_x).0;
         let rhs = E::pairing(com.C, &srs.v).0;
 
         assert_eq!(lhs, rhs);
 
         // making sure D_y is well formatted
         let new_c = E::G1::msm(
-            &com.D_x.iter().map(|e| e.clone().into()).collect::<Vec<_>>().as_slice(),
+            &open.D_x.iter().map(|e| e.clone().into()).collect::<Vec<_>>().as_slice(),
             EqPolynomial::new(split_input[0].to_vec()).evals().as_slice(),
         ).unwrap();
 
@@ -327,8 +348,19 @@ where
     }
 }
 
+impl<E: Pairing, F: PrimeField + Absorb> AppendToTranscript<F> for KZH4Aux<E>
+where
+    E: Pairing<ScalarField=F>,
+    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
+{
+    fn append_to_transcript(&self, label: &'static [u8], transcript: &mut Transcript<F>) {
+
+    }
+}
+
+
 impl<E: Pairing> ToAffine<E> for KZH4Commitment<E> {
-    fn to_affine(self) -> E::G1Affine {
+    fn to_affine(&self) -> E::G1Affine {
         self.C
     }
 }
@@ -351,6 +383,32 @@ fn decompose_index(i: usize, degree_y: usize, degree_z: usize, degree_t: usize) 
     let i_t = remainder % degree_t;
 
     (i_x, i_y, i_z, i_t)
+}
+
+impl<E: Pairing> KZH4Commitment<E> {
+    /// Scales the commitment by a scalar `r`
+    pub fn scale_by_r(&mut self, r: &E::ScalarField) {
+        // Scale the main commitment C by r
+        let scaled_C = self.C.mul(r); // G1Affine -> G1Projective when multiplied by scalar
+
+        // Update the commitment with the scaled values
+        self.C = scaled_C.into_affine();  // Convert back to G1Affine after multiplication
+    }
+}
+
+impl<E: Pairing> KZH4Aux<E> {
+    /// Scales the auxiliary elements by a scalar `r`
+    pub fn scale_by_r(&mut self, r: &E::ScalarField) {
+        // Scale each element in the aux vector by r
+        let scaled_D_x: Vec<E::G1> = self.D_x.iter()
+            .map(|element| element.mul(r))  // Multiply each element in aux by r
+            .collect();
+        let scaled_D_xy: Vec<E::G1> = self.D_xy.iter()
+            .map(|element| element.mul(r))  // Multiply each element in aux by r
+            .collect();
+        self.D_x = scaled_D_x;
+        self.D_xy = scaled_D_xy;
+    }
 }
 
 
@@ -379,10 +437,10 @@ mod tests {
         let eval = polynomial.evaluate(input.as_slice());
 
         // commit to the polynomial
-        let com = KZH4::commit(&srs, &polynomial);
+        let (com, aux) = KZH4::commit(&srs, &polynomial, &mut thread_rng());
 
         // open it
-        let open = KZH4::open(&srs, input.as_slice(), &com, &polynomial);
+        let open = KZH4::open(&srs, input.as_slice(), &com, &aux, &polynomial, &mut thread_rng());
 
         // verify the commit
        KZH4::verify(&srs, input.as_slice(), &eval, &com, &open);

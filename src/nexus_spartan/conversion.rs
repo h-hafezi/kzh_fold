@@ -18,6 +18,7 @@ use ark_ff::PrimeField;
 use ark_relations::r1cs::ConstraintSystemRef;
 use std::error::Error;
 use std::fmt::Display;
+use rand::thread_rng;
 use crate::kzh::KZH;
 
 #[derive(Debug)]
@@ -109,12 +110,13 @@ where
 
         let poly_W = MultilinearPolynomial::new(witness);
         let commit_timer = start_timer!(|| "Instance conversion (commit to witness)");
-        let comm_W = PC::commit(&key,&poly_W);
+        let (comm_W, aux_W) = PC::commit(&key,&poly_W, &mut thread_rng());
         end_timer!(commit_timer);
 
         CRR1CSInstance {
             input: Assignment::new(&pub_io[1..]).unwrap(),
             comm_W,
+            aux_W,
         }
     }
 }

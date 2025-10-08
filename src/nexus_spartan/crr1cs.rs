@@ -3,6 +3,7 @@ use ark_ec::pairing::Pairing;
 use ark_ff::{Field, PrimeField};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::{test_rng, One};
+use rand::thread_rng;
 use crate::kzh::KZH;
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 
@@ -33,6 +34,7 @@ where
 {
     pub input: InputsAssignment<E::ScalarField>,
     pub comm_W: PC::Commitment,
+    pub aux_W: PC::Aux,
 }
 
 #[derive(Clone)]
@@ -126,7 +128,7 @@ pub fn check_commitments<E: Pairing, PC: KZH<E>>(
 
     let poly_W = MultilinearPolynomial::new(W);
 
-    let expected_comm_W = PC::commit(&key, &poly_W);
+    let (expected_comm_W, _) = PC::commit(&key, &poly_W, &mut thread_rng());
 
     expected_comm_W == *comm_W
 }
@@ -193,7 +195,8 @@ pub fn produce_synthetic_crr1cs<E: Pairing, PC: KZH<E>>(
         shape,
         CRR1CSInstance::<E, PC> {
             input: inputs,
-            comm_W,
+            comm_W: comm_W.0,
+            aux_W: comm_W.1,
         },
         CRR1CSWitness::<E::ScalarField> {
             W: vars.clone(),

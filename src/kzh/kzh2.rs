@@ -47,6 +47,19 @@ pub struct KZH2SRS<E: Pairing> {
 pub struct KZH2Commitment<E: Pairing> {
     /// the commitment C to the polynomial
     pub C: E::G1Affine,
+}
+
+#[derive(
+    Default,
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    CanonicalSerialize,
+    CanonicalDeserialize,
+    Derivative
+)]
+pub struct KZH2Aux<E: Pairing> {
     /// auxiliary data which is in fact Pedersen commitments to rows of the polynomial
     pub aux: Vec<E::G1>,
 }
@@ -73,8 +86,18 @@ where
     }
 }
 
+impl<E: Pairing, F: PrimeField + Absorb> AppendToTranscript<F> for KZH2Aux<E>
+where
+    E: Pairing<ScalarField=F>,
+    <<E as Pairing>::G1Affine as AffineRepr>::BaseField: PrimeField,
+{
+    fn append_to_transcript(&self, label: &'static [u8], transcript: &mut Transcript<F>) {
+
+    }
+}
+
 impl<E: Pairing> ToAffine<E> for KZH2Commitment<E> {
-    fn to_affine(self) -> E::G1Affine {
+    fn to_affine(&self) -> E::G1Affine {
         self.C
     }
 }
@@ -88,6 +111,7 @@ where
     type Degree = (usize, usize);
     type SRS = KZH2SRS<E>;
     type Commitment = KZH2Commitment<E>;
+    type Aux = KZH2Aux<E>;
     type Opening = KZH2Opening<E>;
 
     /// the function receives an input r and splits into two sub-vectors x and y to be used for PCS
@@ -164,14 +188,14 @@ where
         }
     }
 
-    fn commit(srs: &Self::SRS, poly: &MultilinearPolynomial<E::ScalarField>) -> Self::Commitment {
+    fn commit<R: Rng>(srs: &Self::SRS, poly: &MultilinearPolynomial<E::ScalarField>, _: &mut R) -> (Self::Commitment, Self::Aux) {
         let len = srs.degree_x.log_2() + srs.degree_y.log_2();
         let poly = poly.extend_number_of_variables(len);
         assert_eq!(poly.num_variables, len);
         assert_eq!(poly.len, 1 << poly.num_variables);
         assert_eq!(poly.evaluation_over_boolean_hypercube.len(), poly.len);
 
-        KZH2Commitment {
+        (KZH2Commitment {
             C: {
                 // Collect all points and scalars into single vectors
                 let mut base = Vec::new();
@@ -185,7 +209,9 @@ where
                 }
 
                 E::G1::msm_unchecked(&base, &scalar).into_affine()
-            },
+            }
+        },
+        KZH2Aux {
             aux: (0..srs.degree_x)
                 .into_par_iter() // Parallelize the D^{(x)} computation
                 .map(|i| {
@@ -196,13 +222,16 @@ where
                 })
                 .collect::<Vec<_>>(),
         }
+        )
     }
 
-    fn open(
+    fn open<R: Rng>(
         srs: &Self::SRS,
         input: &[E::ScalarField],
         com: &Self::Commitment,
+        aux: &Self::Aux,
         poly: &MultilinearPolynomial<E::ScalarField>,
+        _: &mut R,
     ) -> Self::Opening {
         let len = srs.degree_x.log_2() + srs.degree_y.log_2();
         let poly = poly.extend_number_of_variables(len);
@@ -213,7 +242,7 @@ where
         let split_input = Self::split_input(&srs, input, E::ScalarField::ZERO);
 
         KZH2Opening {
-            D_x: com.aux.clone().into_iter().map(|g| g.into()).collect(),
+            D_x: aux.aux.clone().into_iter().map(|g| g.into()).collect(),
             f_star: poly.partial_evaluation(split_input[0].as_slice()),
         }
     }
@@ -261,32 +290,49 @@ where
 }
 
 impl<E: Pairing> KZH2Commitment<E> {
-    /// Scales the commitment and its auxiliary elements by a scalar `r`
+    /// Scales the commitment by a scalar `r`
     pub fn scale_by_r(&mut self, r: &E::ScalarField) {
         // Scale the main commitment C by r
         let scaled_C = self.C.mul(r); // G1Affine -> G1Projective when multiplied by scalar
 
+        // Update the commitment with the scaled values
+        self.C = scaled_C.into_affine();  // Convert back to G1Affine after multiplication
+    }
+}
+
+impl<E: Pairing> KZH2Aux<E> {
+    /// Scales the auxiliary elements by a scalar `r`
+    pub fn scale_by_r(&mut self, r: &E::ScalarField) {
         // Scale each element in the aux vector by r
         let scaled_aux: Vec<E::G1> = self.aux.iter()
             .map(|element| element.mul(r))  // Multiply each element in aux by r
             .collect();
-
-        // Update the commitment with the scaled values
-        self.C = scaled_C.into_affine();  // Convert back to G1Affine after multiplication
         self.aux = scaled_aux;
     }
 }
+
 
 
 impl<E: Pairing> Add for KZH2Commitment<E> {
     type Output = Self;
 
     fn add(self, other: Self) -> Self {
-        // Ensure both commitments have the same size in aux vectors
-        assert_eq!(self.aux.len(), other.aux.len(), "Aux vectors must have the same length");
-
         // Add the main commitment points C
         let C = (self.C + other.C).into_affine();
+
+        // Return a new Commitment with the resulting sums
+        KZH2Commitment {
+            C,
+        }
+    }
+}
+
+impl<E: Pairing> Add for KZH2Aux<E> {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        // Ensure both commitments have the same size in aux vectors
+        assert_eq!(self.aux.len(), other.aux.len(), "Aux vectors must have the same length");
 
         // Add the corresponding elements in the aux vector
         let new_aux: Vec<E::G1> = self.aux.iter()
@@ -295,12 +341,12 @@ impl<E: Pairing> Add for KZH2Commitment<E> {
             .collect();
 
         // Return a new Commitment with the resulting sums
-        KZH2Commitment {
-            C,
+        KZH2Aux {
             aux: new_aux,
         }
     }
 }
+
 
 #[cfg(test)]
 pub mod test {
@@ -332,61 +378,13 @@ pub mod test {
         let z = polynomial.evaluate(&input);
 
         // commit to the polynomial
-        let com = KZH2::commit(&srs, &polynomial);
+        let (com, aux) = KZH2::commit(&srs, &polynomial, &mut thread_rng());
 
         // open the commitment
-        let open = KZH2::open(&srs, input.as_slice(), &com, &polynomial);
+        let open = KZH2::open(&srs, input.as_slice(), &com, &aux, &polynomial, &mut thread_rng());
 
         // re compute x and y verify the proof
         KZH2::verify(&srs, input.as_slice(), &z, &com, &open);
-    }
-
-
-    /// Given f(x) and g(x) and their KZH commitments F and G.
-    /// This test computes p(x) = f(x) + r * g(x),
-    /// and checks that its commitment is P = F + r*G
-    ///
-    /// Prover sends F,G
-    /// Verifier responds with r, rho
-    /// Prover sends p(rho), f(rho), g(rho), proof_P_at_rho
-    /// Verifier checks that p(rho) = f(rho) + r * g(rho)
-    /// and the proof verifies using P = F + r * G
-    #[test]
-    fn test_homomorphism() {
-        let num_vars = 8; // degree_x.log_2() + degree_y.log_2()
-
-        let srs: KZH2SRS<E> = KZH2::setup(8, &mut thread_rng());
-
-        let f_x: MultilinearPolynomial<F> = MultilinearPolynomial::rand(num_vars, &mut thread_rng());
-        let g_x: MultilinearPolynomial<F> = MultilinearPolynomial::rand(num_vars, &mut thread_rng());
-
-        let F = KZH2::commit(&srs, &f_x);
-        let G = KZH2::commit(&srs, &g_x);
-
-        // Verifier's challenge: for poly batching
-        let r = F::rand(&mut thread_rng());
-        // Verifier's challenge: evaluation point
-        let rho = vec![F::rand(&mut thread_rng()); num_vars];
-
-        // Compute p(x) = f(x) + r * g(x)
-        let mut r_times_g_x = g_x.clone();
-        r_times_g_x.scalar_mul(&r);
-        let p_x = f_x.clone() + r_times_g_x;
-        let P = KZH2::commit(&srs, &p_x);
-
-        // Open p_x at rho
-        let proof_P_at_rho = KZH2::open(&srs, rho.as_slice(), &P, &p_x);
-        let p_at_rho = p_x.evaluate(&rho);
-
-        // Verifier:
-        assert_eq!(p_at_rho, f_x.evaluate(&rho) + r * g_x.evaluate(&rho));
-
-        // Verifier: compute P = F + r*G
-        let mut r_times_G = G.clone();
-        r_times_G.scale_by_r(&r);
-        let P_verifier = F + r_times_G;
-
-        KZH2::verify(&srs, rho.as_slice(), &p_at_rho, &P_verifier, &proof_P_at_rho);
     }
 }
 

@@ -16,6 +16,7 @@ use crate::transcript::transcript::{AppendToTranscript, Transcript};
 use ark_ec::pairing::Pairing;
 use ark_ff::PrimeField;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
+use rand::thread_rng;
 use crate::kzh::KZH;
 
 #[derive(CanonicalSerialize, CanonicalDeserialize, Debug)]
@@ -249,6 +250,7 @@ impl<E: Pairing<ScalarField=F>, PC: KZH<E>, F: PrimeField + Absorb> CRR1CSProof<
         let CRR1CSInstance {
             input,
             comm_W,
+            aux_W,
         } = instance;
 
         let CRR1CSWitness { W: vars } = witness;
@@ -349,17 +351,19 @@ impl<E: Pairing<ScalarField=F>, PC: KZH<E>, F: PrimeField + Absorb> CRR1CSProof<
         );
         timer_sc_proof_phase2.stop();
 
-        let timer_polyeval = Timer::new("polyeval");
+        let timer_polyeval = Timer::new("poly eval");
         let eval_vars_at_ry = poly_vars.evaluate(&ry[1..]);
         timer_polyeval.stop();
 
-        let timer_polyevalproof = Timer::new("polyevalproof");
+        let timer_polyevalproof = Timer::new("poly eval proof");
         let proof_eval_vars_at_ry = {
             PC::open(
                 &srs,
                 &ry[1..],
                 comm_W,
+                aux_W,
                 &poly_vars,
+                &mut thread_rng(),
             )
         };
 
@@ -392,6 +396,7 @@ impl<E: Pairing<ScalarField=F>, PC: KZH<E>, F: PrimeField + Absorb> CRR1CSProof<
         let CRR1CSInstance {
             input,
             comm_W,
+            aux_W,
         } = instance;
 
         let input = input.assignment.as_slice();

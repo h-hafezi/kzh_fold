@@ -242,7 +242,7 @@ impl<E: Pairing> Accumulator3<E> {
         let split_input = KZH3::split_input(&srs.pc_srs, input, E::ScalarField::ZERO);
 
         Acc3Witness {
-            D_x: com.D_x,
+            D_x: proof.D_x,
             D_y: proof.D_y,
             tree_x: EqTree::new(split_input[0].as_slice()),
             tree_y: EqTree::new(split_input[1].as_slice()),
@@ -621,9 +621,9 @@ impl<E: Pairing<ScalarField=F>, F: PrimeField + Absorb> Accumulator3<E> {
 
         let output = polynomial.evaluate(input.as_slice());
 
-        let commitment = KZH3::commit(&srs.pc_srs, &polynomial);
+        let (commitment, aux) = KZH3::commit(&srs.pc_srs, &polynomial, &mut thread_rng());
 
-        let opening = KZH3::open(&srs.pc_srs, input.as_slice(), &commitment, &polynomial);
+        let opening = KZH3::open(&srs.pc_srs, input.as_slice(), &commitment, &aux, &polynomial, &mut thread_rng());
 
         // Convert proof to instance and witness
         let acc_instance = Accumulator3::proof_to_accumulator_instance(
