@@ -4,6 +4,7 @@ use ark_ff::{Field, PrimeField};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::{test_rng, One};
 use rand::thread_rng;
+use crate::constant_for_curves::E;
 use crate::kzh::KZH;
 use crate::polynomial::multilinear_poly::multilinear_poly::MultilinearPolynomial;
 
@@ -34,22 +35,25 @@ where
 {
     pub input: InputsAssignment<E::ScalarField>,
     pub comm_W: PC::Commitment,
-    pub aux_W: PC::Aux,
 }
 
 #[derive(Clone)]
-pub struct CRR1CSWitness<F: PrimeField> {
-    pub W: VarsAssignment<F>,
+pub struct CRR1CSWitness<E: Pairing, PC: KZH<E>>
+where
+    <E as Pairing>::ScalarField: Absorb,
+{
+    pub W: VarsAssignment<E::ScalarField>,
+    pub aux_W: PC::Aux,
 }
 
 pub fn relaxed_r1cs_is_sat<E: Pairing, PC: KZH<E>>(
     shape: &CRR1CSShape<E::ScalarField>,
     instance: &CRR1CSInstance<E, PC>,
-    witness: &CRR1CSWitness<E::ScalarField>,
+    witness: &CRR1CSWitness<E, PC>,
 ) -> Result<bool, R1CSError> where
     <E as Pairing>::ScalarField: Absorb,
 {
-    let CRR1CSWitness { W } = witness;
+    let CRR1CSWitness { W, .. } = witness;
     let CRR1CSInstance { input, .. } = instance;
     let CRR1CSShape { inst } = shape;
     if W.assignment.len() > inst.inst.get_num_vars() {
@@ -116,12 +120,12 @@ pub fn relaxed_r1cs_is_sat<E: Pairing, PC: KZH<E>>(
 
 pub fn check_commitments<E: Pairing, PC: KZH<E>>(
     instance: &CRR1CSInstance<E, PC>,
-    witness: &CRR1CSWitness<E::ScalarField>,
+    witness: &CRR1CSWitness<E, PC>,
     key: &PC::SRS,
 ) -> bool where
     <E as Pairing>::ScalarField: Absorb,
 {
-    let CRR1CSWitness { W } = witness;
+    let CRR1CSWitness { W, .. } = witness;
     let CRR1CSInstance { comm_W, .. } = instance;
 
     let W = W.assignment.clone();
@@ -136,7 +140,7 @@ pub fn check_commitments<E: Pairing, PC: KZH<E>>(
 pub fn is_sat<E: Pairing, PC: KZH<E>>(
     shape: &CRR1CSShape<E::ScalarField>,
     instance: &CRR1CSInstance<E, PC>,
-    witness: &CRR1CSWitness<E::ScalarField>,
+    witness: &CRR1CSWitness<E, PC>,
     key: &PC::SRS,
 ) -> Result<bool, R1CSError> where
     <E as Pairing>::ScalarField: Absorb,
@@ -156,7 +160,7 @@ pub fn produce_synthetic_crr1cs<E: Pairing, PC: KZH<E>>(
 ) -> (
     CRR1CSShape<E::ScalarField>,
     CRR1CSInstance<E, PC>,
-    CRR1CSWitness<E::ScalarField>,
+    CRR1CSWitness<E, PC>,
     CRSNARKKey<E, PC>,
 ) where
     <E as Pairing>::ScalarField: Absorb,
@@ -196,10 +200,10 @@ pub fn produce_synthetic_crr1cs<E: Pairing, PC: KZH<E>>(
         CRR1CSInstance::<E, PC> {
             input: inputs,
             comm_W: comm_W.0,
-            aux_W: comm_W.1,
         },
-        CRR1CSWitness::<E::ScalarField> {
+        CRR1CSWitness::<E, PC> {
             W: vars.clone(),
+            aux_W: comm_W.1,
         },
         gens,
     )

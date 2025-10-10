@@ -204,6 +204,7 @@ mod test {
     use ark_relations::r1cs::{ConstraintSystem, SynthesisMode};
     use ark_serialize::CanonicalSerialize;
     use rand::thread_rng;
+    use crate::nexus_spartan::conversion::convert_crr1cs;
 
     #[test]
     fn test_kzh2_augmented_circuit() {
@@ -410,8 +411,7 @@ mod test {
         let min_num_vars = CRSNARKKey::<E, KZH2<E>>::get_min_num_vars(shape.get_num_cons(), shape.get_num_vars(), shape.get_num_inputs());
         let SRS: KZH2SRS<E> = KZH2::setup(min_num_vars + 1, &mut thread_rng());
 
-        let instance: CRR1CSInstance<E, KZH2<E>> = CRR1CSInstance::convert(cs.clone(), &SRS);
-        let witness = CRR1CSWitness::<F>::convert(cs.clone());
+        let (instance, witness): (CRR1CSInstance<E, KZH2<E>>, CRR1CSWitness<E, KZH2<E>>) = convert_crr1cs(cs.clone(), &SRS);
 
         let mut new_prover_transcript = Transcript::new(b"example");
         let (proof, rx, ry) = CRR1CSProof::prove(

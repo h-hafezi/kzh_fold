@@ -196,6 +196,8 @@ mod test {
     use crate::kzh3_augmented_circuit::kzh3_augmented_circuit::KZH3AugmentedCircuitVar;
     use crate::kzh3_verifier_circuit::prover::KZH3VerifierCircuitProver;
     use crate::kzh3_verifier_circuit::verifier_circuit::KZH3VerifierVar;
+    use crate::kzh::kzh2::KZH2;
+    use crate::nexus_spartan::conversion::convert_crr1cs;
 
     #[test]
     fn test_kzh3_augmented_circuit() {
@@ -395,8 +397,7 @@ mod test {
         let min_num_vars = CRSNARKKey::<E, KZH3<E>>::get_min_num_vars(shape.get_num_cons(), shape.get_num_vars(), shape.get_num_inputs());
         let SRS: KZH3SRS<E> = KZH3::setup(min_num_vars + 1, &mut thread_rng());
 
-        let instance: CRR1CSInstance<E, KZH3<E>> = CRR1CSInstance::convert(cs.clone(), &SRS);
-        let witness = CRR1CSWitness::<F>::convert(cs.clone());
+        let (instance, witness): (CRR1CSInstance<E, KZH3<E>>, CRR1CSWitness<E, KZH3<E>>) = convert_crr1cs(cs.clone(), &SRS);
 
         let mut new_prover_transcript = Transcript::new(b"example");
         let (proof, rx, ry) = CRR1CSProof::prove(

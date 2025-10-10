@@ -14,7 +14,7 @@ pub mod sparse_polynomial;
 pub mod sumcheck;
 mod timer;
 mod unipoly;
-mod conversion;
+pub mod conversion;
 pub mod sumcheck_circuit;
 pub mod partial_verifier;
 mod sparse_mlpoly;

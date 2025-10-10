@@ -88,52 +88,51 @@ impl<F: PrimeField + Absorb> CRR1CSShape<F> {
     }
 }
 
-impl<PC, E> CRR1CSInstance<E, PC>
+
+pub fn convert_crr1cs<E, PC, G>(
+    cs: ConstraintSystemRef<G::ScalarField>,
+    key: &PC::SRS,
+) -> (CRR1CSInstance<E, PC>, CRR1CSWitness<E, PC>)
 where
-    E: Pairing,
+    E: Pairing<G1Affine = Affine<G>, ScalarField = G::ScalarField>,
     PC: KZH<E>,
     <E as Pairing>::ScalarField: Absorb,
+    G: SWCurveConfig,
 {
-    pub fn convert<G: SWCurveConfig>(
-        cs: ConstraintSystemRef<G::ScalarField>,
-        key: &PC::SRS,
-    ) -> Self where
-        E: Pairing<G1Affine=Affine<G>, ScalarField=G::ScalarField>,
-    {
-        let cs_borrow = cs.borrow().unwrap();
-        let witness = cs_borrow.witness_assignment.clone();
-        let pub_io = cs_borrow.instance_assignment.clone();
+    let cs_borrow = cs.borrow().unwrap();
+    let mut witness = cs_borrow.witness_assignment.clone();
+    let pub_io = cs_borrow.instance_assignment.clone();
 
-        assert!(!pub_io.is_empty(), "instance is empty");
+    assert!(
+        !pub_io.is_empty(),
+        "convert_crr1cs: public input (instance) is empty"
+    );
 
-        // analyze_vector_sparseness("witness", &witness);
+    // Pad witness to the next power of two
+    let next_power_of_two = witness.len().next_power_of_two();
+    witness.resize(next_power_of_two, G::ScalarField::zero());
 
-        let poly_W = MultilinearPolynomial::new(witness);
-        let commit_timer = start_timer!(|| "Instance conversion (commit to witness)");
-        let (comm_W, aux_W) = PC::commit(&key,&poly_W, &mut thread_rng());
-        end_timer!(commit_timer);
+    // Create multilinear polynomial from witness
+    let poly_W = MultilinearPolynomial::new(witness.clone());
 
-        CRR1CSInstance {
-            input: Assignment::new(&pub_io[1..]).unwrap(),
-            comm_W,
-            aux_W,
-        }
-    }
-}
+    // Commit to witness
+    let commit_timer = start_timer!(|| "Converting to CRR1CS instance and witness");
+    let (comm_W, aux_W) = PC::commit(key, &poly_W, &mut thread_rng());
+    end_timer!(commit_timer);
 
-impl<F: PrimeField + Absorb> CRR1CSWitness<F> {
-    pub fn convert(cs: ConstraintSystemRef<F>) -> Self {
-        let cs_borrow = cs.borrow().unwrap();
-        let mut witness = cs_borrow.witness_assignment.clone();
+    // Construct instance
+    let instance = CRR1CSInstance {
+        input: Assignment::new(&pub_io[1..]).unwrap(),
+        comm_W,
+    };
 
-        // Calculate the next power of two for the length of the witness
-        let next_power_of_two = witness.len().next_power_of_two();
+    // Construct witness
+    let witness_struct = CRR1CSWitness {
+        W: Assignment::new(&witness).unwrap(),
+        aux_W,
+    };
 
-        // Pad the witness vector with F::zero() to reach the next power of two
-        witness.resize(next_power_of_two, F::zero());
-
-        CRR1CSWitness { W: Assignment::new(&witness).unwrap() }
-    }
+    (instance, witness_struct)
 }
 
 
@@ -156,6 +155,7 @@ pub mod tests {
     use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef, SynthesisError, SynthesisMode};
     use rand::thread_rng;
     use crate::kzh::KZH;
+    use crate::nexus_spartan::conversion::convert_crr1cs;
 
     type Pedersen = PedersenCommitment<Projective<G1>>;
 
@@ -222,8 +222,7 @@ pub mod tests {
         // convert to the corresponding Spartan types
         let shape = CRR1CSShape::<ScalarField>::convert::<G1>(cs.clone());
         let SRS: KZH2SRS<E> = KZH2::setup(4, &mut thread_rng());
-        let instance: CRR1CSInstance<E, KZH2<E>> = CRR1CSInstance::convert(cs.clone(), &SRS);
-        let witness = CRR1CSWitness::<ScalarField>::convert(cs.clone());
+        let (instance, witness): (CRR1CSInstance<E, KZH2<E>>, CRR1CSWitness::<E, KZH2<E>>) = convert_crr1cs(cs.clone(), &SRS);
         // check that the Spartan instance-witness pair is still satisfying
         assert!(is_sat(&shape, &instance, &witness, &SRS).unwrap());
 

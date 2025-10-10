@@ -166,6 +166,7 @@ pub mod tests {
     use ark_std::UniformRand;
     use rand::thread_rng;
     use crate::kzh::KZH;
+    use crate::nexus_spartan::conversion::convert_crr1cs;
 
     type F = ScalarField;
 
@@ -197,8 +198,7 @@ pub mod tests {
         // convert to the corresponding Spartan types
         let shape = CRR1CSShape::<F>::convert::<G1>(cs.clone());
         let SRS: KZH2SRS<E> = KZH2::setup(4, &mut thread_rng());
-        let instance: CRR1CSInstance<E, KZH2<E>> = CRR1CSInstance::convert(cs.clone(), &SRS);
-        let witness = CRR1CSWitness::<F>::convert(cs.clone());
+        let (instance, witness): (CRR1CSInstance<E, KZH2<E>>, CRR1CSWitness<E, KZH2<E>>) = convert_crr1cs(cs.clone(), &SRS);
         // check that the Spartan instance-witness pair is still satisfying
         assert!(is_sat(&shape, &instance, &witness, &SRS).unwrap());
 

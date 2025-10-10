@@ -240,7 +240,7 @@ impl<E: Pairing<ScalarField=F>, PC: KZH<E>, F: PrimeField + Absorb> CRR1CSProof<
     pub fn prove(
         shape: &CRR1CSShape<F>,
         instance: &CRR1CSInstance<E, PC>,
-        witness: CRR1CSWitness<F>,
+        witness: CRR1CSWitness<E, PC>,
         srs: &PC::SRS,
         transcript: &mut Transcript<F>,
     ) -> (CRR1CSProof<E, PC, F>, Vec<F>, Vec<F>) {
@@ -250,10 +250,9 @@ impl<E: Pairing<ScalarField=F>, PC: KZH<E>, F: PrimeField + Absorb> CRR1CSProof<
         let CRR1CSInstance {
             input,
             comm_W,
-            aux_W,
         } = instance;
 
-        let CRR1CSWitness { W: vars } = witness;
+        let CRR1CSWitness { W: vars, aux_W, } = witness;
 
         let (inst, input, vars) = (&_inst, input.assignment.as_slice(), vars.assignment);
 
@@ -361,7 +360,7 @@ impl<E: Pairing<ScalarField=F>, PC: KZH<E>, F: PrimeField + Absorb> CRR1CSProof<
                 &srs,
                 &ry[1..],
                 comm_W,
-                aux_W,
+                &aux_W,
                 &poly_vars,
                 &mut thread_rng(),
             )
@@ -396,7 +395,6 @@ impl<E: Pairing<ScalarField=F>, PC: KZH<E>, F: PrimeField + Absorb> CRR1CSProof<
         let CRR1CSInstance {
             input,
             comm_W,
-            aux_W,
         } = instance;
 
         let input = input.assignment.as_slice();
