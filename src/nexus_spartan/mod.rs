@@ -9,7 +9,6 @@ pub mod crr1cs;
 pub mod crr1csproof;
 pub mod errors;
 pub mod commitment_traits;
-mod product_tree;
 pub mod r1csinstance;
 pub mod sparse_polynomial;
 pub mod sumcheck;

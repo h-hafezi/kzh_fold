@@ -21,7 +21,7 @@ pub fn get_poseidon_config<F: PrimeField>() -> PoseidonConfig<F> {
     let full_rounds = 8;
     let partial_rounds = 60;
     let alpha = 5;
-    let rate = 4;
+    let rate = 32;
 
     let (ark, mds) = find_poseidon_ark_and_mds::<F>(
         F::MODULUS_BIT_SIZE as u64,

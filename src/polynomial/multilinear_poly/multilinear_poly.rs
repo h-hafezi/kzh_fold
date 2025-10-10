@@ -278,6 +278,20 @@ impl<F: PrimeField> MultilinearPolynomial<F> {
             len: poly1.len,
         }
     }
+
+    pub fn scale_by_r(&self, r: F) -> Self {
+        // Perform element-wise addition over the evaluation vectors
+        let new_evaluation_over_boolean_hypercube: Vec<F> = self.evaluation_over_boolean_hypercube
+            .iter()
+            .map(|cof| r * *cof)
+            .collect();
+
+        MultilinearPolynomial {
+            num_variables: self.num_variables,
+            evaluation_over_boolean_hypercube: new_evaluation_over_boolean_hypercube,
+            len: self.len,
+        }
+    }
 }
 
 #[cfg(test)]

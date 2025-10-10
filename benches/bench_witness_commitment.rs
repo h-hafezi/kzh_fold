@@ -3,9 +3,12 @@
 
 extern crate criterion;
 
+use std::ptr::hash;
 use criterion::{black_box, Criterion, criterion_group, criterion_main};
 use ark_bn254::G1Projective;
+use ark_crypto_primitives::sponge::CryptographicSponge;
 use ark_ec::short_weierstrass::{Affine, Projective};
+use ark_ff::Field;
 use ark_r1cs_std::alloc::{AllocationMode, AllocVar};
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
@@ -23,6 +26,7 @@ use sqrtn_pcs::constant_for_curves::{BaseField, E, G1, G2, ScalarField};
 use sqrtn_pcs::gadgets::non_native::non_native_affine_var::NonNativeAffineVar;
 use sqrtn_pcs::gadgets::non_native::util::cast_field;
 use sqrtn_pcs::hash::pederson::PedersenCommitment;
+use sqrtn_pcs::hash::poseidon::PoseidonHash;
 use sqrtn_pcs::kzh::kzh2::{KZH2, KZH2SRS};
 use sqrtn_pcs::transcript::transcript_var::TranscriptVar;
 
@@ -73,7 +77,9 @@ fn bench_committing_witness(c: &mut Criterion) {
     // Criterion benchmark for PedersenCommitment::commit
     c.bench_function("PedersenCommitment::commit", |b| {
         b.iter(|| {
-            let _c: Projective<G1> = PedersenCommitment::commit(black_box(&pp), black_box(&witness));
+            let mut hash_object: PoseidonHash<ScalarField> = PoseidonHash::new();
+            hash_object.update_sponge(vec![ScalarField::ONE]);
+            let squeezed_field_element: Vec<ScalarField> = hash_object.sponge.squeeze_field_elements(32);
         })
     });
 }
