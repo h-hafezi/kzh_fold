@@ -27,7 +27,7 @@ use ark_serialize::*;
 use core::cmp::max;
 use errors::R1CSError;
 use r1csinstance::{
-    R1CSCommitment, R1CSDecommitment, R1CSInstance,
+    R1CSCommitment, R1CSInstance,
 };
 use crate::kzh::KZH;
 
@@ -40,14 +40,6 @@ where
     comm: R1CSCommitment<E, PC>,
 }
 
-/// `ComputationDecommitment` holds information to decommit `ComputationCommitment`
-#[derive(CanonicalDeserialize, CanonicalSerialize)]
-pub struct ComputationDecommitment<F>
-where
-    F: Sync + CanonicalDeserialize + CanonicalSerialize + PrimeField + Absorb,
-{
-    decomm: R1CSDecommitment<F>,
-}
 
 /// `Assignment` holds an assignment of values to either the inputs or variables in an `Instance`
 #[derive(Clone)]

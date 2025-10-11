@@ -1,5 +1,5 @@
 use super::sparse_mlpoly::{
-    MultiSparseMatPolynomialAsDense, SparseMatEntry, SparseMatPolyCommitment,
+    SparseMatEntry, SparseMatPolyCommitment,
     SparseMatPolyCommitmentKey, SparseMatPolynomial,
 };
 use super::timer::Timer;
@@ -84,13 +84,6 @@ impl<E: Pairing<ScalarField=F>, PC: KZH<E>, F: PrimeField + Absorb> AppendToTran
     }
 }
 
-#[derive(CanonicalDeserialize, CanonicalSerialize)]
-pub struct R1CSDecommitment<F>
-where
-    F: Sync + CanonicalDeserialize + CanonicalSerialize + PrimeField + Absorb,
-{
-    dense: MultiSparseMatPolynomialAsDense<F>,
-}
 
 impl<E: Pairing, PC: KZH<E>> R1CSCommitment<E, PC>
 where

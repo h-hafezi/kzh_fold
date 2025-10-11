@@ -34,30 +34,6 @@ pub struct SparseMatPolynomial<F: PrimeField> {
 }
 
 #[derive(CanonicalDeserialize, CanonicalSerialize)]
-struct AddrTimestamps<F>
-where
-    F: Sync + CanonicalSerialize + CanonicalDeserialize + PrimeField + Absorb,
-{
-    ops_addr_usize: Vec<Vec<usize>>,
-    ops_addr: Vec<MultilinearPolynomial<F>>,
-    read_ts: Vec<MultilinearPolynomial<F>>,
-    audit_ts: MultilinearPolynomial<F>,
-}
-
-#[derive(CanonicalDeserialize, CanonicalSerialize)]
-pub struct MultiSparseMatPolynomialAsDense<F>
-where
-    F: Sync + CanonicalSerialize + CanonicalDeserialize + PrimeField + Absorb,
-{
-    batch_size: usize,
-    val: Vec<MultilinearPolynomial<F>>,
-    row: AddrTimestamps<F>,
-    col: AddrTimestamps<F>,
-    comb_ops: MultilinearPolynomial<F>,
-    comb_mem: MultilinearPolynomial<F>,
-}
-
-#[derive(CanonicalDeserialize, CanonicalSerialize)]
 pub struct SparseMatPolyCommitmentKey<E, PC>
 where
     E: Pairing,
