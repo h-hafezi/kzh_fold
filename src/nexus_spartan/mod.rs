@@ -26,20 +26,8 @@ use ark_ff::{BigInteger, PrimeField};
 use ark_serialize::*;
 use core::cmp::max;
 use errors::R1CSError;
-use r1csinstance::{
-    R1CSCommitment, R1CSInstance,
-};
+use r1csinstance::R1CSInstance;
 use crate::kzh::KZH;
-
-/// `ComputationCommitment` holds a public preprocessed NP statement (e.g., R1CS)
-#[derive(CanonicalSerialize, CanonicalDeserialize)]
-pub struct ComputationCommitment<E: Pairing, PC: KZH<E>>
-where
-    <E as Pairing>::ScalarField: Absorb,
-{
-    comm: R1CSCommitment<E, PC>,
-}
-
 
 /// `Assignment` holds an assignment of values to either the inputs or variables in an `Instance`
 #[derive(Clone)]

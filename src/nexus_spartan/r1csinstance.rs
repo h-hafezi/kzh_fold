@@ -1,6 +1,5 @@
 use super::sparse_mlpoly::{
-    SparseMatEntry, SparseMatPolyCommitment,
-    SparseMatPolyCommitmentKey, SparseMatPolynomial,
+    SparseMatEntry, SparseMatPolynomial,
 };
 use super::timer::Timer;
 use crate::math::Math;
@@ -21,85 +20,6 @@ pub struct R1CSInstance<F: PrimeField + Absorb> {
     pub(crate) A: SparseMatPolynomial<F>,
     pub(crate) B: SparseMatPolynomial<F>,
     pub(crate) C: SparseMatPolynomial<F>,
-}
-
-
-#[derive(CanonicalDeserialize, CanonicalSerialize)]
-pub struct R1CSCommitmentGens<E, PC>
-where
-    E: Pairing,
-    PC: KZH<E>,
-    <E as Pairing>::ScalarField: Absorb,
-{
-    gens: SparseMatPolyCommitmentKey<E, PC>,
-}
-
-impl<E: Pairing, PC: KZH<E>> R1CSCommitmentGens<E, PC>
-where
-    <E as Pairing>::ScalarField: Absorb,
-{
-    pub fn new(
-        SRS: &PC::SRS,
-        num_cons: usize,
-        num_vars: usize,
-        num_inputs: usize,
-        num_nz_entries: usize,
-    ) -> R1CSCommitmentGens<E, PC> {
-        assert!(num_inputs < num_vars);
-        let num_poly_vars_x = num_cons.log_2();
-        let num_poly_vars_y = (2 * num_vars).log_2();
-        let gens =
-            SparseMatPolyCommitmentKey::new(SRS, num_poly_vars_x, num_poly_vars_y, num_nz_entries, 3);
-        R1CSCommitmentGens { gens }
-    }
-    pub fn get_min_num_vars(num_cons: usize, num_vars: usize, num_nz_entries: usize) -> usize {
-        let num_poly_vars_x = num_cons.log_2();
-        let num_poly_vars_y = (2 * num_vars).log_2();
-        SparseMatPolyCommitmentKey::<E, PC>::get_min_num_vars(
-            num_poly_vars_x,
-            num_poly_vars_y,
-            num_nz_entries,
-            3,
-        )
-    }
-}
-
-#[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
-pub struct R1CSCommitment<E: Pairing, PC: KZH<E>>
-where
-    <E as Pairing>::ScalarField: Absorb,
-{
-    num_cons: usize,
-    num_vars: usize,
-    num_inputs: usize,
-    comm: SparseMatPolyCommitment<E, PC>,
-}
-
-impl<E: Pairing<ScalarField=F>, PC: KZH<E>, F: PrimeField + Absorb> AppendToTranscript<F> for R1CSCommitment<E, PC> {
-    fn append_to_transcript(&self, _label: &'static [u8], transcript: &mut Transcript<F>) {
-        transcript.append_u64(b"num_cons", self.num_cons as u64);
-        transcript.append_u64(b"num_vars", self.num_vars as u64);
-        transcript.append_u64(b"num_inputs", self.num_inputs as u64);
-        self.comm.append_to_transcript(b"comm", transcript);
-    }
-}
-
-
-impl<E: Pairing, PC: KZH<E>> R1CSCommitment<E, PC>
-where
-    <E as Pairing>::ScalarField: Absorb,
-{
-    pub fn get_num_cons(&self) -> usize {
-        self.num_cons
-    }
-
-    pub fn get_num_vars(&self) -> usize {
-        self.num_vars
-    }
-
-    pub fn get_num_inputs(&self) -> usize {
-        self.num_inputs
-    }
 }
 
 impl<F: PrimeField + Absorb> R1CSInstance<F> {

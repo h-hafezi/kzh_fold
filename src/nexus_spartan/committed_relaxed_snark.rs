@@ -1,5 +1,4 @@
 #![allow(dead_code)]
-use super::r1csinstance::R1CSCommitmentGens;
 use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::pairing::Pairing;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
@@ -16,7 +15,6 @@ where
     <E as Pairing>::ScalarField: Absorb,
 {
     pub gens_r1cs_sat: PC::SRS,
-    pub gens_r1cs_eval: R1CSCommitmentGens<E, PC>,
 }
 
 impl<E: Pairing, PC: KZH<E>> CRSNARKKey<E, PC>
@@ -37,10 +35,9 @@ where
             max(num_cons, num_vars).log_2(),
             &mut thread_rng(),
         );
-        let gens_r1cs_eval = R1CSCommitmentGens::new(SRS, num_cons, num_vars_padded, num_inputs, num_nz_entries);
+
         CRSNARKKey {
             gens_r1cs_sat,
-            gens_r1cs_eval,
         }
     }
     fn get_num_vars_padded(num_vars: usize, num_inputs: usize) -> usize {
